@@ -22,6 +22,7 @@ export const PAGE_BOARD = "index";
 export const PAGE_CUSTOM_BOARDS = "customBoards";
 export const PAGE_ADMIN = "admin";
 export const PAGE_DASHBOARD = "dashboard";
+export const PAGE_DASHBOARD_BUILDER = "dashboardBuilder";
 export const PAGE_HISTORY = "history";
 export const PAGE_PROCESS_AUDITS = "processAudits";
 export const PAGE_INVENTORY = "inventory";
@@ -30,11 +31,11 @@ export const PAGE_USERS = "users";
 export const PAGE_BIBLIOTECA = "biblioteca";
 export const PAGE_INCIDENCIAS = "incidencias";
 export const PAGE_SYSTEM_SETTINGS = "systemSettings";
-export const PAGE_ARCHIVERO = "archivero";
 export const PAGE_NOT_FOUND = "404";
 
 export const PAGE_ROUTE_SLUGS = {
   [PAGE_DASHBOARD]: "dashboard",
+  [PAGE_DASHBOARD_BUILDER]: "dashboard-builder",
   [PAGE_CUSTOM_BOARDS]: "tableros",
   [PAGE_BOARD]: "creador-de-tableros",
   [PAGE_ADMIN]: "creador-de-tableros",
@@ -51,7 +52,9 @@ export const PAGE_ROUTE_SLUGS = {
 
 export const PAGE_ROUTE_ALIASES = {
   dashboard: PAGE_DASHBOARD,
+  "dashboard-builder": PAGE_DASHBOARD_BUILDER,
   [PAGE_DASHBOARD]: PAGE_DASHBOARD,
+  [PAGE_DASHBOARD_BUILDER]: PAGE_DASHBOARD_BUILDER,
   "mis-tableros": PAGE_CUSTOM_BOARDS,
   "tableros": PAGE_CUSTOM_BOARDS,
   [PAGE_CUSTOM_BOARDS]: PAGE_CUSTOM_BOARDS,
@@ -628,6 +631,7 @@ export const BOARD_OPERATIONAL_CONTEXT_OPTIONS = [
 
 export const NAV_ITEMS = [
   { id: PAGE_DASHBOARD,      label: "Dashboard",           icon: BarChart3,       group: "General",    roles: [ROLE_LEAD, ROLE_SR, ROLE_SSR] },
+  { id: PAGE_DASHBOARD_BUILDER, label: "Dashboard Builder", icon: LayoutDashboard, group: "General",    roles: [ROLE_LEAD, ROLE_SR, ROLE_SSR, ROLE_JR] },
   { id: PAGE_CUSTOM_BOARDS,  label: "Mis tableros",        icon: LayoutDashboard, group: "General",    roles: [ROLE_LEAD, ROLE_SR, ROLE_SSR, ROLE_JR] },
   { id: PAGE_BOARD,          label: "Creador de tableros", icon: ClipboardList,   group: "Producción", roles: [ROLE_LEAD, ROLE_SR, ROLE_SSR] },
   { id: PAGE_HISTORY,        label: "Historial",           icon: CalendarDays,    group: "Admin",      roles: [ROLE_LEAD, ROLE_SR] },
@@ -638,7 +642,6 @@ export const NAV_ITEMS = [
   { id: PAGE_TRANSPORT,      label: "Transporte",          icon: Truck,           group: "Producción", roles: [ROLE_LEAD, ROLE_SR, ROLE_SSR, ROLE_JR] },
   { id: PAGE_BIBLIOTECA,     label: "Biblioteca",          icon: BookOpen,        group: "Recursos",   roles: [ROLE_LEAD, ROLE_SR, ROLE_SSR, ROLE_JR] },
   { id: PAGE_INCIDENCIAS,    label: "Incidencias",         icon: OctagonAlert,    group: "Recursos",   roles: [ROLE_LEAD, ROLE_SR, ROLE_SSR] },
-  { id: PAGE_ARCHIVERO,      label: "Archivero",           icon: Archive,         group: "Recursos",   roles: [ROLE_LEAD, ROLE_SR, ROLE_SSR, ROLE_JR] },
   { id: PAGE_SYSTEM_SETTINGS,label: "Configuración",       icon: PieChart,        group: "Admin",      roles: [ROLE_LEAD, ROLE_SR] },
   { id: PAGE_USERS,          label: "Players",             icon: Users,           group: "Admin",      roles: [ROLE_LEAD, ROLE_SR, ROLE_SSR] },
 ];

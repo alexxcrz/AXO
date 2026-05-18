@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import { isBoardActivityListField } from "../utils/utilidades.jsx";
-import { buildEncryptedCopmecHistoryPackage, triggerCopmecDownload } from "../utils/copmecFiles.js";
+import { isBoardActivityListField, normalizeBoardEvidenceValue, formatPercent } from "../utils/utilidades.jsx";
 import OperationalInspectionRecordModal from "../components/OperationalInspectionRecordModal.jsx";
 
 const HISTORY_WORK_WEEK_DEFAULTS = {
@@ -72,6 +71,20 @@ function monthLabel(monthKey) {
   const safeDate = parseHistoryDate(`${year || "1970"}-${month || "01"}-01`);
   if (!safeDate) return monthKey;
   return safeDate.toLocaleDateString("es-MX", { month: "long", year: "numeric" });
+}
+
+function renderHistoryFieldValue(field, rawValue) {
+  if (field?.type === "evidenceGallery") {
+    const evidences = normalizeBoardEvidenceValue(rawValue);
+    return evidences.length ? `${evidences.length} evidencia(s)` : "Sin evidencia";
+  }
+  if (Array.isArray(rawValue)) {
+    return rawValue.join(", ");
+  }
+  if (rawValue && typeof rawValue === "object") {
+    return String(rawValue.name || rawValue.url || rawValue.label || JSON.stringify(rawValue));
+  }
+  return String(rawValue ?? "");
 }
 
 function getMonthKeyFromWeek(week) {
@@ -381,7 +394,6 @@ export default function HistorialSemanas({ contexto }) {
     deleteWeek,
     pushAppToast,
     Trash2,
-    saveCopmecFileToProfile,
     operationalWorkWeek,
     selectedAreaSectionId,
     selectedAreaSection,
@@ -804,6 +816,23 @@ export default function HistorialSemanas({ contexto }) {
       });
   }, [playerScopedActivities, selectedDayFilter, selectedMonthFilter, selectedYearFilter]);
 
+  const visibleHistorySummary = useMemo(() => {
+    const activities = visibleHistoryActivities;
+    const accumulatedSeconds = activities.reduce((sum, activity) => sum + Number(activity.accumulatedSeconds || 0), 0);
+    const elapsedSeconds = activities.reduce((sum, activity) => {
+      const start = parseHistoryDate(activity.startTime);
+      const end = parseHistoryDate(activity.endTime);
+      if (!start || !end) return sum;
+      const duration = Math.max(0, end.getTime() - start.getTime());
+      return sum + duration / 1000;
+    }, 0);
+    const efficiencyPercent = elapsedSeconds > 0 ? (accumulatedSeconds / elapsedSeconds) * 100 : 0;
+    return {
+      accumulatedSeconds,
+      efficiencyPercent,
+    };
+  }, [visibleHistoryActivities]);
+
   const exportWindow = useMemo(() => {
     return getHistoryExportWindow(effectiveHistoryWeek, playerScopedActivities, historyExportPeriod);
   }, [effectiveHistoryWeek, historyExportPeriod, playerScopedActivities]);
@@ -1049,49 +1078,6 @@ export default function HistorialSemanas({ contexto }) {
       }
       return base;
     });
-  }
-
-  async function downloadHistoryPackageFile() {
-    if (!exportWindow) {
-      pushAppToast("No hay rango de exportación válido.", "danger");
-      return;
-    }
-    const rows = getHistoryExportRows(exportableHistoryActivities);
-    const payload = {
-      format: "COPMEC_HISTORY_V1",
-      generatedAt: new Date().toISOString(),
-      period: {
-        type: exportWindow.periodType,
-        label: exportWindow.label,
-        startDate: exportWindow.start.toISOString(),
-        endDate: exportWindow.end.toISOString(),
-        weekId: effectiveHistoryWeek?.id || "",
-      },
-      filters: {
-        area: selectedAreaTab,
-        board: selectedBoardTab,
-        player: selectedPlayerTab,
-      },
-      summary: {
-        records: rows.length,
-        completed: exportableHistoryActivities.filter((activity) => activity.status === STATUS_FINISHED).length,
-        totalSeconds: exportableHistoryActivities.reduce((sum, activity) => sum + Number(activity.accumulatedSeconds || 0), 0),
-      },
-      rows,
-    };
-
-    try {
-      const encryptedContent = await buildEncryptedCopmecHistoryPackage(payload);
-      const fileSuffix = sanitizeFileNamePart(exportWindow.fileSuffix || "historial");
-      const fileName = `copmec_historial_${fileSuffix || "export"}.copmec`;
-      triggerCopmecDownload(encryptedContent, fileName);
-      pushAppToast(`Se descargó ${fileName}.`, "success");
-      if (typeof saveCopmecFileToProfile === "function") {
-        void saveCopmecFileToProfile({ packageText: encryptedContent, payload, fileName });
-      }
-    } catch (error) {
-      pushAppToast(error?.message || "No se pudo generar el archivo .copmec.", "danger");
-    }
   }
 
   async function exportHistoryToPdf() {
@@ -1546,6 +1532,8 @@ export default function HistorialSemanas({ contexto }) {
                             <span className="chip">{currentWeekStats.total} registros</span>
                             <span className="chip">{currentWeekStats.completed} completadas</span>
                             <span className="chip">{formatDurationClock(historyActivities.reduce((sum, activity) => sum + Number(activity.accumulatedSeconds || 0), 0))}</span>
+                            <span className="chip">Acumulado: {formatDurationClock(visibleHistorySummary.accumulatedSeconds)}</span>
+                            <span className="chip">Eficiencia: {formatPercent(visibleHistorySummary.efficiencyPercent)}</span>
                           </div>
                           <button
                             type="button"
@@ -1586,15 +1574,6 @@ export default function HistorialSemanas({ contexto }) {
                             {historyDetailTab === "checklists"
                               ? (isExportingChecklistPdf ? "Exportando PDF..." : "Exportar PDF")
                               : (isExportingHistoryPdf ? "Exportando PDF..." : "Exportar PDF")}
-                          </button>
-                          <button
-                            type="button"
-                            className="icon-button"
-                            onClick={() => { void downloadHistoryPackageFile(); }}
-                            disabled={historyDetailTab === "checklists" || !exportableHistoryActivities.length}
-                            title="Descargar formato único COPMEC (.copmec)"
-                          >
-                            Descargar .copmec
                           </button>
                           {effectiveHistoryWeek && canEditHistoricalWeekActivities ? (
                             <button type="button" className="icon-button" onClick={() => setEditWeekId(effectiveHistoryWeek.id)}>
@@ -1737,7 +1716,7 @@ export default function HistorialSemanas({ contexto }) {
                                               {dayEntry.activities.map((activity) => (
                                                 <tr key={activity.id}>
                                                   {hasDynamicFields
-                                                    ? dynamicFields.map((field) => <td key={field.id}>{String(activity.rowValues?.[field.id] ?? "")}</td>)
+                                                    ? dynamicFields.map((field) => <td key={field.id}>{renderHistoryFieldValue(field, activity.rowValues?.[field.id])}</td>)
                                                     : (<><td>{activity.areaRoot}</td><td>{activity.boardName || "General"}</td><td>{resolveHistoryActivityLabel(activity)}</td></>)
                                                   }
                                                   <td title={resolveHistoryPlayerLabel(activity)}>{resolveHistoryPlayerLabel(activity)}</td>

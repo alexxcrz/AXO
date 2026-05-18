@@ -120,7 +120,6 @@ function detectRequestedFormats(msg) {
   const t = norm(msg);
   const formats = [];
   if (t.includes("pdf")) formats.push("pdf");
-  if (t.includes(".cop") || t.includes(" cop") || t.includes("formato cop")) formats.push("cop");
   if (t.includes(".doc") || t.includes("word") || t.includes("documento")) formats.push("doc");
   if (t.includes(".xlsx") || t.includes(".xslxs") || t.includes("excel") || t.includes("hoja de calculo") || t.includes("hoja de cálculo")) formats.push("xlsx");
   return [...new Set(formats)];

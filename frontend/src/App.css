@@ -10446,7 +10446,7 @@ tbody tr:hover {
 }
 
 .dashboard-bar-track {
-  background: #1e263b;
+  background: #e6ecf4;
 }
 
 .dashboard-bar-fill {
@@ -10468,12 +10468,12 @@ tbody tr:hover {
   justify-content: space-between;
   align-items: center;
   gap: 0.75rem;
-  color: #f5f7fb;
+  color: #1f2937;
 }
 
 .dashboard-bar-content strong {
   font-size: 0.95rem;
-  color: #a8afc0;
+  color: #475569;
 }
 
 .dashboard-bar-identity {
@@ -10510,8 +10510,8 @@ tbody tr:hover {
   align-items: center;
   padding: 0.72rem 0.8rem;
   border-radius: 0.65rem;
-  background: #1f2940;
-  color: #f5f7fb;
+  background: #f4f6fb;
+  color: #1f2937;
 }
 
 .dashboard-rank-item.highlighted {
@@ -10525,7 +10525,7 @@ tbody tr:hover {
 }
 
 .dashboard-rank-item small {
-  color: rgba(255, 255, 255, 0.82);
+  color: #64748b;
 }
 
 .dashboard-rank-index {
@@ -10534,6 +10534,7 @@ tbody tr:hover {
   border-radius: 50%;
   display: grid;
   place-items: center;
+  background: #4f6d9e;
   color: #ffffff;
   font-weight: 800;
 }
@@ -10558,7 +10559,7 @@ tbody tr:hover {
 .dashboard-progress-metric-track {
   height: 0.42rem;
   border-radius: 999px;
-  background: #1f2940;
+  background: #e2e8f0;
   overflow: hidden;
 }
 
@@ -10613,12 +10614,12 @@ tbody tr:hover {
   align-items: center;
   padding: 0.72rem 0.78rem;
   border-radius: 0.7rem;
-  background: #1f2940;
-  color: #f5f7fb;
+  background: #f4f7fb;
+  color: #1f2937;
 }
 
 .dashboard-pause-card small {
-  color: #bcc4d2;
+  color: #64748b;
 }
 
 .dashboard-pause-icon {

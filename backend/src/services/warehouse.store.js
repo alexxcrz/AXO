@@ -395,12 +395,11 @@ function getWeekName(date) {
 }
 
 function getBoardWeekStart(date) {
-  const base = startOfWeek(date);
-  return new Date(date).getDay() === 0 ? addDays(base, 7) : base;
+  return startOfWeek(date);
 }
 
 function getBoardWeekEnd(date) {
-  return addDays(getBoardWeekStart(date), 5);
+  return addDays(getBoardWeekStart(date), 6);
 }
 
 function formatBoardWeekKey(date) {
@@ -853,6 +852,11 @@ function cloneBoardRowSnapshot(row) {
     responsibleId: responsibleIds[0] || "",
     responsibleIds,
     values: { ...(row?.values ?? EMPTY_OBJECT) },
+    // Preserve UI-level computed or raw fields so backend history contains the board view
+    sourceFields: Array.isArray(row?.sourceFields) ? row.sourceFields : row?.sourceFields || undefined,
+    rowValues: row?.rowValues ?? undefined,
+    rawRecord: row?.rawRecord ?? undefined,
+    rawRowValues: row?.rawRowValues ?? undefined,
   };
 }
 
@@ -924,6 +928,11 @@ function applyAutomatedBoardWeeklyCut(state, referenceDate = new Date()) {
   let nextHistory = Array.isArray(state?.boardWeekHistory) ? [...state.boardWeekHistory] : [];
   let changed = activeWeekKey !== currentWeekKey;
 
+  const isBoardRowActive = (row) => {
+    const status = String(row?.status || "").trim().toLowerCase();
+    return status !== "terminado";
+  };
+
   while (activeWeekKey < currentWeekKey) {
     const archivedAt = new Date().toISOString();
     const existingKeys = new Set(nextHistory.map((snapshot) => `${snapshot.boardId}|${snapshot.weekKey}`));
@@ -934,7 +943,10 @@ function applyAutomatedBoardWeeklyCut(state, referenceDate = new Date()) {
       existingKeys.add(snapshotKey);
       changed = true;
     });
-    nextBoards = nextBoards.map((board) => ({ ...board, rows: [] }));
+    nextBoards = nextBoards.map((board) => ({
+      ...board,
+      rows: (board.rows || []).filter(isBoardRowActive),
+    }));
     activeWeekKey = advanceBoardWeekKey(activeWeekKey);
   }
 
@@ -3879,23 +3891,6 @@ export function updateWarehouseSelfProfile(auth, payload = {}) {
   const currentUser = findWarehouseUserById(auth?.userId);
   if (!currentUser?.isActive) return { ok: false, reason: "auth_required" };
 
-  const normalizedCopmecHistoryFiles = Array.isArray(payload.copmecHistoryFiles)
-    ? payload.copmecHistoryFiles
-      .map((entry, index) => {
-        const id = String(entry?.id || `copmec-${index + 1}`).trim();
-        const fileName = String(entry?.fileName || "archivo.copmec").trim();
-        const importedAt = String(entry?.importedAt || new Date().toISOString()).trim();
-        const periodLabel = String(entry?.periodLabel || "Periodo").trim();
-        const records = Math.max(0, Number(entry?.records || 0));
-        const packageText = String(entry?.packageText || "").trim();
-        if (!id || !fileName || !packageText) return null;
-        if (packageText.length > 2_000_000) return null;
-        return { id, fileName, importedAt, periodLabel, records, packageText };
-      })
-      .filter(Boolean)
-      .slice(0, 20)
-    : (Array.isArray(currentUser.copmecHistoryFiles) ? currentUser.copmecHistoryFiles : []);
-
   const trimmedPatch = {
     name: String(payload.name || "").trim(),
     email: String((payload.username ?? payload.email) || "").trim(),
@@ -3907,7 +3902,6 @@ export function updateWarehouseSelfProfile(auth, payload = {}) {
     birthday: String(payload.birthday || "").trim(),
     photo: String(payload.photo || "").trim(),
     photoThumbnailUrl: String(payload.photoThumbnailUrl || payload.photoThumbnail || "").trim(),
-    copmecHistoryFiles: normalizedCopmecHistoryFiles,
   };
   if (!trimmedPatch.name || !trimmedPatch.email || !trimmedPatch.area || !trimmedPatch.jobTitle) {
     return { ok: false, reason: "invalid_payload" };
@@ -6811,8 +6805,13 @@ export function patchWarehouseBoardRow(auth, boardId, rowId, patch = {}) {
     return { ok: false, reason: "forbidden" };
   }
 
-  const nowIso = new Date().toISOString();
-  const nowTime = new Date(nowIso).toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
+  const now = new Date();
+  const nowIso = now.toISOString();
+  // Use local clock time for time-only fields (start/end watch values) while keeping ISO instant for timestamps.
+  const hours = String(now.getHours()).padStart(2, "0");
+  const minutes = String(now.getMinutes()).padStart(2, "0");
+  const seconds = String(now.getSeconds()).padStart(2, "0");
+  const nowTime = `${hours}:${minutes}:${seconds}`;
   const resolvePauseRule = (reason) => {
     const normalizedReason = normalizeKey(reason);
     const configuredReasons = Array.isArray(currentState.system?.operational?.pauseControl?.reasons)
@@ -7779,4 +7778,44 @@ export function reactivatePostponedTransportRecord(auth, recordId) {
 
   replaceWarehouseState(nextState);
   return { ok: true, recordId: targetId, record: nextRecord };
+}
+
+function normalizeOperationalTemplate(template = {}, fallbackId = null) {
+  return {
+    id: String(template?.id || fallbackId || makeId("oit")).trim(),
+    name: String(template?.name || "Checklist").trim(),
+    version: Number(template?.version || 1) || 1,
+    siteOptions: Array.isArray(template?.siteOptions) ? template.siteOptions : [],
+    sections: Array.isArray(template?.sections) ? template.sections : [],
+    createdAt: template?.createdAt || new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+export function upsertOperationalInspectionTemplate(auth, payload = {}) {
+  const currentUser = findWarehouseUserById(auth?.userId);
+  if (!currentUser?.isActive) return { ok: false, reason: "auth_required" };
+
+  const currentState = getRawWarehouseState();
+  if (!canUserDoWarehouseAction(currentUser, "manageProcessAuditTemplates", currentState.permissions)) {
+    return { ok: false, reason: "forbidden" };
+  }
+
+  const normalized = normalizeOperationalTemplate(payload, payload?.id || null);
+  if (!normalized.name || !Array.isArray(normalized.sections) || !normalized.sections.length) {
+    return { ok: false, reason: "invalid_payload" };
+  }
+
+  const currentTemplates = Array.isArray(currentState.operationalInspectionTemplates) ? currentState.operationalInspectionTemplates : [];
+  const existingIndex = currentTemplates.findIndex((entry) => entry.id === normalized.id);
+  const nextTemplates = existingIndex >= 0
+    ? currentTemplates.map((entry, index) => (index === existingIndex ? { ...entry, ...normalized, updatedAt: new Date().toISOString() } : entry))
+    : [normalized, ...currentTemplates];
+
+  const nextState = {
+    ...currentState,
+    operationalInspectionTemplates: nextTemplates,
+  };
+
+  return { ok: true, state: replaceWarehouseState(nextState), templateId: normalized.id };
 }

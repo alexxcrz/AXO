@@ -168,6 +168,8 @@ app.use("/api/imports", requireAuth, uploadLimiter, importRouter);
 app.use("/api/uploads", requireAuth, uploadLimiter, uploadRouter);
 app.use("/api/biblioteca", requireAuth, bibliotecaRouter);
 app.use("/api/warehouse", requireAuth, warehouseRouter);
+
+// DEBUG: dev-only endpoint to insert a process audit template without auth
 app.use("/api/chat", requireAuth, chatLimiter, chatRouter);
 app.use("/api/copmec-ai", requireAuth, copmecAiRouter);
 

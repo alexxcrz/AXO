@@ -51,9 +51,9 @@ import MisTableros from "./paginas/MisTableros";
 import ConfiguracionSistema from "./paginas/ConfiguracionSistema";
 import PaginaNoEncontrada from "./paginas/PaginaNoEncontrada";
 import PanelIndicadores from "./paginas/PanelIndicadores";
+import DashboardBuilder from "./paginas/DashboardBuilder";
 import TablerosCreados from "./paginas/TablerosCreados";
 import BibliotecaPage from "./paginas/BibliotecaPage";
-import Archivero from "./paginas/Archivero";
 import CopmecAIWidget from "./components/CopmecAIWidget";
 import "./App.css";
 
@@ -111,11 +111,6 @@ import {
   parseBoardStructureImportFile,
 
 } from "./utils/utilidadesImportExcel.js";
-import {
-  buildEncryptedCopmecPackage,
-  sanitizeCopmecFileBaseName,
-  triggerCopmecDownload,
-} from "./utils/copmecFiles.js";
 import { normalizeOperationalInspectionTemplate } from "./utils/operationalInspectionTemplate";
 
 // â”€â”€ Constantes globales â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -130,11 +125,11 @@ import {
 
   ENABLE_LEGACY_WHOLE_STATE_SYNC,
 
-  PAGE_BOARD, PAGE_CUSTOM_BOARDS, PAGE_ADMIN, PAGE_DASHBOARD, PAGE_HISTORY, PAGE_PROCESS_AUDITS,
+  PAGE_BOARD, PAGE_CUSTOM_BOARDS, PAGE_ADMIN, PAGE_DASHBOARD, PAGE_DASHBOARD_BUILDER, PAGE_HISTORY, PAGE_PROCESS_AUDITS,
 
   PAGE_INVENTORY, PAGE_USERS, PAGE_BIBLIOTECA, PAGE_INCIDENCIAS, PAGE_NOT_FOUND,
   PAGE_TRANSPORT,
-  PAGE_SYSTEM_SETTINGS, PAGE_ARCHIVERO,
+  PAGE_SYSTEM_SETTINGS,
 
   PAGE_ROUTE_SLUGS, PAGE_ROUTE_ALIASES, EMPTY_LOGIN_DIRECTORY,
 
@@ -859,6 +854,7 @@ const APP_AREA_SECTIONS = [
   { id: "recepcion-pedidos", label: "RECEPCION DE PEDIDOS", scopes: ["RECEPCION DE PEDIDOS"] },
   { id: "operaciones", label: "OPERACIONES", scopes: ["OPERACIONES"] },
   { id: "mantenimiento", label: "MANTENIMIENTO", scopes: ["MANTENIMIENTO"] },
+  { id: "mejora-continua", label: "MEJORA CONTINUA", scopes: ["MEJORA CONTINUA"] },
   { id: "mayoreo-comercio", label: "MAYOREO / ECOMMERCE / PEDIDOS DETAL", scopes: ["MAYOREO-TELEMARKETING", "ECOMMERCE", "PEDIDOS DETAL"] },
   { id: "retail", label: "RETAIL", scopes: ["RETAIL"] },
   { id: "fullfilment", label: "FULLFILMENT", scopes: ["FULLFILMENT"] },
@@ -877,6 +873,7 @@ const NAV_AREA_ACTION_BY_SECTION = {
   "mayoreo-comercio": "accessNavMayoreo",
   "retail": "accessNavRetail",
   "fullfilment": "accessNavFullfilment",
+  "mejora-continua": "accessNavMejoraContinua",
 };
 
 const NAV_UTILITY_ACTION_BY_GROUP = {
@@ -1019,11 +1016,12 @@ function App() { // NOSONAR
     const urlPage = INITIAL_ROUTE_STATE.page;
     const urlArea = String(INITIAL_ROUTE_STATE.area || "all").trim().toLowerCase();
     if (urlPage && urlPage !== PAGE_DASHBOARD && urlArea !== "all") return urlPage;
+    if (urlArea === "all") return PAGE_DASHBOARD;
     try {
       const saved = localStorage.getItem(ACTIVE_PAGE_KEY);
-      return saved && PAGE_ROUTE_ALIASES[saved] ? PAGE_ROUTE_ALIASES[saved] : urlPage;
+      return saved && PAGE_ROUTE_ALIASES[saved] ? PAGE_ROUTE_ALIASES[saved] : PAGE_DASHBOARD;
     } catch {
-      return urlPage;
+      return PAGE_DASHBOARD;
     }
   });
   const [selectedAreaSectionId, setSelectedAreaSectionId] = useState(() => String(INITIAL_ROUTE_STATE.area || "all").trim() || "all");
@@ -3053,7 +3051,7 @@ function App() { // NOSONAR
     const boardRecords = filteredDashboardRecords.filter((record) => record.source === "board");
     if (!boardRecords.length) return [];
 
-    const boardMap = new Map((dashboardVisibleControlBoards || []).map((board) => [board.id, board]));
+    const boardMap = new Map((dashboardVisibleControlBoards || []).map((board) => [String(board.id || ""), board]));
     const measurableTypes = new Set([
       "number",
       "currency",
@@ -3126,12 +3124,13 @@ function App() { // NOSONAR
     }
 
     boardRecords.forEach((record) => {
-      const board = boardMap.get(record.boardId);
+      const board = boardMap.get(String(record.boardId || "").trim());
       const recordFields = Array.isArray(record.sourceFields) ? record.sourceFields : [];
       const fields = recordFields.length > 0 ? recordFields : (Array.isArray(board?.fields) ? board.fields : []);
+      const rowIdentifier = String(record.rawId || record.rowId || "").trim();
       const rowValues = record.rowValues && typeof record.rowValues === "object"
         ? record.rowValues
-        : ((board?.rows || []).find((entry) => entry.id === record.rawId)?.values || null);
+        : ((board?.rows || []).find((entry) => entry.id === rowIdentifier)?.values || null);
       if (!fields.length || !rowValues) return;
 
       fields.forEach((field) => {
@@ -3198,357 +3197,96 @@ function App() { // NOSONAR
   }, [dashboardVisibleControlBoards, filteredDashboardRecords]);
 
   const dashboardInventoryProductTimeRows = useMemo(() => {
+    // Mostrar LITERALMENTE cada registro del tablero con sus campos REALES
     const inventoryRecords = filteredDashboardRecords.filter((record) => record.source === "board");
     if (!inventoryRecords.length) return [];
 
-    const boardMap = new Map((dashboardVisibleControlBoards || []).map((board) => [board.id, board]));
-    const productKeywords = ["producto", "sku", "articulo", "item", "codigo", "clave", "material", "modelo", "lote", "lot"];
-    const timeKeywords = ["tiempo", "duracion", "min", "revision", "ciclo", "proceso"];
-    const piecesKeywords = ["pieza", "pzas", "pz", "cantidad", "unidades", "qty", "total pz", "contad", "esperad", "buen estado"];
-    const piecesReceivedKeywords = ["recib", "recep", "entrada", "ingreso", "total pz", "esperad", "contad"];
-    const piecesMermaKeywords = ["merma", "mala", "dano", "danad", "defect", "rechazo", "faltan"];
-    const piecesAptasKeywords = ["apta", "buen estado", "real", "ok", "liberada", "buenas"];
-    const palletKeywords = ["tarima", "pallet", "palet"];
-    const processKeywords = ["tipo de flujo", "proceso", "flujo", "clasificacion"];
-    const ignoredTimeLabelKeywords = ["hora inicio", "hora fin", "inicio", "fin"];
-    const aggregated = new Map();
-    const inventoryItemById = new Map((state.inventoryItems || []).map((item) => [String(item.id || ""), item]));
-    const inventoryItemByCode = new Map((state.inventoryItems || []).map((item) => [normalizeToken(item.code), item]));
-
-    function normalizeToken(value) {
-      return String(value || "")
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .toLowerCase();
-    }
-
-    function parseNumericQuantity(rawValue) {
-      if (typeof rawValue === "number") {
-        return Number.isFinite(rawValue) ? rawValue : null;
-      }
-      if (rawValue && typeof rawValue === "object") {
-        const objectCandidates = [rawValue.value, rawValue.total, rawValue.count, rawValue.amount, rawValue.quantity];
-        for (const candidate of objectCandidates) {
-          const parsedCandidate = parseNumericQuantity(candidate);
-          if (Number.isFinite(parsedCandidate)) return parsedCandidate;
-        }
-      }
-      const text = String(rawValue || "").trim();
-      if (!text) return null;
-      const normalized = text
-        .replace(/\s+/g, "")
-        .replace(/\.(?=\d{3}(\D|$))/g, "")
-        .replace(/,(?=\d{3}(\D|$))/g, "")
-        .replace(/,/g, ".");
-      const parsed = Number(normalized);
-      return Number.isFinite(parsed) ? parsed : null;
-    }
-
-    function parseTimeToMinutes(rawValue, fieldType, fieldLabel) {
-      const normalizedType = String(fieldType || "").trim();
-      const normalizedLabel = normalizeToken(fieldLabel);
-
-      if (ignoredTimeLabelKeywords.some((token) => normalizedLabel.includes(token))) return null;
-
-      if (normalizedType === "time") {
-        const rawText = String(rawValue || "").trim();
-        if (!rawText) return null;
-
-        const hhmmssMatch = rawText.match(/^(\d{1,2}):(\d{2}):(\d{2})$/);
-        if (hhmmssMatch) {
-          const hours = Number(hhmmssMatch[1]);
-          const minutes = Number(hhmmssMatch[2]);
-          const seconds = Number(hhmmssMatch[3]);
-          if (!Number.isFinite(hours) || !Number.isFinite(minutes) || !Number.isFinite(seconds)) return null;
-          return (hours * 60) + minutes + (seconds / 60);
-        }
-
-        const hhmmMatch = rawText.match(/^(\d{1,2}):(\d{2})$/);
-        if (hhmmMatch) {
-          const hours = Number(hhmmMatch[1]);
-          const minutes = Number(hhmmMatch[2]);
-          if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return null;
-          return hours * 60 + minutes;
-        }
-
-        const numericMinutes = Number(rawText);
-        return Number.isFinite(numericMinutes) ? numericMinutes : null;
-      }
-
-      if (typeof rawValue === "string" && rawValue.includes(":")) {
-        const timeParts = rawValue.split(":").map((part) => Number(part));
-        if (timeParts.every((part) => Number.isFinite(part)) && (timeParts.length === 2 || timeParts.length === 3)) {
-          const [hours, minutes, seconds = 0] = timeParts;
-          return (hours * 60) + minutes + (seconds / 60);
-        }
-      }
-
-      const numeric = Number(rawValue);
-      if (!Number.isFinite(numeric)) return null;
-
-      if (normalizedLabel.includes("hora")) return numeric * 60;
-      return numeric;
-    }
-
-    function resolveProductDisplay(rawValue) {
-      const rawObject = rawValue && typeof rawValue === "object" ? rawValue : null;
-      if (rawObject) {
-        const lookupLabel = formatInventoryLookupLabel(rawObject);
-        if (lookupLabel) return lookupLabel;
-        const fallbackObjectLabel = String(
-          rawObject.code
-          || rawObject.sku
-          || rawObject.name
-          || rawObject.id
-          || "",
-        ).trim();
-        if (fallbackObjectLabel) return fallbackObjectLabel;
-      }
-
-      let raw = String(rawValue || "").trim();
-      if (!raw) return "";
-
-      if (raw.startsWith("{") && raw.endsWith("}")) {
-        try {
-          const parsed = JSON.parse(raw);
-          if (parsed && typeof parsed === "object") {
-            const parsedLabel = formatInventoryLookupLabel(parsed);
-            if (parsedLabel) return parsedLabel;
-            raw = String(parsed.id || parsed.code || parsed.name || "").trim() || raw;
-          }
-        } catch {
-          // Keep raw value when the string is not valid JSON.
-        }
-      }
-
-      const fromInventory = inventoryItemById.get(raw) || inventoryItemByCode.get(normalizeToken(raw));
-      if (!fromInventory) {
-        return raw;
-      }
-
-      const code = String(fromInventory.code || "").trim();
-      const name = String(fromInventory.name || "").trim();
-      if (code && name) return `${code} - ${name}`;
-      return name || code || raw;
-    }
-
-    function scorePieceCandidate(normalizedLabel) {
-      let score = 0;
-      if (normalizedLabel.includes("contad")) score += 6;
-      if (normalizedLabel.includes("total pz")) score += 5;
-      if (normalizedLabel.includes("cantidad")) score += 4;
-      if (normalizedLabel.includes("esperad")) score += 4;
-      if (normalizedLabel.includes("piezas")) score += 3;
-      if (normalizedLabel.includes("unidades")) score += 2;
-      if (normalizedLabel.includes("por caja")) score -= 4;
-      if (normalizedLabel.includes("merma")) score -= 5;
-      if (normalizedLabel.includes("faltan")) score -= 4;
-      return score;
-    }
-
-    function scoreReceivedCandidate(normalizedLabel) {
-      let score = 0;
-      if (normalizedLabel.includes("total de piezas recibidas")) score += 30;
-      if (normalizedLabel.includes("total piezas recibidas")) score += 28;
-      if (normalizedLabel.includes("total pz recibidas")) score += 26;
-      if (normalizedLabel.includes("recib")) score += 6;
-      if (normalizedLabel.includes("entrada") || normalizedLabel.includes("ingreso")) score += 5;
-      if (normalizedLabel.includes("esperad")) score += 4;
-      if (normalizedLabel.includes("contad")) score += 3;
-      if (normalizedLabel.includes("por caja")) score -= 3;
-      return score;
-    }
-
-    function scoreMermaCandidate(normalizedLabel) {
-      let score = 0;
-      if (normalizedLabel.includes("merma")) score += 8;
-      if (normalizedLabel.includes("rechazo") || normalizedLabel.includes("defect")) score += 6;
-      if (normalizedLabel.includes("faltan")) score += 3;
-      return score;
-    }
-
-    function scoreAptasCandidate(normalizedLabel) {
-      let score = 0;
-      if (normalizedLabel.includes("total pz en buen estado")) score += 30;
-      if (normalizedLabel.includes("total piezas en buen estado")) score += 28;
-      if (normalizedLabel.includes("piezas en buen estado")) score += 24;
-      if (normalizedLabel.includes("buen estado")) score += 8;
-      if (normalizedLabel.includes("apta") || normalizedLabel.includes("buenas")) score += 7;
-      if (normalizedLabel.includes("liberad") || normalizedLabel.includes("ok")) score += 5;
-      if (normalizedLabel.includes("total pz")) score += 2;
-      if (normalizedLabel.includes("merma") || normalizedLabel.includes("faltan")) score -= 6;
-      return score;
-    }
-
-    inventoryRecords.forEach((record) => {
-      const board = boardMap.get(record.boardId);
+    return inventoryRecords.map((record, index) => {
       const recordFields = Array.isArray(record.sourceFields) ? record.sourceFields : [];
-      const fields = recordFields.length > 0 ? recordFields : (Array.isArray(board?.fields) ? board.fields : []);
-      const rowValues = record.rowValues && typeof record.rowValues === "object"
-        ? record.rowValues
-        : ((board?.rows || []).find((entry) => entry.id === record.rawId)?.values || null);
-      if (!fields.length || !rowValues) return;
+      return {
+        key: `${record.id}-${index}`,
+        id: record.id,
+        area: record.area || "Sin área",
+        boardId: String(record.boardId || "").trim() || "sin-tablero",
+        boardName: record.boardName || "Tablero",
+          rowLabel: String(record.label || record.name || "").trim(),
+          rawRecord: record,
+        rowValues: record.rowValues || {},
+        sourceFields: recordFields,
+        durationSeconds: record.durationSeconds || 0,
+        occurredAt: record.occurredAt,
+        responsibleName: record.responsibleName || "Sin responsable",
+      };
+    }).sort((left, right) => new Date(right.occurredAt || 0).getTime() - new Date(left.occurredAt || 0).getTime());
+  }, [filteredDashboardRecords]);
 
-      const fallbackTimeMinutes = Number.isFinite(Number(record.durationSeconds))
-        ? Math.max(0, Number(record.durationSeconds) / 60)
-        : null;
-
-      let productValue = "";
-      let productRawValue = "";
-      let timeMinutes = null;
-      let piecesValue = null;
-      let piecesReceivedValue = null;
-      let piecesMermaValue = null;
-      let piecesAptasValue = null;
-      let tarimaValue = "";
-      let processValue = "";
-      let bestPiecesScore = Number.NEGATIVE_INFINITY;
-      let bestReceivedScore = Number.NEGATIVE_INFINITY;
-      let bestMermaScore = Number.NEGATIVE_INFINITY;
-      let bestAptasScore = Number.NEGATIVE_INFINITY;
-
-      fields.forEach((field) => {
-        const fieldLabel = String(field?.label || "").trim();
-        const normalizedLabel = normalizeToken(fieldLabel);
-        const rawValue = rowValues?.[field.id];
-        const normalizedType = normalizeToken(field?.type || "");
-
-        if (!productValue && (
-          productKeywords.some((token) => normalizedLabel.includes(token))
-          || normalizedType.includes("inventorylookup")
-        )) {
-          const candidateValue = rawValue;
-          const candidateText = String(candidateValue || "").trim();
-          if (candidateValue && (typeof candidateValue === "object" || candidateText)) {
-            productRawValue = candidateText;
-            productValue = resolveProductDisplay(candidateValue);
-          }
-        }
-
-        if (timeMinutes === null && (String(field?.type || "") === "time" || timeKeywords.some((token) => normalizedLabel.includes(token)))) {
-          const parsed = parseTimeToMinutes(rawValue, field?.type, fieldLabel);
-          if (Number.isFinite(parsed) && parsed >= 0) timeMinutes = parsed;
-        }
-
-        const parsedPieces = parseNumericQuantity(rawValue);
-        if (Number.isFinite(parsedPieces) && parsedPieces >= 0) {
-          if (piecesMermaKeywords.some((token) => normalizedLabel.includes(token))) {
-            const score = scoreMermaCandidate(normalizedLabel);
-            if (score >= bestMermaScore) {
-              bestMermaScore = score;
-              piecesMermaValue = parsedPieces;
-            }
-          }
-          if (piecesAptasKeywords.some((token) => normalizedLabel.includes(token))) {
-            const score = scoreAptasCandidate(normalizedLabel);
-            if (score >= bestAptasScore) {
-              bestAptasScore = score;
-              piecesAptasValue = parsedPieces;
-            }
-          }
-          if (piecesReceivedKeywords.some((token) => normalizedLabel.includes(token))) {
-            const score = scoreReceivedCandidate(normalizedLabel);
-            if (score >= bestReceivedScore) {
-              bestReceivedScore = score;
-              piecesReceivedValue = parsedPieces;
-            }
-          }
-          if (piecesKeywords.some((token) => normalizedLabel.includes(token))) {
-            const score = scorePieceCandidate(normalizedLabel);
-            if (score >= bestPiecesScore) {
-              bestPiecesScore = score;
-              piecesValue = parsedPieces;
-            }
-          }
-        }
-
-        if (!tarimaValue && palletKeywords.some((token) => normalizedLabel.includes(token))) {
-          const candidateTarima = String(rawValue || "").trim();
-          if (candidateTarima) tarimaValue = candidateTarima;
-        }
-
-        if (!processValue && processKeywords.some((token) => normalizedLabel.includes(token))) {
-          const processCandidate = String(rawValue || "").trim();
-          if (processCandidate) processValue = processCandidate;
-        }
+  const dashboardProductAggregateRows = useMemo(() => {
+    // Agregación por tarima + producto con tiempo REAL
+    const aggregateMap = new Map();
+    
+    dashboardInventoryProductTimeRows.forEach((row) => {
+      if (!row.rowValues || typeof row.rowValues !== "object") return;
+      if (!Array.isArray(row.sourceFields)) return;
+      
+      // Buscar tarima
+      let tarimValue = "Sin tarima";
+      const tarimField = row.sourceFields.find((f) => {
+        const label = String(f?.label || f?.name || "").toLowerCase();
+        return label.includes("tarima") || label.includes("pallet") || label.includes("palet");
       });
-
-      if (!processValue) {
-        processValue = String(record.operationalContextValue || record.operationalContextLabel || board?.settings?.operationalContextValue || board?.settings?.operationalContextLabel || "General").trim() || "General";
+      if (tarimField && row.rowValues[tarimField.id]) {
+        tarimValue = String(row.rowValues[tarimField.id]);
       }
-
-      if (!Number.isFinite(timeMinutes) && Number.isFinite(fallbackTimeMinutes)) {
-        timeMinutes = fallbackTimeMinutes;
+      
+      // Buscar producto
+      let productValue = "Sin producto";
+      const prodField = row.sourceFields.find((f) => {
+        const label = String(f?.label || f?.name || "").toLowerCase();
+        return label.includes("producto") || label.includes("sku") || label.includes("articulo") || label.includes("item");
+      });
+      if (prodField && row.rowValues[prodField.id]) {
+        productValue = String(row.rowValues[prodField.id]);
       }
-
-      if (!productValue || !Number.isFinite(timeMinutes)) return;
-
-      if (!Number.isFinite(piecesValue)) {
-        if (Number.isFinite(piecesReceivedValue)) {
-          piecesValue = piecesReceivedValue;
-        } else if (Number.isFinite(piecesAptasValue) || Number.isFinite(piecesMermaValue)) {
-          piecesValue = (Number.isFinite(piecesAptasValue) ? piecesAptasValue : 0) + (Number.isFinite(piecesMermaValue) ? piecesMermaValue : 0);
-        }
-      }
-
-      if (Number.isFinite(piecesValue) && piecesValue === 0) {
-        const nonZeroFallback = [piecesReceivedValue, piecesAptasValue, piecesMermaValue].find((value) => Number.isFinite(value) && value > 0);
-        if (Number.isFinite(nonZeroFallback)) piecesValue = nonZeroFallback;
-      }
-
-      const normalizedProduct = normalizeToken(productRawValue || productValue);
-      const normalizedTarima = normalizeToken(tarimaValue || "sin-tarima");
-      const normalizedProcess = normalizeToken(processValue || "general");
-      const resolvedBoardId = String(record.boardId || board?.id || "sin-tablero").trim() || "sin-tablero";
-      const key = `${record.area}::${resolvedBoardId}::${normalizedProcess}::${normalizedProduct}::${normalizedTarima}`;
-      if (!aggregated.has(key)) {
-        aggregated.set(key, {
-          key,
-          area: record.area || "Sin área",
-          boardId: resolvedBoardId,
-          boardName: record.boardName || board?.name || "Tablero",
-          process: processValue || "General",
+      
+      // Calcular tiempo en minutos (usar durationSeconds directamente)
+      const timeMinutes = (row.durationSeconds || 0) / 60;
+      
+      // Clave de agregación: tarima|producto
+      const aggregateKey = `${tarimValue}|${productValue}`;
+      
+      if (!aggregateMap.has(aggregateKey)) {
+        aggregateMap.set(aggregateKey, {
+          key: aggregateKey,
+          tarima: tarimValue,
           product: productValue,
-          tarima: tarimaValue || "Sin tarima",
+          area: row.area,
+          boardId: row.boardId,
+          boardName: row.boardName,
           count: 0,
           totalMinutes: 0,
-          totalPieces: 0,
-          totalReceivedPieces: 0,
-          totalMermaPieces: 0,
-          totalAptasPieces: 0,
-          minMinutes: Number.POSITIVE_INFINITY,
-          maxMinutes: Number.NEGATIVE_INFINITY,
+          minMinutes: Infinity,
+          maxMinutes: -Infinity,
         });
       }
-
-      const item = aggregated.get(key);
-      item.count += 1;
-      item.totalMinutes += timeMinutes;
-      item.totalPieces += Number.isFinite(piecesValue) ? piecesValue : 0;
-      item.totalReceivedPieces += Number.isFinite(piecesReceivedValue) ? piecesReceivedValue : 0;
-      item.totalMermaPieces += Number.isFinite(piecesMermaValue) ? piecesMermaValue : 0;
-      item.totalAptasPieces += Number.isFinite(piecesAptasValue) ? piecesAptasValue : 0;
-      item.minMinutes = Math.min(item.minMinutes, timeMinutes);
-      item.maxMinutes = Math.max(item.maxMinutes, timeMinutes);
+      
+      const entry = aggregateMap.get(aggregateKey);
+      entry.count += 1;
+      entry.totalMinutes += timeMinutes;
+      if (timeMinutes > 0) {
+        entry.minMinutes = Math.min(entry.minMinutes, timeMinutes);
+        entry.maxMinutes = Math.max(entry.maxMinutes, timeMinutes);
+      }
     });
-
-    return Array.from(aggregated.values())
-      .map((item) => ({
-        ...item,
-        averageMinutes: item.count ? item.totalMinutes / item.count : 0,
-        averagePieces: item.count ? item.totalPieces / item.count : 0,
-        averageReceivedPieces: item.count ? item.totalReceivedPieces / item.count : 0,
-        averageMermaPieces: item.count ? item.totalMermaPieces / item.count : 0,
-        averageAptasPieces: item.count ? item.totalAptasPieces / item.count : 0,
+    
+    return Array.from(aggregateMap.values())
+      .map((row) => ({
+        ...row,
+        minMinutes: row.minMinutes === Infinity ? 0 : row.minMinutes,
+        maxMinutes: row.maxMinutes === -Infinity ? 0 : row.maxMinutes,
+        averageMinutes: row.count > 0 ? row.totalMinutes / row.count : 0,
       }))
-      .sort((left, right) => {
-        if (right.totalMinutes !== left.totalMinutes) return right.totalMinutes - left.totalMinutes;
-        if (right.averageMinutes !== left.averageMinutes) return right.averageMinutes - left.averageMinutes;
-        if (left.boardName !== right.boardName) return left.boardName.localeCompare(right.boardName, "es-MX");
-        if (left.process !== right.process) return left.process.localeCompare(right.process, "es-MX");
-        return left.product.localeCompare(right.product, "es-MX");
-      });
-  }, [dashboardVisibleControlBoards, filteredDashboardRecords, state.inventoryItems]);
+      .sort((a, b) => b.totalMinutes - a.totalMinutes);
+  }, [dashboardInventoryProductTimeRows]);
 
   const dashboardAreaBoardDetailedRows = useMemo(() => {
     const areaMap = new Map();
@@ -5172,6 +4910,7 @@ function App() { // NOSONAR
   const utilityNavItems = useMemo(
     () => allowedNavItems.filter((item) => {
       if ([PAGE_CUSTOM_BOARDS, PAGE_BOARD, PAGE_TRANSPORT, PAGE_INCIDENCIAS].includes(item.id)) return false;
+      if (item.group === "Mejora continua") return false;
       const requiredActionId = NAV_UTILITY_ACTION_BY_GROUP[item.group] || "";
       if (!requiredActionId) return true;
       return canDoAction(currentUser, requiredActionId, normalizedPermissions);
@@ -5199,7 +4938,13 @@ function App() { // NOSONAR
               { pageId: PAGE_BOARD, label: "Creador de tableros", shortLabel: "Creador", requiredActionId: AREA_TAB_PERMISSION_ACTIONS.mantenimiento.board },
               { pageId: PAGE_CUSTOM_BOARDS, label: "Mis tableros", shortLabel: "Tableros", requiredActionId: AREA_TAB_PERMISSION_ACTIONS.mantenimiento.customBoards },
             ]
-          : [
+          : section.id === "mejora-continua"
+            ? [
+              { pageId: PAGE_PROCESS_AUDITS, label: "Auditoría", shortLabel: "Auditoría", auditPreset: { tab: "capture" }, requiredActionId: "" },
+              { pageId: PAGE_PROCESS_AUDITS, label: "Dashboard", shortLabel: "Dashboard", auditPreset: { tab: "dashboard" }, requiredActionId: "" },
+              { pageId: PAGE_PROCESS_AUDITS, label: "Historial", shortLabel: "Hist.", auditPreset: { tab: "history" }, requiredActionId: "" },
+            ]
+            : [
             { pageId: PAGE_DASHBOARD, label: "Dashboard", shortLabel: "Dash", requiredActionId: AREA_TAB_PERMISSION_ACTIONS[section.id]?.dashboard || "" },
             { pageId: PAGE_BOARD, label: "Creador de tableros", shortLabel: "Creador", requiredActionId: AREA_TAB_PERMISSION_ACTIONS[section.id]?.board || "" },
             { pageId: PAGE_CUSTOM_BOARDS, label: "Mis tableros", shortLabel: "Tableros", requiredActionId: AREA_TAB_PERMISSION_ACTIONS[section.id]?.customBoards || "" },
@@ -5240,6 +4985,8 @@ function App() { // NOSONAR
 
   useEffect(() => {
     if (selectedAreaSectionId === "all") return;
+    if (selectedAreaSectionId === "admin") return;
+    if (!areaNavSections.length) return;
     if (areaNavSections.some((section) => section.id === selectedAreaSectionId)) return;
 
     const matchedSection = findAreaSectionByLabel(selectedAreaSectionId, areaNavSections);
@@ -6262,9 +6009,6 @@ function App() { // NOSONAR
       birthday: String(identityPatch.birthday || "").trim(),
       photo: String(identityPatch.photo ?? currentUser.photo ?? "").trim(),
       photoThumbnailUrl: String(identityPatch.photoThumbnailUrl ?? currentUser.photoThumbnailUrl ?? "").trim(),
-      copmecHistoryFiles: Array.isArray(identityPatch.copmecHistoryFiles)
-        ? identityPatch.copmecHistoryFiles
-        : (Array.isArray(currentUser?.copmecHistoryFiles) ? currentUser.copmecHistoryFiles : []),
     };
     if (!trimmedPatch.name || !trimmedPatch.area || !trimmedPatch.jobTitle) {
       return { ok: false, message: "Captura nombre, área y cargo para guardar el perfil del player." };
@@ -6282,8 +6026,7 @@ function App() { // NOSONAR
       trimmedPatch.photo !== String(currentUser.photo || "").trim(),
       trimmedPatch.photoThumbnailUrl !== String(currentUser.photoThumbnailUrl || "").trim(),
     ].some(Boolean);
-    const copmecHistoryChanged = JSON.stringify(trimmedPatch.copmecHistoryFiles || []) !== JSON.stringify(currentUser?.copmecHistoryFiles || []);
-    const hasChanges = profileChanges || photoChanges || copmecHistoryChanged;
+    const hasChanges = profileChanges || photoChanges;
     if (!hasChanges) {
       return { ok: false, message: "No hay cambios nuevos por guardar." };
     }
@@ -6304,43 +6047,6 @@ function App() { // NOSONAR
     }
   }
 
-  async function saveCopmecFileToProfile({ packageText, payload, fileName }) {
-    if (!currentUser) return { ok: false };
-    const existingFiles = Array.isArray(currentUser.copmecHistoryFiles) ? currentUser.copmecHistoryFiles : [];
-    const newEntry = {
-      id: `copmec-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
-      fileName: String(fileName || "historial.cop").trim() || "historial.cop",
-      importedAt: new Date().toISOString(),
-      periodLabel: String(payload?.period?.label || "Periodo").trim() || "Periodo",
-      records: Math.max(0, Number(payload?.summary?.records || (Array.isArray(payload?.rows) ? payload.rows.length : 0))),
-      packageText: String(packageText || "").trim(),
-    };
-    const nextFiles = [newEntry, ...existingFiles].slice(0, 20);
-    return updateCurrentUserIdentity({
-      name: String(currentUser.name || "").trim(),
-      username: String(currentUser.email || "").trim(),
-      area: getUserArea(currentUser),
-      jobTitle: getUserJobTitle(currentUser),
-      telefono: String(currentUser.telefono || "").trim(),
-      telefono_visible: Boolean(currentUser.telefono_visible),
-      birthday: String(currentUser.birthday || "").trim(),
-      copmecHistoryFiles: nextFiles,
-    });
-  }
-
-  async function updateArchiveroFiles(nextFiles) {
-    if (!currentUser) return { ok: false };
-    return updateCurrentUserIdentity({
-      name: String(currentUser.name || "").trim(),
-      username: String(currentUser.email || "").trim(),
-      area: getUserArea(currentUser),
-      jobTitle: getUserJobTitle(currentUser),
-      telefono: String(currentUser.telefono || "").trim(),
-      telefono_visible: Boolean(currentUser.telefono_visible),
-      birthday: String(currentUser.birthday || "").trim(),
-      copmecHistoryFiles: Array.isArray(nextFiles) ? nextFiles : [],
-    });
-  }
 
   async function deleteUser(userId) {
     if (!userId || userId === currentUser?.id || !actionPermissions.deleteUsers) return;
@@ -7193,6 +6899,9 @@ function App() { // NOSONAR
   function openCreateBoardBuilderFromChecklistTemplate(template) {
     const ownerId = currentUser?.id || "";
     const normalizedTemplate = normalizeOperationalInspectionTemplate(template);
+    // deep-clone and clear id so creating from a template doesn't overwrite originals
+    const clonedTemplate = JSON.parse(JSON.stringify(normalizedTemplate || {}));
+    if (clonedTemplate && typeof clonedTemplate === "object") clonedTemplate.id = "";
     setControlBoardDraft({
       ...createEmptyBoardDraft(),
       ownerId,
@@ -7202,7 +6911,7 @@ function App() { // NOSONAR
         operationalChecklistConfig: {
           enabled: true,
           linkedActivityNames: [],
-          template: normalizedTemplate,
+          template: clonedTemplate,
         },
       },
     });
@@ -8621,60 +8330,6 @@ function App() { // NOSONAR
     }
   }
 
-  function buildSelectedBoardCopmecPayload() {
-    if (!selectedCustomBoard) return null;
-
-    const boardView = selectedCustomBoardDisplay || selectedCustomBoard;
-    const exportColumns = getSelectedBoardPdfColumns(boardView);
-    const exportRows = getSelectedBoardPdfRows(boardView, exportColumns).map((rowValues) => (
-      Object.fromEntries(exportColumns.map((column, index) => [column.label, rowValues[index] ?? ""]))
-    ));
-
-    return {
-      format: "COPMEC_BOARD_EXPORT_V1",
-      generatedAt: new Date().toISOString(),
-      board: {
-        id: boardView?.id || selectedCustomBoard.id,
-        boardId: boardView?.boardId || selectedCustomBoard.id,
-        name: boardView?.name || selectedCustomBoard.name,
-        description: boardView?.description || "",
-        ownerArea: String(boardView?.settings?.ownerArea || "").trim(),
-        operationalContextLabel: String(boardView?.settings?.operationalContextLabel || "").trim(),
-        operationalContextValue: String(boardView?.settings?.operationalContextValue || "").trim(),
-      },
-      view: {
-        type: isHistoricalCustomBoardView ? "history" : "current",
-        weekName: selectedCustomBoardSnapshot?.weekName || "",
-        startDate: selectedCustomBoardSnapshot?.startDate || "",
-        endDate: selectedCustomBoardSnapshot?.endDate || "",
-      },
-      columns: exportColumns.map((column) => ({
-        key: column.key,
-        label: column.label,
-        sectionName: column.sectionName,
-        sectionColor: column.sectionColor,
-        kind: column.kind,
-        id: column.id,
-      })),
-      rows: exportRows,
-    };
-  }
-
-  async function exportSelectedBoardToCopmec() {
-    if (!selectedCustomBoard || !canDoBoardAction(currentUser, selectedCustomBoard)) return;
-
-    try {
-      const payload = buildSelectedBoardCopmecPayload();
-      if (!payload) throw new Error("copmec_export_unavailable");
-      const packageText = await buildEncryptedCopmecPackage(payload);
-      const fileBaseName = sanitizeCopmecFileBaseName(selectedCustomBoard.name, "tablero-operativo");
-      triggerCopmecDownload(packageText, `${fileBaseName}.cop`);
-      setBoardRuntimeFeedback({ tone: "success", message: `Se exportó ${selectedCustomBoard.name} en formato .cop.` });
-    } catch {
-      setBoardRuntimeFeedback({ tone: "danger", message: "No se pudo exportar el tablero en formato .cop." });
-    }
-  }
-
   function openBoardExcelImportPicker() {
     boardExcelFileInputRef.current?.click();
   }
@@ -9221,6 +8876,7 @@ function App() { // NOSONAR
     dashboardDynamicMetricRows,
     dashboardAreaBoardDetailedRows,
     dashboardInventoryProductTimeRows,
+    dashboardProductAggregateRows,
     dashboardDistributionRows,
     dashboardFilters,
     filteredDashboardRecords,
@@ -9257,7 +8913,6 @@ function App() { // NOSONAR
     exportSelectedBoardToExcel,
     previewSelectedBoardPdf,
     exportSelectedBoardToPdf,
-    exportSelectedBoardToCopmec,
     filteredAuditLog,
     filteredBoardTemplates,
     filteredUsers,
@@ -9323,6 +8978,7 @@ function App() { // NOSONAR
     inventorySearch,
     inventoryStats,
     inventoryTab,
+    inventoryItemsById,
     CLEANING_SITE_OPTIONS,
     openInventoryBulkRestockModal,
     openInventoryRestockModal,
@@ -9501,7 +9157,6 @@ function App() { // NOSONAR
     activateDemoMode,
     deactivateDemoMode,
     pushAppToast,
-    saveCopmecFileToProfile,
     requestJson,
     ROLE_LEAD,
     ROLE_JR,
@@ -9757,6 +9412,7 @@ function App() { // NOSONAR
         {page === PAGE_BOARD || page === PAGE_ADMIN ? <TablerosCreados contexto={paginasContexto} /> : null}
         {page === PAGE_CUSTOM_BOARDS ? <MisTableros contexto={paginasContexto} /> : null}
         {page === PAGE_DASHBOARD ? <PanelIndicadores contexto={paginasContexto} /> : null}
+        {page === PAGE_DASHBOARD_BUILDER ? <DashboardBuilder contexto={paginasContexto} /> : null}
         {page === PAGE_HISTORY ? <HistorialSemanas contexto={paginasContexto} /> : null}
         {page === PAGE_PROCESS_AUDITS ? <AuditoriasProcesos contexto={paginasContexto} /> : null}
         {page === PAGE_INVENTORY ? <GestionInventario contexto={paginasContexto} /> : null}
@@ -9765,7 +9421,6 @@ function App() { // NOSONAR
         {page === PAGE_BIBLIOTECA ? <BibliotecaPage currentUser={currentUser} canUpload={actionPermissions.uploadBiblioteca} canRenameName={actionPermissions.editBibliotecaName} canDelete={actionPermissions.deleteBiblioteca} /> : null}
         {page === PAGE_INCIDENCIAS ? <GestionIncidencias contexto={paginasContexto} /> : null}
         {page === PAGE_SYSTEM_SETTINGS ? <ConfiguracionSistema contexto={paginasContexto} /> : null}
-        {page === PAGE_ARCHIVERO ? <Archivero currentUser={currentUser} onUpdateCopmecFiles={updateArchiveroFiles} /> : null}
         {page === PAGE_NOT_FOUND ? <PaginaNoEncontrada contexto={paginasContexto} /> : null}
       </section>
 

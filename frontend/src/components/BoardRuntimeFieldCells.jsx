@@ -244,7 +244,7 @@ export function BoardEditableInventoryPropertyInput({ value, suggestions, disabl
   );
 }
 
-export function BoardEvidenceCell({ value, disabled, onChange, label }) {
+export function BoardEvidenceCell({ value, disabled, onChange, label, readOnly = false }) {
   const pickerInputId = useId();
   const fileInputRef = useRef(null);
   const evidences = normalizeBoardEvidenceValue(value);
@@ -303,7 +303,7 @@ export function BoardEvidenceCell({ value, disabled, onChange, label }) {
   }
 
   function handleOpenPicker() {
-    if (disabled) return;
+    if (disabled || readOnly) return;
     fileInputRef.current?.click();
   }
 
@@ -321,19 +321,21 @@ export function BoardEvidenceCell({ value, disabled, onChange, label }) {
 
   return (
     <>
-      <input
-        id={pickerInputId}
-        ref={fileInputRef}
-        type="file"
-        accept="image/*,video/*"
-        multiple
-        style={{ display: "none" }}
-        onChange={handleFileSelection}
-        disabled={disabled || uploading}
-      />
+      {!readOnly ? (
+        <input
+          id={pickerInputId}
+          ref={fileInputRef}
+          type="file"
+          accept="image/*,video/*"
+          multiple
+          style={{ display: "none" }}
+          onChange={handleFileSelection}
+          disabled={disabled || uploading}
+        />
+      ) : null}
       <div style={{ display: "grid", gap: "0.4rem", minWidth: 0 }}>
         <label
-          htmlFor={disabled || uploading ? undefined : pickerInputId}
+          htmlFor={!readOnly && !disabled && !uploading ? pickerInputId : undefined}
           style={{
             width: "100%",
             minHeight: "78px",
@@ -344,10 +346,10 @@ export function BoardEvidenceCell({ value, disabled, onChange, label }) {
             display: "grid",
             gap: "0.28rem",
             alignContent: displayItems.length ? "start" : "center",
-            cursor: disabled ? "default" : "pointer",
+            cursor: readOnly || disabled ? "default" : "pointer",
             overflow: "hidden",
           }}
-          title={disabled ? label || "Evidencias" : "Agregar evidencias"}
+          title={readOnly ? (label || "Evidencias") : (disabled ? label || "Evidencias" : "Agregar evidencias")}
         >
           {displayItems.length ? (
             <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "0.26rem" }}>
@@ -388,13 +390,19 @@ export function BoardEvidenceCell({ value, disabled, onChange, label }) {
             </div>
           ) : (
             <div style={{ display: "grid", justifyItems: "center", gap: "0.25rem", color: "#456060" }}>
-              <Upload size={18} />
-              <strong style={{ fontSize: "0.82rem" }}>{uploading ? "Subiendo..." : "Agregar evidencias"}</strong>
-              <span style={{ fontSize: "0.74rem" }}>Foto o video</span>
+              {readOnly ? (
+                <strong style={{ fontSize: "0.82rem" }}>Sin evidencia</strong>
+              ) : (
+                <>
+                  <Upload size={18} />
+                  <strong style={{ fontSize: "0.82rem" }}>{uploading ? "Subiendo..." : "Agregar evidencias"}</strong>
+                  <span style={{ fontSize: "0.74rem" }}>Foto o video</span>
+                </>
+              )}
             </div>
           )}
         </label>
-        {displayItems.length ? (
+        {displayItems.length && !readOnly ? (
           <button type="button" className="icon-button" onClick={handleOpenPicker} disabled={disabled || uploading}>
             <Plus size={14} /> {uploading ? "Subiendo..." : "Agregar más"}
           </button>
@@ -433,6 +441,14 @@ export function BoardEvidenceCell({ value, disabled, onChange, label }) {
             <div>
               <strong>{activeViewerItem.name || "Evidencia"}</strong>
               <p className="subtle-line" style={{ marginTop: "0.2rem" }}>{activeViewerItem.mimeType || "Archivo"}</p>
+              <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.8rem" }}>
+                <a href={activeViewerItem.url} target="_blank" rel="noreferrer" className="icon-button" style={{ textDecoration: "none" }}>
+                  Abrir
+                </a>
+                <a href={activeViewerItem.url} download={activeViewerItem.name || "evidencia"} className="icon-button" style={{ textDecoration: "none" }}>
+                  Descargar
+                </a>
+              </div>
             </div>
           </div>
         ) : null}

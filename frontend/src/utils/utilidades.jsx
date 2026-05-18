@@ -26,7 +26,7 @@ export function getInitialRouteState() {
   let inferredTransportSection = "";
 
   if (pathSegments.length === 1) {
-    inferredPage = PAGE_DASHBOARD;
+    inferredPage = PAGE_ROUTE_ALIASES[pathSegments[0]] || PAGE_DASHBOARD;
   } else if (pathSegments.length >= 2) {
     const [firstSegment, secondSegment] = pathSegments;
     if (PAGE_ROUTE_ALIASES[secondSegment]) {
@@ -1158,7 +1158,7 @@ export function buildRoutePath(page, area = "all", subPath = "") {
       return `/${pageSlug}/${normalizedSubPath}`;
     }
     if (page !== PAGE_DASHBOARD) {
-      return `/${PAGE_ROUTE_SLUGS[PAGE_DASHBOARD]}`;
+      return `/${pageSlug}`;
     }
     return normalizedSubPath ? `/${normalizedSubPath}` : `/${pageSlug}`;
   }
@@ -1335,12 +1335,11 @@ export function endOfWeek(date) {
 }
 
 export function getBoardWeekStart(date) {
-  const base = startOfWeek(date);
-  return new Date(date).getDay() === 0 ? addDays(base, 7) : base;
+  return startOfWeek(date);
 }
 
 export function getBoardWeekEnd(date) {
-  return addDays(getBoardWeekStart(date), 5);
+  return addDays(getBoardWeekStart(date), 6);
 }
 
 export function formatBoardWeekKey(date) {
@@ -1399,6 +1398,11 @@ export function cloneBoardRowSnapshot(row) {
     responsibleId: responsibleIds[0] || "",
     responsibleIds,
     values: { ...(row?.values ?? EMPTY_OBJECT) },
+    // Preserve any UI-level computed or raw fields so history reflects the board "as seen"
+    sourceFields: Array.isArray(row?.sourceFields) ? row.sourceFields : row?.sourceFields || undefined,
+    rowValues: row?.rowValues ?? undefined,
+    rawRecord: row?.rawRecord ?? undefined,
+    rawRowValues: row?.rawRowValues ?? undefined,
   };
 }
 
@@ -1466,6 +1470,11 @@ export function applyBoardWeeklyCutToState(state, referenceDate = new Date()) {
   let nextHistory = Array.isArray(state?.boardWeekHistory) ? [...state.boardWeekHistory] : [];
   let changed = false;
 
+  const isBoardRowActive = (row) => {
+    const status = String(row?.status || "").trim().toLowerCase();
+    return status !== "terminado";
+  };
+
   while (activeWeekKey < currentWeekKey) {
     const archivedAt = new Date().toISOString();
     const existingKeys = new Set(nextHistory.map((snapshot) => `${snapshot.boardId}|${snapshot.weekKey}`));
@@ -1476,7 +1485,10 @@ export function applyBoardWeeklyCutToState(state, referenceDate = new Date()) {
       existingKeys.add(snapshotKey);
       changed = true;
     });
-    nextBoards = nextBoards.map((board) => ({ ...board, rows: [] }));
+    nextBoards = nextBoards.map((board) => ({
+      ...board,
+      rows: (board.rows || []).filter(isBoardRowActive),
+    }));
     activeWeekKey = advanceBoardWeekKey(activeWeekKey);
   }
 

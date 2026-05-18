@@ -1,7 +1,6 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { buildEncryptedCopmecPackage, sanitizeCopmecFileBaseName, triggerCopmecDownload } from "../utils/copmecFiles.js";
 
 const DASHBOARD_WEEKDAY_LABELS = ["Lu", "Ma", "Mi", "Ju", "Vi", "Sa", "Do"];
 const DASHBOARD_DETAIL_VIEW_PREFS_KEY = "copmec-dashboard-detail-view-prefs";
@@ -203,8 +202,8 @@ export default function PanelIndicadores({ contexto }) {
     setDashboardSectionsOpen,
     dashboardFilters,
     setDashboardFilters,
-    filteredDashboardRecords,
     visibleUsers,
+    inventoryItemsById,
     departmentOptions,
     DashboardSection,
     dashboardMetrics,
@@ -217,7 +216,6 @@ export default function PanelIndicadores({ contexto }) {
     formatMetricNumber,
     Clock3,
     CalendarDays,
-    Zap,
     AlertTriangle,
     Pause,
     OctagonAlert,
@@ -233,6 +231,7 @@ export default function PanelIndicadores({ contexto }) {
     dashboardDynamicMetricRows,
     dashboardAreaBoardDetailedRows,
     dashboardInventoryProductTimeRows,
+    dashboardProductAggregateRows,
     DashboardProgressMetric,
     PieChart,
     dashboardDistributionRows,
@@ -264,14 +263,15 @@ export default function PanelIndicadores({ contexto }) {
     deactivateDemoMode,
     pushAppToast,
     getBoardFieldValue,
-    currentInventoryItems,
+    filteredDashboardRecords,
     filteredVisibleControlBoards,
     dashboardVisibleControlBoards: rawDashboardVisibleControlBoards,
     selectedAreaSectionId,
     selectedAreaSection,
+    Zap,
   } = contexto;
 
-  const dashboardVisibleControlBoards = rawDashboardVisibleControlBoards ?? filteredVisibleControlBoards ?? [];
+  const dashboardVisibleControlBoards = useMemo(() => rawDashboardVisibleControlBoards ?? filteredVisibleControlBoards ?? [], [rawDashboardVisibleControlBoards, filteredVisibleControlBoards]);
   const canManageDashboardActions = Boolean(canManageDashboardControls ?? canManageDashboardState);
   const canExportDashboardActions = Boolean(canExportDashboardData ?? true);
   const showGlobalAreaFilter = selectedAreaSectionId === "all";
@@ -285,15 +285,66 @@ export default function PanelIndicadores({ contexto }) {
     );
   }, [departmentOptions]);
 
+  const dashboardBuilderConfig = useMemo(() => {
+    try {
+      const raw = localStorage.getItem("copmec-dashboard-config");
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  }, []);
+
+  const visibleDashboardSections = useMemo(() => {
+    const components = Array.isArray(dashboardBuilderConfig?.components) ? dashboardBuilderConfig.components : null;
+    if (!components) {
+      return new Set(["executive", "players", "alerts", "merma", "trends", "inventory", "causes"]);
+    }
+    return new Set(components.filter((component) => component.enabled).map((component) => component.type));
+  }, [dashboardBuilderConfig]);
+
+  const hasDashboardSection = useCallback((sectionType) => visibleDashboardSections.has(sectionType), [visibleDashboardSections]);
+
+  useEffect(() => {
+    if (!dashboardBuilderConfig?.components) return;
+
+    const playersComponent = dashboardBuilderConfig.components.find((component) => component.type === "players");
+    if (playersComponent?.settings?.chartType) {
+      setPeopleChartType(playersComponent.settings.chartType);
+    }
+
+    const mermaComponent = dashboardBuilderConfig.components.find((component) => component.type === "merma");
+    if (mermaComponent?.settings?.chartType) {
+      setMermaChartType(mermaComponent.settings.chartType);
+    }
+
+    const trendsComponent = dashboardBuilderConfig.components.find((component) => component.type === "trends");
+    if (trendsComponent?.settings?.chartType) {
+      setTrendChartType(trendsComponent.settings.chartType);
+    }
+
+    const inventoryComponent = dashboardBuilderConfig.components.find((component) => component.type === "inventory");
+    if (inventoryComponent?.settings?.chartType) {
+      setInventoryChartType(inventoryComponent.settings.chartType);
+    }
+    if (inventoryComponent?.settings?.metric) {
+      setInventoryMetric(inventoryComponent.settings.metric);
+    }
+    if (inventoryComponent?.settings?.view) {
+      setInventoryView(inventoryComponent.settings.view);
+    }
+  }, [dashboardBuilderConfig]);
+
   const areAllSectionsOpen = Object.values(dashboardSectionsOpen).every(Boolean);
   const dashboardExportRef = useRef(null);
   const detailPrefsRef = useRef(null);
   const [isExportingPdf, setIsExportingPdf] = useState(false);
-  const [isExportingCopmec, setIsExportingCopmec] = useState(false);
   const [trendChartType, setTrendChartType] = useState("bar");
   const [peopleChartType, setPeopleChartType] = useState("bar");
   const [areaChartType, setAreaChartType] = useState("bar");
   const [mermaChartType, setMermaChartType] = useState("bar");
+  const [inventoryChartType, setInventoryChartType] = useState("bar");
+  const [inventoryMetric, setInventoryMetric] = useState("totalMinutes");
+  const [inventoryView, setInventoryView] = useState("all");
   const [catalogTypeChartType, setCatalogTypeChartType] = useState("bar");
   const [catalogFreqChartType, setCatalogFreqChartType] = useState("bar");
   const [distributionChartType, setDistributionChartType] = useState("pie");
@@ -332,8 +383,6 @@ export default function PanelIndicadores({ contexto }) {
   const [confirmResetOpen, setConfirmResetOpen] = useState(false);
   const [isResetSubmitting, setIsResetSubmitting] = useState(false);
   const [leaderboardBoardFilter, setLeaderboardBoardFilter] = useState("all");
-  const [templateExportError, setTemplateExportError] = useState("");
-  const templateImportRef = useRef(null);
 
   useEffect(() => {
     if (!confirmResetOpen) return undefined;
@@ -413,23 +462,23 @@ export default function PanelIndicadores({ contexto }) {
     ? (dashboardFilters.area === "all" ? "General" : dashboardFilters.area)
     : (selectedAreaSection?.label || "Área");
 
-  function normalizeAreaText(value) {
+  const normalizeAreaText = useCallback((value) => {
     return String(value || "")
       .normalize("NFD")
       .replace(/[\u0300-\u036f]/g, "")
       .toLowerCase()
       .trim();
-  }
+  }, []);
 
-  function getAreaRootLabel(areaValue) {
+  const getAreaRootLabel = useCallback((areaValue) => {
     const parts = String(areaValue || "")
       .split("/")
       .map((part) => String(part || "").trim())
       .filter(Boolean);
     return parts[0] || String(areaValue || "").trim();
-  }
+  }, []);
 
-  function areaMatchesFilter(areaValue, selectedArea) {
+  const areaMatchesFilter = useCallback((areaValue, selectedArea) => {
     if (selectedArea === "all") return true;
     const normalizedSelected = normalizeAreaText(selectedArea);
     const normalizedArea = normalizeAreaText(areaValue);
@@ -439,7 +488,114 @@ export default function PanelIndicadores({ contexto }) {
     if (normalizedRoot === normalizedSelected) return true;
     if (normalizedArea.includes(`/${normalizedSelected}`) || normalizedArea.includes(`${normalizedSelected}/`)) return true;
     return false;
-  }
+  }, [normalizeAreaText, getAreaRootLabel]);
+
+  const formatInventoryFieldValue = useCallback((value) => {
+    if (value === null || value === undefined || value === "") return "";
+    if (Array.isArray(value)) return value.map((v) => formatInventoryFieldValue(v)).join(", ");
+    if (typeof value === "object") {
+      if (value.name || value.label || value.title) {
+        return String(value.name || value.label || value.title);
+      }
+      return JSON.stringify(value);
+    }
+    return String(value);
+  }, []);
+
+  const getInventoryRowValue = useCallback((item, keywords = []) => {
+    const normalizedKeywords = keywords.map((keyword) => String(keyword || "").toLowerCase()).filter(Boolean);
+    const fields = Array.isArray(item.sourceFields) ? item.sourceFields : [];
+
+    const matchField = fields.find((field) => {
+      const label = String(field?.label || field?.name || field?.key || "").toLowerCase();
+      return normalizedKeywords.some((keyword) => label.includes(keyword));
+    });
+
+    if (matchField) {
+      const values = item.rowValues || {};
+      const rawValue = values[matchField.id] ?? values[matchField.key] ?? values[matchField.name];
+      if (rawValue !== undefined && rawValue !== null && rawValue !== "") {
+        // Si es un campo inventoryLookup, resolver ID a nombre del producto
+        if (matchField.type === "inventoryLookup" && inventoryItemsById) {
+          const inventoryItem = inventoryItemsById.get(rawValue);
+          if (inventoryItem && inventoryItem.name) {
+            return formatInventoryFieldValue(inventoryItem.name);
+          }
+        }
+        return formatInventoryFieldValue(rawValue);
+      }
+    }
+
+    const values = item.rowValues || {};
+    const matchEntry = Object.entries(values).find(([key]) => {
+      const normalizedKey = String(key || "").toLowerCase();
+      return normalizedKeywords.some((keyword) => normalizedKey.includes(keyword));
+    });
+    if (matchEntry) return formatInventoryFieldValue(matchEntry[1]);
+
+    return "";
+  }, [formatInventoryFieldValue, inventoryItemsById]);
+
+  const getInventoryProductLabel = useCallback((item) => {
+    const productKeywords = ["nombre producto", "nombre", "descripcion", "producto", "sku", "articulo", "item", "producto/sku"];
+    const normalizedKeywords = productKeywords.map((keyword) => String(keyword || "").toLowerCase()).filter(Boolean);
+    const fields = Array.isArray(item.sourceFields) ? item.sourceFields : [];
+
+    const matchField = fields.find((field) => {
+      const label = String(field?.label || field?.name || field?.key || "").toLowerCase();
+      return normalizedKeywords.some((keyword) => label.includes(keyword));
+    });
+
+    if (matchField) {
+      const values = item.rowValues || {};
+      const rawValue = values[matchField.id] ?? values[matchField.key] ?? values[matchField.name];
+      if (rawValue !== undefined && rawValue !== null && rawValue !== "") {
+        if (matchField.type === "inventoryLookup" && inventoryItemsById) {
+          const inventoryItem = inventoryItemsById.get(rawValue);
+          if (inventoryItem) {
+            const nameLabel = inventoryItem.name || formatInventoryFieldValue(rawValue);
+            const presentation = String(inventoryItem.presentation || "").trim();
+            return presentation ? `${nameLabel} - ${presentation}` : nameLabel;
+          }
+        }
+        return formatInventoryFieldValue(rawValue);
+      }
+    }
+
+    return String(item.rowLabel || "").trim();
+  }, [formatInventoryFieldValue, inventoryItemsById]);
+
+  const resolveInventoryRowFieldValue = useCallback((item, keywords = []) => {
+    const normalizedKeywords = keywords.map((keyword) => String(keyword || "").toLowerCase()).filter(Boolean);
+    const fields = Array.isArray(item.sourceFields) ? item.sourceFields : [];
+    const field = fields.find((fieldItem) => {
+      const haystack = [fieldItem?.label, fieldItem?.name, fieldItem?.key, fieldItem?.id]
+        .map((value) => String(value || "").toLowerCase())
+        .join(" ");
+      return normalizedKeywords.some((keyword) => haystack.includes(keyword));
+    });
+    if (!field) return "";
+    const values = item.rowValues || {};
+    const rawValue = values[field.id] ?? values[field.key] ?? values[field.name];
+    if (rawValue !== undefined && rawValue !== null && rawValue !== "") {
+      if (Array.isArray(rawValue) || (typeof rawValue === "object" && !String(rawValue.name || rawValue.label || rawValue.title).trim())) {
+        return rawValue;
+      }
+      return formatInventoryFieldValue(rawValue);
+    }
+    return getInventoryRowValue(item, keywords);
+  }, [formatInventoryFieldValue, getInventoryRowValue]);
+
+  const resolveInventoryRowNumericValue = useCallback((item, keywords = []) => {
+    const rawValue = resolveInventoryRowFieldValue(item, keywords);
+    if (rawValue === undefined || rawValue === null || String(rawValue).trim() === "") return null;
+    const normalized = String(rawValue).replace(/\./g, "").replace(/,/g, ".").match(/-?\d+(?:\.\d+)?/g);
+    if (!normalized || !normalized.length) return null;
+    const numeric = Number(normalized[0]);
+    return Number.isFinite(numeric) ? numeric : null;
+  }, [resolveInventoryRowFieldValue]);
+
+  
 
   const areaScopedDynamicMetrics = useMemo(() => {
     if (!Array.isArray(dashboardDynamicMetricRows)) return [];
@@ -498,10 +654,99 @@ export default function PanelIndicadores({ contexto }) {
   const scopedInventoryProductTimeRows = useMemo(() => {
     const rows = Array.isArray(dashboardInventoryProductTimeRows) ? dashboardInventoryProductTimeRows : [];
     const areaFiltered = dashboardFilters.area === "all" ? rows : rows.filter((item) => areaMatchesFilter(item.area, dashboardFilters.area));
+    const boardFiltered = leaderboardBoardFilter === "all"
+      ? areaFiltered
+      : areaFiltered.filter((item) => String(item.boardId || "") === leaderboardBoardFilter);
+
+    const mapped = boardFiltered.map((item, index) => {
+      if (index < 3 && typeof window !== "undefined") {
+        window.__INVENTORY_ROW_DEBUG_ITEMS__ = window.__INVENTORY_ROW_DEBUG_ITEMS__ || [];
+        window.__INVENTORY_ROW_DEBUG_ITEMS__.push({
+          index,
+          sourceFields: Array.isArray(item.sourceFields) ? item.sourceFields.map((field) => ({ id: field.id, label: field.label, name: field.name, key: field.key, type: field.type })) : [],
+          rowValues: item.rowValues || {},
+          rawRowValues: item.rawRecord?.rowValues || {},
+          rowLabel: item.rowLabel,
+          boardName: item.boardName,
+          productLookupField: item.sourceFields?.find((field) => String(field?.label || field?.name || field?.key || "").toLowerCase().includes("producto")) || null,
+        });
+      }
+      const tarimaValue = getInventoryRowValue(item, ["tarima", "pallet", "palet"]);
+      const productValue = getInventoryProductLabel(item) || String(item.rowLabel || "").trim();
+      const explicitExpectedPieces = resolveInventoryRowNumericValue(item, ["piezas esperadas", "piezas esperada", "piezas a revisar", "cantidad esperada", "esperadas", "esperado", "piezas previstas"]);
+      const cajasTarima = resolveInventoryRowNumericValue(item, ["cajas tarima", "cajas", "tarimas", "palets", "pallets"]);
+      const piezasPorCaja = resolveInventoryRowNumericValue(item, ["piezas por caja", "piezas/caja", "pieza por caja", "pieza caja", "piezas caja"]);
+      const lookupProductField = item.sourceFields?.find((field) => String(field?.label || field?.name || field?.key || "").toLowerCase().includes("producto"));
+      const productLookupId = lookupProductField ? (item.rowValues?.[lookupProductField.id] ?? item.rowValues?.[lookupProductField.key] ?? item.rowValues?.[lookupProductField.name]) : null;
+      const inventoryProduct = inventoryItemsById && productLookupId ? inventoryItemsById.get(productLookupId) : null;
+      const fallbackPiecesPerBox = Number.isFinite(piezasPorCaja)
+        ? piezasPorCaja
+        : inventoryProduct && Number.isFinite(Number(inventoryProduct.piecesPerBox))
+          ? Number(inventoryProduct.piecesPerBox)
+          : null;
+      const expectedPieces = Number.isFinite(explicitExpectedPieces)
+        ? explicitExpectedPieces
+        : (Number.isFinite(cajasTarima) && Number.isFinite(fallbackPiecesPerBox) ? cajasTarima * fallbackPiecesPerBox : null);
+      const missingPieces = resolveInventoryRowNumericValue(item, ["piezas faltantes", "faltantes", "faltante", "diferencia", "faltan", "piezas faltan"]);
+      const explicitRealPieces = resolveInventoryRowNumericValue(item, ["piezas reales", "reales", "piezas finales", "resultado", "total real"]);
+      const loteValue = resolveInventoryRowFieldValue(item, ["lote", "batch", "corrida"]);
+      const caducityValue = resolveInventoryRowFieldValue(item, ["caducidad", "vence", "expira", "expiracion"]);
+      const startValue = getInventoryRowValue(item, ["inicio", "fecha inicio", "hora inicio", "start", "start time", "hora de inicio"]);
+      const endValue = getInventoryRowValue(item, ["fin", "fecha fin", "hora fin", "end", "end time", "hora de fin"]);
+      const durationMinutes = Number.isFinite(Number(item.durationSeconds)) ? Number(item.durationSeconds) / 60 : 0;
+      // Parse mermas locally from the board row without using leaderboard helpers
+      let rawMerma = resolveInventoryRowFieldValue(item, ["causal", "causales", "motivo", "causa", "causas"]);
+      // Fallback: if resolver returned empty, try direct lookup for multiSelectDetail field
+      if (rawMerma === undefined || rawMerma === null || (typeof rawMerma === "string" && String(rawMerma).trim() === "") || (Array.isArray(rawMerma) && rawMerma.length === 0)) {
+        const fieldsList = Array.isArray(item.sourceFields) ? item.sourceFields : [];
+        const mermaField = fieldsList.find((f) => f?.type === "multiSelectDetail") || fieldsList.find((f) => {
+          const label = String(f?.label || f?.name || f?.key || "").toLowerCase();
+          // prefer causal/causales/motivo fields but avoid matching numeric "piezas" fields
+          return (label.includes("causal") || label.includes("causales") || label.includes("motivo")) && !label.includes("pieza") && !label.includes("piezas");
+        });
+        if (mermaField) {
+          rawMerma = item.rowValues?.[mermaField.id] ?? item.rowValues?.[mermaField.key] ?? item.rowValues?.[mermaField.name] ?? item.rawRecord?.rowValues?.[mermaField.id] ?? item.rawRecord?.rowValues?.[mermaField.key] ?? item.rawRecord?.rowValues?.[mermaField.name] ?? rawMerma;
+        }
+      }
+      const normalizedMerma = normalizeBoardMultiSelectDetailValue(rawMerma);
+      const mermas = normalizedMerma.length
+        ? normalizedMerma.map((entry) => ({ motivo: String(entry.label || entry.option || "").trim(), piezas: Number(String(entry.detail || "").replace(/,/g, ".")) }))
+        : (String(rawMerma || "").trim() ? String(rawMerma || "").split("|").map((part) => {
+          const [motivoRaw, detailRaw = ""] = String(part || "").split(":");
+          return { motivo: String(motivoRaw || "").trim(), piezas: Number(String(detailRaw || "").replace(/,/g, ".")) };
+        }).filter((it) => it.motivo) : []);
+      const totalMermaPieces = mermas.reduce((sum, entry) => sum + (Number.isFinite(entry.piezas) ? entry.piezas : 0), 0);
+      const realPieces = Number.isFinite(explicitRealPieces)
+        ? explicitRealPieces
+        : (Number.isFinite(expectedPieces) ? Math.max(0, expectedPieces - totalMermaPieces - Math.max(0, missingPieces || 0)) : null);
+      const mermasText = mermas.filter((m) => Number.isFinite(m.piezas) && m.piezas > 0).length > 0 ? mermas.filter((m) => Number.isFinite(m.piezas) && m.piezas > 0).map((entry) => `${entry.motivo}: ${Math.round(entry.piezas)}`).join(", ") : "-";
+
+      return {
+        ...item,
+        tarimaValue: tarimaValue || "Sin tarima",
+        productValue: productValue || "Sin producto",
+        expectedPieces: Number.isFinite(expectedPieces) ? expectedPieces : null,
+        totalMermaPieces,
+        missingPieces: Number.isFinite(missingPieces) ? missingPieces : null,
+        realPieces: Number.isFinite(realPieces) ? realPieces : null,
+        loteValue: loteValue || "-",
+        caducityValue: caducityValue || "-",
+        startValue: startValue || "-",
+        endValue: endValue || "-",
+        durationMinutes,
+        occurredAtLabel: item.occurredAt ? new Date(item.occurredAt).toLocaleString("es-MX", { dateStyle: "short", timeStyle: "short" }) : "-",
+        mermas: mermasText,
+      };
+    });
+    return mapped;
+  }, [dashboardFilters.area, dashboardInventoryProductTimeRows, leaderboardBoardFilter, areaMatchesFilter, getInventoryRowValue, resolveInventoryRowFieldValue, getInventoryProductLabel, resolveInventoryRowNumericValue, inventoryItemsById]);
+
+  const scopedProductAggregateRows = useMemo(() => {
+    const rows = Array.isArray(dashboardProductAggregateRows) ? dashboardProductAggregateRows : [];
+    const areaFiltered = dashboardFilters.area === "all" ? rows : rows.filter((item) => areaMatchesFilter(item.area, dashboardFilters.area));
     if (leaderboardBoardFilter === "all") return areaFiltered;
     return areaFiltered.filter((item) => String(item.boardId || "") === leaderboardBoardFilter);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dashboardFilters.area, dashboardInventoryProductTimeRows, leaderboardBoardFilter]);
+  }, [dashboardFilters.area, dashboardProductAggregateRows, areaMatchesFilter, leaderboardBoardFilter]);
 
   const leaderboardBoardOptions = useMemo(() => {
     const base = Array.isArray(dashboardInventoryProductTimeRows) ? dashboardInventoryProductTimeRows : [];
@@ -516,11 +761,9 @@ export default function PanelIndicadores({ contexto }) {
     return [{ value: "all", label: "Todos los tableros" }].concat(
       Array.from(map.values()).sort((a, b) => a.label.localeCompare(b.label, "es-MX")),
     );
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dashboardFilters.area, dashboardInventoryProductTimeRows]);
+  }, [dashboardFilters.area, dashboardInventoryProductTimeRows, areaMatchesFilter]);
 
   // Si el tablero seleccionado ya no existe en las opciones, resetear
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   const leaderboardBoardFilterSafe = leaderboardBoardOptions.some((o) => o.value === leaderboardBoardFilter) ? leaderboardBoardFilter : "all";
 
   const scopedLeaderboardBoardRecords = useMemo(() => {
@@ -609,49 +852,6 @@ export default function PanelIndicadores({ contexto }) {
     return "";
   }
 
-  function formatLeaderboardBoardValue(value, fieldType) {
-    if (value === null || value === undefined || value === "") return "-";
-
-    if (typeof value === "object") {
-      if (Array.isArray(value)) return value.join(", ") || "-";
-      if (typeof value.label === "string") return value.label;
-      if (typeof value.value === "string" || typeof value.value === "number") return String(value.value);
-      return JSON.stringify(value);
-    }
-
-    if (typeof value === "boolean") return value ? "Sí" : "No";
-
-    const normalizedType = String(fieldType || "").toLowerCase();
-    const textValue = String(value).trim();
-    const numericValue = Number(textValue.replace(/,/g, "."));
-
-    if (["number", "counter", "quantity", "currency", "rating", "percentage", "progress", "score"].includes(normalizedType) && Number.isFinite(numericValue)) {
-      return normalizedType === "currency" ? `$${formatMetricNumber(numericValue, 2)}` : formatMetricNumber(numericValue, 2);
-    }
-
-    if (normalizedType === "time" && Number.isFinite(numericValue)) {
-      return `${formatMetricNumber(numericValue, 2)} min`;
-    }
-
-    if (["date", "datetime"].includes(normalizedType)) {
-      const parsed = new Date(textValue);
-      if (!Number.isNaN(parsed.getTime())) {
-        return new Intl.DateTimeFormat("es-MX", { day: "2-digit", month: "short", year: "numeric" }).format(parsed);
-      }
-    }
-
-    return textValue || "-";
-  }
-
-  function formatLeaderboardStatus(status) {
-    const normalized = String(status || "").toLowerCase();
-    if (normalized === "finished") return "Finalizado";
-    if (normalized === "running") return "En curso";
-    if (normalized === "paused") return "Pausado";
-    if (normalized === "pending") return "Pendiente";
-    return status || "-";
-  }
-
   function findLeaderboardFieldByKeywords(keywords = []) {
     return leaderboardDynamicBoardFields.find((field) => {
       const label = String(field?.label || "").toLowerCase();
@@ -695,16 +895,6 @@ export default function PanelIndicadores({ contexto }) {
     const raw = resolveBoardRecordFieldValue(record, field);
     const parsed = Number(String(raw || "").replace(/,/g, "."));
     return Number.isFinite(parsed) ? parsed : null;
-  }
-
-  function resolveLeaderboardMermaMotive(record) {
-    const field = findRecordFieldByKeywords(record, ["causal", "motivo", "causa", "razon"]) || findLeaderboardFieldByKeywords(["causal", "motivo", "causa", "razon"]);
-    if (!field) return "Sin motivo especificado";
-    const raw = resolveBoardRecordFieldValue(record, field);
-    const text = String(raw || "").trim();
-    if (!text) return "Sin motivo especificado";
-    const compact = text.split("|").map((part) => part.trim()).filter(Boolean)[0];
-    return compact || text;
   }
 
   function resolveLeaderboardMermaPieces(record) {
@@ -798,67 +988,6 @@ export default function PanelIndicadores({ contexto }) {
   }, [leaderboardDynamicBoardFields, scopedLeaderboardBoardRecords]);
 
   // ── Template export/import ────────────────────────────────────────────────
-  function exportLeaderboardTemplate() {
-    try {
-      const boardId = leaderboardBoardFilterSafe;
-      const board = boardId !== "all" ? leaderboardBoardMap.get(boardId) : null;
-      const fields = board
-        ? (board.fields || []).map((f) => ({ id: f.id, label: f.label || f.name || f.id, type: f.type, order: f.order }))
-        : leaderboardDynamicBoardFields.map((f) => ({ id: f.key, label: f.label, type: f.type, order: f.order }));
-
-      const sampleRows = scopedLeaderboardBoardRecords.slice(0, 3).map((rec) => {
-        const row = { _area: rec.area, _tablero: rec.boardName, _responsable: rec.responsibleName, _estatus: rec.status };
-        fields.forEach((f) => {
-          row[f.label || f.id] = resolveBoardRecordFieldValue(rec, f);
-        });
-        return row;
-      });
-
-      const template = {
-        version: "1.0",
-        exportedAt: new Date().toISOString(),
-        boardName: board?.name || "Todos los tableros",
-        fields,
-        sampleRows,
-      };
-
-      const blob = new Blob([JSON.stringify(template, null, 2)], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `plantilla-${(board?.name || "leaderboard").replace(/\s+/g, "-").toLowerCase()}-${Date.now()}.json`;
-      a.click();
-      URL.revokeObjectURL(url);
-      setTemplateExportError("");
-    } catch (err) {
-      setTemplateExportError(String(err?.message || "Error al exportar plantilla."));
-    }
-  }
-
-  function handleTemplateImport(event) {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (evt) => {
-      try {
-        const parsed = JSON.parse(evt.target.result);
-        if (!parsed?.fields) throw new Error("El archivo no tiene la estructura esperada (falta 'fields').");
-        const summary = [
-          `Tablero: ${parsed.boardName || "(sin nombre)"}`,
-          `Campos: ${(parsed.fields || []).map((f) => f.label || f.id).join(", ")|| "ninguno"}`,
-          `Exportado: ${parsed.exportedAt || "desconocido"}`,
-          `Filas de muestra: ${(parsed.sampleRows || []).length}`,
-        ].join("\n");
-        pushAppToast?.(`Plantilla cargada exitosamente:\n${summary}`, "success");
-        setTemplateExportError("");
-      } catch (err) {
-        setTemplateExportError(String(err?.message || "Archivo inválido."));
-      }
-    };
-    reader.readAsText(file);
-    event.target.value = "";
-  }
-
   const scopedAreaBoardDetailedRows = useMemo(() => {
     const rows = Array.isArray(dashboardAreaBoardDetailedRows) ? dashboardAreaBoardDetailedRows : [];
     if (dashboardFilters.area === "all") return rows;
@@ -1371,51 +1500,6 @@ export default function PanelIndicadores({ contexto }) {
     }
   }
 
-  async function exportDashboardToCopmec() {
-    if (!canExportDashboardActions) return;
-    if (isExportingCopmec) return;
-
-    try {
-      setIsExportingCopmec(true);
-      const hasDateRange = dashboardFilters.startDate || dashboardFilters.endDate;
-      const fileSuffix = hasDateRange
-        ? `${dashboardFilters.startDate || "inicio"}-${dashboardFilters.endDate || "fin"}`
-        : activeAreaLabel.toLowerCase().replaceAll(/\s+/g, "-");
-      const payload = {
-        format: "COPMEC_DASHBOARD_V1",
-        generatedAt: new Date().toISOString(),
-        areaLabel: activeAreaLabel,
-        filters: {
-          ...dashboardFilters,
-          responsibleName: dashboardFilters.responsibleId === "all"
-            ? "Todos los players"
-            : visibleUsers.find((user) => user.id === dashboardFilters.responsibleId)?.name || dashboardFilters.responsibleId,
-        },
-        metrics: dashboardMetrics,
-        sections: {
-          players: dashboardResponsibleRows,
-          activities: dashboardActivityRows,
-          distribution: dashboardDistributionRows,
-          trends: dashboardTrendRows,
-          areas: dashboardAreaRows,
-          pauses: pauseAnalysis,
-          pareto: dashboardParetoRows,
-          ishikawa: dashboardIshikawaRows,
-          areaBoardDetail: filteredAreaBoardDetailedRows,
-        },
-      };
-      const packageText = await buildEncryptedCopmecPackage(payload);
-      const safeSuffix = sanitizeCopmecFileBaseName(fileSuffix, "dashboard");
-      const fileName = `dashboard-copmec-${safeSuffix}.copmec`;
-      triggerCopmecDownload(packageText, fileName);
-      pushAppToast(`Se descargó ${fileName}.`, "success");
-    } catch (error) {
-      pushAppToast(error?.message || "No se pudo exportar el dashboard en formato .copmec.", "danger");
-    } finally {
-      setIsExportingCopmec(false);
-    }
-  }
-
   const hasActivityUsage = Number(dashboardMetrics.activityRecords || 0) > 0;
   const hasAnyUsage = Number(dashboardMetrics.total || 0) > 0;
   const hasCatalogUsage = Number(dashboardMetrics.catalogActiveCount || 0) > 0;
@@ -1535,18 +1619,6 @@ export default function PanelIndicadores({ contexto }) {
                   <Download size={16} />
                 </button>
               ) : null}
-              {canExportDashboardActions ? (
-                <button
-                  type="button"
-                  className="icon-button dashboard-filter-icon-button"
-                  onClick={exportDashboardToCopmec}
-                  disabled={isExportingCopmec}
-                  title={isExportingCopmec ? "Exportando .copmec" : "Descargar .copmec"}
-                  aria-label={isExportingCopmec ? "Exportando .copmec" : "Descargar .copmec"}
-                >
-                  <span style={{ fontSize: 11, fontWeight: 700 }}>.C</span>
-                </button>
-              ) : null}
               <button
                 type="button"
                 className="icon-button dashboard-filter-icon-button"
@@ -1568,6 +1640,7 @@ export default function PanelIndicadores({ contexto }) {
         </div>
       </div>
 
+      {hasDashboardSection("executive") ? (
       <DashboardSection title="Resumen ejecutivo" subtitle="KPIs principales para una lectura rápida del periodo filtrado." summary={`${dashboardMetrics.total} registros · ${dashboardMetrics.completed} cerrados · ${dashboardMetrics.areaCount} áreas`} icon={Gauge} open={dashboardSectionsOpen.executive} onToggle={() => setDashboardSectionsOpen((current) => ({ ...current, executive: !current.executive }))}>
         <div className="dashboard-kpi-grid dashboard-kpi-grid-executive dashboard-kpi-grid-7">
           {executiveKpiCards.map((item) => (
@@ -1604,7 +1677,9 @@ export default function PanelIndicadores({ contexto }) {
         </div>
         ) : null}
       </DashboardSection>
+      ) : null}
 
+      {hasDashboardSection("players") ? (
       <DashboardSection title="Análisis por player" subtitle="Desempeño individual, carga y cumplimiento por persona." summary={`${dashboardResponsibleRows.length} players con métricas`} icon={Users} open={dashboardSectionsOpen.people} onToggle={() => setDashboardSectionsOpen((current) => ({ ...current, people: !current.people }))}>
         <div className="dashboard-main-grid">
           <article className="dashboard-panel dashboard-panel-wide">
@@ -1848,7 +1923,9 @@ export default function PanelIndicadores({ contexto }) {
         </>
         ) : null}
       </DashboardSection>
+      ) : null}
 
+      {hasDashboardSection("trends") ? (
       <DashboardSection title="Tendencias y áreas" subtitle="Evolución del flujo y consolidado por área para comparar capacidad y carga." summary={`${dashboardTrendRows.length} periodos · ${dashboardAreaRows.length} áreas`} icon={BarChart3} open={dashboardSectionsOpen.trends} onToggle={() => setDashboardSectionsOpen((current) => ({ ...current, trends: !current.trends }))}>
         <div className="dashboard-main-grid dashboard-lower-middle-grid">
           <article className="dashboard-panel dashboard-panel-half">
@@ -2082,7 +2159,7 @@ export default function PanelIndicadores({ contexto }) {
         </div>
         ) : null}
 
-        {(scopedInventoryProductTimeRows.length || filteredAreaBoardDetailedRows.length) ? (
+        {hasDashboardSection("inventory") && (scopedInventoryProductTimeRows.length || filteredAreaBoardDetailedRows.length) ? (
         <>
         <div className="dashboard-main-grid">
           <article className="dashboard-panel dashboard-panel-full">
@@ -2093,6 +2170,49 @@ export default function PanelIndicadores({ contexto }) {
             <p className="dashboard-panel-subtitle">
               Ranking automático para Inventario: agrupa por producto/SKU y tarima, mostrando piezas y tiempo operativo real.
             </p>
+            <div className="dashboard-chart-toggle" style={{ display: "flex", flexWrap: "wrap", gap: "0.75rem", alignItems: "center", marginBottom: "0.75rem" }}>
+              <div>
+                <button
+                  type="button"
+                  className={`dashboard-chart-toggle-btn${inventoryChartType === "bar" ? " active" : ""}`}
+                  onClick={() => setInventoryChartType("bar")}
+                >
+                  Barras
+                </button>
+                <button
+                  type="button"
+                  className={`dashboard-chart-toggle-btn${inventoryChartType === "line" ? " active" : ""}`}
+                  onClick={() => setInventoryChartType("line")}
+                >
+                  Líneas
+                </button>
+              </div>
+              <label className="dashboard-filter-field" style={{ display: "flex", flexDirection: "column", gap: "0.25rem", minWidth: 180, fontSize: "0.82rem" }}>
+                <span style={{ fontWeight: 600, color: "#365151" }}>Métrica</span>
+                <select
+                  value={inventoryMetric}
+                  onChange={(e) => setInventoryMetric(e.target.value)}
+                  style={{ borderRadius: "0.75rem", border: "1px solid var(--sicfla-border)", padding: "0.35rem 0.7rem", fontSize: "0.84rem", background: "#ffffff", color: "#314d69", cursor: "pointer" }}
+                >
+                  <option value="totalMinutes">Total tiempo</option>
+                  <option value="averageMinutes">Tiempo promedio</option>
+                  <option value="count">Registros</option>
+                  <option value="minMinutes">Tiempo mínimo</option>
+                  <option value="maxMinutes">Tiempo máximo</option>
+                </select>
+              </label>
+              <label className="dashboard-filter-field" style={{ display: "flex", flexDirection: "column", gap: "0.25rem", minWidth: 180, fontSize: "0.82rem" }}>
+                <span style={{ fontWeight: 600, color: "#365151" }}>Vista</span>
+                <select
+                  value={inventoryView}
+                  onChange={(e) => setInventoryView(e.target.value)}
+                  style={{ borderRadius: "0.75rem", border: "1px solid var(--sicfla-border)", padding: "0.35rem 0.7rem", fontSize: "0.84rem", background: "#ffffff", color: "#314d69", cursor: "pointer" }}
+                >
+                  <option value="all">Todo</option>
+                  <option value="board">Por tablero</option>
+                </select>
+              </label>
+            </div>
             <div className="dashboard-filter-row" style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap", marginBottom: "0.5rem" }}>
               <label className="dashboard-filter-field" style={{ display: "flex", flexDirection: "column", gap: "0.25rem", fontSize: "0.82rem" }}>
                 <span style={{ fontWeight: 600, color: "#365151" }}>Tablero</span>
@@ -2116,98 +2236,66 @@ export default function PanelIndicadores({ contexto }) {
                   Limpiar
                 </button>
               )}
-
             </div>
-            <DashboardColumnChart
-              rows={scopedInventoryProductTimeRows.slice(0, 12).map((item) => ({
-                key: item.key,
-                label: item.product.length > 30 ? `${item.product.slice(0, 30).trimEnd()}...` : item.product,
-                value: item.totalMinutes,
-                valueLabel: `${formatMetricNumber(item.totalMinutes, 1)} min`,
-                tooltip: `${item.area} · ${item.boardName} · ${item.product}: ${formatMetricNumber(item.totalMinutes, 2)} min totales`,
-                color: "linear-gradient(180deg, #355f88 0%, #5f8fbe 100%)",
-              }))}
-              emptyLabel="No hay datos suficientes de producto/SKU con tiempo para este filtro."
-            />
+            {scopedProductAggregateRows.length > 0 ? (
+              <DashboardColumnChart
+                rows={scopedProductAggregateRows.slice(0, 12).map((item) => ({
+                  key: item.key,
+                  label: `${item.tarima} · ${item.product.length > 25 ? `${item.product.slice(0, 25)}...` : item.product}`,
+                  value: Number(item[inventoryMetric] || 0),
+                  valueLabel: inventoryMetric === "count"
+                    ? `${item.count} registros`
+                    : `${formatMetricNumber(Number(item[inventoryMetric] || 0), 1)} min`,
+                  tooltip: `Tarima ${item.tarima} - ${item.product}: ${inventoryMetric === "count" ? `${item.count} registros` : `${formatMetricNumber(Number(item[inventoryMetric] || 0), 2)} min`} · ${item.count} registro(s)`,
+                  color: "linear-gradient(180deg, #355f88 0%, #5f8fbe 100%)",
+                }))}
+                emptyLabel="No hay datos de producto/tarima para este filtro."
+              />
+            ) : null}
             <div className="dashboard-table-wrap">
-              {leaderboardBoardFilterSafe === "all" ? (
+              {inventoryView === "board" && leaderboardBoardFilterSafe === "all" ? (
+                <div style={{ padding: "2rem", textAlign: "center", color: "#64748b" }}>
+                  <p>Has elegido la vista "Por tablero". Selecciona un tablero para ver el detalle literal y los tiempos por tarima.</p>
+                </div>
+              ) : (
                 <table className="dashboard-table-clean">
                   <thead>
                     <tr>
-                      <th>Área</th>
                       <th>Tablero</th>
-                      <th>Proceso</th>
-                      <th>Producto / SKU</th>
                       <th>Tarima</th>
-                      <th>Piezas</th>
-                      <th>Recibidas</th>
-                      <th>Merma</th>
-                      <th>Pzas faltantes</th>
-                      <th>Cajas faltantes</th>
-                      <th>Aptas</th>
-                      <th>Total (min)</th>
-                      <th>Promedio (min)</th>
-                      <th>Mín</th>
-                      <th>Máx</th>
-                      <th>Registros</th>
+                      <th>Producto</th>
+                      <th>Piezas esperadas</th>
+                      <th>Total mermas</th>
+                      <th>Piezas faltantes</th>
+                      <th>Piezas reales</th>
+                      <th>Lote</th>
+                      <th>Caducidad</th>
+                      <th>Inicio</th>
+                      <th>Fin</th>
+                      <th>Tiempo (min)</th>
+                      <th>Fecha</th>
+                      <th>Responsable</th>
+                      <th>Mermas</th>
                     </tr>
                   </thead>
                   <tbody>
                     {scopedInventoryProductTimeRows.slice(0, 30).map((item) => (
                       <tr key={item.key}>
-                        <td>{item.area}</td>
                         <td>{item.boardName}</td>
-                        <td>{item.process || "General"}</td>
-                        <td>{item.product}</td>
-                        <td>{item.tarima || "Sin tarima"}</td>
-                        <td>{formatMetricNumber(item.totalPieces || 0, 0)}</td>
-                        <td>{formatMetricNumber(item.totalReceivedPieces || 0, 0)}</td>
-                        <td>{formatMetricNumber(item.totalMermaPieces || 0, 0)}</td>
-                        <td>{formatMetricNumber((item.totalMissingPieces ?? item.totalMermaPieces ?? 0), 0)}</td>
-                        <td>{item.totalMissingBoxes !== undefined ? formatMetricNumber(item.totalMissingBoxes || 0, 0) : "-"}</td>
-                        <td>{formatMetricNumber(item.totalAptasPieces || 0, 0)}</td>
-                        <td>{formatMetricNumber(item.totalMinutes, 2)}</td>
-                        <td>{formatMetricNumber(item.averageMinutes, 2)}</td>
-                        <td>{formatMetricNumber(item.minMinutes, 2)}</td>
-                        <td>{formatMetricNumber(item.maxMinutes, 2)}</td>
-                        <td>{item.count}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              ) : (
-                <table className="dashboard-table-clean">
-                  <thead>
-                    <tr>
-                      <th>Área</th>
-                      <th>Tablero</th>
-                      <th>Responsable</th>
-                      {leaderboardDynamicBoardFields.map((field) => (
-                        <th key={`leaderboard-col-${field.key}`}>{field.label}</th>
-                      ))}
-                      <th>Pzas faltantes</th>
-                      <th>Cajas faltantes</th>
-                      <th>Motivo merma</th>
-                      <th>Estatus</th>
-                      <th>Duración (min)</th>
-                      <th>Fecha</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {scopedLeaderboardBoardRecords.slice(0, 30).map((record) => (
-                      <tr key={record.id}>
-                        <td>{record.area || "Sin área"}</td>
-                        <td>{record.boardName || "Tablero"}</td>
-                        <td>{record.responsibleName || "Sin responsable"}</td>
-                        {leaderboardDynamicBoardFields.map((field) => (
-                          <td key={`${record.id}-${field.key}`}>{formatLeaderboardBoardValue(resolveBoardRecordFieldValue(record, field), field.type)}</td>
-                        ))}
-                        <td>{formatMetricNumber(resolveLeaderboardNumericField(record, ["piezas falt", "faltante", "diferencia", "faltan"]) || 0, 0)}</td>
-                        <td>{formatMetricNumber(resolveLeaderboardNumericField(record, ["cajas falt", "caja falt", "faltante cajas"]) || 0, 0)}</td>
-                        <td>{resolveLeaderboardMermaMotive(record)}</td>
-                        <td>{formatLeaderboardStatus(record.status)}</td>
-                        <td>{formatMetricNumber((record.durationSeconds || 0) / 60, 2)}</td>
-                        <td>{record.occurredAt ? new Intl.DateTimeFormat("es-MX", { day: "2-digit", month: "short", year: "numeric" }).format(new Date(record.occurredAt)) : "-"}</td>
+                        <td>{item.tarimaValue}</td>
+                        <td>{item.productValue}</td>
+                        <td>{Number.isFinite(item.expectedPieces) ? formatMetricNumber(item.expectedPieces, 0) : "-"}</td>
+                        <td>{item.totalMermaPieces > 0 ? formatMetricNumber(item.totalMermaPieces, 0) : "-"}</td>
+                        <td>{Number.isFinite(item.missingPieces) ? formatMetricNumber(item.missingPieces, 0) : "-"}</td>
+                        <td>{Number.isFinite(item.realPieces) ? formatMetricNumber(item.realPieces, 0) : "-"}</td>
+                        <td>{item.loteValue}</td>
+                        <td>{item.caducityValue}</td>
+                        <td>{item.startValue}</td>
+                        <td>{item.endValue}</td>
+                        <td>{formatMetricNumber(item.durationMinutes, 2)}</td>
+                        <td>{item.occurredAtLabel}</td>
+                        <td>{item.responsibleName || "-"}</td>
+                        <td style={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{item.mermas}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -2217,7 +2305,7 @@ export default function PanelIndicadores({ contexto }) {
           </article>
         </div>
 
-        {mermaAnalysisRows.length > 0 && (
+        {hasDashboardSection("merma") && mermaAnalysisRows.length > 0 && (
         <div className="dashboard-main-grid">
           <article className="dashboard-panel dashboard-panel-full">
             <div className="dashboard-panel-header">
@@ -2461,8 +2549,9 @@ export default function PanelIndicadores({ contexto }) {
         </>
         ) : null}
       </DashboardSection>
+      ) : null}
 
-      {(dashboardParetoRows.length || dashboardIshikawaRows.length) ? (
+      {hasDashboardSection("causes") && (dashboardParetoRows.length || dashboardIshikawaRows.length) ? (
       <DashboardSection title="Incidencias y causa raíz" subtitle="Pareto de impacto y análisis Ishikawa para aislar las causas más pesadas." summary={`${dashboardParetoRows.length} incidencias priorizadas · ${dashboardIshikawaRows.length} categorías`} icon={Search} open={dashboardSectionsOpen.causes} onToggle={() => setDashboardSectionsOpen((current) => ({ ...current, causes: !current.causes }))}>
         <div className="dashboard-main-grid dashboard-lower-middle-grid">
           <article className="dashboard-panel dashboard-panel-half">
@@ -2494,7 +2583,7 @@ export default function PanelIndicadores({ contexto }) {
       </DashboardSection>
       ) : null}
 
-      {(dashboardMetrics.exceeded.length || pauseAnalysis.length) ? (
+      {hasDashboardSection("alerts") && (dashboardMetrics.exceeded.length || pauseAnalysis.length) ? (
       <DashboardSection title="Alertas y tablas ejecutivas" subtitle="Excepciones, pausas críticas y consolidado por área para revisión puntual." summary={`${dashboardMetrics.exceeded.length} alertas · ${pauseAnalysis.length} causas de pausa`} icon={OctagonAlert} open={dashboardSectionsOpen.alerts} onToggle={() => setDashboardSectionsOpen((current) => ({ ...current, alerts: !current.alerts }))}>
         <div className="dashboard-main-grid dashboard-bottom-grid">
           <article className="dashboard-panel dashboard-panel-wide">

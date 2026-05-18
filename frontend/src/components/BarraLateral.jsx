@@ -322,7 +322,7 @@ export function Sidebar({ currentUser, page, onPageChange, isOpen, isCollapsed, 
                           aria-label={`${section.label} · ${item.label}`}
                           onClick={(event) => {
                             event.preventDefault();
-                            onPageChange(item.pageId, section.id, item.transportSection, item.transportTab);
+                            onPageChange(item.pageId, section.id, item.transportSection, item.transportTab, item.auditPreset);
                             onClose?.();
                           }}
                         >
@@ -360,11 +360,15 @@ export function Sidebar({ currentUser, page, onPageChange, isOpen, isCollapsed, 
                     const isAuditHistory = item.id === "auditHistory";
                     const isAuditCapture = item.id === PAGE_PROCESS_AUDITS;
                     const isAuditDashboard = item.id === "auditDashboard";
+                    const isAdminGroup = group.label === "Admin";
+                    const nextAreaId = isAdminGroup ? "admin" : "all";
+                    const hrefPageId = (isAuditHistory || isAuditDashboard) ? PAGE_PROCESS_AUDITS : item.id;
+                    const itemActive = page === hrefPageId || (isAuditCapture && page === PAGE_PROCESS_AUDITS);
                     return (
                       <a
                         key={item.id}
-                        className={`nav-item ${page === PAGE_PROCESS_AUDITS ? "active" : ""}`}
-                        href={getPageHref(isAuditHistory || isAuditDashboard ? PAGE_PROCESS_AUDITS : item.id)}
+                        className={`nav-item ${itemActive ? "active" : ""}`}
+                        href={getPageHref(hrefPageId, nextAreaId)}
                         title={item.label}
                         aria-label={item.label}
                         onClick={(event) => {
@@ -376,7 +380,7 @@ export function Sidebar({ currentUser, page, onPageChange, isOpen, isCollapsed, 
                           } else if (isAuditCapture) {
                             onPageChange(PAGE_PROCESS_AUDITS, "all", undefined, undefined, { tab: "capture" });
                           } else {
-                            onPageChange(item.id, "all");
+                            onPageChange(item.id, nextAreaId);
                           }
                           onClose?.();
                         }}

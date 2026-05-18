@@ -3,7 +3,6 @@ import { createPortal } from "react-dom";
 import { BarChart3, Camera, Check, ChevronLeft, ChevronRight, ClipboardList, ExternalLink, Eye, EyeOff, Image as ImageIcon, Plus, RotateCcw, Settings, Trash2, Upload, X } from "lucide-react";
 import { Modal } from "../components/Modal";
 import { uploadFileToCloudinary } from "../services/upload.service";
-import { buildEncryptedCopmecAuditPackage, triggerCopmecDownload } from "../utils/copmecFiles.js";
 
 const FALLBACK_PROCESS_TEMPLATES = [
   {
@@ -1838,19 +1837,6 @@ export default function AuditoriasProcesosCompact({ contexto }) {
       pushAppToast("Paso actualizado.", "success");
     } catch (error) {
       pushAppToast(error?.message || "No se pudo avanzar el paso.", "danger");
-    }
-  }
-
-  async function handleExportAuditCopmec(audit = auditDraft) {
-    if (!audit) return;
-    try {
-      const payload = { version: "1.0", type: "process-audit", exportedAt: new Date().toISOString(), audit };
-      const packageText = await buildEncryptedCopmecAuditPackage(payload);
-      const safeName = String(audit.subArea || audit.area || "auditoria").replace(/[^a-z0-9]/gi, "_").toLowerCase();
-      triggerCopmecDownload(packageText, `auditoria_${safeName}_${audit.id.slice(-6)}.cop`);
-      pushAppToast("Auditoría exportada como .cop cifrado.", "success");
-    } catch {
-      pushAppToast("No se pudo exportar la auditoría.", "danger");
     }
   }
 

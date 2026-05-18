@@ -367,7 +367,6 @@ export default function MisTableros({ contexto }) {
     exportSelectedBoardToExcel,
     previewSelectedBoardPdf,
     exportSelectedBoardToPdf,
-    exportSelectedBoardToCopmec,
     userMap,
     boardRuntimeFeedback: _boardRuntimeFeedback,
     selectedCustomBoardSections,
@@ -1386,9 +1385,6 @@ export default function MisTableros({ contexto }) {
                       <button type="button" className="custom-board-menu-item" onClick={() => { setCustomBoardActionsMenuOpen(false); exportSelectedBoardToPdf(); }} disabled={!selectedBoardActionPermissions.exportBoardPdf}>
                         Exportar PDF
                       </button>
-                      <button type="button" className="custom-board-menu-item" onClick={() => { setCustomBoardActionsMenuOpen(false); exportSelectedBoardToCopmec(); }} disabled={!selectedBoardActionPermissions.exportBoardPdf}>
-                        Descargar .copmec
-                      </button>
                       <hr style={{ margin: "0.3rem 0", border: "none", borderTop: "1px solid rgba(49, 77, 105, 0.1)" }} />
                       <button type="button" className="custom-board-menu-item" onClick={() => { setCustomBoardActionsMenuOpen(false); exportCurrentBoardAsJson(); }}>
                         Exportar estructura JSON
@@ -1785,6 +1781,20 @@ export default function MisTableros({ contexto }) {
                               weekdayOffset: effectiveWeekdayOffset,
                               cleaningSite: effectiveCatalogCleaningSite,
                             });
+
+                          if (field.type === "evidenceGallery" && rowDisplayReadOnly) {
+                            return (
+                              <td key={field.id} style={columnStyle}>
+                                <BoardEvidenceCell
+                                  value={value}
+                                  disabled={true}
+                                  readOnly={true}
+                                  label={field.label}
+                                  onChange={() => {}}
+                                />
+                              </td>
+                            );
+                          }
 
                           if (rowDisplayReadOnly) {
                             const displayValue = getBoardReadOnlyFieldDisplayValue(field, value, row.values, state.inventoryItems || []);

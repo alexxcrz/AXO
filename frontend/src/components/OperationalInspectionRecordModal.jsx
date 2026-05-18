@@ -41,6 +41,16 @@ function getCheckStatusColor(status) {
   return "#9ca3af";
 }
 
+function isImageEvidence(item = {}) {
+  return String(item?.mimeType || "").toLowerCase().startsWith("image/")
+    || /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(String(item?.name || item?.url || ""));
+}
+
+function isVideoEvidence(item = {}) {
+  return String(item?.mimeType || "").toLowerCase().startsWith("video/")
+    || /\.(mp4|mov|webm|ogg|m4v)$/i.test(String(item?.name || item?.url || ""));
+}
+
 export default function OperationalInspectionRecordModal({
   open,
   onClose,
@@ -50,7 +60,7 @@ export default function OperationalInspectionRecordModal({
   const resolvedRecord = useMemo(() => normalizeInspectionRecord(record), [record]);
   const [activeSite, setActiveSite] = useState("");
 
-  const [selectedPhoto, setSelectedPhoto] = useState(null);
+  const [selectedMedia, setSelectedMedia] = useState(null);
 
   useEffect(() => {
     if (activeSite && resolvedRecord.siteKeys.includes(activeSite)) return;
@@ -218,11 +228,19 @@ export default function OperationalInspectionRecordModal({
                             <button
                               key={photo.id}
                               type="button"
-                              onClick={() => setSelectedPhoto(photo)}
+                              onClick={() => setSelectedMedia(photo)}
                               style={{ display: "grid", gap: "0.2rem", border: "1px solid rgba(49, 77, 105, 0.14)", borderRadius: "0.6rem", padding: "0.3rem", background: "#ffffff", cursor: "pointer", textAlign: "left" }}
                             >
-                              <img src={photo.thumbnailUrl || photo.url} alt={photo.name} style={{ width: "100%", height: "80px", objectFit: "cover", borderRadius: "0.45rem" }} />
-                              <small style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{photo.name}</small>
+                              {isImageEvidence(photo) ? (
+                                <img src={photo.thumbnailUrl || photo.url} alt={photo.name || "Evidencia"} style={{ width: "100%", height: "80px", objectFit: "cover", borderRadius: "0.45rem" }} />
+                              ) : isVideoEvidence(photo) ? (
+                                <video src={photo.url} poster={photo.thumbnailUrl || undefined} style={{ width: "100%", height: "80px", objectFit: "cover", borderRadius: "0.45rem" }} muted playsInline preload="metadata" />
+                              ) : (
+                                <div style={{ width: "100%", height: "80px", display: "grid", placeItems: "center", background: "#f3f5f8", borderRadius: "0.45rem" }}>
+                                  <span style={{ fontSize: "0.8rem", color: "#64748b" }}>Archivo</span>
+                                </div>
+                              )}
+                              <small style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{photo.name || "Archivo"}</small>
                             </button>
                           ))}
                         </div>
@@ -244,19 +262,32 @@ export default function OperationalInspectionRecordModal({
       </Modal>
 
       <Modal
-        open={Boolean(selectedPhoto)}
-        title={selectedPhoto?.name || "Evidencia"}
-        onClose={() => setSelectedPhoto(null)}
-        onConfirm={() => setSelectedPhoto(null)}
+        open={Boolean(selectedMedia)}
+        title={selectedMedia?.name || "Evidencia"}
+        onClose={() => setSelectedMedia(null)}
+        onConfirm={() => setSelectedMedia(null)}
         confirmLabel="Cerrar"
         hideCancel
       >
-        {selectedPhoto ? (
+        {selectedMedia ? (
           <div style={{ display: "grid", gap: "0.6rem" }}>
-            <img src={selectedPhoto.url} alt={selectedPhoto.name} style={{ width: "100%", maxHeight: "70vh", objectFit: "contain", borderRadius: "0.8rem", background: "#f8fafc" }} />
-            <a href={selectedPhoto.url} target="_blank" rel="noreferrer" className="icon-button" style={{ justifySelf: "start" }}>
-              Abrir original
-            </a>
+            {isImageEvidence(selectedMedia) ? (
+              <img src={selectedMedia.url} alt={selectedMedia.name || "Evidencia"} style={{ width: "100%", maxHeight: "70vh", objectFit: "contain", borderRadius: "0.8rem", background: "#f8fafc" }} />
+            ) : isVideoEvidence(selectedMedia) ? (
+              <video src={selectedMedia.url} poster={selectedMedia.thumbnailUrl || undefined} style={{ width: "100%", maxHeight: "70vh", borderRadius: "0.8rem", background: "#000" }} controls autoPlay />
+            ) : (
+              <div style={{ width: "100%", minHeight: "260px", display: "grid", placeItems: "center", borderRadius: "0.8rem", background: "#f8fafc" }}>
+                <span style={{ color: "#475569" }}>Archivo adjunto</span>
+              </div>
+            )}
+            <div style={{ display: "flex", gap: "0.6rem", flexWrap: "wrap" }}>
+              <a href={selectedMedia.url} target="_blank" rel="noreferrer" className="icon-button" style={{ justifySelf: "start" }}>
+                Abrir original
+              </a>
+              <a href={selectedMedia.url} download={selectedMedia.name || "evidencia"} className="icon-button" style={{ justifySelf: "start" }}>
+                Descargar
+              </a>
+            </div>
           </div>
         ) : null}
       </Modal>

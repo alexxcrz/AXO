@@ -72,6 +72,7 @@ import {
   updateCotizacion,
   deleteCotizacion,
   upsertProcessAuditTemplate,
+  upsertOperationalInspectionTemplate,
   deleteProcessAuditTemplate,
   createProcessAudit,
   updateProcessAudit,
@@ -963,6 +964,25 @@ warehouseRouter.post("/process-audits/templates", requireAuth, (req, res) => {
     revision: result.state?.revision,
   });
   res.status(201).json({ ok: true, data: { state: result.state, templateId: result.templateId } });
+});
+
+warehouseRouter.post("/operational-templates", requireAuth, (req, res) => {
+  try {
+    const result = upsertOperationalInspectionTemplate(req.auth, req.body || {});
+    if (!result.ok) {
+      const status = result.reason === "auth_required" ? 401 : result.reason === "forbidden" ? 403 : 400;
+      res.status(status).json({ ok: false, message: "No fue posible guardar la plantilla operativa." });
+      return;
+    }
+
+    auditSecurityEvent("warehouse_operational_template_saved", req, {
+      templateId: result.templateId,
+      revision: result.state?.revision,
+    });
+    res.status(201).json({ ok: true, data: { state: result.state, templateId: result.templateId } });
+  } catch (err) {
+    res.status(500).json({ ok: false, message: String(err?.message || "error") });
+  }
 });
 
 warehouseRouter.delete("/process-audits/templates/:templateId", requireAuth, (req, res) => {

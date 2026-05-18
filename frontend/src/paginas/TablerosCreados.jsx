@@ -364,28 +364,82 @@ export default function TablerosCreados({ contexto }) {
 
   function resetChecklistTemplateDraft() {
     setChecklistTemplateDraft(normalizeOperationalInspectionTemplate(OPERATIONAL_INSPECTION_TEMPLATE));
+    if (typeof window !== "undefined") {
+      try {
+        window.localStorage.removeItem(CHECKLIST_TEMPLATE_STORAGE_KEY);
+      } catch {
+        // noop
+      }
+    }
   }
 
-  function persistChecklistTemplateDraft() {
+  async function persistChecklistTemplateDraft() {
     if (typeof window === "undefined") return;
     setChecklistTemplateSaving(true);
     try {
-      const normalizedDraft = normalizeOperationalInspectionTemplate(checklistTemplateDraft);
-      if (normalizedDraft.id === OPERATIONAL_INSPECTION_TEMPLATE.id) {
-        window.localStorage.setItem(
-          CHECKLIST_TEMPLATE_STORAGE_KEY,
-          JSON.stringify(normalizedDraft),
-        );
-      }
-      if (normalizedDraft.id === CLEANING_CHECKLIST_TEMPLATE_V2.id) {
-        window.localStorage.setItem(
-          CHECKLIST_TEMPLATE_STORAGE_KEY_CLEANING,
-          JSON.stringify(normalizedDraft),
-        );
-      }
-      pushAppToast("Checklist guardado correctamente.", "success");
+        // Persist template to server so canonical templates are authoritative
+        const normalizedDraft = normalizeOperationalInspectionTemplate(checklistTemplateDraft);
+        const result = await requestJson("/warehouse/operational-templates", {
+          method: "POST",
+          body: JSON.stringify(normalizedDraft),
+        });
+        if (result?.ok) {
+          try {
+            applyRemoteWarehouseState(result.data.state, setState, setLoginDirectory, skipNextSyncRef, setSyncStatus);
+          } catch {}
+          pushAppToast("Checklist guardado en servidor.", "success");
+          // If creating a new checklist, also create a control board assigned to user's area
+          if (checklistEditorMode === "create") {
+            try {
+              const boardPayload = {
+                name: normalizedDraft.name || "Checklist",
+                description: normalizedDraft.description || "",
+                ownerId: String(currentUser?.id || "").trim(),
+                visibilityType: "users",
+                sharedDepartments: [],
+                accessUserIds: [],
+                settings: {
+                  ownerArea: String(currentUser?.area || "").trim() || undefined,
+                  operationalChecklistConfig: {
+                    enabled: true,
+                    template: normalizedDraft,
+                    linkedActivityNames: [],
+                  },
+                },
+                columns: [
+                  {
+                    id: createChecklistToken("field"),
+                    label: "Actividad",
+                    type: "select",
+                    optionSource: "catalogByCategory",
+                    optionCatalogCategory: "General",
+                    options: [],
+                    colorRules: [],
+                  },
+                ],
+              };
+
+              const createResult = await requestJson("/warehouse/boards", {
+                method: "POST",
+                body: JSON.stringify(boardPayload),
+              });
+              if (createResult?.data?.state) {
+                applyRemoteWarehouseState(createResult.data.state, setState, setLoginDirectory, skipNextSyncRef, setSyncStatus);
+              }
+              if (createResult?.data?.boardId) {
+                setSelectedCustomBoardId(createResult.data.boardId);
+              }
+              if (createResult?.ok) pushAppToast("Tablero creado y asignado al área del usuario.", "success");
+              else pushAppToast(createResult?.message || "No fue posible crear el tablero.", "danger");
+            } catch (err) {
+              pushAppToast(err?.message || "Error al crear el tablero.", "danger");
+            }
+          }
+        } else {
+          pushAppToast(result?.message || "No fue posible guardar el checklist en el servidor.", "danger");
+        }
     } catch {
-      pushAppToast("No se pudo guardar el checklist en este dispositivo.", "danger");
+        pushAppToast("No se pudo procesar el checklist.", "danger");
     } finally {
       setChecklistTemplateSaving(false);
     }
@@ -600,6 +654,18 @@ export default function TablerosCreados({ contexto }) {
       setSelectedBoardCreatorId(boardCreatorTabs[0].creatorId);
     }
   }, [boardCreatorTabs, selectedBoardCreatorId]);
+
+  useEffect(() => {
+    // Clear legacy localStorage checklist template keys on component mount
+    if (typeof window !== "undefined") {
+      try {
+        window.localStorage.removeItem(CHECKLIST_TEMPLATE_STORAGE_KEY);
+        window.localStorage.removeItem(CHECKLIST_TEMPLATE_STORAGE_KEY_CLEANING);
+      } catch {
+        // noop
+      }
+    }
+  }, []);
 
   function handleOpenCreateCategoryModal() {
     setCreateListModal({ open: true, name: "", error: "" });
