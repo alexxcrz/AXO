@@ -309,13 +309,13 @@ export const Sidebar = React.memo(function Sidebar({ currentUser, page, onPageCh
                     </span>
                   </button>
                   <div id={`nav-section-panel-${section.id}`} className="nav-section-items" hidden={sectionCollapsed}>
-                    {section.items.map((item) => {
+                    {section.items.map((item, _idx) => {
                       const itemActive = page === item.pageId && activeInSection && (
                         !item.transportSection || navTransportSection === item.transportSection
                       ) && (!item.transportTab || navTransportTab === item.transportTab);
                       return (
                         <a
-                          key={`${section.id}-${item.pageId}-${item.transportSection || ""}-${item.transportTab || ""}`}
+                          key={`${section.id}-${item.pageId}-${item.transportSection || ""}-${item.transportTab || ""}-${normalizeSidebarKey(item.label)}-${_idx}`}
                           className={`nav-item nav-area-item ${itemActive ? "active" : ""}`}
                           href={getPageHref(item.pageId, section.id, item.transportSection)}
                           title={item.label}

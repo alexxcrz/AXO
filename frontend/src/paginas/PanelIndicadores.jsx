@@ -2144,29 +2144,11 @@ export default function PanelIndicadores({ contexto }) {
               <h3>Evolución de productividad por periodo</h3>
               <Zap size={18} />
             </div>
-            <p className="dashboard-panel-subtitle">Comparativa de registros totales, cierres y horas productivas acumuladas periodo a periodo.</p>
+            <p className="dashboard-panel-subtitle">Evolución de horas productivas acumuladas por periodo.</p>
             <DashboardLineChart
               series={[
                 {
-                  key: "total",
-                  label: "Registros totales",
-                  color: "#0ea5e9",
-                  data: dashboardTrendRows.map((item) => ({ label: item.label, y: item.total })),
-                },
-                {
-                  key: "completed",
-                  label: "Cierres",
-                  color: "#5f8fbe",
-                  data: dashboardTrendRows.map((item) => ({ label: item.label, y: item.completed })),
-                },
-                {
-                  key: "paused",
-                  label: "Pausados",
-                  color: "#f59e0b",
-                  data: dashboardTrendRows.map((item) => ({ label: item.label, y: item.paused || 0 })),
-                },
-                {
-                  key: "hours",
+                  key: "productiveHours",
                   label: "Horas productivas",
                   color: "#a855f7",
                   valueSuffix: " h",

@@ -1231,6 +1231,7 @@ function App() { // NOSONAR
   const boardCellSaveTimersRef = useRef(new Map());
   const boardCellSaveVersionRef = useRef(new Map());
   const boardCellDraftValueRef = useRef(new Map());
+  const starterByRowIdRef = useRef({});
   const routeLastUrlRef = useRef(`${globalThis.location.pathname}${globalThis.location.search}${globalThis.location.hash || ""}`);
   const routeSyncFromPopRef = useRef(false);
   const BOARD_CELL_DRAFT_TTL_MS = 4500;
@@ -4940,6 +4941,7 @@ function App() { // NOSONAR
   const utilityNavItems = useMemo(
     () => allowedNavItems.filter((item) => {
       if ([PAGE_CUSTOM_BOARDS, PAGE_BOARD, PAGE_TRANSPORT, PAGE_INCIDENCIAS].includes(item.id)) return false;
+      if (item.id === PAGE_DASHBOARD_BUILDER) return false;
       if (item.group === "Mejora continua") return false;
       const requiredActionId = NAV_UTILITY_ACTION_BY_GROUP[item.group] || "";
       if (!requiredActionId) return true;
@@ -4967,6 +4969,7 @@ function App() { // NOSONAR
               { pageId: PAGE_DASHBOARD, label: "Dashboard", shortLabel: "Dash", requiredActionId: AREA_TAB_PERMISSION_ACTIONS.mantenimiento.dashboard },
               { pageId: PAGE_BOARD, label: "Creador de tableros", shortLabel: "Creador", requiredActionId: AREA_TAB_PERMISSION_ACTIONS.mantenimiento.board },
               { pageId: PAGE_CUSTOM_BOARDS, label: "Mis tableros", shortLabel: "Tableros", requiredActionId: AREA_TAB_PERMISSION_ACTIONS.mantenimiento.customBoards },
+              { pageId: PAGE_HISTORY, label: "Historial", shortLabel: "Hist.", requiredActionId: AREA_TAB_PERMISSION_ACTIONS.mantenimiento.history },
             ]
           : section.id === "mejora-continua"
             ? [
@@ -5080,6 +5083,7 @@ function App() { // NOSONAR
             { id: AREA_TAB_PERMISSION_ACTIONS.mantenimiento.dashboard, label: "Dashboard", kind: "actions", actionPermissions: buildScopedActionPermissions(AREA_TAB_PERMISSION_ACTIONS.mantenimiento.dashboard, AREA_TAB_BASE_ACTIONS.dashboard) },
             { id: AREA_TAB_PERMISSION_ACTIONS.mantenimiento.board, label: "Creador de tableros", kind: "actions", actionPermissions: buildScopedActionPermissions(AREA_TAB_PERMISSION_ACTIONS.mantenimiento.board, AREA_TAB_BASE_ACTIONS.board) },
             { id: AREA_TAB_PERMISSION_ACTIONS.mantenimiento.customBoards, label: "Mis tableros", kind: "actions", actionPermissions: buildScopedActionPermissions(AREA_TAB_PERMISSION_ACTIONS.mantenimiento.customBoards, AREA_TAB_BASE_ACTIONS.customBoards) },
+            { id: AREA_TAB_PERMISSION_ACTIONS.mantenimiento.history, label: "Historial", kind: "actions", actionPermissions: buildScopedActionPermissions(AREA_TAB_PERMISSION_ACTIONS.mantenimiento.history, AREA_TAB_BASE_ACTIONS.history) },
           ]
         : [
           { id: AREA_TAB_PERMISSION_ACTIONS[section.id]?.dashboard || "", label: "Dashboard", kind: "actions", actionPermissions: buildScopedActionPermissions(AREA_TAB_PERMISSION_ACTIONS[section.id]?.dashboard || "", AREA_TAB_BASE_ACTIONS.dashboard) },
@@ -7756,6 +7760,17 @@ function App() { // NOSONAR
     }
   }
 
+  function isCleaningActivityRow(row) {
+    if (!row) return false;
+    const activityCatalogId = String(row.catalogActivityId || "").trim();
+    if (!activityCatalogId) return false;
+    const matchedCatalogItem = (state.catalog || []).find((item) => {
+      if (!item || item.isDeleted) return false;
+      return String(item.id || "").trim() === activityCatalogId;
+    });
+    return String(matchedCatalogItem?.category || "").trim().toLowerCase() === "limpieza";
+  }
+
   function createBoardRow(boardId) {
     const board = (state.controlBoards || []).find((item) => item.id === boardId);
     if (!canDoBoardAction(currentUser, board)) return;
@@ -7966,6 +7981,26 @@ function App() { // NOSONAR
     const row = board?.rows?.find((item) => item.id === rowId);
     if (!board || !row || !canOperateBoardRowRecord(currentUser, board, row, normalizedPermissions)) return;
 
+    // Control de permiso para pausar/finalizar:
+    // - El botón de inicio puede accionarlo cualquier persona con permiso de operación sobre la fila.
+    // - Pausa y fin están reservados al iniciador o a cualquier player seleccionado en la actividad.
+    if (status === STATUS_PAUSED || status === STATUS_FINISHED) {
+      const rawResponsible = Array.isArray(row?.responsibleIds) ? row.responsibleIds : (row?.responsibleId ? [row.responsibleId] : []);
+      const responsibleIds = (rawResponsible || []).map((id) => String(id || "").trim()).filter(Boolean);
+      const currentId = String(currentUser?.id || "");
+      const starterId = String(starterByRowIdRef.current[rowId] || "");
+      const isResponsibleUser = responsibleIds.includes(currentId);
+      const isStarter = starterId && starterId === currentId;
+
+      if (!isResponsibleUser && !isStarter && !canManageDashboardState) {
+        setBoardRuntimeFeedback({
+          tone: "danger",
+          message: "Solo la persona que inició o los players asignados a esta actividad pueden pausarla o finalizarla (excepto Leads).",
+        });
+        return;
+      }
+    }
+
     if (status === STATUS_RUNNING && row.status !== STATUS_RUNNING && !options.skipStartConfirm) {
       setBoardStartConfirm({
         open: true,
@@ -8037,7 +8072,7 @@ function App() { // NOSONAR
     const row = board?.rows?.find((item) => item.id === rowId);
     if (!board || !row || !canOperateBoardRowRecord(currentUser, board, row, normalizedPermissions)) return;
 
-    const nowTime = new Date().toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit", hour12: false });
+    const nowTime = new Date().toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
     const autoTimeValues = (board.fields || []).reduce((accumulator, field) => {
       if (field.type !== "time") return accumulator;
       const normalizedLabel = normalizeKey(field.label || "");
@@ -8126,6 +8161,18 @@ function App() { // NOSONAR
         values: optimisticValues,
       };
     });
+
+    // Registrar localmente quién inició la fila (para control de pausa/fin)
+    try {
+      if (previousRowSnapshot.status !== STATUS_RUNNING && status === STATUS_RUNNING) {
+        starterByRowIdRef.current[rowId] = String(currentUser?.id || "");
+      }
+      if (status === STATUS_FINISHED) {
+        delete starterByRowIdRef.current[rowId];
+      }
+    } catch (e) {
+      // ignore
+    }
 
     requestJson(`/warehouse/boards/${boardId}/rows/${rowId}`, {
       method: "PATCH",

@@ -1488,6 +1488,7 @@ export default function MisTableros({ contexto }) {
                       && (isLeadPrincipal || (row.status !== STATUS_FINISHED && canEditBoardRowRecord(currentUser, selectedCustomBoard, row, normalizedPermissions)));
                     const isFinishedRow = row.status === STATUS_FINISHED;
                     const rowFieldEditable = rowCaptureEnabled;
+                    const rowAssigneeEditable = !isHistoricalCustomBoardView;
                     const rowDisplayReadOnly = isHistoricalCustomBoardView;
                     const canStartRow = row.status === STATUS_PENDING || row.status === STATUS_PAUSED;
                     const canPauseRow = row.status === STATUS_RUNNING;
@@ -1523,10 +1524,10 @@ export default function MisTableros({ contexto }) {
                                     <button
                                       ref={assigneeMenuOpen ? assigneeTriggerRef : null}
                                       type="button"
-                                      onClick={() => rowFieldEditable && setOpenAssigneeMenuRowId((current) => current === row.id ? "" : row.id)}
-                                      disabled={!rowFieldEditable}
+                                      onClick={() => rowAssigneeEditable && setOpenAssigneeMenuRowId((current) => current === row.id ? "" : row.id)}
+                                      disabled={!rowAssigneeEditable}
                                       title={assigneeFullLabel}
-                                      className={`board-assignee-trigger${assigneeMenuOpen ? " is-open" : ""}${rowFieldEditable ? "" : " is-disabled"}`}
+                                      className={`board-assignee-trigger${assigneeMenuOpen ? " is-open" : ""}${rowAssigneeEditable ? "" : " is-disabled"}`}
                                     >
                                       <span className="board-assignee-trigger-label">{assigneeDisplayLabel}</span>
                                       <span className="board-assignee-trigger-caret" aria-hidden="true">▾</span>
@@ -1722,7 +1723,7 @@ export default function MisTableros({ contexto }) {
                                       <ClipboardList size={13} />
                                     </button>
                                   ) : null}
-                                  {row.status !== STATUS_FINISHED ? (
+                                  {checklistTemplateForRow ? (
                                     <button type="button" className="board-action-button icon-only" title="Crear checklist manual" aria-label="Crear checklist manual" onClick={() => openManualChecklistModal(row)} disabled={!rowWorkflowEnabled}>
                                       <Plus size={13} />
                                     </button>
@@ -1851,13 +1852,16 @@ export default function MisTableros({ contexto }) {
                               accumulator[groupName].push(option);
                               return accumulator;
                             }, {});
+                            const isActivityField = isBoardActivityListField && activityListField?.id === field.id;
+                            const activityHasValue = String(row.values?.[field.id] || "").trim() !== "";
+                            const disabled = !rowFieldEditable || (isActivityField && activityHasValue);
                             return (
                               <td key={field.id} style={columnStyle}>
-                                <select value={row.values?.[field.id] || ""} onChange={(event) => updateBoardRowValue(selectedCustomBoard.id, row.id, field, event.target.value)} style={controlStyle} title={field.helpText || field.label} disabled={!rowFieldEditable}>
+                                <select value={row.values?.[field.id] || ""} onChange={(event) => updateBoardRowValue(selectedCustomBoard.id, row.id, field, event.target.value)} style={controlStyle} title={field.helpText || field.label} disabled={disabled}>
                                   <option value="">Seleccionar...</option>
                                   {Object.entries(groupedOptions).map(([groupName, groupOptions]) => (
                                     <optgroup key={groupName} label={groupName}>
-                                      {groupOptions.map((option) => <option key={`${groupName}-${option.value}`} value={option.value}>{option.label}</option>)}
+                                      {groupOptions.map((option) => <option key={`${groupName}-${option.value}`} value={option.value}>{option.label}</option>) }
                                     </optgroup>
                                   ))}
                                 </select>
