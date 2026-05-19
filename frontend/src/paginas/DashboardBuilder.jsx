@@ -7,18 +7,7 @@ const COMPONENT_DEFINITIONS = {
   executive: {
     label: "Resumen ejecutivo",
     description: "KPIs clave para ver el estado actual del área.",
-    defaultSettings: { kpiGroup: "general" },
-    settings: [
-      {
-        key: "kpiGroup",
-        label: "Grupo de KPI",
-        options: [
-          { value: "general", label: "General" },
-          { value: "times", label: "Tiempos" },
-          { value: "pauses", label: "Pausas" },
-        ],
-      },
-    ],
+    defaultSettings: {},
   },
   players: {
     label: "Análisis por player",
@@ -194,9 +183,23 @@ const AVAILABLE_COMPONENTS = Object.entries(COMPONENT_DEFINITIONS).map(([id, def
 
 export default function DashboardBuilder() {
   const [dashboardConfig, setDashboardConfig] = useState(() => {
+    function normalizeDashboardConfig(config) {
+      if (!config || typeof config !== "object") return DEFAULT_CONFIG;
+      const components = Array.isArray(config.components)
+        ? config.components.map((component) => {
+          if (component.type === "executive" && component.settings?.kpiGroup) {
+            const { kpiGroup, ...normalizedSettings } = component.settings;
+            return { ...component, settings: normalizedSettings };
+          }
+          return component;
+        })
+        : DEFAULT_CONFIG.components;
+      return { ...DEFAULT_CONFIG, ...config, components };
+    }
+
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
-      return saved ? JSON.parse(saved) : DEFAULT_CONFIG;
+      return saved ? normalizeDashboardConfig(JSON.parse(saved)) : DEFAULT_CONFIG;
     } catch {
       return DEFAULT_CONFIG;
     }

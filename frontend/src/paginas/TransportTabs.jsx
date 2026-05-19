@@ -1,5 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import DashboardDateRangePicker from "../components/DashboardDateRangePicker";
+import {
+  TransportPendingRow,
+  TransportPendingDocRow,
+  TransportPostponedRow,
+} from "../components/TransportTableRows";
 
 function resolveDateMs(value) {
   const ms = Date.parse(value || "");
@@ -62,7 +67,6 @@ export function TransportAssignmentsTab({
   documentacionState,
   activeDateKey,
   canManageTransportArea,
-  selectedArea,
   currentUser,
   formatDateTime,
   requestJson,
@@ -218,30 +222,13 @@ export function TransportAssignmentsTab({
           </thead>
           <tbody>
             {pendingRecords.map((record) => (
-              <tr key={record.id}>
-                <td>{record.areaLabel}</td>
-                <td>{record.shipmentCode || "-"}</td>
-                <td>{record.destination}</td>
-                <td>{record.boxes}</td>
-                <td>{record.pieces}</td>
-                <td>{record.postponedUntil ? formatDateTime(record.postponedUntil) : "-"}</td>
-                <td style={{ fontSize: "0.85rem", maxWidth: "150px", overflow: "hidden", textOverflow: "ellipsis" }}>
-                  {record.notes || "-"}
-                </td>
-                <td>{record.createdByName}</td>
-                <td>{formatDateTime(record.createdAt)}</td>
-                <td>
-                  <button
-                    type="button"
-                    className="primary-button"
-                    onClick={() => handleTakeRoute(record.id)}
-                    disabled={isAssigning}
-                    style={{ padding: "0.4rem 0.8rem", fontSize: "0.85rem" }}
-                  >
-                    {isAssigning ? "Asignando..." : "Tomar ruta"}
-                  </button>
-                </td>
-              </tr>
+              <TransportPendingRow
+                key={record.id}
+                record={record}
+                isAssigning={isAssigning}
+                formatDateTime={formatDateTime}
+                onTakeRoute={handleTakeRoute}
+              />
             ))}
             {!pendingRecords.length && (
               <tr>
@@ -276,25 +263,13 @@ export function TransportAssignmentsTab({
           </thead>
           <tbody>
             {pendingDocRecords.map((record) => (
-              <tr key={record.id}>
-                <td>{record.shipmentCode || "-"}</td>
-                <td>{record.ubicacion || "-"}</td>
-                <td>{record.area || "-"}</td>
-                <td>{record.dirigidoA || "-"}</td>
-                <td>{record.createdByName || "-"}</td>
-                <td>{formatDateTime(record.createdAt || record.updatedAt)}</td>
-                <td>
-                  <button
-                    type="button"
-                    className="primary-button"
-                    onClick={() => handleTakeDocRoute(record.id)}
-                    disabled={isAssigning}
-                    style={{ padding: "0.4rem 0.8rem", fontSize: "0.85rem" }}
-                  >
-                    {isAssigning ? "Asignando..." : "Tomar ruta"}
-                  </button>
-                </td>
-              </tr>
+              <TransportPendingDocRow
+                key={record.id}
+                record={record}
+                isAssigning={isAssigning}
+                formatDateTime={formatDateTime}
+                onTakeRoute={handleTakeDocRoute}
+              />
             ))}
             {!pendingDocRecords.length && (
               <tr>
@@ -429,36 +404,14 @@ export function TransportPostponedTab({
           </thead>
           <tbody>
             {postponedRecords.map((record) => (
-              <tr key={record.id}>
-                <td>{record.areaLabel}</td>
-                <td>{record.destination}</td>
-                <td>{record.boxes}</td>
-                <td>{record.pieces}</td>
-                <td>{formatDateTime(record.postponedUntil || record.updatedAt)}</td>
-                <td>{Math.max(0, Number(record.postponedReminderMinutes || 0))} min antes</td>
-                <td>{record.createdByName || "-"}</td>
-                <td>
-                  <div style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap" }}>
-                    <button
-                      type="button"
-                      className="icon-button"
-                      onClick={() => handleReactivate(record.id)}
-                      disabled={isSubmitting}
-                    >
-                      Marcar pendiente
-                    </button>
-                    <button
-                      type="button"
-                      className="primary-button"
-                      onClick={() => handleTakeRoute(record.id)}
-                      disabled={isSubmitting}
-                      style={{ padding: "0.35rem 0.65rem", fontSize: "0.8rem" }}
-                    >
-                      Tomar ruta
-                    </button>
-                  </div>
-                </td>
-              </tr>
+              <TransportPostponedRow
+                key={record.id}
+                record={record}
+                isSubmitting={isSubmitting}
+                formatDateTime={formatDateTime}
+                onReactivate={handleReactivate}
+                onTakeRoute={handleTakeRoute}
+              />
             ))}
             {!postponedRecords.length ? (
               <tr>

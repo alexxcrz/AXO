@@ -352,6 +352,8 @@ export default function MisTableros({ contexto }) {
     selectedCustomBoardSnapshot,
     selectedCustomBoardViewId,
     setSelectedCustomBoardViewId,
+    selectedCustomBoardRowId,
+    setSelectedCustomBoardRowId,
     isHistoricalCustomBoardView,
     canChangeSelectedBoardOperationalContext,
     customBoardMetrics: _customBoardMetrics,
@@ -433,6 +435,13 @@ export default function MisTableros({ contexto }) {
     }, 1000);
     return () => globalThis.clearInterval(timer);
   }, []);
+
+  useEffect(() => {
+    if (!selectedCustomBoardRowId) return;
+    const rowElement = document.querySelector(`[data-board-row-id="${selectedCustomBoardRowId}"]`);
+    if (!rowElement) return;
+    rowElement.scrollIntoView({ block: "center", behavior: "smooth" });
+  }, [selectedCustomBoardRowId, selectedCustomBoardId, selectedCustomBoardViewId]);
 
   function normalizeTimeInput24h(value, strict = false) {
     const raw = String(value || "").trim();
@@ -1503,7 +1512,7 @@ export default function MisTableros({ contexto }) {
                     const assigneeFullLabel = formatBoardRowAssigneeLabel(row, userMap, { emptyLabel: "Asignar player(s)" });
                     const assigneeMenuOpen = openAssigneeMenuRowId === row.id;
                     return (
-                      <tr key={row.id}>
+                      <tr key={row.id} data-board-row-id={row.id} style={row.id === selectedCustomBoardRowId ? { background: "rgba(14, 165, 233, 0.12)" } : undefined}>
                         {visibleBoardColumns.map((column) => {
                           if (column.kind !== "field") {
                             if (column.id === "assignee") {

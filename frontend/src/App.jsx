@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   ArrowDown,
@@ -41,21 +41,27 @@ import {
 } from "lucide-react";
 import { Modal } from "./components/Modal";
 import { BoardBuilderModal, BoardComponentStudioModal } from "./components/ModalesConstructorTableros";
-import GestionInventario from "./paginas/GestionInventario";
-import GestionTransporte from "./paginas/GestionTransporte";
-import GestionIncidencias from "./paginas/GestionIncidencias";
-import GestionUsuarios from "./paginas/GestionUsuarios";
-import HistorialSemanas from "./paginas/HistorialSemanas";
-import AuditoriasProcesos from "./paginas/AuditoriasProcesosCompact";
-import MisTableros from "./paginas/MisTableros";
-import ConfiguracionSistema from "./paginas/ConfiguracionSistema";
-import PaginaNoEncontrada from "./paginas/PaginaNoEncontrada";
-import PanelIndicadores from "./paginas/PanelIndicadores";
-import DashboardBuilder from "./paginas/DashboardBuilder";
-import TablerosCreados from "./paginas/TablerosCreados";
-import BibliotecaPage from "./paginas/BibliotecaPage";
+const GestionInventario = lazy(() => import("./paginas/GestionInventario"));
+const GestionTransporte = lazy(() => import("./paginas/GestionTransporte"));
+const GestionIncidencias = lazy(() => import("./paginas/GestionIncidencias"));
+const GestionUsuarios = lazy(() => import("./paginas/GestionUsuarios"));
+const HistorialSemanas = lazy(() => import("./paginas/HistorialSemanas"));
+const AuditoriasProcesos = lazy(() => import("./paginas/AuditoriasProcesosCompact"));
+const MisTableros = lazy(() => import("./paginas/MisTableros"));
+const ConfiguracionSistema = lazy(() => import("./paginas/ConfiguracionSistema"));
+const PaginaNoEncontrada = lazy(() => import("./paginas/PaginaNoEncontrada"));
+const PanelIndicadores = lazy(() => import("./paginas/PanelIndicadores"));
+const DashboardBuilder = lazy(() => import("./paginas/DashboardBuilder"));
+const TablerosCreados = lazy(() => import("./paginas/TablerosCreados"));
+const BibliotecaPage = lazy(() => import("./paginas/BibliotecaPage"));
 import CopmecAIWidget from "./components/CopmecAIWidget";
 import "./App.css";
+
+const PageFallback = () => (
+  <div className="page-fallback" style={{ padding: "2rem", textAlign: "center", color: "#475569" }}>
+    Cargando contenido...
+  </div>
+);
 
 
 // â”€â”€ Modulos extraidos â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -1143,6 +1149,7 @@ function App() { // NOSONAR
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "true");
   const [selectedCustomBoardId, setSelectedCustomBoardId] = useState(INITIAL_ROUTE_STATE.selectedBoardId);
   const [selectedCustomBoardViewId, setSelectedCustomBoardViewId] = useState("current");
+  const [selectedCustomBoardRowId, setSelectedCustomBoardRowId] = useState("");
   const [customBoardActionsMenuOpen, setCustomBoardActionsMenuOpen] = useState(false);
   const [uiTheme, setUiTheme] = useState("copmec-bosque");
   const [uiFont, setUiFont] = useState("bahnschrift");
@@ -2706,7 +2713,8 @@ function App() { // NOSONAR
       const responsibleUser = userMap.get(activity.responsibleId);
       const pauseSummary = activityPauseSummaryMap.get(activity.id) || { count: 0, totalSeconds: 0, reasons: [], logs: [] };
       const durationSeconds = getElapsedSeconds(activity, now, operationalPauseState);
-      const limitMinutes = getTimeLimitMinutes(activity, catalogMap);
+      const explicitLimit = Number(activity.timeLimitMinutes || activity.limitMinutes || activity.timeLimit || 0);
+      const limitMinutes = getTimeLimitMinutes(activity, catalogMap) || (Number.isFinite(explicitLimit) ? explicitLimit : 0);
       const { primaryArea: activityArea, areaScopes } = resolveActivityAreaScope(activity, responsibleUser);
       return {
         id: `activity-${activity.id}`,
@@ -2764,7 +2772,7 @@ function App() { // NOSONAR
         pauseCount: pauseSummary.count,
         pauseSeconds: pauseSummary.totalSeconds,
         pauseReasons: pauseSummary.reasons,
-        pauseLogEntries: pauseSummary.logs,
+        pauseLogEntries: pauseSummary.logs.map((entry) => ({ ...entry, rowId: row.id, boardId: board.id })),
       };
     }));
 
@@ -2802,7 +2810,7 @@ function App() { // NOSONAR
         pauseCount: pauseSummary.count,
         pauseSeconds: pauseSummary.totalSeconds,
         pauseReasons: pauseSummary.reasons,
-        pauseLogEntries: pauseSummary.logs,
+        pauseLogEntries: pauseSummary.logs.map((entry) => ({ ...entry, rowId: row.id, boardId: resolvedSnapshotBoardId })),
       };
     }));
 
@@ -3196,9 +3204,29 @@ function App() { // NOSONAR
       });
   }, [dashboardVisibleControlBoards, filteredDashboardRecords]);
 
+  function isInventoryProductTimeRecord(record) {
+    const values = record.rowValues || {};
+    const fields = Array.isArray(record.sourceFields) ? record.sourceFields : [];
+    const inventoryLabels = ["tarima", "pallet", "palet", "producto", "sku", "articulo", "item", "lote", "caducidad", "caja", "pieza", "piezas", "cantidad"];
+    const inventoryFields = fields.filter((field) => {
+      const label = String(field?.label || field?.name || field?.key || "").toLowerCase();
+      return inventoryLabels.some((keyword) => label.includes(keyword));
+    });
+    if (!inventoryFields.length) return false;
+
+    const hasInventoryValue = inventoryFields.some((field) => {
+      const raw = String(values[field.id] ?? values[field.key] ?? values[field.name] ?? "").trim().toLowerCase();
+      return raw !== "" && raw !== "sin tarima" && raw !== "sin producto" && raw !== "n/a" && raw !== "-";
+    });
+
+    return hasInventoryValue;
+  }
+
   const dashboardInventoryProductTimeRows = useMemo(() => {
-    // Mostrar LITERALMENTE cada registro del tablero con sus campos REALES
-    const inventoryRecords = filteredDashboardRecords.filter((record) => record.source === "board");
+    // Mostrar LITERALMENTE cada registro del tablero con sus campos REALES,
+    // pero sólo si realmente parece un registro de inventario/producto/tarima.
+    const inventoryRecords = filteredDashboardRecords
+      .filter((record) => record.source === "board" && isInventoryProductTimeRecord(record));
     if (!inventoryRecords.length) return [];
 
     return inventoryRecords.map((record, index) => {
@@ -3209,8 +3237,8 @@ function App() { // NOSONAR
         area: record.area || "Sin área",
         boardId: String(record.boardId || "").trim() || "sin-tablero",
         boardName: record.boardName || "Tablero",
-          rowLabel: String(record.label || record.name || "").trim(),
-          rawRecord: record,
+        rowLabel: String(record.label || record.name || "").trim(),
+        rawRecord: record,
         rowValues: record.rowValues || {},
         sourceFields: recordFields,
         durationSeconds: record.durationSeconds || 0,
@@ -9198,6 +9226,9 @@ function App() { // NOSONAR
     setLoginDirectory,
     setPage,
     setSelectedCustomBoardId,
+    setSelectedCustomBoardViewId,
+    selectedCustomBoardRowId,
+    setSelectedCustomBoardRowId,
     setSelectedAreaSectionId,
     updateBoardOperationalContext,
     setSelectedHistoryWeekId,
@@ -9409,19 +9440,21 @@ function App() { // NOSONAR
           </div>
         </header>
 
-        {page === PAGE_BOARD || page === PAGE_ADMIN ? <TablerosCreados contexto={paginasContexto} /> : null}
-        {page === PAGE_CUSTOM_BOARDS ? <MisTableros contexto={paginasContexto} /> : null}
-        {page === PAGE_DASHBOARD ? <PanelIndicadores contexto={paginasContexto} /> : null}
-        {page === PAGE_DASHBOARD_BUILDER ? <DashboardBuilder contexto={paginasContexto} /> : null}
-        {page === PAGE_HISTORY ? <HistorialSemanas contexto={paginasContexto} /> : null}
-        {page === PAGE_PROCESS_AUDITS ? <AuditoriasProcesos contexto={paginasContexto} /> : null}
-        {page === PAGE_INVENTORY ? <GestionInventario contexto={paginasContexto} /> : null}
-        {page === PAGE_TRANSPORT ? <GestionTransporte contexto={paginasContexto} /> : null}
-        {page === PAGE_USERS ? <GestionUsuarios contexto={paginasContexto} /> : null}
-        {page === PAGE_BIBLIOTECA ? <BibliotecaPage currentUser={currentUser} canUpload={actionPermissions.uploadBiblioteca} canRenameName={actionPermissions.editBibliotecaName} canDelete={actionPermissions.deleteBiblioteca} /> : null}
-        {page === PAGE_INCIDENCIAS ? <GestionIncidencias contexto={paginasContexto} /> : null}
-        {page === PAGE_SYSTEM_SETTINGS ? <ConfiguracionSistema contexto={paginasContexto} /> : null}
-        {page === PAGE_NOT_FOUND ? <PaginaNoEncontrada contexto={paginasContexto} /> : null}
+        <Suspense fallback={<PageFallback />}>
+          {page === PAGE_BOARD || page === PAGE_ADMIN ? <TablerosCreados contexto={paginasContexto} /> : null}
+          {page === PAGE_CUSTOM_BOARDS ? <MisTableros contexto={paginasContexto} /> : null}
+          {page === PAGE_DASHBOARD ? <PanelIndicadores contexto={paginasContexto} /> : null}
+          {page === PAGE_DASHBOARD_BUILDER ? <DashboardBuilder contexto={paginasContexto} /> : null}
+          {page === PAGE_HISTORY ? <HistorialSemanas contexto={paginasContexto} /> : null}
+          {page === PAGE_PROCESS_AUDITS ? <AuditoriasProcesos contexto={paginasContexto} /> : null}
+          {page === PAGE_INVENTORY ? <GestionInventario contexto={paginasContexto} /> : null}
+          {page === PAGE_TRANSPORT ? <GestionTransporte contexto={paginasContexto} /> : null}
+          {page === PAGE_USERS ? <GestionUsuarios contexto={paginasContexto} /> : null}
+          {page === PAGE_BIBLIOTECA ? <BibliotecaPage currentUser={currentUser} canUpload={actionPermissions.uploadBiblioteca} canRenameName={actionPermissions.editBibliotecaName} canDelete={actionPermissions.deleteBiblioteca} /> : null}
+          {page === PAGE_INCIDENCIAS ? <GestionIncidencias contexto={paginasContexto} /> : null}
+          {page === PAGE_SYSTEM_SETTINGS ? <ConfiguracionSistema contexto={paginasContexto} /> : null}
+          {page === PAGE_NOT_FOUND ? <PaginaNoEncontrada contexto={paginasContexto} /> : null}
+        </Suspense>
       </section>
 
       <Modal open={pauseState.open} title="Actividad en pausa" confirmLabel={pauseState.completed ? (pauseState.continueReady ? "Continuar" : "Espera un momento...") : "Confirmar pausa"} cancelLabel="Cancelar" hideCancel={pauseState.completed} confirmDisabled={pauseState.completed && !pauseState.continueReady} onClose={() => { if (pauseContinueTimerRef.current) clearTimeout(pauseContinueTimerRef.current); setPauseState({ open: false, activityId: null, reason: "", customReason: "", error: "", completed: false, continueReady: false, pauseLogId: null }); }} onConfirm={handleConfirmPause}>

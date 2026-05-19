@@ -63,6 +63,7 @@ function getDashboardDatePopoverStyle(triggerElement) {
 }
 
 import { formatMinutesToHourMinute, normalizeBoardMultiSelectDetailValue } from "../utils/utilidades";
+import { PAGE_CUSTOM_BOARDS } from "../utils/constantes";
 
 function DashboardDateRangePicker({ startDate, endDate, onChange }) {
   const pickerRef = useRef(null);
@@ -269,6 +270,11 @@ export default function PanelIndicadores({ contexto }) {
     selectedAreaSectionId,
     selectedAreaSection,
     Zap,
+    dashboardPauseLogs,
+    setPage,
+    setSelectedCustomBoardId,
+    setSelectedCustomBoardViewId,
+    setSelectedCustomBoardRowId,
   } = contexto;
 
   const dashboardVisibleControlBoards = useMemo(() => rawDashboardVisibleControlBoards ?? filteredVisibleControlBoards ?? [], [rawDashboardVisibleControlBoards, filteredVisibleControlBoards]);
@@ -301,6 +307,28 @@ export default function PanelIndicadores({ contexto }) {
     }
     return new Set(components.filter((component) => component.enabled).map((component) => component.type));
   }, [dashboardBuilderConfig]);
+
+  const [pauseModalOpen, setPauseModalOpen] = useState(false);
+  const [pauseModalData, setPauseModalData] = useState(null);
+
+  function openPauseDetailsForReason(board, reasonEntry) {
+    const allLogs = Array.isArray(dashboardPauseLogs) ? dashboardPauseLogs : [];
+    const logs = allLogs.filter((log) => String(log.boardId) === String(board.boardId) && String((log.reason || "")).toLowerCase().includes(String(reasonEntry.reason || "").toLowerCase()));
+    setPauseModalData({ board, reasonEntry, logs });
+    setPauseModalOpen(true);
+  }
+
+  function goToBoardFromPause(boardId, rowId) {
+    try {
+      setSelectedCustomBoardId && setSelectedCustomBoardId(boardId);
+      setSelectedCustomBoardViewId && setSelectedCustomBoardViewId("current");
+      setSelectedCustomBoardRowId && setSelectedCustomBoardRowId(rowId || "");
+      setPage && setPage(PAGE_CUSTOM_BOARDS);
+    } catch (e) {
+      /* ignore */
+    }
+    setPauseModalOpen(false);
+  }
 
   const hasDashboardSection = useCallback((sectionType) => visibleDashboardSections.has(sectionType), [visibleDashboardSections]);
 
@@ -1420,6 +1448,51 @@ export default function PanelIndicadores({ contexto }) {
           (board.inventoryProducts || []).slice(0, 2).map((product) => `${product.product}: ${formatMetricNumber(product.totalMinutes, 1)}m`).join(" | ") || "N/A",
         ]),
       ));
+      if (scopedInventoryProductTimeRows.length) {
+        pdf.addPage();
+        addPageHeader("Inventario literal", "Registros de producto, tarima y merma con causas identificadas");
+        drawSectionTable(
+          "Inventario literal",
+          ["Tablero", "Tarima", "Producto", "Pzas esperadas", "Pzas merma", "Pzas faltantes", "Pzas reales", "Lote", "Caducidad", "Inicio", "Fin", "Minutos", "Player", "Causal"],
+          scopedInventoryProductTimeRows.slice(0, 20).map((item) => [
+            item.boardName || "—",
+            item.tarimaValue || "—",
+            item.productValue || "—",
+            Number.isFinite(item.expectedPieces) ? formatMetricNumber(item.expectedPieces, 0) : "-",
+            Number.isFinite(item.totalMermaPieces) ? formatMetricNumber(item.totalMermaPieces, 0) : "-",
+            Number.isFinite(item.missingPieces) ? formatMetricNumber(item.missingPieces, 0) : "-",
+            Number.isFinite(item.realPieces) ? formatMetricNumber(item.realPieces, 0) : "-",
+            item.loteValue || "-",
+            item.caducityValue || "-",
+            item.startValue || "-",
+            item.endValue || "-",
+            formatMetricNumber(item.durationMinutes, 1),
+            item.responsibleName || "-",
+            item.mermas || "-",
+          ]),
+          {
+            styles: { fontSize: 7, cellPadding: 3, overflow: "linebreak" },
+            columnStyles: { 0: { cellWidth: 55 }, 2: { cellWidth: 75 }, 13: { cellWidth: 90 } },
+          },
+        );
+      }
+
+      if (mermaAnalysisRows.length) {
+        pdf.addPage();
+        addPageHeader("Merma por causa", "Motivos de merma con impacto numérico y frecuencia");
+        drawSectionTable(
+          "Merma por causa",
+          ["Motivo", "Registros", "Piezas de merma", "Piezas faltantes", "Piezas/registro"],
+          mermaAnalysisRows.map((row) => [
+            row.motivo || "-",
+            String(row.count || 0),
+            String(formatMetricNumber(row.totalPiezas || 0, 0)),
+            String(formatMetricNumber(row.totalPiezasFaltantes || 0, 0)),
+            String(formatMetricNumber(row.count ? row.totalPiezas / row.count : 0, 2)),
+          ]),
+          { styles: { fontSize: 7.5, cellPadding: 4, overflow: "linebreak" } },
+        );
+      }
 
       // ─── PÁGINA 9: CATÁLOGO ───────────────────────────────────────────────────
       pdf.addPage();
@@ -2498,7 +2571,9 @@ export default function PanelIndicadores({ contexto }) {
                               <td>
                                 {(board.topPauseReasons || []).length ? board.topPauseReasons.map((reason) => (
                                   <div key={reason.reason}>
-                                    {reason.reason}: {formatMetricNumber((reason.seconds || 0) / 60, 1)} min
+                                    <button type="button" style={{ background: "none", border: "none", padding: 0, color: "#0366d6", cursor: "pointer", textDecoration: "underline" }} onClick={() => openPauseDetailsForReason(board, reason)}>
+                                      {reason.reason}: {formatMetricNumber((reason.seconds || 0) / 60, 1)} min
+                                    </button>
                                   </div>
                                 )) : <span>Sin pausas registradas</span>}
                               </td>
@@ -2715,6 +2790,41 @@ export default function PanelIndicadores({ contexto }) {
         </div>,
         document.body,
       ) : null}
+      {pauseModalOpen && pauseModalData ? createPortal(
+        <div role="dialog" aria-modal="true" style={{ position: "fixed", inset: 0, zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0, 0, 0, 0.45)", padding: "1rem" }}>
+          <div style={{ background: "#ffffff", borderRadius: "1rem", padding: "1rem", maxWidth: 760, width: "100%", boxShadow: "0 8px 32px rgba(0,0,0,0.2)", maxHeight: "80vh", overflow: "auto" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "1rem" }}>
+              <div>
+                <h3 style={{ margin: 0 }}>{pauseModalData.reasonEntry.reason} · {pauseModalData.board.boardName}</h3>
+                <small>{(pauseModalData.logs || []).length} evento(s) · {Math.round(((pauseModalData.reasonEntry.seconds || 0) / 60))} min</small>
+              </div>
+              <div style={{ display: "flex", gap: "0.5rem" }}>
+                <button type="button" style={{ padding: "0.4rem 0.8rem", borderRadius: "0.6rem", border: "1px solid #ddd", background: "#f3f4f6" }} onClick={() => setPauseModalOpen(false)}>Cerrar</button>
+                <button type="button" style={{ padding: "0.4rem 0.8rem", borderRadius: "0.6rem", border: "none", background: "#314d69", color: "#fff" }} onClick={() => goToBoardFromPause(pauseModalData.board.boardId, pauseModalData.logs?.[0]?.rowId)}>
+                  Ver en tablero
+                </button>
+              </div>
+            </div>
+            <div style={{ marginTop: "0.75rem", display: "grid", gap: "0.5rem" }}>
+              {(pauseModalData.logs || []).length ? (pauseModalData.logs || []).map((entry, idx) => (
+                <div key={entry.id || idx} style={{ border: "1px solid rgba(49, 77, 105, 0.08)", borderRadius: "0.6rem", padding: "0.6rem", display: "grid", gridTemplateColumns: "1fr auto", gap: "0.25rem" }}>
+                  <div>
+                    <div style={{ fontSize: "0.95rem", fontWeight: 600 }}>{entry.reason || pauseModalData.reasonEntry.reason}</div>
+                    <div style={{ fontSize: "0.85rem", color: "#444" }}>{entry.comment || "-"}</div>
+                    <div style={{ fontSize: "0.82rem", color: "#666", marginTop: "0.25rem" }}>
+                      Pausado: {entry.pausedAt ? new Date(entry.pausedAt).toLocaleString("es-MX") : "-"} · Reanudó: {entry.resumedAt ? new Date(entry.resumedAt).toLocaleString("es-MX") : "-"}
+                    </div>
+                  </div>
+                  <div style={{ textAlign: "right" }}>
+                    <div style={{ fontWeight: 700 }}>{Math.round((entry.pauseDurationSeconds || 0) / 60)} min</div>
+                    <div style={{ fontSize: "0.82rem", color: "#666" }}>Aut: {Math.round((entry.pauseAuthorizedSeconds || 0) / 60)}m</div>
+                    <div style={{ fontSize: "0.82rem", color: "#666" }}>Contado: {Math.round((entry.countedPauseDurationSeconds || entry.pauseDurationSeconds || 0) / 60)}m</div>
+                  </div>
+                </div>
+              )) : <div>No hay eventos de pausa para esta causa en el tablero.</div>}
+            </div>
+          </div>
+        </div>, document.body) : null}
     </section>
   );
 }

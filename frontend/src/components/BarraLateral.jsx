@@ -3,7 +3,7 @@
 // InventoryActivityConsumptionEditor: editor de consumos por actividad.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   BadgeCheck,
   Boxes,
@@ -151,7 +151,7 @@ function SidebarIcon({ icon: Icon, className = "" }) {
   );
 }
 
-export function Sidebar({ currentUser, page, onPageChange, isOpen, isCollapsed, onClose, onOpenProfile, onToggleCollapsed, areaSections, utilityNavItems, selectedAreaSectionId, navTransportSection, navTransportTab, canUseAI, onOpenAI }) {
+export const Sidebar = React.memo(function Sidebar({ currentUser, page, onPageChange, isOpen, isCollapsed, onClose, onOpenProfile, onToggleCollapsed, areaSections, utilityNavItems, selectedAreaSectionId, navTransportSection, navTransportTab, canUseAI, onOpenAI }) {
   const avatarUrl = getUserAvatarUrl(currentUser);
   const globalDashboardItem = (Array.isArray(utilityNavItems) ? utilityNavItems : []).find((item) => item.id === PAGE_DASHBOARD) || null;
   const sortedAreaSections = (Array.isArray(areaSections) ? areaSections : [])
@@ -423,9 +423,9 @@ export function Sidebar({ currentUser, page, onPageChange, isOpen, isCollapsed, 
       </button>
     </aside>
   );
-}
+});
 
-export function InventoryActivityConsumptionEditor({ activeCatalogItems, activityConsumptions, onToggle, onQuantityChange }) {
+export const InventoryActivityConsumptionEditor = React.memo(function InventoryActivityConsumptionEditor({ activeCatalogItems, activityConsumptions, onToggle, onQuantityChange }) {
   if (!activeCatalogItems.length) {
     return <p className="inventory-activity-consumption-empty">Primero agrega actividades activas al catalogo para definir el consumo automatico por inicio.</p>;
   }
@@ -467,4 +467,4 @@ export function InventoryActivityConsumptionEditor({ activeCatalogItems, activit
       })}
     </div>
   );
-}
+});
