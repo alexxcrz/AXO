@@ -347,6 +347,7 @@ export default function MisTableros({ contexto }) {
     selectedCustomBoard,
     filteredVisibleControlBoards,
     setSelectedCustomBoardId,
+    selectedCustomBoardId,
     selectedCustomBoardDisplay,
     selectedCustomBoardHistoryOptions,
     selectedCustomBoardSnapshot,

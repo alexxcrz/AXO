@@ -41,19 +41,21 @@ import {
 } from "lucide-react";
 import { Modal } from "./components/Modal";
 import { BoardBuilderModal, BoardComponentStudioModal } from "./components/ModalesConstructorTableros";
-const GestionInventario = lazy(() => import("./paginas/GestionInventario"));
-const GestionTransporte = lazy(() => import("./paginas/GestionTransporte"));
-const GestionIncidencias = lazy(() => import("./paginas/GestionIncidencias"));
-const GestionUsuarios = lazy(() => import("./paginas/GestionUsuarios"));
-const HistorialSemanas = lazy(() => import("./paginas/HistorialSemanas"));
-const AuditoriasProcesos = lazy(() => import("./paginas/AuditoriasProcesosCompact"));
-const MisTableros = lazy(() => import("./paginas/MisTableros"));
-const ConfiguracionSistema = lazy(() => import("./paginas/ConfiguracionSistema"));
-const PaginaNoEncontrada = lazy(() => import("./paginas/PaginaNoEncontrada"));
-const PanelIndicadores = lazy(() => import("./paginas/PanelIndicadores"));
-const DashboardBuilder = lazy(() => import("./paginas/DashboardBuilder"));
-const TablerosCreados = lazy(() => import("./paginas/TablerosCreados"));
-const BibliotecaPage = lazy(() => import("./paginas/BibliotecaPage"));
+import GestionInventario from "./paginas/GestionInventario";
+import GestionTransporte from "./paginas/GestionTransporte";
+import GestionIncidencias from "./paginas/GestionIncidencias";
+import GestionUsuarios from "./paginas/GestionUsuarios";
+import HistorialSemanas from "./paginas/HistorialSemanas";
+import AuditoriasProcesosCompact from "./paginas/AuditoriasProcesosCompact";
+import MisTableros from "./paginas/MisTableros";
+import ConfiguracionSistema from "./paginas/ConfiguracionSistema";
+import PaginaNoEncontrada from "./paginas/PaginaNoEncontrada";
+import PanelIndicadores from "./paginas/PanelIndicadores";
+import DashboardBuilder from "./paginas/DashboardBuilder";
+import TablerosCreados from "./paginas/TablerosCreados";
+import BibliotecaPage from "./paginas/BibliotecaPage";
+
+const AuditoriasProcesos = AuditoriasProcesosCompact;
 import CopmecAIWidget from "./components/CopmecAIWidget";
 import "./App.css";
 
