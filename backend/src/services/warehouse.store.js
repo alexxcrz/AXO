@@ -3315,9 +3315,15 @@ function pruneStateBackups() {
 
 function writeStoreFile(filePath, state) {
   const tempFilePath = `${filePath}.tmp`;
-  fs.writeFileSync(tempFilePath, JSON.stringify(state, null, 2), "utf8");
-  fs.rmSync(filePath, { force: true });
-  fs.renameSync(tempFilePath, filePath);
+  try {
+    fs.writeFileSync(tempFilePath, JSON.stringify(state, null, 2), "utf8");
+    fs.rmSync(filePath, { force: true });
+    fs.renameSync(tempFilePath, filePath);
+  } catch (err) {
+    console.error(`[COPMEC] Error escribiendo el store en ${filePath}:`, err && err.message ? err.message : err);
+    // Re-throw to ensure callers see the persistence error
+    throw err;
+  }
 }
 
 function snapshotCurrentStore() {
@@ -6915,7 +6921,9 @@ export function patchWarehouseBoardRow(auth, boardId, rowId, patch = {}) {
       nextRow.status = patch.status;
       nextRow.startTime = nextRow.startTime || nowIso;
       nextRow.endTime = row.status === "Terminado" ? null : nextRow.endTime;
-      nextRow.accumulatedSeconds = Math.max(0, Number(row.accumulatedSeconds || 0) + computePausedOverflowSeconds(row));
+      // Preserve accumulatedSeconds on resume: do NOT add paused overflow here.
+      // Paused overflow (penalties) may be accounted elsewhere, but resuming must continue from stored accumulated value.
+      nextRow.accumulatedSeconds = Math.max(0, Number(row.accumulatedSeconds || 0));
       nextRow.lastResumedAt = nowIso;
       nextRow.pauseStartedAt = null;
       nextRow.pauseAffectsTimer = false;
