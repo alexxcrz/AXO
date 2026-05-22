@@ -3793,10 +3793,7 @@ export function getElapsedSeconds(activity, now, pauseState) {
   const accumulatedSeconds = Number(activity.accumulatedSeconds || 0);
   if (activity.status !== STATUS_RUNNING) {
     if (activity.status === STATUS_PAUSED) {
-      const overflowPausedSeconds = getLivePauseOverflowSeconds(activity, now, pauseState);
-      if (overflowPausedSeconds > 0) {
-        return Math.max(0, accumulatedSeconds + overflowPausedSeconds);
-      }
+      return Math.max(0, accumulatedSeconds);
     }
     // Fallback for legacy finished rows that have start/end but accumulatedSeconds was not persisted.
     if (activity.status === STATUS_FINISHED && accumulatedSeconds <= 0 && activity.startTime && activity.endTime) {
@@ -3810,16 +3807,16 @@ export function getElapsedSeconds(activity, now, pauseState) {
     return Math.max(0, accumulatedSeconds);
   }
 
-  const resumedMs = parseOperationalTimestamp(baselineTimestamp, now);
-  if (!Number.isFinite(resumedMs)) {
+  // If the row is marked as running but still carries a paused timestamp without a resume marker,
+  // do not infer elapsed time from the original start time because that can include paused duration.
+  if (!activity.lastResumedAt && activity.pauseStartedAt) {
     return Math.max(0, accumulatedSeconds);
   }
 
-  const effectiveNow = typeof now === "number" ? now : new Date(now).getTime();
-  const resolvedNow = Number.isFinite(effectiveNow) ? effectiveNow : Date.now();
-  const cappedNow = getEffectiveOperationalNow(resolvedNow, pauseState, areaKey);
-  const delta = Math.max(0, Math.floor((cappedNow - resumedMs) / 1000));
-  return Math.max(0, accumulatedSeconds + delta);
+  return Math.max(
+    0,
+    accumulatedSeconds + getOperationalElapsedSeconds(baselineTimestamp, now, pauseState, areaKey),
+  );
 }
 
 export function getLivePauseOverflowSeconds(activity, now, pauseState) {

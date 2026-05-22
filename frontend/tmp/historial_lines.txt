@@ -1,0 +1,247 @@
+--- 781-941 ---
+781:     });
+782:     playerScopedActivities.forEach((activity) => {
+783:       const parts = toDateParts(activity.activityDate);
+784:       if (!parts) return;
+785:       if (selectedYearFilter !== "all" && parts.year !== selectedYearFilter) return;
+786:       if (selectedMonthFilter !== "all" && parts.month !== selectedMonthFilter) return;
+787:       days.add(parts.day);
+788:     });
+789:     return Array.from(days.values()).sort((left, right) => right.localeCompare(left));
+790:   }, [STATUS_FINISHED, effectiveHistoryWeek, normalizedOperationalWorkWeek, playerScopedActivities, selectedMonthFilter, selectedYearFilter]);
+791: 
+792:   const visibleHistoryActivities = useMemo(() => {
+793:     return [...playerScopedActivities]
+794:       .filter((activity) => {
+795:         const parts = toDateParts(activity.activityDate);
+796:         if (!parts) return false;
+797:         if (selectedYearFilter !== "all" && parts.year !== selectedYearFilter) return false;
+798:         if (selectedMonthFilter !== "all" && parts.month !== selectedMonthFilter) return false;
+799:         if (selectedDayFilter !== "all" && parts.day !== selectedDayFilter) return false;
+800:         return true;
+801:       })
+802:       .sort((left, right) => {
+803:         const leftTime = parseHistoryDate(left.activityDate)?.getTime() ?? 0;
+804:         const rightTime = parseHistoryDate(right.activityDate)?.getTime() ?? 0;
+805:         if (leftTime !== rightTime) return leftTime - rightTime;
+806:         return String(left.boardName || "").localeCompare(String(right.boardName || ""), "es-MX");
+807:       });
+808:   }, [playerScopedActivities, selectedDayFilter, selectedMonthFilter, selectedYearFilter]);
+809: 
+810:   const visibleHistorySummary = useMemo(() => {
+811:     const activities = visibleHistoryActivities;
+812:     const accumulatedSeconds = activities.reduce((sum, activity) => sum + Number(activity.accumulatedSeconds || 0), 0);
+813:     const elapsedSeconds = activities.reduce((sum, activity) => {
+814:       const start = parseHistoryDate(activity.startTime);
+815:       const end = parseHistoryDate(activity.endTime);
+816:       if (!start || !end) return sum;
+817:       const duration = Math.max(0, end.getTime() - start.getTime());
+818:       return sum + duration / 1000;
+819:     }, 0);
+820:     const efficiencyPercent = elapsedSeconds > 0 ? (accumulatedSeconds / elapsedSeconds) * 100 : 0;
+821:     return {
+822:       accumulatedSeconds,
+823:       efficiencyPercent,
+824:     };
+825:   }, [visibleHistoryActivities]);
+826: 
+827:   const exportWindow = useMemo(() => {
+828:     return getHistoryExportWindow(effectiveHistoryWeek, playerScopedActivities, historyExportPeriod);
+829:   }, [effectiveHistoryWeek, historyExportPeriod, playerScopedActivities]);
+830: 
+831:   const exportableHistoryActivities = useMemo(() => {
+832:     if (!exportWindow) return [];
+833:     const startMs = exportWindow.start.getTime();
+834:     const endMs = exportWindow.end.getTime();
+835:     return [...playerScopedActivities]
+836:       .filter((activity) => {
+837:         const activityMs = parseHistoryDate(activity.activityDate)?.getTime() ?? Number.NaN;
+838:         if (!Number.isFinite(activityMs)) return false;
+839:         return activityMs >= startMs && activityMs <= endMs;
+840:       })
+841:       .sort((left, right) => {
+842:         const leftMs = parseHistoryDate(left.activityDate)?.getTime() ?? 0;
+843:         const rightMs = parseHistoryDate(right.activityDate)?.getTime() ?? 0;
+844:         if (leftMs !== rightMs) return leftMs - rightMs;
+845:         return String(left.boardName || "").localeCompare(String(right.boardName || ""), "es-MX");
+846:       });
+847:   }, [exportWindow, playerScopedActivities]);
+848: 
+849:   const checklistActivities = useMemo(
+850:     () => scopedHistoryActivities.filter((activity) => activity?.operationalInspectionRecord),
+851:     [scopedHistoryActivities],
+852:   );
+853: 
+854:   const checklistAreaTabs = useMemo(() => {
+855:     const grouped = new Map();
+856: 
+857:     if (selectedSectionAreaScopes.length) {
+858:       selectedSectionAreaScopes.forEach((areaScope) => {
+859:         const areaRoot = String(areaScope || "").split("/")[0]?.trim();
+860:         if (!areaRoot) return;
+861:         if (!grouped.has(areaRoot)) grouped.set(areaRoot, 0);
+862:       });
+863:     } else {
+864:       (state.areaCatalog || []).forEach((areaEntry) => {
+865:         const areaRoot = String(areaEntry || "").split("/")[0]?.trim();
+866:         if (!areaRoot) return;
+867:         if (!grouped.has(areaRoot)) grouped.set(areaRoot, 0);
+868:       });
+869:     }
+870: 
+871:     checklistActivities.forEach((activity) => {
+872:       grouped.set(activity.areaRoot, (grouped.get(activity.areaRoot) || 0) + 1);
+873:     });
+874: 
+875:     return Array.from(grouped.entries())
+876:       .map(([area, total]) => ({ value: area, label: area, total }))
+877:       .sort((left, right) => left.label.localeCompare(right.label, "es-MX"));
+878:   }, [checklistActivities, selectedSectionAreaScopes, state.areaCatalog]);
+879: 
+880:   const checklistAreaScopedActivities = useMemo(() => {
+881:     if (!selectedChecklistAreaTab) return [];
+882:     return checklistActivities
+883:       .filter((activity) => activity.areaRoot === selectedChecklistAreaTab)
+884:       .sort((left, right) => {
+885:         const leftTime = parseHistoryDate(left.activityDate)?.getTime() ?? 0;
+886:         const rightTime = parseHistoryDate(right.activityDate)?.getTime() ?? 0;
+887:         return leftTime - rightTime;
+888:       });
+889:   }, [checklistActivities, selectedChecklistAreaTab]);
+890: 
+891:   const visibleChecklistActivities = useMemo(
+892:     () => checklistAreaScopedActivities,
+893:     [checklistAreaScopedActivities],
+894:   );
+895: 
+896:   const exportableChecklistActivities = useMemo(() => {
+897:     if (!exportWindow) return [];
+898:     const startMs = exportWindow.start.getTime();
+899:     const endMs = exportWindow.end.getTime();
+900:     return checklistAreaScopedActivities.filter((activity) => {
+901:       const activityMs = parseHistoryDate(activity.activityDate)?.getTime() ?? Number.NaN;
+902:       if (!Number.isFinite(activityMs)) return false;
+903:       return activityMs >= startMs && activityMs <= endMs;
+904:     });
+905:   }, [checklistAreaScopedActivities, exportWindow]);
+906: 
+907:   const reportYearSections = useMemo(() => {
+908:     const grouped = new Map();
+909: 
+910:     playerScopedActivities.forEach((activity) => {
+911:       const parts = toDateParts(activity.activityDate);
+912:       if (!parts) return;
+913: 
+914:       const yearKey = parts.year;
+915:       const monthKey = parts.month;
+916:       const dayKey = parts.day;
+917: 
+918:       if (!grouped.has(yearKey)) {
+919:         grouped.set(yearKey, {
+920:           yearKey,
+921:           total: 0,
+922:           completed: 0,
+923:           totalSeconds: 0,
+924:           months: new Map(),
+925:         });
+926:       }
+927: 
+928:       const yearEntry = grouped.get(yearKey);
+929:       yearEntry.total += 1;
+930:       yearEntry.completed += activity.status === STATUS_FINISHED ? 1 : 0;
+931:       yearEntry.totalSeconds += Number(activity.accumulatedSeconds || 0);
+932: 
+933:       if (!yearEntry.months.has(monthKey)) {
+934:         yearEntry.months.set(monthKey, {
+935:           monthKey,
+936:           total: 0,
+937:           completed: 0,
+938:           totalSeconds: 0,
+939:           days: new Map(),
+940:         });
+--- 1481-1566 ---
+1481:                           selectWeek(shownWeek.id);
+1482:                         }
+1483:                       }}
+1484:                       style={{
+1485:                         display: "flex",
+1486:                         alignItems: "center",
+1487:                         justifyContent: "space-between",
+1488:                         gap: "1rem",
+1489:                         width: "100%",
+1490:                         background: "transparent",
+1491:                         border: "none",
+1492:                         padding: 0,
+1493:                         cursor: "pointer",
+1494:                         textAlign: "left",
+1495:                       }}
+1496:                     >
+1497:                       <div>
+1498:                         <h3 style={{ margin: 0, color: "#314d69", fontSize: "1rem" }}>{monthLabel(monthEntry.monthKey)}</h3>
+1499:                         <p className="subtle-line" style={{ margin: "0.25rem 0 0" }}>{monthEntry.weeks.length} semanas registradas</p>
+1500:                       </div>
+1501:                       <div style={{ display: "flex", gap: "0.45rem", flexWrap: "wrap", justifyContent: "flex-end" }}>
+1502:                         <span className="chip">{monthEntry.weeks.length} semanas</span>
+1503:                         <span className="chip primary">{isOpen ? "Ocultar" : "Ver mes"}</span>
+1504:                       </div>
+1505:                     </button>
+1506: 
+1507:                     {isOpen && shownWeek ? (
+1508:                       <>
+1509:                         <div className="history-summary-card" style={{ marginBottom: 0 }}>
+1510:                           <button
+1511:                             type="button"
+1512:                             className="icon-button"
+1513:                             onClick={() => selectWeek(activeMonthWeeks[selectedWeekIndexInMonth - 1]?.id)}
+1514:                             disabled={selectedWeekIndexInMonth <= 0}
+1515:                           >
+1516:                             ← Semana anterior
+1517:                           </button>
+1518:                           <div>
+1519:                             <h3>{effectiveHistoryWeek.name}</h3>
+1520:                             <p>{effectiveHistoryWeek.startDate && effectiveHistoryWeek.endDate ? `${formatDate(effectiveHistoryWeek.startDate)} - ${formatDate(effectiveHistoryWeek.endDate)}` : "Semana sin rango definido"}</p>
+1521:                           </div>
+1522:                           <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", justifyContent: "flex-end" }}>
+1523:                             <span className="chip">{currentWeekStats.total} registros</span>
+1524:                             <span className="chip">{currentWeekStats.completed} completadas</span>
+1525:                             <span className="chip">{formatDurationClock(historyActivities.reduce((sum, activity) => sum + Number(activity.accumulatedSeconds || 0), 0))}</span>
+1526:                             <span className="chip">Acumulado: {formatDurationClock(visibleHistorySummary.accumulatedSeconds)}</span>
+1527:                             <span className="chip">Eficiencia: {formatPercent(visibleHistorySummary.efficiencyPercent)}</span>
+1528:                           </div>
+1529:                           <button
+1530:                             type="button"
+1531:                             className="icon-button"
+1532:                             onClick={() => selectWeek(activeMonthWeeks[selectedWeekIndexInMonth + 1]?.id)}
+1533:                             disabled={selectedWeekIndexInMonth < 0 || selectedWeekIndexInMonth >= activeMonthWeeks.length - 1}
+1534:                           >
+1535:                             Semana siguiente →
+1536:                           </button>
+1537:                         </div>
+1538: 
+1539:                         <div style={{ display: "flex", gap: "0.45rem", alignItems: "center", flexWrap: "wrap" }}>
+1540:                           <label className="board-top-select" style={{ minWidth: 180 }}>
+1541:                             <span>Descargar</span>
+1542:                             <select value={historyExportPeriod} onChange={(event) => setHistoryExportPeriod(event.target.value)}>
+1543:                               <option value="week">Semana</option>
+1544:                               <option value="quincena1">Quincena 1 (1-15)</option>
+1545:                               <option value="quincena2">Quincena 2 (16-Última)</option>
+1546:                               <option value="month">Mes</option>
+1547:                             </select>
+1548:                           </label>
+1549:                           <button
+1550:                             type="button"
+1551:                             className="icon-button"
+1552:                             onClick={() => {
+1553:                               if (historyDetailTab === "checklists") {
+1554:                                 void exportChecklistHistoryToPdf();
+1555:                                 return;
+1556:                               }
+1557:                               void exportHistoryToPdf();
+1558:                             }}
+1559:                             disabled={historyDetailTab === "checklists"
+1560:                               ? (!exportableChecklistActivities.length || isExportingChecklistPdf)
+1561:                               : (!exportableHistoryActivities.length || isExportingHistoryPdf)}
+1562:                             title={historyDetailTab === "checklists"
+1563:                               ? (isExportingChecklistPdf ? "Exportando PDF" : "Exportar checklist a PDF")
+1564:                               : (isExportingHistoryPdf ? "Exportando PDF" : "Exportar a PDF")}
+1565:                           >

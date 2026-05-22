@@ -562,6 +562,16 @@ html {
   line-height: 1.1;
 }
 
+.nav-item-badge {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 999px;
+  background: #f87171;
+  box-shadow: 0 0 0 2px rgba(255,255,255,0.08);
+  display: inline-block;
+  margin-left: 0.25rem;
+}
+
 .nav-item span {
   min-width: 0;
   overflow: hidden;
@@ -14564,6 +14574,11 @@ body {
   background: rgba(54, 120, 177, 0.14);
   border-color: rgba(54, 120, 177, 0.34);
   color: #2d4f72;
+}
+
+.board-runtime-feedback-banner {
+  margin-top: 0.75rem;
+  margin-bottom: 0.75rem;
 }
 
 /* ── Sonido ──────────────────────────────────────────────────────────────── */

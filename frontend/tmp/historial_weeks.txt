@@ -1,0 +1,147 @@
+--- 1361-1506 ---
+1361:     }
+1362: 
+1363:     globalThis.addEventListener("keydown", handleDeleteWeekHotkeys);
+1364:     return () => globalThis.removeEventListener("keydown", handleDeleteWeekHotkeys);
+1365:   }, [confirmDeleteWeek, deleteWeekModal.isSubmitting, deleteWeekModal.open]);
+1366: 
+1367:   return (
+1368:     <section className="history-page-layout">
+1369:       <article className="history-summary-card">
+1370:         <div>
+1371:           <h3>Historial de Semanas</h3>
+1372:           <p>Consulta el histórico operativo con navegación por semana, área, tablero y fecha.</p>
+1373:         </div>
+1374:         <span className="chip">{effectiveWeeks.length} semanas</span>
+1375:       </article>
+1376: 
+1377:       <div className="history-stat-strip">
+1378:         <StatTile label="Semanas activas" value={effectiveWeeks.filter((week) => week.isActive).length} />
+1379:         <StatTile label="Semanas cerradas" value={effectiveWeeks.filter((week) => !week.isActive).length} tone="soft" />
+1380:         <StatTile label="Actividades históricas" value={scopedHistoryActivities.length} tone="success" />
+1381:       </div>
+1382: 
+1383:       <article className="surface-card table-card history-detail-card" style={{ display: "grid", gap: "1rem" }}>
+1384:         <div className="card-header-row" style={{ alignItems: "flex-start", gap: "1rem", flexWrap: "wrap" }}>
+1385:           <div>
+1386:             <h3>Historial por mes</h3>
+1387:             <p>Abre un mes y revisa una sola semana a la vez con flechas para avanzar o retroceder.</p>
+1388:           </div>
+1389: 
+1390:         </div>
+1391: 
+1392:         {effectiveHistoryWeek ? (
+1393:           <>
+1394:             <div style={{ display: "grid", gap: "0.75rem" }}>
+1395:               <div className="history-area-tabs">
+1396:                 <button type="button" className={`tab ${historyDetailTab === "activities" ? "active" : ""}`} onClick={() => setHistoryDetailTab("activities")}>Actividades</button>
+1397:                 <button type="button" className={`tab ${historyDetailTab === "checklists" ? "active" : ""}`} onClick={() => setHistoryDetailTab("checklists")}>Checklist realizados</button>
+1398:               </div>
+1399: 
+1400:               {historyDetailTab === "activities" ? (
+1401:                 <>
+1402:                   <div className="history-area-tabs">
+1403:                     {areaTabs.map((tab) => (
+1404:                       <button
+1405:                         key={tab.value}
+1406:                         type="button"
+1407:                         className={`tab ${selectedAreaTab === tab.value ? "active" : ""}`}
+1408:                         onClick={() => setSelectedAreaTab(tab.value)}
+1409:                       >
+1410:                         {tab.label} ({tab.total})
+1411:                       </button>
+1412:                     ))}
+1413:                   </div>
+1414: 
+1415:                   <div className="history-area-tabs" style={{ paddingLeft: "0.35rem" }}>
+1416:                     {boardTabs.map((tab) => (
+1417:                       <button
+1418:                         key={tab.value}
+1419:                         type="button"
+1420:                         className={`tab ${selectedBoardTab === tab.value ? "active" : ""}`}
+1421:                         onClick={() => setSelectedBoardTab(tab.value)}
+1422:                       >
+1423:                         {tab.label} ({tab.total})
+1424:                       </button>
+1425:                     ))}
+1426:                   </div>
+1427: 
+1428:                   <div className="history-area-tabs" style={{ paddingLeft: "0.7rem" }}>
+1429:                     <button
+1430:                       type="button"
+1431:                       className={`tab ${selectedPlayerTab === "all" ? "active" : ""}`}
+1432:                       onClick={() => setSelectedPlayerTab("all")}
+1433:                     >
+1434:                       Todos los players ({boardScopedActivities.length})
+1435:                     </button>
+1436:                     {playerTabs.map((tab) => (
+1437:                       <button
+1438:                         key={tab.value}
+1439:                         type="button"
+1440:                         className={`tab ${selectedPlayerTab === tab.value ? "active" : ""}`}
+1441:                         onClick={() => setSelectedPlayerTab(tab.value)}
+1442:                       >
+1443:                         {tab.label} ({tab.total})
+1444:                       </button>
+1445:                     ))}
+1446:                   </div>
+1447:                 </>
+1448:               ) : (
+1449:                 <div className="history-area-tabs" style={{ paddingLeft: "0.35rem" }}>
+1450:                   {checklistAreaTabs.map((tab) => (
+1451:                     <button
+1452:                       key={tab.value}
+1453:                       type="button"
+1454:                       className={`tab ${selectedChecklistAreaTab === tab.value ? "active" : ""}`}
+1455:                       onClick={() => setSelectedChecklistAreaTab(tab.value)}
+1456:                     >
+1457:                       {tab.label} ({tab.total})
+1458:                     </button>
+1459:                   ))}
+1460:                 </div>
+1461:               )}
+1462:             </div>
+1463: 
+1464:             <div style={{ display: "grid", gap: "0.9rem" }}>
+1465:               {monthWeekSections.map((monthEntry) => {
+1466:                 const isOpen = activeHistoryMonthKey === monthEntry.monthKey;
+1467:                 const monthWeekIsSelected = monthEntry.weeks.some((week) => week.id === effectiveHistoryWeek.id);
+1468:                 const shownWeek = monthWeekIsSelected ? effectiveHistoryWeek : monthEntry.weeks[0] || null;
+1469: 
+1470:                 return (
+1471:                   <article key={monthEntry.monthKey} className="surface-card" style={{ padding: "1rem 1.1rem", display: "grid", gap: "0.9rem" }}>
+1472:                     <button
+1473:                       type="button"
+1474:                       onClick={() => {
+1475:                         if (isOpen) {
+1476:                           setOpenHistoryMonth("");
+1477:                           return;
+1478:                         }
+1479:                         setOpenHistoryMonth(monthEntry.monthKey);
+1480:                         if (shownWeek?.id && shownWeek.id !== effectiveHistoryWeek.id) {
+1481:                           selectWeek(shownWeek.id);
+1482:                         }
+1483:                       }}
+1484:                       style={{
+1485:                         display: "flex",
+1486:                         alignItems: "center",
+1487:                         justifyContent: "space-between",
+1488:                         gap: "1rem",
+1489:                         width: "100%",
+1490:                         background: "transparent",
+1491:                         border: "none",
+1492:                         padding: 0,
+1493:                         cursor: "pointer",
+1494:                         textAlign: "left",
+1495:                       }}
+1496:                     >
+1497:                       <div>
+1498:                         <h3 style={{ margin: 0, color: "#314d69", fontSize: "1rem" }}>{monthLabel(monthEntry.monthKey)}</h3>
+1499:                         <p className="subtle-line" style={{ margin: "0.25rem 0 0" }}>{monthEntry.weeks.length} semanas registradas</p>
+1500:                       </div>
+1501:                       <div style={{ display: "flex", gap: "0.45rem", flexWrap: "wrap", justifyContent: "flex-end" }}>
+1502:                         <span className="chip">{monthEntry.weeks.length} semanas</span>
+1503:                         <span className="chip primary">{isOpen ? "Ocultar" : "Ver mes"}</span>
+1504:                       </div>
+1505:                     </button>
+1506: 

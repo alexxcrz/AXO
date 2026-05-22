@@ -324,7 +324,7 @@ export default function PanelIndicadores({ contexto }) {
       setSelectedCustomBoardViewId && setSelectedCustomBoardViewId("current");
       setSelectedCustomBoardRowId && setSelectedCustomBoardRowId(rowId || "");
       setPage && setPage(PAGE_CUSTOM_BOARDS);
-    } catch (e) {
+    } catch {
       /* ignore */
     }
     setPauseModalOpen(false);
@@ -1011,9 +1011,37 @@ export default function PanelIndicadores({ contexto }) {
 
     return Array.from(map.values())
       .filter((row) => row.totalPiezas > 0 || row.count > 0)
-        .sort((a, b) => b.totalPiezas - a.totalPiezas || b.count - a.count);
+      .sort((a, b) => b.totalPiezas - a.totalPiezas || b.count - a.count);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [leaderboardDynamicBoardFields, scopedLeaderboardBoardRecords]);
+
+  const mermaChartRows = useMemo(() => {
+    const rows = mermaAnalysisRows
+      .filter((row) => Number.isFinite(row.totalPiezas) && row.totalPiezas > 0)
+      .slice(0, 10)
+      .map((row) => ({
+        key: row.motivo,
+        label: row.motivo.length > 28 ? `${row.motivo.slice(0, 27)}…` : row.motivo,
+        value: Number(row.totalPiezas || 0),
+        valueLabel: `${formatMetricNumber(Number(row.totalPiezas || 0), 0)} pzas de merma`,
+        tooltip: `${row.motivo}: ${formatMetricNumber(row.totalPiezas || 0, 0)} pzas de merma · ${formatMetricNumber(row.totalPiezasFaltantes || 0, 0)} pzas faltantes · ${row.count} registro(s)`,
+        color: "linear-gradient(180deg, #b91c1c 0%, #f87171 100%)",
+      }));
+
+    const totalMissingPieces = mermaAnalysisRows.reduce((sum, row) => sum + Number(row.totalPiezasFaltantes || 0), 0);
+    if (totalMissingPieces > 0) {
+      rows.push({
+        key: "piezas-faltantes",
+        label: "Piezas faltantes",
+        value: totalMissingPieces,
+        valueLabel: `${formatMetricNumber(totalMissingPieces, 0)} pzas faltantes`,
+        tooltip: `Piezas faltantes totales: ${formatMetricNumber(totalMissingPieces, 0)} · ${mermaAnalysisRows.reduce((sum, row) => sum + (row.count || 0), 0)} registro(s)`,
+        color: "linear-gradient(180deg, #d97706 0%, #fbbf24 100%)",
+      });
+    }
+
+    return rows;
+  }, [formatMetricNumber, mermaAnalysisRows]);
 
   // ── Template export/import ────────────────────────────────────────────────
   const scopedAreaBoardDetailedRows = useMemo(() => {
@@ -2368,7 +2396,7 @@ export default function PanelIndicadores({ contexto }) {
               <AlertTriangle size={18} />
             </div>
             <p className="dashboard-panel-subtitle">
-              Motivos de merma con mayor frecuencia y piezas faltantes acumuladas. Aplica el filtro de tablero arriba para ver motivos específicos.
+              Motivos de merma con mayor frecuencia y una barra adicional dedicada a piezas faltantes.
             </p>
             <div className="dashboard-chart-toggle" style={{ marginBottom: "0.7rem" }}>
               <button
@@ -2394,14 +2422,7 @@ export default function PanelIndicadores({ contexto }) {
             </div>
             {mermaChartType === "bar" ? (
               <DashboardColumnChart
-                rows={mermaAnalysisRows.slice(0, 10).map((row) => ({
-                  key: row.motivo,
-                  label: row.motivo.length > 28 ? `${row.motivo.slice(0, 27)}…` : row.motivo,
-                  value: row.totalPiezas,
-                  valueLabel: `${formatMetricNumber(row.totalPiezas, 0)} pzas`,
-                  tooltip: `${row.motivo}: ${formatMetricNumber(row.totalPiezas, 0)} piezas de merma · ${row.count} registro(s)`,
-                  color: "linear-gradient(180deg, #b91c1c 0%, #f87171 100%)",
-                }))}
+                rows={mermaChartRows}
                 emptyLabel="No hay datos de merma con motivo registrado."
               />
             ) : (
@@ -2409,7 +2430,7 @@ export default function PanelIndicadores({ contexto }) {
                 series={[
                   {
                     key: "mermaPorCausa",
-                    label: "Piezas merma por causa",
+                    label: "Merma por causa",
                     color: "#b91c1c",
                     valueSuffix: " pzas",
                     data: mermaAnalysisRows.slice(0, 10).map((row) => ({

@@ -1,0 +1,182 @@
+--- 1506-1686 ---
+1506: 
+1507:                     {isOpen && shownWeek ? (
+1508:                       <>
+1509:                         <div className="history-summary-card" style={{ marginBottom: 0 }}>
+1510:                           <button
+1511:                             type="button"
+1512:                             className="icon-button"
+1513:                             onClick={() => selectWeek(activeMonthWeeks[selectedWeekIndexInMonth - 1]?.id)}
+1514:                             disabled={selectedWeekIndexInMonth <= 0}
+1515:                           >
+1516:                             ← Semana anterior
+1517:                           </button>
+1518:                           <div>
+1519:                             <h3>{effectiveHistoryWeek.name}</h3>
+1520:                             <p>{effectiveHistoryWeek.startDate && effectiveHistoryWeek.endDate ? `${formatDate(effectiveHistoryWeek.startDate)} - ${formatDate(effectiveHistoryWeek.endDate)}` : "Semana sin rango definido"}</p>
+1521:                           </div>
+1522:                           <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", justifyContent: "flex-end" }}>
+1523:                             <span className="chip">{currentWeekStats.total} registros</span>
+1524:                             <span className="chip">{currentWeekStats.completed} completadas</span>
+1525:                             <span className="chip">{formatDurationClock(historyActivities.reduce((sum, activity) => sum + Number(activity.accumulatedSeconds || 0), 0))}</span>
+1526:                             <span className="chip">Acumulado: {formatDurationClock(visibleHistorySummary.accumulatedSeconds)}</span>
+1527:                             <span className="chip">Eficiencia: {formatPercent(visibleHistorySummary.efficiencyPercent)}</span>
+1528:                           </div>
+1529:                           <button
+1530:                             type="button"
+1531:                             className="icon-button"
+1532:                             onClick={() => selectWeek(activeMonthWeeks[selectedWeekIndexInMonth + 1]?.id)}
+1533:                             disabled={selectedWeekIndexInMonth < 0 || selectedWeekIndexInMonth >= activeMonthWeeks.length - 1}
+1534:                           >
+1535:                             Semana siguiente →
+1536:                           </button>
+1537:                         </div>
+1538: 
+1539:                         <div style={{ display: "flex", gap: "0.45rem", alignItems: "center", flexWrap: "wrap" }}>
+1540:                           <label className="board-top-select" style={{ minWidth: 180 }}>
+1541:                             <span>Descargar</span>
+1542:                             <select value={historyExportPeriod} onChange={(event) => setHistoryExportPeriod(event.target.value)}>
+1543:                               <option value="week">Semana</option>
+1544:                               <option value="quincena1">Quincena 1 (1-15)</option>
+1545:                               <option value="quincena2">Quincena 2 (16-Última)</option>
+1546:                               <option value="month">Mes</option>
+1547:                             </select>
+1548:                           </label>
+1549:                           <button
+1550:                             type="button"
+1551:                             className="icon-button"
+1552:                             onClick={() => {
+1553:                               if (historyDetailTab === "checklists") {
+1554:                                 void exportChecklistHistoryToPdf();
+1555:                                 return;
+1556:                               }
+1557:                               void exportHistoryToPdf();
+1558:                             }}
+1559:                             disabled={historyDetailTab === "checklists"
+1560:                               ? (!exportableChecklistActivities.length || isExportingChecklistPdf)
+1561:                               : (!exportableHistoryActivities.length || isExportingHistoryPdf)}
+1562:                             title={historyDetailTab === "checklists"
+1563:                               ? (isExportingChecklistPdf ? "Exportando PDF" : "Exportar checklist a PDF")
+1564:                               : (isExportingHistoryPdf ? "Exportando PDF" : "Exportar a PDF")}
+1565:                           >
+1566:                             {historyDetailTab === "checklists"
+1567:                               ? (isExportingChecklistPdf ? "Exportando PDF..." : "Exportar PDF")
+1568:                               : (isExportingHistoryPdf ? "Exportando PDF..." : "Exportar PDF")}
+1569:                           </button>
+1570:                           {effectiveHistoryWeek && canEditHistoricalWeekActivities ? (
+1571:                             <button type="button" className="icon-button" onClick={() => setEditWeekId(effectiveHistoryWeek.id)}>
+1572:                               Editar actividades
+1573:                             </button>
+1574:                           ) : null}
+1575:                         </div>
+1576: 
+1577:                         <div style={{ display: "grid", gap: "0.9rem" }}>
+1578:                           {historyDetailTab === "checklists" ? buildWeekDaySections(effectiveHistoryWeek, visibleChecklistActivities, STATUS_FINISHED, normalizedOperationalWorkWeek).map((dayEntry) => {
+1579:                             const dayToggleKey = `check-${dayEntry.dayKey}`;
+1580:                             const isExpanded = expandedDayKey === dayToggleKey;
+1581:                             const dayDate = parseHistoryDate(dayEntry.dayKey);
+1582:                             const weekday = dayDate ? dayDate.toLocaleDateString("es-MX", { weekday: "long" }) : "";
+1583:                             const weekdayLabel = weekday.charAt(0).toUpperCase() + weekday.slice(1);
+1584:                             return (
+1585:                               <article key={dayToggleKey} className="surface-card" style={{ padding: "1rem 1.1rem", display: "grid", gap: "0.9rem" }}>
+1586:                                 <button
+1587:                                   type="button"
+1588:                                   onClick={() => setExpandedDayKey(isExpanded ? "" : dayToggleKey)}
+1589:                                   style={{
+1590:                                     display: "flex",
+1591:                                     alignItems: "center",
+1592:                                     justifyContent: "space-between",
+1593:                                     gap: "1rem",
+1594:                                     width: "100%",
+1595:                                     background: "transparent",
+1596:                                     border: "none",
+1597:                                     padding: 0,
+1598:                                     cursor: "pointer",
+1599:                                     textAlign: "left",
+1600:                                   }}
+1601:                                 >
+1602:                                   <div>
+1603:                                     <h3 style={{ margin: 0, color: "#314d69", fontSize: "1rem" }}>{weekdayLabel}</h3>
+1604:                                     <p className="subtle-line" style={{ margin: "0.25rem 0 0" }}>{dayDate ? formatDate(dayDate) : dayEntry.dayKey}</p>
+1605:                                   </div>
+1606:                                   <div style={{ display: "flex", gap: "0.45rem", flexWrap: "wrap", justifyContent: "flex-end" }}>
+1607:                                     <span className="chip">{dayEntry.activities.length} checklist</span>
+1608:                                     <span className="chip">{dayEntry.activities.reduce((sum, activity) => sum + Number(activity?.operationalInspectionRecord?.incidencias?.length || 0), 0)} incidencias</span>
+1609:                                     <span className="chip primary">{isExpanded ? "Ocultar" : "Ver día"}</span>
+1610:                                   </div>
+1611:                                 </button>
+1612: 
+1613:                                 {isExpanded ? (
+1614:                                   dayEntry.activities.length ? (
+1615:                                     <div style={{ display: "grid", gap: "0.75rem" }}>
+1616:                                       {dayEntry.activities.map((activity) => {
+1617:                                         const record = activity.operationalInspectionRecord;
+1618:                                         const evidenceCount = Object.values(record?.draft?.checks || {}).reduce((sum, check) => sum + (Array.isArray(check?.photos) ? check.photos.length : 0), 0);
+1619:                                         return (
+1620:                                           <article key={activity.id} className="surface-card" style={{ padding: "0.9rem", display: "grid", gap: "0.55rem" }}>
+1621:                                             <div className="card-header-row">
+1622:                                               <div>
+1623:                                                 <strong>{activity.activityLabel}</strong>
+1624:                                                 <p className="subtle-line" style={{ margin: "0.2rem 0 0" }}>{activity.boardName || "General"} · {resolveHistoryPlayerLabel(activity)}</p>
+1625:                                               </div>
+1626:                                               <button
+1627:                                                 type="button"
+1628:                                                 className="icon-button"
+1629:                                                 onClick={() => setChecklistRecordModalState({ open: true, activityLabel: activity.activityLabel, record })}
+1630:                                               >
+1631:                                                 Ver checklist
+1632:                                               </button>
+1633:                                             </div>
+1634:                                             <div style={{ display: "flex", gap: "0.45rem", flexWrap: "wrap" }}>
+1635:                                               <span className="chip">Incidencias: {record?.incidencias?.length || 0}</span>
+1636:                                               <span className="chip">Evidencias: {evidenceCount}</span>
+1637:                                               <span className="chip">Fecha: {formatDate(record?.completedAt || activity.activityDate)}</span>
+1638:                                             </div>
+1639:                                             {String(record?.draft?.observations || "").trim() ? (
+1640:                                               <p className="subtle-line" style={{ margin: 0 }}>{String(record.draft.observations).trim()}</p>
+1641:                                             ) : null}
+1642:                                           </article>
+1643:                                         );
+1644:                                       })}
+1645:                                     </div>
+1646:                                   ) : (
+1647:                                     <span className="subtle-line">No hay checklist realizados para este día.</span>
+1648:                                   )
+1649:                                 ) : null}
+1650:                               </article>
+1651:                             );
+1652:                           }) : weeklyDaySections.map((dayEntry) => {
+1653:                             const isExpanded = expandedDayKey === dayEntry.dayKey;
+1654:                             const dayDate = parseHistoryDate(dayEntry.dayKey);
+1655:                             const weekday = dayDate ? dayDate.toLocaleDateString("es-MX", { weekday: "long" }) : "";
+1656:                             const weekdayLabel = weekday.charAt(0).toUpperCase() + weekday.slice(1);
+1657:                             return (
+1658:                               <article key={dayEntry.dayKey} className="surface-card" style={{ padding: "1rem 1.1rem", display: "grid", gap: "0.9rem" }}>
+1659:                                 <button
+1660:                                   type="button"
+1661:                                   onClick={() => setExpandedDayKey(isExpanded ? "" : dayEntry.dayKey)}
+1662:                                   style={{
+1663:                                     display: "flex",
+1664:                                     alignItems: "center",
+1665:                                     justifyContent: "space-between",
+1666:                                     gap: "1rem",
+1667:                                     width: "100%",
+1668:                                     background: "transparent",
+1669:                                     border: "none",
+1670:                                     padding: 0,
+1671:                                     cursor: "pointer",
+1672:                                     textAlign: "left",
+1673:                                   }}
+1674:                                 >
+1675:                                   <div>
+1676:                                     <h3 style={{ margin: 0, color: "#314d69", fontSize: "1rem" }}>{weekdayLabel}</h3>
+1677:                                     <p className="subtle-line" style={{ margin: "0.25rem 0 0" }}>{dayDate ? formatDate(dayDate) : dayEntry.dayKey}</p>
+1678:                                   </div>
+1679:                                   <div style={{ display: "flex", gap: "0.45rem", flexWrap: "wrap", justifyContent: "flex-end" }}>
+1680:                                     <span className="chip">{dayEntry.total} actividades</span>
+1681:                                     <span className="chip">{dayEntry.completed} completadas</span>
+1682:                                     <span className="chip">{formatDurationClock(dayEntry.totalSeconds)}</span>
+1683:                                     <span className="chip primary">{isExpanded ? "Ocultar" : "Ver día"}</span>
+1684:                                   </div>
+1685:                                 </button>
+1686: 

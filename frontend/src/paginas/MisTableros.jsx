@@ -419,6 +419,7 @@ export default function MisTableros({ contexto }) {
     ROLE_JR,
     isRootLead: _isRootLead,
     canManageDashboardState,
+    boardRowCreationPending,
     formatDate,
     formatTime,
     pushAppToast,
@@ -1149,7 +1150,7 @@ export default function MisTableros({ contexto }) {
 
     requestJson(`/warehouse/boards/${selectedCustomBoard.id}/rows/${rowId}`, {
       method: "PATCH",
-      body: JSON.stringify({ responsibleIds: normalizedResponsibleIds }),
+      body: JSON.stringify({ responsibleIds: normalizedResponsibleIds, responsibleId: nextResponsibleId }),
     }).then((remoteState) => {
       applyRemoteWarehouseState(remoteState, setState, setLoginDirectory, skipNextSyncRef, setSyncStatus);
     }).catch((error) => {
@@ -1350,10 +1351,11 @@ export default function MisTableros({ contexto }) {
                   <button
                     type="button"
                     className="primary-button custom-board-add-row-button"
-                    title="Nueva fila"
+                    title={boardRowCreationPending ? "Creando fila..." : "Nueva fila"}
                     aria-label="Nueva fila"
+                    aria-busy={boardRowCreationPending}
                     onClick={() => createBoardRow(selectedCustomBoard.id)}
-                    disabled={isHistoricalCustomBoardView || (!canManageDashboardState && !selectedBoardActionPermissions.createBoardRow)}
+                    disabled={isHistoricalCustomBoardView || boardRowCreationPending || (!canManageDashboardState && !selectedBoardActionPermissions.createBoardRow)}
                   >
                     <Plus size={16} />
                   </button>

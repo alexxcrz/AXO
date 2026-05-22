@@ -151,13 +151,18 @@ function SidebarIcon({ icon: Icon, className = "" }) {
   );
 }
 
-export const Sidebar = React.memo(function Sidebar({ currentUser, page, onPageChange, isOpen, isCollapsed, onClose, onOpenProfile, onToggleCollapsed, areaSections, utilityNavItems, selectedAreaSectionId, navTransportSection, navTransportTab, canUseAI, onOpenAI }) {
+export const Sidebar = React.memo(function Sidebar({ currentUser, page, onPageChange, isOpen, isCollapsed, onClose, onOpenProfile, onToggleCollapsed, areaSections, utilityNavItems, selectedAreaSectionId, navTransportSection, navTransportTab, navAuditTab, canUseAI, onOpenAI }) {
   const avatarUrl = getUserAvatarUrl(currentUser);
   const globalDashboardItem = (Array.isArray(utilityNavItems) ? utilityNavItems : []).find((item) => item.id === PAGE_DASHBOARD) || null;
   const sortedAreaSections = (Array.isArray(areaSections) ? areaSections : [])
     .map((section) => ({
       ...section,
-      items: [...(Array.isArray(section.items) ? section.items : [])].sort((left, right) => String(left?.label || "").localeCompare(String(right?.label || ""), "es-MX")),
+      items: [...(Array.isArray(section.items) ? section.items : [])].sort((left, right) => {
+        const leftOrder = typeof left?.order === "number" ? left.order : Number.POSITIVE_INFINITY;
+        const rightOrder = typeof right?.order === "number" ? right.order : Number.POSITIVE_INFINITY;
+        if (leftOrder !== rightOrder) return leftOrder - rightOrder;
+        return String(left?.label || "").localeCompare(String(right?.label || ""), "es-MX");
+      }),
     }))
     .sort((left, right) => String(left?.label || "").localeCompare(String(right?.label || ""), "es-MX"));
 
@@ -312,7 +317,9 @@ export const Sidebar = React.memo(function Sidebar({ currentUser, page, onPageCh
                     {section.items.map((item, _idx) => {
                       const itemActive = page === item.pageId && activeInSection && (
                         !item.transportSection || navTransportSection === item.transportSection
-                      ) && (!item.transportTab || navTransportTab === item.transportTab);
+                      ) && (!item.transportTab || navTransportTab === item.transportTab) && (
+                        !item.auditPreset?.tab || item.auditPreset.tab === navAuditTab
+                      );
                       return (
                         <a
                           key={`${section.id}-${item.pageId}-${item.transportSection || ""}-${item.transportTab || ""}-${normalizeSidebarKey(item.label)}-${_idx}`}
@@ -328,6 +335,7 @@ export const Sidebar = React.memo(function Sidebar({ currentUser, page, onPageCh
                         >
                           <SidebarIcon icon={getSidebarTabIcon(item)} className="nav-item-icon" />
                           <span>{item.shortLabel || item.label}</span>
+                          {item.notificationCount > 0 ? <span className="nav-item-badge" aria-hidden="true" /> : null}
                         </a>
                       );
                     })}

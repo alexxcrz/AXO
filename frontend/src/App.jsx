@@ -1035,6 +1035,7 @@ function App() { // NOSONAR
   const [selectedAreaSectionId, setSelectedAreaSectionId] = useState(() => String(INITIAL_ROUTE_STATE.area || "all").trim() || "all");
   const [navTransportSection, setNavTransportSection] = useState(() => String(INITIAL_ROUTE_STATE.transportSection || "registros-envios").trim() || "registros-envios");
   const [navTransportTab, setNavTransportTab] = useState("");
+  const [navAuditTab, setNavAuditTab] = useState("");
   const [auditShortcutPreset, setAuditShortcutPreset] = useState(null);
   const [dashboardSectionsOpen, setDashboardSectionsOpen] = useState(() => {
     try {
@@ -1207,6 +1208,7 @@ function App() { // NOSONAR
   );
   const boardPauseIsOutOfTime = Number(boardPauseState.authorizedPauseSeconds || 0) > 0
     && boardPauseRemainingSeconds <= 0;
+  const boardPauseOvertimeSeconds = Math.max(0, boardPauseElapsedSeconds - Number(boardPauseState.authorizedPauseSeconds || 0));
   const CUSTOM_PAUSE_REASON_VALUE = "__custom__";
   const sessionRole = normalizeRole(state.users.find((user) => user.id === sessionUserId)?.role);
   const antiCaptureEnabled = import.meta.env.PROD && sessionRole !== ROLE_LEAD;
@@ -4938,6 +4940,48 @@ function App() { // NOSONAR
     [currentUser, normalizedPermissions],
   );
 
+  const processAuditProblemCount = useMemo(() => {
+    return (Array.isArray(state.processAudits) ? state.processAudits : []).reduce((total, audit) => {
+      if (String(audit.status || "").trim().toLowerCase() === "closed") return total;
+      if (!Array.isArray(audit.questions)) return total;
+      const detectedProblems = audit.questions.filter((question) => question?.type === "yesno" && question.answer === false);
+      if (!detectedProblems.length) return total;
+      const existingProblemIds = new Set((Array.isArray(audit.proposals) ? audit.proposals : []).map((proposal) => String(proposal?.problemId || "").trim()).filter(Boolean));
+      return total + detectedProblems.filter((problem) => {
+        const problemId = String(problem.problemId || `problem-${problem.id}`).trim();
+        return !existingProblemIds.has(problemId);
+      }).length;
+    }, 0);
+  }, [state.processAudits]);
+
+  const processAuditPendingProposalsCount = useMemo(() => {
+    return (Array.isArray(state.processAudits) ? state.processAudits : []).reduce((total, audit) => {
+      if (String(audit.status || "").trim().toLowerCase() === "closed") return total;
+      if (!Array.isArray(audit.proposals)) return total;
+      return total + audit.proposals.filter((proposal) => proposal && !["accepted", "closed", "rejected", "in_implementation", "in_validation"].includes(proposal.status)).length;
+    }, 0);
+  }, [state.processAudits]);
+
+  const processAuditImplementationCount = useMemo(() => {
+    return (Array.isArray(state.processAudits) ? state.processAudits : []).reduce((total, audit) => {
+      if (!Array.isArray(audit.proposals)) return total;
+      return total + audit.proposals.filter((proposal) => proposal && ["accepted", "in_implementation"].includes(proposal.status)).length;
+    }, 0);
+  }, [state.processAudits]);
+
+  const processAuditTrackingCount = useMemo(() => {
+    return (Array.isArray(state.processAudits) ? state.processAudits : []).reduce((total, audit) => {
+      if (String(audit.status || "").trim().toLowerCase() === "closed") return total;
+      const lifecycleStatus = String(audit.lifecycleStatus || "").trim();
+      return total + (["in_review", "proposal_sent", "accepted", "in_implementation", "in_validation"].includes(lifecycleStatus) ? 1 : 0);
+    }, 0);
+  }, [state.processAudits]);
+
+  const processAuditProposalsSeguimientoCount = useMemo(
+    () => processAuditPendingProposalsCount + processAuditTrackingCount,
+    [processAuditPendingProposalsCount, processAuditTrackingCount],
+  );
+
   const utilityNavItems = useMemo(
     () => allowedNavItems.filter((item) => {
       if ([PAGE_CUSTOM_BOARDS, PAGE_BOARD, PAGE_TRANSPORT, PAGE_INCIDENCIAS].includes(item.id)) return false;
@@ -4973,9 +5017,11 @@ function App() { // NOSONAR
             ]
           : section.id === "mejora-continua"
             ? [
-              { pageId: PAGE_PROCESS_AUDITS, label: "Auditoría", shortLabel: "Auditoría", auditPreset: { tab: "capture" }, requiredActionId: "" },
-              { pageId: PAGE_PROCESS_AUDITS, label: "Dashboard", shortLabel: "Dashboard", auditPreset: { tab: "dashboard" }, requiredActionId: "" },
-              { pageId: PAGE_PROCESS_AUDITS, label: "Historial", shortLabel: "Hist.", auditPreset: { tab: "history" }, requiredActionId: "" },
+              { pageId: PAGE_PROCESS_AUDITS, label: "Auditoría", shortLabel: "Auditoría", auditPreset: { tab: "auditoria" }, requiredActionId: "", order: 10 },
+              { pageId: PAGE_PROCESS_AUDITS, label: "Propuestas / Problemas", shortLabel: "Prop./Prob.", auditPreset: { tab: "propuestasProblemas" }, notificationCount: processAuditProblemCount + processAuditPendingProposalsCount, requiredActionId: "", order: 20 },
+              { pageId: PAGE_PROCESS_AUDITS, label: "Autorizar / Rechazar", shortLabel: "Autorizar", auditPreset: { tab: "seguimiento" }, notificationCount: processAuditPendingProposalsCount, requiredActionId: "", order: 30 },
+              { pageId: PAGE_PROCESS_AUDITS, label: "Seguimiento", shortLabel: "Seguimiento", auditPreset: { tab: "implementacion" }, notificationCount: processAuditImplementationCount, requiredActionId: "", order: 40 },
+              { pageId: PAGE_PROCESS_AUDITS, label: "Historial", shortLabel: "Hist.", auditPreset: { tab: "history" }, requiredActionId: "", order: 50 },
             ]
             : [
             { pageId: PAGE_DASHBOARD, label: "Dashboard", shortLabel: "Dash", requiredActionId: AREA_TAB_PERMISSION_ACTIONS[section.id]?.dashboard || "" },
@@ -7771,18 +7817,26 @@ function App() { // NOSONAR
     return String(matchedCatalogItem?.category || "").trim().toLowerCase() === "limpieza";
   }
 
-  function createBoardRow(boardId) {
+  const [boardRowCreationPending, setBoardRowCreationPending] = useState(false);
+
+  async function createBoardRow(boardId) {
     const board = (state.controlBoards || []).find((item) => item.id === boardId);
     if (!canDoBoardAction(currentUser, board)) return;
     if (!board || !currentUser) return;
-    requestJson(`/warehouse/boards/${boardId}/rows`, {
-      method: "POST",
-    }).then((remoteState) => {
+
+    setBoardRowCreationPending(true);
+
+    try {
+      const remoteState = await requestJson(`/warehouse/boards/${boardId}/rows`, {
+        method: "POST",
+      });
       applyRemoteWarehouseState(remoteState, setState, setLoginDirectory, skipNextSyncRef, setSyncStatus);
-      setBoardRuntimeFeedback({ tone: "", message: "" });
-    }).catch((error) => {
+      setBoardRuntimeFeedback({ tone: "success", message: "Fila creada." });
+    } catch (error) {
       setBoardRuntimeFeedback({ tone: "danger", message: error?.message || "No se pudo crear la fila." });
-    });
+    } finally {
+      setBoardRowCreationPending(false);
+    }
   }
 
   function deleteBoardRow(boardId, rowId) {
@@ -7979,7 +8033,7 @@ function App() { // NOSONAR
   function changeBoardRowStatus(boardId, rowId, status, options = {}) {
     const board = (state.controlBoards || []).find((item) => item.id === boardId);
     const row = board?.rows?.find((item) => item.id === rowId);
-    if (!board || !row || !canOperateBoardRowRecord(currentUser, board, row, normalizedPermissions)) return;
+    if (!board || !row || !canOperateBoardRowRecord(currentUser, board, row, normalizedPermissions)) return false;
 
     // Control de permiso para pausar/finalizar:
     // - El botón de inicio puede accionarlo cualquier persona con permiso de operación sobre la fila.
@@ -8011,7 +8065,7 @@ function App() { // NOSONAR
           ? "Vas a reanudar esta actividad."
           : "Vas a iniciar esta actividad.",
       });
-      return;
+      return true;
     }
 
     // When starting a row, check if there are linked cleaning inventory items measured in piezas
@@ -8041,6 +8095,7 @@ function App() { // NOSONAR
     }
 
     executeBoardRowStatusChange(boardId, rowId, status);
+    return true;
   }
 
   function confirmStartBoardRow() {
@@ -8126,7 +8181,9 @@ function App() { // NOSONAR
           pauseStartedAt: null,
           pauseAffectsTimer: false,
           pauseAuthorizedSeconds: 0,
-          accumulatedSeconds: currentRow.status === STATUS_PAUSED ? currentElapsedSeconds : Math.max(0, Number(currentRow.accumulatedSeconds || 0)),
+          // Preserve the stored accumulatedSeconds on resume to avoid adding paused duration
+          // (some pause overflow is shown in `totalTime` but should not be merged into `time`).
+          accumulatedSeconds: Math.max(0, Number(currentRow.accumulatedSeconds || 0)),
         };
       }
 
@@ -8226,8 +8283,10 @@ function App() { // NOSONAR
 
   function confirmFinishBoardRow() {
     if (!boardFinishConfirm.boardId || !boardFinishConfirm.rowId) return;
-    changeBoardRowStatus(boardFinishConfirm.boardId, boardFinishConfirm.rowId, STATUS_FINISHED);
-    setBoardFinishConfirm({ open: false, boardId: null, rowId: null, message: "" });
+    const success = changeBoardRowStatus(boardFinishConfirm.boardId, boardFinishConfirm.rowId, STATUS_FINISHED);
+    if (success) {
+      setBoardFinishConfirm({ open: false, boardId: null, rowId: null, message: "" });
+    }
   }
 
   async function exportSelectedBoardToExcel() {
@@ -8935,6 +8994,7 @@ function App() { // NOSONAR
     Copy,
     creatableRoles,
     createBoardRow,
+    boardRowCreationPending,
     currentInventoryDeletePermission,
     currentInventoryImportPermission,
     currentInventoryItems,
@@ -9419,12 +9479,14 @@ function App() { // NOSONAR
       <Sidebar
         currentUser={currentUser}
         page={page}
+        navAuditTab={navAuditTab}
         onPageChange={(nextPage, nextAreaSectionId = "all", transportSection, transportTab, auditPreset) => {
           setSelectedAreaSectionId(nextAreaSectionId || "all");
           setPage(nextPage);
           if (transportSection) setNavTransportSection(transportSection);
           setNavTransportTab(transportTab || "");
           setAuditShortcutPreset(auditPreset || null);
+          setNavAuditTab(auditPreset?.tab || "");
         }}
         isOpen={isSidebarOpen}
         isCollapsed={isSidebarCollapsed}
@@ -9546,7 +9608,10 @@ function App() { // NOSONAR
                     <span className="board-pause-overtime-icon" aria-hidden="true">⚠</span>
                     <div>
                       <strong>Tiempo de pausa excedido</strong>
-                      <span>El tiempo autorizado se agotó. Reanuda la fila cuanto antes.</span>
+                          <span>El tiempo autorizado se agotó. Reanuda la fila cuanto antes.</span>
+                          {boardPauseOvertimeSeconds > 0 ? (
+                            <div className="board-pause-overtime-detail">Tiempo fuera: {formatDurationClock(boardPauseOvertimeSeconds)}</div>
+                          ) : null}
                     </div>
                   </div>
                 ) : (

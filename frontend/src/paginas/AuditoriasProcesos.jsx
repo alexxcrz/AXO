@@ -33,6 +33,57 @@ function formatDuration(seconds) {
   return `${minutes}m`;
 }
 
+function getDetectedProblems(audit) {
+  return (Array.isArray(audit?.questions) ? audit.questions : [])
+    .filter((question) => question?.type === "yesno" && question.answer === false)
+    .map((question) => ({
+      id: String(question.problemId || `problem-${question.id}`).trim(),
+      questionId: String(question.id || "").trim(),
+      category: String(question.category || "General").trim() || "General",
+      impactLevel: String(question.impactLevel || "medium").trim().toLowerCase(),
+      problem: String(question.text || "Problema detectado").trim(),
+      observations: String(question.observations || "").trim(),
+      auditId: String(audit.id || "").trim(),
+      auditArea: String(audit.area || "").trim(),
+      auditProcess: String(audit.process || "").trim(),
+    }));
+}
+
+function isProposalPending(proposal) {
+  const status = String(proposal?.status || "").trim().toLowerCase();
+  return status !== "accepted" && status !== "closed";
+}
+
+function getProposalStatusLabel(status) {
+  const normalized = String(status || "").trim().toLowerCase();
+  if (normalized === "accepted") return "Aprobada";
+  if (normalized === "closed") return "Rechazada";
+  if (normalized === "proposal_sent" || normalized === "pending") return "Pendiente";
+  return String(status || "Pendiente").trim() || "Pendiente";
+}
+
+function getProposalStatusClass(status) {
+  const normalized = String(status || "").trim().toLowerCase();
+  if (normalized === "accepted") return "chip success";
+  if (normalized === "closed") return "chip danger";
+  return "chip warning";
+}
+
+function createProposalDraft(problem) {
+  return {
+    id: crypto.randomUUID(),
+    problemId: String(problem.id || "").trim(),
+    problem: String(problem.problem || "").trim(),
+    rootCause: "",
+    proposal: "",
+    type: "improvement",
+    expectedImpact: "",
+    effort: "medium",
+    responsible: "",
+    status: "proposal_sent",
+  };
+}
+
 export default function AuditoriasProcesos({ contexto }) {
   const {
     rootAreaOptions,
@@ -62,6 +113,7 @@ export default function AuditoriasProcesos({ contexto }) {
   const [auditDraft, setAuditDraft] = useState(null);
   const [isAuditDirty, setIsAuditDirty] = useState(false);
   const [uploadingEvidence, setUploadingEvidence] = useState(false);
+  const [proposalDrafts, setProposalDrafts] = useState({});
 
   const areaOptions = useMemo(() => {
     const fromCatalog = Array.isArray(rootAreaOptions) ? rootAreaOptions : [];
@@ -98,6 +150,40 @@ export default function AuditoriasProcesos({ contexto }) {
     [selectedAuditId, sortedAudits],
   );
 
+  const openAudits = useMemo(() => sortedAudits.filter((audit) => String(audit.status || "").trim().toLowerCase() !== "closed"), [sortedAudits]);
+  const closedAudits = useMemo(() => sortedAudits.filter((audit) => String(audit.status || "").trim().toLowerCase() === "closed"), [sortedAudits]);
+
+  const openProblemAudits = useMemo(() => {
+    return openAudits
+      .map((audit) => {
+        const detectedProblems = getDetectedProblems(audit);
+        const existingProblemIds = new Set((Array.isArray(audit.proposals) ? audit.proposals : []).map((proposal) => String(proposal.problemId || "").trim()).filter(Boolean));
+        const openProblems = detectedProblems.filter((problem) => !existingProblemIds.has(String(problem.id || "").trim()));
+        return { audit, detectedProblems, openProblems, proposals: Array.isArray(audit.proposals) ? audit.proposals : [] };
+      })
+      .filter((entry) => entry.openProblems.length > 0);
+  }, [openAudits]);
+
+  const auditProposals = useMemo(
+    () => openAudits.filter((audit) => Array.isArray(audit.proposals) && audit.proposals.length > 0),
+    [openAudits],
+  );
+
+  const reviewProposals = useMemo(
+    () => openAudits.flatMap((audit) => (Array.isArray(audit.proposals) ? audit.proposals : []).map((proposal) => ({ ...proposal, audit }))),
+    [openAudits],
+  );
+
+  const unresolvedProposals = useMemo(
+    () => reviewProposals.filter((proposal) => isProposalPending(proposal)),
+    [reviewProposals],
+  );
+
+  const resolvedProposals = useMemo(
+    () => closedAudits.flatMap((audit) => (Array.isArray(audit.proposals) ? audit.proposals : []).map((proposal) => ({ ...proposal, audit }))),
+    [closedAudits],
+  );
+
   useEffect(() => {
     if (!selectedAudit) {
       setAuditDraft(null);
@@ -118,7 +204,7 @@ export default function AuditoriasProcesos({ contexto }) {
   useEffect(() => {
     const requestedTab = String(auditShortcutPreset?.tab || "").trim();
     if (!requestedTab) return;
-    if (["auditoria", "problemas", "propuestas", "seguimiento"].includes(requestedTab)) {
+    if (["auditoria", "problemas", "propuestas", "seguimiento", "history"].includes(requestedTab)) {
       setActiveTab(requestedTab);
     }
   }, [auditShortcutPreset]);
@@ -181,6 +267,10 @@ export default function AuditoriasProcesos({ contexto }) {
     return { total, closed, open, avgDuration, byArea };
   }, [sortedAudits]);
 
+  // Filtrar auditorías para cada vista
+  const openAudits = useMemo(() => sortedAudits.filter((audit) => audit.status !== "closed"), [sortedAudits]);
+  const closedAudits = useMemo(() => sortedAudits.filter((audit) => audit.status === "closed"), [sortedAudits]);
+
   async function handleSaveTemplate() {
     if (!canManageTemplates) return;
 
@@ -234,6 +324,67 @@ export default function AuditoriasProcesos({ contexto }) {
     }
   }
 
+  async function handleSaveProposal(auditId, problem) {
+    if (!canManageAudits) return;
+    const draft = proposalDrafts[String(problem.id || "")];
+    if (!draft) return;
+    if (!String(draft.proposal || "").trim()) {
+      pushAppToast("Describe la propuesta antes de guardarla.", "warning");
+      return;
+    }
+
+    const targetAudit = sortedAudits.find((audit) => audit.id === auditId);
+    if (!targetAudit) {
+      pushAppToast("No se encontró la auditoría asociada.", "danger");
+      return;
+    }
+
+    const updatedProposals = [
+      ...(Array.isArray(targetAudit.proposals) ? targetAudit.proposals : []),
+      {
+        ...draft,
+        id: draft.id || crypto.randomUUID(),
+        problemId: String(problem.id || "").trim(),
+        problem: String(problem.problem || "").trim(),
+        type: draft.type || "improvement",
+        status: draft.status || "proposal_sent",
+      },
+    ];
+
+    try {
+      await updateProcessAudit(auditId, { proposals: updatedProposals });
+      setProposalDrafts((current) => {
+        const next = { ...current };
+        delete next[String(problem.id || "")];
+        return next;
+      });
+      pushAppToast("Propuesta registrada correctamente.", "success");
+    } catch (error) {
+      pushAppToast(error?.message || "No se pudo guardar la propuesta.", "danger");
+    }
+  }
+
+  async function handleReviewProposal(auditId, proposalId, approved) {
+    if (!canManageAudits) return;
+    const targetAudit = sortedAudits.find((audit) => audit.id === auditId);
+    if (!targetAudit) return;
+
+    const updatedProposals = (Array.isArray(targetAudit.proposals) ? targetAudit.proposals : []).map((proposal) => {
+      if (proposal.id !== proposalId) return proposal;
+      return {
+        ...proposal,
+        status: approved ? "accepted" : "closed",
+      };
+    });
+
+    try {
+      await updateProcessAudit(auditId, { proposals: updatedProposals });
+      pushAppToast(approved ? "Propuesta aprobada." : "Propuesta rechazada.", "success");
+    } catch (error) {
+      pushAppToast(error?.message || "No se pudo actualizar el estado de la propuesta.", "danger");
+    }
+  }
+
   async function handleCloseAudit() {
     if (!canManageAudits || !auditDraft) return;
     try {
@@ -276,16 +427,18 @@ export default function AuditoriasProcesos({ contexto }) {
         <div className="card-header-row">
           <div>
             <h3>
-              {activeTab === "auditoria" ? "Auditoría" : activeTab === "problemas" ? "Problemas" : activeTab === "propuestas" ? "Propuestas" : "Seguimiento"}
+              {activeTab === "auditoria" ? "Auditoría" : activeTab === "problemas" ? "Problemas" : activeTab === "propuestas" ? "Propuestas" : activeTab === "history" ? "Historial" : "Seguimiento"}
             </h3>
             <p>
               {activeTab === "auditoria"
                 ? "Captura y edición de auditorías de proceso."
                 : activeTab === "problemas"
-                  ? "Hallazgos y problemas detectados en auditorías."
+                  ? "Hallazgos y problemas detectados en auditorías abiertas."
                   : activeTab === "propuestas"
-                    ? "Propuestas de mejora y plantillas asociadas."
-                    : "Seguimiento y métricas consolidadas de auditorías."}
+                    ? "Propuestas de mejora vinculadas a auditorías abiertas."
+                    : activeTab === "history"
+                      ? "Registros de auditorías cerradas y propuestas resueltas."
+                      : "Métrica por auditoría y consolidado general de procesos auditados."}
             </p>
           </div>
         </div>
@@ -524,12 +677,12 @@ export default function AuditoriasProcesos({ contexto }) {
           <div className="card-header-row">
             <div>
               <h3>Problemas detectados</h3>
-              <p>Consulta auditorías realizadas y reabre cualquiera para revisar hallazgos, respuestas y evidencias.</p>
+              <p>Consulta auditorías abiertas con hallazgos pendientes y convierte cada problema en una propuesta de mejora.</p>
             </div>
           </div>
           <div className="saved-board-list permissions-preset-list">
-            {sortedAudits.map((audit) => (
-              <article key={audit.id} className="surface-card" style={{ minWidth: "min(100%, 280px)", flex: "1 1 320px" }}>
+            {openProblemAudits.map(({ audit, openProblems }) => (
+              <article key={audit.id} className="surface-card" style={{ minWidth: "min(100%, 320px)", flex: "1 1 320px" }}>
                 <div className="card-header-row">
                   <div>
                     <strong>{audit.area} · {audit.process}</strong>
@@ -539,13 +692,105 @@ export default function AuditoriasProcesos({ contexto }) {
                 </div>
                 <p className="subtle-line">Inicio: {formatDateTime(audit.startedAt)}</p>
                 <p className="subtle-line">Duración: {formatDuration(getAuditDurationSeconds(audit))}</p>
-                <p className="subtle-line">Preguntas: {(audit.questions || []).length} · Evidencias: {(audit.evidences || []).length}</p>
-                <div className="saved-board-list board-builder-launch-list">
-                  <button type="button" className="icon-button" onClick={() => { setSelectedAuditId(audit.id); setActiveTab("auditoria"); }}>Abrir</button>
+                <p className="subtle-line">Problemas abiertos: {openProblems.length}</p>
+                <div className="saved-board-list permissions-preset-list">
+                  {openProblems.map((problem) => {
+                    const draftKey = String(problem.id || "");
+                    const draft = proposalDrafts[draftKey];
+                    return (
+                      <article key={problem.id} className="surface-card" style={{ minWidth: "100%", flex: "1 1 100%" }}>
+                        <div className="card-header-row">
+                          <div>
+                            <strong>{problem.problem}</strong>
+                            <p className="subtle-line">Categoría: {problem.category} · Impacto: {problem.impactLevel}</p>
+                          </div>
+                          <span className="chip warning">Pendiente</span>
+                        </div>
+                        <p className="subtle-line">Auditoría: {problem.auditArea} · {problem.auditProcess}</p>
+                        <div className="saved-board-list board-builder-launch-list">
+                          <button type="button" className="icon-button" onClick={() => { setSelectedAuditId(audit.id); setActiveTab("auditoria"); }}>Abrir auditoría</button>
+                          <button type="button" className="icon-button" onClick={() => setProposalDrafts((current) => ({ ...current, [draftKey]: current[draftKey] || createProposalDraft(problem) }))}>{draft ? "Editar propuesta" : "Agregar propuesta"}</button>
+                        </div>
+                        {draft ? (
+                          <div className="modal-form-grid">
+                            <label className="app-modal-field">
+                              <span>Causa raíz</span>
+                              <input value={draft.rootCause} onChange={(event) => setProposalDrafts((current) => ({ ...current, [draftKey]: { ...current[draftKey], rootCause: event.target.value } }))} placeholder="Describe la causa raíz" />
+                            </label>
+                            <label className="app-modal-field">
+                              <span>Propuesta</span>
+                              <input value={draft.proposal} onChange={(event) => setProposalDrafts((current) => ({ ...current, [draftKey]: { ...current[draftKey], proposal: event.target.value } }))} placeholder="Explica la propuesta" />
+                            </label>
+                            <label className="app-modal-field">
+                              <span>Impacto esperado</span>
+                              <input value={draft.expectedImpact} onChange={(event) => setProposalDrafts((current) => ({ ...current, [draftKey]: { ...current[draftKey], expectedImpact: event.target.value } }))} placeholder="Qué mejora se espera" />
+                            </label>
+                            <label className="app-modal-field">
+                              <span>Responsable</span>
+                              <input value={draft.responsible} onChange={(event) => setProposalDrafts((current) => ({ ...current, [draftKey]: { ...current[draftKey], responsible: event.target.value } }))} placeholder="Quién debe ejecutar" />
+                            </label>
+                            <div className="saved-board-list board-builder-launch-list">
+                              <button type="button" className="primary-button" onClick={() => handleSaveProposal(audit.id, problem)} disabled={!canManageAudits}><Save size={16} /> Guardar propuesta</button>
+                              <button type="button" className="icon-button danger" onClick={() => setProposalDrafts((current) => {
+                                const next = { ...current };
+                                delete next[draftKey];
+                                return next;
+                              })}>Cancelar</button>
+                            </div>
+                          </div>
+                        ) : null}
+                      </article>
+                    );
+                  })}
                 </div>
               </article>
             ))}
-            {!sortedAudits.length ? <p className="subtle-line">Todavía no hay auditorías en historial.</p> : null}
+            {!openProblemAudits.length ? <p className="subtle-line">No hay problemas pendientes en las auditorías actuales.</p> : null}
+          </div>
+        </article>
+      ) : null}
+
+      {activeTab === "propuestas" ? (
+        <article className="surface-card table-card full-width">
+          <div className="card-header-row">
+            <div>
+              <h3>Propuestas</h3>
+              <p>Revisa las propuestas vinculadas a problemas de auditorías abiertas y prepara su autorización.</p>
+            </div>
+          </div>
+          <div className="saved-board-list permissions-preset-list">
+            {auditProposals.map((audit) => (
+              <article key={audit.id} className="surface-card" style={{ minWidth: "min(100%, 320px)", flex: "1 1 320px" }}>
+                <div className="card-header-row">
+                  <div>
+                    <strong>{audit.area} · {audit.process}</strong>
+                    <p>{audit.auditorName || currentUser?.name || "Sin auditor"}</p>
+                  </div>
+                  <span className={audit.status === "closed" ? "chip success" : "chip warning"}>{audit.status === "closed" ? "Cerrada" : "Abierta"}</span>
+                </div>
+                <p className="subtle-line">Inicio: {formatDateTime(audit.startedAt)}</p>
+                <div className="saved-board-list permissions-preset-list">
+                  {(audit.proposals || []).map((proposal) => (
+                    <article key={proposal.id} className="surface-card" style={{ minWidth: "100%", flex: "1 1 100%" }}>
+                      <div className="card-header-row">
+                        <div>
+                          <strong>{proposal.problem || "Propuesta de mejora"}</strong>
+                          <p className="subtle-line">Responsable: {proposal.responsible || "Sin asignar"} · Tipo: {proposal.type}</p>
+                        </div>
+                        <span className={getProposalStatusClass(proposal.status)}>{getProposalStatusLabel(proposal.status)}</span>
+                      </div>
+                      <p className="subtle-line">Causa raíz: {proposal.rootCause || "No definida"}</p>
+                      <p className="subtle-line">Propuesta: {proposal.proposal || "No definida"}</p>
+                      <p className="subtle-line">Impacto esperado: {proposal.expectedImpact || "No definido"}</p>
+                      <div className="saved-board-list board-builder-launch-list">
+                        <button type="button" className="icon-button" onClick={() => { setSelectedAuditId(audit.id); setActiveTab("auditoria"); }}>Abrir auditoría</button>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              </article>
+            ))}
+            {!auditProposals.length ? <p className="subtle-line">No hay propuestas registradas todavía.</p> : null}
           </div>
         </article>
       ) : null}
@@ -583,6 +828,71 @@ export default function AuditoriasProcesos({ contexto }) {
             })}
             {!dashboardStats.byArea.length ? <p className="subtle-line">No hay datos para mostrar en el dashboard.</p> : null}
           </div>
+        </article>
+      ) : null}
+
+      {activeTab === "history" ? (
+        <article className="surface-card table-card full-width">
+          <div className="card-header-row">
+            <div>
+              <h3>Historial</h3>
+              <p>Registros de auditorías cerradas, propuestas resueltas (aprobadas o rechazadas).</p>
+            </div>
+          </div>
+          
+          {closedAudits.length > 0 && (
+            <article className="surface-card" style={{ marginBottom: "1.5rem" }}>
+              <div className="card-header-row">
+                <h4>Auditorías cerradas</h4>
+              </div>
+              <div className="saved-board-list permissions-preset-list">
+                {closedAudits.map((audit) => (
+                  <article key={audit.id} className="surface-card" style={{ minWidth: "min(100%, 280px)", flex: "1 1 280px" }}>
+                    <div className="card-header-row">
+                      <div>
+                        <strong>{audit.area} · {audit.process}</strong>
+                        <p className="subtle-line">{audit.auditorName || currentUser?.name || "Sin auditor"}</p>
+                      </div>
+                      <span className="chip success">Cerrada</span>
+                    </div>
+                    <p className="subtle-line">Inicio: {formatDateTime(audit.startedAt)}</p>
+                    <p className="subtle-line">Cierre: {formatDateTime(audit.closedAt)}</p>
+                    <p className="subtle-line">Duración: {formatDuration(getAuditDurationSeconds(audit))}</p>
+                    <p className="subtle-line">Hallazgos: {audit.questions?.filter((q) => q?.type === "yesno" && q.answer === false).length || 0}</p>
+                  </article>
+                ))}
+              </div>
+            </article>
+          )}
+
+          {resolvedProposals.length > 0 && (
+            <article className="surface-card">
+              <div className="card-header-row">
+                <h4>Propuestas resueltas</h4>
+              </div>
+              <div className="saved-board-list permissions-preset-list">
+                {resolvedProposals.map((proposal) => (
+                  <article key={proposal.id} className="surface-card" style={{ minWidth: "min(100%, 320px)", flex: "1 1 320px" }}>
+                    <div className="card-header-row">
+                      <div>
+                        <strong>{proposal.problem || "Propuesta resuelta"}</strong>
+                        <p className="subtle-line">Auditoría: {proposal.audit?.area || "-"} · {proposal.audit?.process || "-"}</p>
+                      </div>
+                      <span className={getProposalStatusClass(proposal.status)}>{getProposalStatusLabel(proposal.status)}</span>
+                    </div>
+                    <p className="subtle-line">Causa raíz: {proposal.rootCause || "No definida"}</p>
+                    <p className="subtle-line">Propuesta: {proposal.proposal || "No definida"}</p>
+                    <p className="subtle-line">Impacto esperado: {proposal.expectedImpact || "No definido"}</p>
+                    <p className="subtle-line">Responsable: {proposal.responsible || "Sin asignar"}</p>
+                  </article>
+                ))}
+              </div>
+            </article>
+          )}
+
+          {!closedAudits.length && !resolvedProposals.length && (
+            <p className="subtle-line">No hay auditorías cerradas ni propuestas resueltas todavía.</p>
+          )}
         </article>
       ) : null}
     </section>
