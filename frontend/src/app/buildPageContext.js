@@ -229,6 +229,41 @@ export function buildPaginasContexto(d) {
       d.applyRemoteWarehouseState(result.data.state, d.setState, d.setLoginDirectory, d.skipNextSyncRef, d.setSyncStatus);
       return result.data.weekId;
     },
+    updateBoardHistoryRecord: async (snapshotId, rowId, patch, options = {}) => {
+      const boardId = String(options?.boardId || "").trim();
+      const isLive = Boolean(options?.isLive);
+      try {
+        const remoteState = isLive && boardId
+          ? await d.requestJson(`/warehouse/boards/${boardId}/rows/${rowId}`, {
+            method: "PATCH",
+            body: JSON.stringify(patch || {}),
+          })
+          : await d.requestJson(`/warehouse/board-history/${snapshotId}/rows/${rowId}`, {
+            method: "PATCH",
+            body: JSON.stringify(patch || {}),
+          });
+        d.applyRemoteWarehouseState(remoteState, d.setState, d.setLoginDirectory, d.skipNextSyncRef, d.setSyncStatus);
+        d.pushAppToast("Registro del historial actualizado.", "success");
+      } catch (error) {
+        d.pushAppToast(error?.message || "No se pudo actualizar el registro del historial.", "danger");
+        throw error;
+      }
+    },
+    deleteBoardHistoryRecord: async (snapshotId, rowId, options = {}) => {
+      const boardId = String(options?.boardId || "").trim();
+      const isLive = Boolean(options?.isLive);
+      try {
+        const remoteState = isLive && boardId
+          ? await d.requestJson(`/warehouse/boards/${boardId}/rows/${rowId}`, { method: "DELETE" })
+          : await d.requestJson(`/warehouse/board-history/${snapshotId}/rows/${rowId}`, { method: "DELETE" });
+        d.applyRemoteWarehouseState(remoteState, d.setState, d.setLoginDirectory, d.skipNextSyncRef, d.setSyncStatus);
+        d.pushAppToast("Registro eliminado del historial.", "success");
+      } catch (error) {
+        d.pushAppToast(error?.message || "No se pudo eliminar el registro del historial.", "danger");
+        throw error;
+      }
+    },
+    removeWeekActivity: d.removeWeekActivity,
     handleAddAreaOption: d.handleAddAreaOption,
     rootAreaOptions: d.rootAreaOptions,
     splitAreaAndSubArea: d.splitAreaAndSubArea,

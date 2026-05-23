@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { uploadFileToCloudinary } from "../services/upload.service";
-import { FileText, Plus } from "lucide-react";
+import { ExternalLink, FileText, MapPin, Plus, RefreshCw } from "lucide-react";
 import { TransportAssignmentsTab, TransportMyRoutesTab, TransportPostponedTab } from "./TransportTabs";
 import DashboardDateRangePicker from "../components/DashboardDateRangePicker";
 import { SpanishDateInput } from "../components/SpanishDateInput";
@@ -489,6 +489,48 @@ function buildAddressNavigationHref(addressEntry = {}) {
   return `geo:0,0?q=${encodeURIComponent(query)}`;
 }
 
+const TRANSPORT_ROAD_NEWS_ALERT_STYLES = {
+  accidente: { chipClass: "danger", label: "Accidentes" },
+  bloqueo: { chipClass: "warning", label: "Bloqueos" },
+  clima: { chipClass: "", label: "Clima" },
+  obra: { chipClass: "", label: "Obras" },
+  seguridad: { chipClass: "warning", label: "Seguridad" },
+  general: { chipClass: "", label: "General" },
+};
+
+function TransportAddressNavigateButton({ address }) {
+  const href = buildAddressNavigationHref(address);
+  const fullAddress = String(address?.address || address?.destination || "").trim();
+
+  if (!href) {
+    return <span className="subtle-line">-</span>;
+  }
+
+  return (
+    <a
+      href={href}
+      className="transport-map-button"
+      title={fullAddress || "Abrir ubicación en mapas"}
+      aria-label={fullAddress ? `Abrir en mapas: ${fullAddress}` : "Abrir en mapas"}
+    >
+      <MapPin size={15} aria-hidden="true" />
+      <span>Mapa</span>
+    </a>
+  );
+}
+
+function formatRoadNewsRelativeTime(value) {
+  const ms = Date.parse(value || "");
+  if (!Number.isFinite(ms)) return "";
+  const diffMinutes = Math.round((Date.now() - ms) / 60000);
+  if (diffMinutes < 1) return "Hace un momento";
+  if (diffMinutes < 60) return `Hace ${diffMinutes} min`;
+  const diffHours = Math.round(diffMinutes / 60);
+  if (diffHours < 48) return `Hace ${diffHours} h`;
+  const diffDays = Math.round(diffHours / 24);
+  return `Hace ${diffDays} d`;
+}
+
 function createTransportLogisticsExpenseDraft() {
   return {
     dateKey: new Date().toISOString().slice(0, 10),
@@ -965,6 +1007,9 @@ export default function GestionTransporte({ contexto }) {
   const [roadNewsFilters, setRoadNewsFilters] = useState(createRoadNewsFiltersDraft());
   const [roadNewsItems, setRoadNewsItems] = useState([]);
   const [roadNewsError, setRoadNewsError] = useState("");
+  const [roadNewsWarning, setRoadNewsWarning] = useState("");
+  const [roadNewsStale, setRoadNewsStale] = useState(false);
+  const [roadNewsAlertSummary, setRoadNewsAlertSummary] = useState({});
   const [roadNewsLoading, setRoadNewsLoading] = useState(false);
   const [roadNewsLoadedAt, setRoadNewsLoadedAt] = useState("");
   const [checklistCustomItemDraft, setChecklistCustomItemDraft] = useState({
@@ -1155,8 +1200,16 @@ export default function GestionTransporte({ contexto }) {
 
   useEffect(() => {
     if (selectedMainTab !== "logistica" || logisticsViewTab !== "noticias") return;
-    if (roadNewsLoading || roadNewsItems.length) return;
+    if (roadNewsLoading) return;
     loadTransportRoadNews();
+  }, [selectedMainTab, logisticsViewTab]);
+
+  useEffect(() => {
+    if (selectedMainTab !== "logistica" || logisticsViewTab !== "noticias") return undefined;
+    const refreshTimer = window.setInterval(() => {
+      loadTransportRoadNews();
+    }, 10 * 60 * 1000);
+    return () => window.clearInterval(refreshTimer);
   }, [selectedMainTab, logisticsViewTab]);
 
   const activeRecords = useMemo(
@@ -1224,6 +1277,29 @@ export default function GestionTransporte({ contexto }) {
     () => (Array.isArray(transportState?.transportUnitServiceLogs) ? transportState.transportUnitServiceLogs : []),
     [transportState?.transportUnitServiceLogs],
   );
+
+  const transportRoadMonitors = useMemo(
+    () => (transportState?.roadMonitors && typeof transportState.roadMonitors === "object"
+      ? transportState.roadMonitors
+      : {}),
+    [transportState?.roadMonitors],
+  );
+
+  const activeTransportRoadAlerts = useMemo(() => {
+    const rows = [];
+    Object.values(transportRoadMonitors).forEach((monitor) => {
+      if (!monitor?.monitoring) return;
+      (Array.isArray(monitor.alerts) ? monitor.alerts : []).forEach((alert) => {
+        rows.push({
+          ...alert,
+          recordId: monitor.recordId,
+          shipmentCode: monitor.shipmentCode,
+          destination: monitor.destination,
+        });
+      });
+    });
+    return rows.sort((left, right) => Date.parse(right.detectedAt || 0) - Date.parse(left.detectedAt || 0)).slice(0, 6);
+  }, [transportRoadMonitors]);
 
   const normalizedCustomerAddresses = useMemo(
     () => customerAddresses.map((entry) => ({
@@ -1525,14 +1601,25 @@ export default function GestionTransporte({ contexto }) {
 
     setRoadNewsLoading(true);
     setRoadNewsError("");
+    setRoadNewsWarning("");
+    setRoadNewsStale(false);
     try {
       const result = await requestJson(`/warehouse/transport/news?${params.toString()}`);
       const items = Array.isArray(result?.data?.items) ? result.data.items : [];
       setRoadNewsItems(items);
       setRoadNewsLoadedAt(String(result?.data?.generatedAt || new Date().toISOString()));
+      setRoadNewsWarning(String(result?.data?.warning || ""));
+      setRoadNewsStale(Boolean(result?.data?.stale));
+      setRoadNewsAlertSummary(result?.data?.alertSummary && typeof result.data.alertSummary === "object"
+        ? result.data.alertSummary
+        : {});
+      if (!items.length && !result?.data?.stale) {
+        setRoadNewsWarning((current) => current || "No hay noticias recientes para estos filtros. Prueba ampliar las horas o cambiar el tema.");
+      }
     } catch (error) {
       setRoadNewsError(error?.message || "No se pudieron cargar las noticias viales.");
       setRoadNewsItems([]);
+      setRoadNewsAlertSummary({});
     } finally {
       setRoadNewsLoading(false);
     }
@@ -3052,6 +3139,29 @@ export default function GestionTransporte({ contexto }) {
   return (
     <section className="page-shell inventory-page-shell transport-page-shell">
       <section className="inventory-stack transport-page-stack">
+        {activeTransportRoadAlerts.length ? (
+          <div className="transport-road-alert-banner" role="status" aria-live="polite">
+            <div className="transport-road-alert-banner-head">
+              <strong>Alertas viales en envios activos</strong>
+              <span className="chip warning">{activeTransportRoadAlerts.length}</span>
+            </div>
+            <ul className="transport-road-alert-banner-list">
+              {activeTransportRoadAlerts.map((alert) => (
+                <li key={alert.id || `${alert.recordId}-${alert.title}`}>
+                  <span className="transport-road-alert-banner-item-title">
+                    {alert.shipmentCode || alert.destination}: {alert.incidentLabel || "Vialidad"}
+                  </span>
+                  <span className="subtle-line">{alert.title}</span>
+                  {alert.link ? (
+                    <a href={alert.link} target="_blank" rel="noreferrer" className="transport-road-news-link">
+                      Ver detalle
+                    </a>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
         <article className="surface-card inventory-surface-card full-width transport-responsive-card">
           <div className="transport-main-groups">
             {transportSectionOptions.length ? (
@@ -3417,16 +3527,7 @@ export default function GestionTransporte({ contexto }) {
                                   </td>
                                   <td>{address.customerName || "-"}</td>
                                   <td>
-                                    {buildAddressNavigationHref(address) ? (
-                                      <a
-                                        href={buildAddressNavigationHref(address)}
-                                        className="transport-address-link"
-                                      >
-                                        {address.address || address.destination || "Sin dirección"}
-                                      </a>
-                                    ) : (
-                                      <span className="subtle-line">-</span>
-                                    )}
+                                    <TransportAddressNavigateButton address={address} />
                                   </td>
                                   <td>
                                     <div style={{ display: "grid", gap: "0.15rem" }}>
@@ -3538,19 +3639,42 @@ export default function GestionTransporte({ contexto }) {
                   </div>
                 </article>
               ) : logisticsViewTab === "noticias" ? (
-                <article className="surface-card transport-logistics-card" style={{ padding: "0.9rem", borderRadius: "1.2rem" }}>
+                <article className="surface-card transport-logistics-card transport-road-news-panel" style={{ padding: "0.9rem", borderRadius: "1.2rem" }}>
                   <div className="card-header-row" style={{ marginBottom: "0.7rem", gap: "0.6rem", flexWrap: "wrap" }}>
                     <div>
-                      <h4 style={{ margin: 0 }}>Noticias viales de México</h4>
+                      <h4 style={{ margin: 0 }}>Alertas viales en tiempo casi real</h4>
                       <p className="subtle-line" style={{ marginTop: "0.25rem" }}>
-                        Feed gratuito para monitorear accidentes, cierres, bloqueos, clima y seguridad carretera.
+                        Agregador gratuito (Google Noticias + respaldo GDELT). Se actualiza cada 10 minutos mientras permanezcas en esta pestaña.
                       </p>
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: "0.45rem", flexWrap: "wrap" }}>
                       <span className="chip">Resultados: {roadNewsItems.length}</span>
                       {roadNewsLoadedAt ? <span className="subtle-line">Actualizado: {formatDateTime(roadNewsLoadedAt)}</span> : null}
+                      <button
+                        type="button"
+                        className="icon-button transport-road-news-refresh"
+                        onClick={loadTransportRoadNews}
+                        disabled={roadNewsLoading}
+                        title="Actualizar alertas"
+                      >
+                        <RefreshCw size={15} aria-hidden="true" />
+                        {roadNewsLoading ? "Actualizando..." : "Actualizar"}
+                      </button>
                     </div>
                   </div>
+
+                  {Object.keys(roadNewsAlertSummary).length ? (
+                    <div className="transport-road-news-summary" style={{ marginBottom: "0.65rem" }}>
+                      {Object.entries(roadNewsAlertSummary).map(([kind, count]) => {
+                        const style = TRANSPORT_ROAD_NEWS_ALERT_STYLES[kind] || TRANSPORT_ROAD_NEWS_ALERT_STYLES.general;
+                        return (
+                          <span key={`alert-kind-${kind}`} className={`chip ${style.chipClass}`.trim()}>
+                            {style.label}: {count}
+                          </span>
+                        );
+                      })}
+                    </div>
+                  ) : null}
 
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: "0.55rem", marginBottom: "0.65rem" }}>
                     <label className="app-modal-field" style={{ marginBottom: 0 }}>
@@ -3627,6 +3751,9 @@ export default function GestionTransporte({ contexto }) {
                         setRoadNewsFilters(createRoadNewsFiltersDraft());
                         setRoadNewsItems([]);
                         setRoadNewsError("");
+                        setRoadNewsWarning("");
+                        setRoadNewsStale(false);
+                        setRoadNewsAlertSummary({});
                         setRoadNewsLoadedAt("");
                       }}
                       disabled={roadNewsLoading}
@@ -3636,42 +3763,44 @@ export default function GestionTransporte({ contexto }) {
                   </div>
 
                   {roadNewsError ? <div className="status-banner status-banner-error" style={{ marginBottom: "0.65rem" }}>{roadNewsError}</div> : null}
+                  {roadNewsWarning ? (
+                    <div className={`status-banner ${roadNewsStale ? "status-banner-warning" : ""}`} style={{ marginBottom: "0.65rem" }}>
+                      {roadNewsWarning}
+                    </div>
+                  ) : null}
 
-                  <div className="table-wrap">
-                    <table className="inventory-table-clean">
-                      <thead>
-                        <tr>
-                          <th>Fecha</th>
-                          <th>Título</th>
-                          <th>Fuente</th>
-                          <th>Resumen</th>
-                          <th>Enlace</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {roadNewsItems.length ? roadNewsItems.map((item) => (
-                          <tr key={item.id || item.link}>
-                            <td>{formatDateTime(item.publishedAt || item.publishedAtLabel || "")}</td>
-                            <td>{item.title || "Sin título"}</td>
-                            <td>{item.source || "-"}</td>
-                            <td>{item.summary || "-"}</td>
-                            <td>
-                              {item.link ? (
-                                <a href={item.link} target="_blank" rel="noreferrer" className="transport-address-link">
-                                  Abrir noticia
-                                </a>
-                              ) : (
-                                <span className="subtle-line">-</span>
-                              )}
-                            </td>
-                          </tr>
-                        )) : (
-                          <tr>
-                            <td colSpan="5" className="subtle-line">{roadNewsLoading ? "Consultando noticias viales..." : "Sin resultados para los filtros seleccionados."}</td>
-                          </tr>
-                        )}
-                      </tbody>
-                    </table>
+                  <div className="transport-road-news-feed">
+                    {roadNewsLoading && !roadNewsItems.length ? (
+                      <p className="subtle-line transport-road-news-empty">Consultando alertas viales...</p>
+                    ) : null}
+
+                    {!roadNewsLoading && !roadNewsItems.length ? (
+                      <p className="subtle-line transport-road-news-empty">Sin resultados para los filtros seleccionados.</p>
+                    ) : null}
+
+                    {roadNewsItems.map((item) => {
+                      const alertStyle = TRANSPORT_ROAD_NEWS_ALERT_STYLES[item.alertKind] || TRANSPORT_ROAD_NEWS_ALERT_STYLES.general;
+                      const relativeTime = formatRoadNewsRelativeTime(item.publishedAt || item.publishedAtLabel);
+                      return (
+                        <article key={item.id || item.link} className={`transport-road-news-card transport-road-news-card--${item.alertKind || "general"}`}>
+                          <header className="transport-road-news-card-head">
+                            <span className={`chip ${alertStyle.chipClass}`.trim()}>{item.alertLabel || alertStyle.label}</span>
+                            <span className="subtle-line">{relativeTime || formatDateTime(item.publishedAt || item.publishedAtLabel || "")}</span>
+                          </header>
+                          <h5 className="transport-road-news-card-title">{item.title || "Sin título"}</h5>
+                          <p className="transport-road-news-card-summary">{item.summary || "Sin resumen disponible."}</p>
+                          <footer className="transport-road-news-card-foot">
+                            <span className="subtle-line">{item.source || "Fuente no identificada"}</span>
+                            {item.link ? (
+                              <a href={item.link} target="_blank" rel="noreferrer" className="transport-road-news-link">
+                                <ExternalLink size={14} aria-hidden="true" />
+                                Ver noticia
+                              </a>
+                            ) : null}
+                          </footer>
+                        </article>
+                      );
+                    })}
                   </div>
                 </article>
               ) : (

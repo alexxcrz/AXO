@@ -5,7 +5,7 @@ import { Eye, EyeOff } from "lucide-react";
 import { Modal } from "./Modal";
 import { SpanishDateInput } from "./SpanishDateInput";
 import { uploadFileToCloudinary } from "../services/upload.service";
-import { getThemePreview, groupThemesByKind, getFontFamilyStack, getFontOptionById } from "../app/uiPreferencesConfig.js";
+import { getThemePreview, groupThemesByKind, getFontFamilyStack, getFontOptionById, ensureUiWebFontLoaded } from "../app/uiPreferencesConfig.js";
 
 // ── Constantes y utilidades ───────────────────────────────────────────────────
 
@@ -181,33 +181,6 @@ export function EmployeeProfileModal({
     "copmec-neon": { primary: "#5f8fbe", shell: "#0ea5e9" },
     "copmec-berry": { primary: "#e11d48", shell: "#7c3aed" },
   };
-  const FONT_FALLBACK = {
-    bahnschrift: '"Bahnschrift", "Segoe UI", sans-serif',
-    trebuchet: '"Trebuchet MS", "Segoe UI", sans-serif',
-    serif: '"Book Antiqua", "Cambria", serif',
-    mono: '"Consolas", "Cascadia Mono", monospace',
-    segoe: '"Segoe UI", "Franklin Gothic Medium", sans-serif',
-    georgia: '"Georgia", "Times New Roman", serif',
-    candara: '"Candara", "Gill Sans MT", sans-serif',
-    tahoma: '"Tahoma", "Verdana", sans-serif',
-    palatino: '"Palatino Linotype", "Book Antiqua", serif',
-    verdana: '"Verdana", "Segoe UI", sans-serif',
-    calibri: '"Calibri", "Segoe UI", sans-serif',
-    corbel: '"Corbel", "Candara", sans-serif',
-    garamond: '"Garamond", "Times New Roman", serif',
-    century: '"Century Gothic", "Trebuchet MS", sans-serif',
-    lucida: '"Lucida Sans Unicode", "Lucida Grande", sans-serif',
-    arialn: '"Arial Narrow", "Arial", sans-serif',
-    cambria: '"Cambria", "Georgia", serif',
-    franklin: '"Franklin Gothic Medium", "Arial", sans-serif',
-    bookman: '"Bookman Old Style", "Garamond", serif',
-    gill: '"Gill Sans MT", "Trebuchet MS", sans-serif',
-    optima: '"Optima", "Segoe UI", sans-serif',
-    constantia: '"Constantia", "Cambria", serif',
-    rockwell: '"Rockwell", "Georgia", serif',
-    futura: '"Futura", "Century Gothic", sans-serif',
-  };
-
   const [isEditMode, setIsEditMode]   = useState(false);
   const [activeTab, setActiveTab]     = useState("perfil");
   const [personalTab, setPersonalTab] = useState("colores");
@@ -752,7 +725,10 @@ export function EmployeeProfileModal({
                           key={font.id}
                           type="button"
                           className={`ep-font-card${active ? " ep-font-card--active" : ""}${isHovered ? " ep-font-card--hover" : ""}`}
-                          onMouseEnter={() => setHoveredFontId(font.id)}
+                          onMouseEnter={() => {
+                            setHoveredFontId(font.id);
+                            void ensureUiWebFontLoaded(font.id);
+                          }}
                           onFocus={() => setHoveredFontId(font.id)}
                           onBlur={() => setHoveredFontId((current) => (current === font.id ? null : current))}
                           onClick={() => {
@@ -767,6 +743,9 @@ export function EmployeeProfileModal({
                           >
                             {font.label}
                           </span>
+                          {font.webGoogle && font.webGoogle !== font.label ? (
+                            <span className="ep-font-card__hint">Web: {font.webGoogle}</span>
+                          ) : null}
                           <span
                             className="ep-font-card__sample ep-font-card__preview-text"
                             data-font-preview

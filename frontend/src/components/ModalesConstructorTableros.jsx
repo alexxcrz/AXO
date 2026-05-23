@@ -10,8 +10,6 @@ import {
   Trash2,
 } from "lucide-react";
 import { Modal } from "./Modal";
-import { OPERATIONAL_INSPECTION_TEMPLATE, normalizeOperationalInspectionTemplate } from "../utils/operationalInspectionTemplate";
-
 const COMPONENT_TYPE_CATEGORIES = [
   {
     label: "Texto y contacto",
@@ -88,11 +86,6 @@ const COMPONENT_TYPE_CATEGORIES = [
     ],
   },
 ];
-
-function createChecklistToken(prefix = "item") {
-  const randomPart = Math.random().toString(36).slice(2, 7);
-  return `${prefix}-${Date.now().toString(36)}-${randomPart}`;
-}
 
 function getDraftFormulaTerms(draft) {
   const source = Array.isArray(draft?.formulaTerms) ? draft.formulaTerms : [];
@@ -837,10 +830,9 @@ export function BoardBuilderModal({
     ? Array.from(new Set(selectedAreaSection.scopes.map((scope) => normalizeArea(scope)).filter(Boolean)))
     : [];
   const isSectionScoped = selectedAreaSectionId !== "all" && sectionScopedBoardAreas.length > 0;
-  const effectiveBoardAreaOptions = isSectionScoped ? sectionScopedBoardAreas : boardAreaOptions;
   const filteredOperationalUsers = availableOperationalUsers.filter((user) => user.name.toLowerCase().includes(accessSearch.trim().toLowerCase()));
   const visibilityType = String(draft.visibilityType || "users");
-  const effectiveVisibilityType = isSectionScoped ? "department" : (visibilityType === "all" ? "department" : visibilityType);
+  const effectiveVisibilityType = visibilityType === "all" ? "department" : visibilityType;
   const ownerAreaByUserId = (userId) => {
     const areaValue = userMap.get(userId)?.area || userMap.get(userId)?.department || "";
     return normalizeArea(getAreaRootSafe(areaValue) || areaValue);
@@ -848,7 +840,8 @@ export function BoardBuilderModal({
   const selectedBoardArea = normalizeArea(draft.settings?.ownerArea || "");
   const fallbackBoardArea = isSectionScoped
     ? sectionScopedBoardAreas[0] || ""
-    : ownerAreaByUserId(draft.ownerId || currentUser?.id || "") || effectiveBoardAreaOptions[0] || "";
+    : ownerAreaByUserId(draft.ownerId || currentUser?.id || "") || boardAreaOptions[0] || "";
+  const displayOwnerArea = selectedBoardArea || fallbackBoardArea;
   const ownerName = userMap.get(draft.ownerId)?.name || currentUser?.name || "Sin player";
   const selectedPlayersLabel = draft.accessUserIds?.length
     ? `${draft.accessUserIds.length + 1} players con acceso`
@@ -877,22 +870,6 @@ export function BoardBuilderModal({
   const operationalContextValue = String(draft.settings?.operationalContextValue || "").trim()
     || operationalContextOptions[0]
     || "";
-  const activityCatalogNames = useMemo(
-    () => Array.from(new Set((catalog || [])
-      .filter((item) => !item?.isDeleted)
-      .map((item) => String(item?.name || "").trim())
-      .filter(Boolean)))
-      .sort((a, b) => a.localeCompare(b, "es", { sensitivity: "base" })),
-    [catalog],
-  );
-  const checklistConfigRaw = draft.settings?.operationalChecklistConfig && typeof draft.settings.operationalChecklistConfig === "object"
-    ? draft.settings.operationalChecklistConfig
-    : {};
-  const checklistTemplate = normalizeOperationalInspectionTemplate(checklistConfigRaw.template || OPERATIONAL_INSPECTION_TEMPLATE);
-  const checklistLinkedActivities = Array.isArray(checklistConfigRaw.linkedActivityNames)
-    ? checklistConfigRaw.linkedActivityNames.map((item) => String(item || "").trim()).filter(Boolean)
-    : [];
-  const checklistEnabled = Boolean(checklistConfigRaw.enabled);
   const selectedPreviewTemplateId = selectedPreviewTemplate?.id || "";
   const defaultAuxWidths = Object.fromEntries(Object.values(BOARD_AUX_COLUMN_DEFINITIONS).map((item) => [item.id, item.defaultWidth]));
   const fieldTypeMinWidths = {
@@ -905,10 +882,9 @@ export function BoardBuilderModal({
     date: 140,
   };
   const auxMinWidths = Object.fromEntries(Object.values(BOARD_AUX_COLUMN_DEFINITIONS).map((item) => [item.id, item.minWidth]));
-  const builderTabs = ["base", "checklist", "identity"];
+  const builderTabs = ["base", "identity"];
   const builderTabLabels = {
     base: "Base",
-    checklist: "Checklist",
     identity: "Identidad",
   };
   const currentBuilderTabIndex = Math.max(0, builderTabs.indexOf(builderTab));
@@ -997,42 +973,22 @@ export function BoardBuilderModal({
 
   useEffect(() => {
     if (!open) return;
-    if (selectedBoardArea || !fallbackBoardArea) return;
-    onChange((current) => ({
-      ...current,
-      settings: {
-        ...current.settings,
-        ownerArea: fallbackBoardArea,
-      },
-    }));
-  }, [fallbackBoardArea, onChange, open, selectedBoardArea]);
-
-  useEffect(() => {
-    if (!open || !isSectionScoped) return;
+    const nextOwnerArea = isSectionScoped
+      ? (sectionScopedBoardAreas[0] || "")
+      : (normalizeArea(draft.settings?.ownerArea || "") || fallbackBoardArea);
+    if (!nextOwnerArea) return;
     onChange((current) => {
-      const nextOwnerArea = normalizeArea(current.settings?.ownerArea || "") || sectionScopedBoardAreas[0] || "";
-      const nextSharedDepartments = sectionScopedBoardAreas;
-      const ownerAreaChanged = normalizeArea(current.settings?.ownerArea || "") !== nextOwnerArea;
-      const visibilityChanged = current.visibilityType !== "department";
-      const sharedDepartmentsChanged = JSON.stringify(current.sharedDepartments || []) !== JSON.stringify(nextSharedDepartments);
-      const accessChanged = Array.isArray(current.accessUserIds) && current.accessUserIds.length > 0;
-
-      if (!ownerAreaChanged && !visibilityChanged && !sharedDepartmentsChanged && !accessChanged) {
-        return current;
-      }
-
+      const currentArea = normalizeArea(current.settings?.ownerArea || "");
+      if (currentArea === nextOwnerArea) return current;
       return {
         ...current,
-        visibilityType: "department",
-        sharedDepartments: nextSharedDepartments,
-        accessUserIds: [],
         settings: {
           ...current.settings,
           ownerArea: nextOwnerArea,
         },
       };
     });
-  }, [isSectionScoped, onChange, open, sectionScopedBoardAreas]);
+  }, [fallbackBoardArea, isSectionScoped, onChange, open, sectionScopedBoardAreas]);
 
   function handleTogglePendingAccess(userId) {
     setPendingAccessUserIds((current) => current.includes(userId)
@@ -1065,20 +1021,34 @@ export function BoardBuilderModal({
 
   function handleVisibilityTypeChange(nextVisibilityType) {
     onChange((current) => {
-      const resolvedVisibilityType = isSectionScoped ? "department" : nextVisibilityType;
-      const ownerArea = userMap.get(current.ownerId)?.area || userMap.get(current.ownerId)?.department || currentUser?.area || currentUser?.department || "";
+      const ownerArea = normalizeArea(current.settings?.ownerArea || "") || fallbackBoardArea;
       const seededDepartments = current.sharedDepartments?.length
         ? current.sharedDepartments
         : ownerArea
-          ? [String(ownerArea).trim().toUpperCase()]
+          ? [ownerArea]
           : [];
       return {
         ...current,
-        visibilityType: resolvedVisibilityType,
-        sharedDepartments: resolvedVisibilityType === "department"
-          ? (isSectionScoped ? sectionScopedBoardAreas : seededDepartments)
+        visibilityType: nextVisibilityType,
+        sharedDepartments: nextVisibilityType === "department"
+          ? seededDepartments
           : current.sharedDepartments || [],
-        accessUserIds: resolvedVisibilityType === "department" && isSectionScoped ? [] : (current.accessUserIds || []),
+        accessUserIds: nextVisibilityType === "users"
+          ? (current.accessUserIds || [])
+          : [],
+      };
+    });
+  }
+
+  function handleToggleSharedDepartment(department) {
+    onChange((current) => {
+      const currentDepartments = Array.isArray(current.sharedDepartments) ? current.sharedDepartments : [];
+      const nextDepartments = currentDepartments.includes(department)
+        ? currentDepartments.filter((item) => item !== department)
+        : [...currentDepartments, department];
+      return {
+        ...current,
+        sharedDepartments: nextDepartments,
       };
     });
   }
@@ -1312,7 +1282,6 @@ export function BoardBuilderModal({
   const focusLayoutClassName = [
     "board-builder-focus-layout",
     builderTab === "identity" ? "identity-stage" : "",
-    builderTab === "checklist" ? "checklist-stage" : "",
     builderTab === "base" ? "base-stage" : "",
   ].filter(Boolean).join(" ");
 
@@ -1330,7 +1299,13 @@ export function BoardBuilderModal({
       <div className="board-builder-modal-shell">
         <section className="board-builder-intuitive-header">
           <div className="board-builder-intuitive-main">
-            <h3>{mode === "edit" ? "Editor de tablero" : "Creador de tableros"}</h3>
+            <div className="board-builder-intuitive-title-row">
+              <h3>{mode === "edit" ? "Editor de tablero" : "Creador de tableros"}</h3>
+              <div className="board-builder-fixed-area-banner" role="status" aria-live="polite">
+                <span>Área dueña</span>
+                <strong>{displayOwnerArea || "Sin área"}</strong>
+              </div>
+            </div>
             <div className="board-meta-inline board-meta-inline-header">
               <span>Creador · {currentUser?.name || userMap.get(previewBoard.ownerId)?.name || "Sin asignar"}</span>
               <span>{previewAssignmentSummary}</span>
@@ -1338,30 +1313,31 @@ export function BoardBuilderModal({
             </div>
             <div className="saved-board-list board-builder-intuitive-chips">
               <button type="button" className={builderTab === "base" ? "tab active" : "tab"} onClick={() => setBuilderTab("base")}>Base</button>
-              <button type="button" className={builderTab === "checklist" ? "tab active" : "tab"} onClick={() => setBuilderTab("checklist")}>Checklist</button>
               <button type="button" className={builderTab === "identity" ? "tab active" : "tab"} onClick={() => setBuilderTab("identity")}>Identidad</button>
             </div>
           </div>
         </section>
 
         <section className="board-builder-wizard-nav" aria-label="Navegación del creador de tableros">
-          <button type="button" className="icon-button" onClick={goToPrevBuilderTab} disabled={!hasBuilderPrev}>Anterior</button>
+          <div className="board-builder-wizard-nav-start">
+            <button type="button" className="icon-button" onClick={goToPrevBuilderTab} disabled={!hasBuilderPrev}>Anterior</button>
+            {builderTab === "base" ? (
+              <button
+                type="button"
+                className={baseTemplatesCollapsed ? "board-builder-template-panel-toggle primary-button" : "board-builder-template-panel-toggle icon-button"}
+                onClick={() => setBaseTemplatesCollapsed((current) => !current)}
+                aria-expanded={!baseTemplatesCollapsed}
+                aria-controls="bb-step-base"
+              >
+                <Menu size={15} />
+                <span>{baseTemplatesCollapsed ? "Plantillas" : "Ocultar"}</span>
+              </button>
+            ) : null}
+          </div>
           <span className="board-builder-wizard-step">Paso {currentBuilderTabIndex + 1} de {builderTabs.length} · {builderTabLabels[builderTab]}</span>
           <button type="button" className="primary-button" onClick={goToNextBuilderTab} disabled={!hasBuilderNext}>Siguiente</button>
         </section>
         <div className={focusLayoutClassName}>
-        {builderTab === "base" ? (
-          <button
-            type="button"
-            className={baseTemplatesCollapsed ? "board-builder-template-edge-toggle collapsed" : "board-builder-template-edge-toggle"}
-            onClick={() => setBaseTemplatesCollapsed((current) => !current)}
-            aria-expanded={!baseTemplatesCollapsed}
-            aria-controls="bb-step-base"
-          >
-            <Menu size={15} />
-            <span>{baseTemplatesCollapsed ? "Plantillas" : "Ocultar"}</span>
-          </button>
-        ) : null}
         {builderTab !== "preview" ? (
         <section className={builderTab === "base" ? (baseTemplatesCollapsed ? "board-builder-workbench board-builder-template-workbench collapsed" : "board-builder-workbench board-builder-template-workbench") : "board-builder-workbench"} aria-hidden="true">
           {builderTab === "base" ? (
@@ -1373,7 +1349,7 @@ export function BoardBuilderModal({
               </div>
               <div className="saved-board-list compact-template-actions">
                 {!baseTemplatesCollapsed && selectedPreviewTemplateId ? <button type="button" className="icon-button" onClick={onClearTemplatePreview}>Volver al borrador</button> : null}
-                {!baseTemplatesCollapsed && onSaveTemplate ? <button type="button" className="primary-button" onClick={onSaveTemplate}>Guardar borrador como plantilla</button> : null}
+                {!baseTemplatesCollapsed && onSaveTemplate ? <button type="button" className="primary-button board-builder-save-template-btn" onClick={onSaveTemplate}>Guardar como plantilla</button> : null}
               </div>
             </div>
 
@@ -1444,7 +1420,7 @@ export function BoardBuilderModal({
             <div className="builder-section-head board-builder-section-head">
               <div>
                 <h4>Identidad y acceso del tablero</h4>
-                <p>Configura nombre, responsable y visibilidad desde un solo bloque.</p>
+                <p>Define nombre, responsable y con quién se comparte. El área dueña queda fija según dónde creas el tablero.</p>
               </div>
             </div>
 
@@ -1453,7 +1429,7 @@ export function BoardBuilderModal({
                 <span>Nombre del tablero<span className="required-mark" aria-hidden="true"> *</span></span>
                 <input value={draft.name} onChange={(event) => onChange((current) => ({ ...current, name: event.target.value }))} placeholder="Ej: Control semanal C3" />
               </label>
-              <label className="app-modal-field board-preview-edit-field board-preview-description-field">
+              <label className="app-modal-field board-preview-edit-field">
                 <span>Descripción</span>
                 <input value={draft.description} onChange={(event) => onChange((current) => ({ ...current, description: event.target.value }))} placeholder="Describe qué controla este tablero" />
               </label>
@@ -1463,29 +1439,13 @@ export function BoardBuilderModal({
                   {activeUsers.map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}
                 </select>
               </label>
-              <label className="app-modal-field board-preview-edit-field board-preview-owner-field">
-                <span>Area duena del tablero<span className="required-mark" aria-hidden="true"> *</span></span>
-                <select
-                  value={selectedBoardArea}
-                  disabled={isSectionScoped}
-                  onChange={(event) => onChange((current) => ({
-                    ...current,
-                    settings: {
-                      ...current.settings,
-                      ownerArea: normalizeArea(event.target.value),
-                    },
-                  }))}
-                >
-                  {!isSectionScoped ? <option value="">Selecciona un area</option> : null}
-                  {effectiveBoardAreaOptions.map((area) => <option key={area} value={area}>{area}</option>)}
-                </select>
-              </label>
-              <section className="board-preview-assignment-panel">
+
+              <section className="board-builder-share-panel board-preview-assignment-panel">
                 <label className="app-modal-field board-preview-edit-field">
                   <span>Compartir tablero con</span>
-                  <select value={effectiveVisibilityType} onChange={(event) => handleVisibilityTypeChange(event.target.value)} disabled={isSectionScoped}>
-                    <option value="users">Player o players específicos</option>
-                    <option value="department">Área o grupo</option>
+                  <select value={effectiveVisibilityType} onChange={(event) => handleVisibilityTypeChange(event.target.value)}>
+                    <option value="users">Players específicos (cualquier área)</option>
+                    <option value="department">Otras áreas</option>
                   </select>
                 </label>
 
@@ -1504,6 +1464,7 @@ export function BoardBuilderModal({
                         <div className="board-access-list">
                           {filteredOperationalUsers.length ? filteredOperationalUsers.map((user) => {
                             const checked = pendingAccessUserIds.includes(user.id);
+                            const userArea = normalizeArea(user.area || user.department || "");
                             return (
                               <label key={user.id} className="board-access-option">
                                 <input
@@ -1511,7 +1472,7 @@ export function BoardBuilderModal({
                                   checked={checked}
                                   onChange={() => handleTogglePendingAccess(user.id)}
                                 />
-                                <span>{user.name}</span>
+                                <span>{user.name}{userArea ? ` · ${userArea}` : ""}</span>
                               </label>
                             );
                           }) : <p className="board-access-empty">No hay players disponibles para seleccionar.</p>}
@@ -1522,25 +1483,35 @@ export function BoardBuilderModal({
                         </div>
                       </div>
                     ) : null}
+                    <p className="board-assignment-hint">Puedes invitar players de otras áreas además del responsable principal.</p>
                   </div>
                 ) : null}
 
                 {effectiveVisibilityType === "department" ? (
-                  <label className="app-modal-field board-preview-edit-field board-preview-department-field">
-                    <span>Áreas con acceso</span>
-                    <select multiple value={draft.sharedDepartments || []} disabled={isSectionScoped} onChange={(event) => onChange((current) => ({ ...current, sharedDepartments: Array.from(event.target.selectedOptions).map((option) => option.value) }))}>
-                      {(isSectionScoped ? sectionScopedBoardAreas : normalizedDepartmentOptions).map((department) => <option key={department} value={department}>{department}</option>)}
-                    </select>
-                  </label>
+                  <div className="board-builder-department-share">
+                    <span className="board-builder-department-share-label">Áreas con acceso</span>
+                    <div className="saved-board-list board-builder-department-chips">
+                      {normalizedDepartmentOptions.length ? normalizedDepartmentOptions.map((department) => {
+                        const selected = (draft.sharedDepartments || []).includes(department);
+                        return (
+                          <button
+                            key={department}
+                            type="button"
+                            className={selected ? "chip primary" : "chip"}
+                            onClick={() => handleToggleSharedDepartment(department)}
+                          >
+                            {department}
+                          </button>
+                        );
+                      }) : <span className="board-assignment-hint">No hay áreas configuradas en el sistema.</span>}
+                    </div>
+                    <p className="board-assignment-hint">Marca una o varias áreas para compartir el tablero entre equipos.</p>
+                    {(draft.sharedDepartments || []).length ? <span className="chip soft board-assignment-chip">{selectedDepartmentsLabel}</span> : null}
+                  </div>
                 ) : null}
-
-                {effectiveVisibilityType === "users" ? <p className="board-assignment-hint">Usa un solo player si quieres asignarlo individualmente o varios para compartir un mismo tablero sin duplicarlo.</p> : null}
-                {effectiveVisibilityType === "department" ? <p className="board-assignment-hint">Solo los players cuyas áreas coincidan con las seleccionadas verán este tablero.</p> : null}
-                {effectiveVisibilityType === "department" ? <span className="chip soft board-assignment-chip">{selectedDepartmentsLabel}</span> : null}
               </section>
 
-              <div className="builder-settings-grid board-builder-settings-grid board-builder-short-select-grid">
-                <div className="board-builder-switch-inline-row">
+              <div className="board-builder-feature-switches">
                 <div className="builder-card compact-builder-card board-builder-switch-row">
                   <div>
                     <strong>Workflow</strong>
@@ -1595,218 +1566,43 @@ export function BoardBuilderModal({
                     <span className="switch-thumb" />
                   </button>
                 </div>
-                </div>
+              </div>
 
-                <div className="builder-card compact-builder-card board-context-card">
-                  <div className="board-context-grid">
+              <div className="builder-card compact-builder-card board-context-card">
+                <div className="board-context-grid">
+                  <label className="app-modal-field">
+                    <span>Contexto operativo</span>
+                    <select value={operationalContextType} onChange={(event) => updateOperationalContext(event.target.value)}>
+                      {boardOperationalContextOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                    </select>
+                  </label>
+
+                  {operationalContextType !== "none" ? (
                     <label className="app-modal-field">
-                      <span>Contexto operativo</span>
-                      <select value={operationalContextType} onChange={(event) => updateOperationalContext(event.target.value)}>
-                        {boardOperationalContextOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                      <span>Etiqueta visible</span>
+                      <input value={operationalContextLabel} onChange={(event) => updateOperationalContext(operationalContextType, event.target.value)} placeholder={operationalContextType === "cleaningSite" ? "Sede de limpieza" : "Ej: Nave, estación o zona"} />
+                    </label>
+                  ) : null}
+
+                  {operationalContextType === "custom" ? (
+                    <label className="app-modal-field">
+                      <span>Opciones manuales</span>
+                      <input value={operationalContextOptionsText} onChange={(event) => updateOperationalContext(operationalContextType, operationalContextLabel, event.target.value.split(/[;,]/))} placeholder="Ej: Nave 1, Estación A, Estación B" />
+                    </label>
+                  ) : null}
+
+                  {operationalContextType !== "none" ? (
+                    <label className="app-modal-field">
+                      <span>Valor activo</span>
+                      <select value={operationalContextValue} onChange={(event) => updateOperationalContext(operationalContextType, operationalContextLabel, operationalContextOptions, event.target.value)}>
+                        {operationalContextOptions.map((option) => <option key={option} value={option}>{option}</option>)}
                       </select>
                     </label>
-
-                    {operationalContextType !== "none" ? (
-                      <label className="app-modal-field">
-                        <span>Etiqueta visible</span>
-                        <input value={operationalContextLabel} onChange={(event) => updateOperationalContext(operationalContextType, event.target.value)} placeholder={operationalContextType === "cleaningSite" ? "Sede de limpieza" : "Ej: Nave, estación o zona"} />
-                      </label>
-                    ) : null}
-
-                    {operationalContextType === "custom" ? (
-                      <label className="app-modal-field">
-                        <span>Opciones manuales</span>
-                        <input value={operationalContextOptionsText} onChange={(event) => updateOperationalContext(operationalContextType, operationalContextLabel, event.target.value.split(/[;,]/))} placeholder="Ej: Nave 1, Estación A, Estación B" />
-                      </label>
-                    ) : null}
-
-                    {operationalContextType !== "none" ? (
-                      <label className="app-modal-field">
-                        <span>Valor activo</span>
-                        <select value={operationalContextValue} onChange={(event) => updateOperationalContext(operationalContextType, operationalContextLabel, operationalContextOptions, event.target.value)}>
-                          {operationalContextOptions.map((option) => <option key={option} value={option}>{option}</option>)}
-                        </select>
-                      </label>
-                    ) : null}
-                  </div>
-                  <p className="board-context-help">
-                    Usa este contexto para que cada tablero opere por semana y además quede ligado manualmente a una sede, nave, estación o zona. Cuando el contexto sea C1, C2 o C3, el descuento automático de limpieza saldrá sólo de esa sede.
-                  </p>
+                  ) : null}
                 </div>
-              </div>
-            </div>
-          </section>
-          ) : null}
-
-          {builderTab === "checklist" ? (
-          <section id="bb-step-checklist" className="builder-card compact-builder-card board-builder-identity-panel">
-            <div className="builder-section-head board-builder-section-head">
-              <div>
-                <h4>Checklist de arranque</h4>
-                <p>Configura un checklist editable y vincúlalo a una o varias actividades para abrirlo automáticamente al iniciar.</p>
-              </div>
-              <div className="saved-board-list">
-                <button
-                  type="button"
-                  className={checklistEnabled ? "switch-button on" : "switch-button"}
-                  aria-label="Activar checklist de arranque"
-                  aria-pressed={checklistEnabled}
-                  onClick={() => updateChecklistConfig({
-                    ...checklistConfigRaw,
-                    enabled: !checklistEnabled,
-                    template: checklistTemplate,
-                    linkedActivityNames: checklistLinkedActivities,
-                  })}
-                >
-                  <span className="switch-thumb" />
-                </button>
-                <button
-                  type="button"
-                  className="icon-button"
-                  onClick={() => updateChecklistConfig({
-                    ...checklistConfigRaw,
-                    enabled: checklistEnabled,
-                    linkedActivityNames: checklistLinkedActivities,
-                    template: normalizeOperationalInspectionTemplate(OPERATIONAL_INSPECTION_TEMPLATE),
-                  })}
-                >
-                  Restaurar plantilla base
-                </button>
-              </div>
-            </div>
-
-            <div className="modal-form-grid" style={{ gridTemplateColumns: "minmax(0,1fr)", gap: "0.8rem" }}>
-              <label className="app-modal-field">
-                <span>Nombre de checklist</span>
-                <input
-                  value={checklistTemplate.name}
-                  onChange={(event) => updateChecklistConfig({
-                    ...checklistConfigRaw,
-                    enabled: checklistEnabled,
-                    linkedActivityNames: checklistLinkedActivities,
-                    template: {
-                      ...checklistTemplate,
-                      name: event.target.value,
-                    },
-                  })}
-                  placeholder="Checklist operativo de arranque"
-                />
-              </label>
-
-              <div className="surface-card" style={{ padding: "0.75rem", display: "grid", gap: "0.65rem" }}>
-                <strong>Vincular a actividades</strong>
-                <p className="subtle-line" style={{ margin: 0 }}>Selecciona una o varias actividades. Al iniciar una vinculada, se abrirá este checklist antes de arrancar la fila.</p>
-                {activityCatalogNames.length ? (
-                  <div className="saved-board-list" style={{ gap: "0.35rem" }}>
-                    {activityCatalogNames.map((activityName) => {
-                      const isLinked = checklistLinkedActivities.some((item) => item.toLowerCase() === activityName.toLowerCase());
-                      return (
-                        <button
-                          key={activityName}
-                          type="button"
-                          className={isLinked ? "chip primary" : "chip"}
-                          onClick={() => toggleChecklistLinkedActivity(activityName)}
-                        >
-                          {activityName}
-                        </button>
-                      );
-                    })}
-                  </div>
-                ) : <p className="subtle-line" style={{ margin: 0 }}>No hay actividades en catalogo para vincular todavia.</p>}
-              </div>
-
-              <div style={{ display: "grid", gap: "0.6rem" }}>
-                {checklistTemplate.sections.map((section) => (
-                  <article key={section.id} className="surface-card" style={{ padding: "0.7rem", display: "grid", gap: "0.55rem" }}>
-                    <div style={{ display: "grid", gap: "0.5rem", gridTemplateColumns: "1.2fr 0.8fr auto" }}>
-                      <label className="app-modal-field" style={{ margin: 0 }}>
-                        <span>Seccion</span>
-                        <input value={section.title} onChange={(event) => updateChecklistSection(section.id, { title: event.target.value })} />
-                      </label>
-                      <label className="app-modal-field" style={{ margin: 0 }}>
-                        <span>Categoria incidencia</span>
-                        <input value={section.incidenceCategory || ""} onChange={(event) => updateChecklistSection(section.id, { incidenceCategory: event.target.value })} placeholder="Operativa" />
-                      </label>
-                      <button
-                        type="button"
-                        className="icon-button danger"
-                        onClick={() => updateChecklistConfig({
-                          ...checklistConfigRaw,
-                          enabled: checklistEnabled,
-                          linkedActivityNames: checklistLinkedActivities,
-                          template: {
-                            ...checklistTemplate,
-                            sections: checklistTemplate.sections.filter((item) => item.id !== section.id),
-                          },
-                        })}
-                        disabled={checklistTemplate.sections.length <= 1}
-                      >
-                        Eliminar seccion
-                      </button>
-                    </div>
-
-                    <div style={{ display: "grid", gap: "0.35rem" }}>
-                      {section.checks.map((check) => (
-                        <div key={check.id} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: "0.4rem" }}>
-                          <input
-                            value={check.label}
-                            onChange={(event) => updateChecklistCheck(section.id, check.id, { label: event.target.value })}
-                            placeholder="Nombre del check"
-                          />
-                          <button
-                            type="button"
-                            className="icon-button danger"
-                            onClick={() => updateChecklistSection(section.id, {
-                              checks: section.checks.filter((item) => item.id !== check.id),
-                            })}
-                            disabled={section.checks.length <= 1}
-                          >
-                            Quitar
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-
-                    <div className="saved-board-list" style={{ justifyContent: "flex-end" }}>
-                      <button
-                        type="button"
-                        className="icon-button"
-                        onClick={() => updateChecklistSection(section.id, {
-                          checks: [
-                            ...section.checks,
-                            { id: createChecklistToken("chk"), label: "Nuevo check" },
-                          ],
-                        })}
-                      >
-                        <Plus size={14} /> Agregar check
-                      </button>
-                    </div>
-                  </article>
-                ))}
-
-                <button
-                  type="button"
-                  className="primary-button"
-                  onClick={() => updateChecklistConfig({
-                    ...checklistConfigRaw,
-                    enabled: checklistEnabled,
-                    linkedActivityNames: checklistLinkedActivities,
-                    template: {
-                      ...checklistTemplate,
-                      sections: [
-                        ...checklistTemplate.sections,
-                        {
-                          id: createChecklistToken("sec"),
-                          title: `Seccion ${checklistTemplate.sections.length + 1}`,
-                          incidenceCategory: "Operativa",
-                          checks: [{ id: createChecklistToken("chk"), label: "Nuevo check" }],
-                        },
-                      ],
-                    },
-                  })}
-                >
-                  <Plus size={15} /> Agregar seccion
-                </button>
+                <p className="board-context-help">
+                  Usa este contexto para que cada tablero opere por semana y además quede ligado manualmente a una sede, nave, estación o zona. Cuando el contexto sea C1, C2 o C3, el descuento automático de limpieza saldrá sólo de esa sede.
+                </p>
               </div>
             </div>
           </section>

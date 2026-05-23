@@ -49,6 +49,24 @@ setInterval(() => {
   }
 }, 60_000);
 
+const { runTransportRoadMonitorTick, MONITOR_INTERVAL_MS } = await import("./services/transport-road-monitor.service.js");
+setInterval(() => {
+  runTransportRoadMonitorTick()
+    .then((result) => {
+      if (result?.newAlerts > 0) {
+        console.log(`[road_monitor] ${result.newAlerts} alerta(s) nueva(s) en ${result.checked} envio(s)`);
+      }
+    })
+    .catch((err) => {
+      console.debug("[road_monitor] tick error:", err?.message);
+    });
+}, MONITOR_INTERVAL_MS);
+setTimeout(() => {
+  runTransportRoadMonitorTick().catch((err) => {
+    console.debug("[road_monitor] initial tick error:", err?.message);
+  });
+}, 12_000);
+
 server.listen(PORT, () => {
   console.log(`COPMEC API listening on port ${PORT}`);
 });

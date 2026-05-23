@@ -1,5 +1,11 @@
 import { Palette, Type } from "lucide-react";
 import { getInitialRouteState } from "../utils/utilidades.jsx";
+import {
+  buildCrossPlatformFontStack,
+  ensureUiWebFontLoaded,
+  preloadCoreUiWebFonts,
+  UI_FONT_WEB_SOURCES,
+} from "./uiWebFonts.js";
 
 const INITIAL_ROUTE_STATE = getInitialRouteState();
 const HIDDEN_BASE_TEMPLATES_KEY = "copmec-hidden-base-templates";
@@ -54,40 +60,51 @@ const UI_THEME_OPTIONS = [
   { id: "copmec-g-royal", label: "Royal", kind: "gradient", icon: Palette, primary: "#1e40af", shell: "#172554", accent: "#93c5fd", gradient: "135deg, #172554 0%, #1e40af 50%, #93c5fd 100%" },
 ];
 
-const UI_FONT_OPTIONS = [
-  { id: "bahnschrift", label: "Bahnschrift", icon: Type, family: '"Bahnschrift", "Segoe UI", sans-serif' },
-  { id: "segoe", label: "Segoe UI", icon: Type, family: '"Segoe UI", "Segoe UI Variable", sans-serif' },
-  { id: "arial", label: "Arial", icon: Type, family: 'Arial, Helvetica, sans-serif' },
-  { id: "arial-black", label: "Arial Black", icon: Type, family: '"Arial Black", Arial, sans-serif' },
-  { id: "trebuchet", label: "Trebuchet MS", icon: Type, family: '"Trebuchet MS", "Segoe UI", sans-serif' },
-  { id: "verdana", label: "Verdana", icon: Type, family: 'Verdana, "Segoe UI", sans-serif' },
-  { id: "tahoma", label: "Tahoma", icon: Type, family: 'Tahoma, Verdana, sans-serif' },
-  { id: "calibri", label: "Calibri", icon: Type, family: 'Calibri, "Segoe UI", sans-serif' },
-  { id: "candara", label: "Candara", icon: Type, family: 'Candara, "Segoe UI", sans-serif' },
-  { id: "corbel", label: "Corbel", icon: Type, family: 'Corbel, Candara, sans-serif' },
-  { id: "franklin", label: "Franklin Gothic", icon: Type, family: '"Franklin Gothic Medium", Arial, sans-serif' },
-  { id: "century", label: "Century Gothic", icon: Type, family: '"Century Gothic", "Trebuchet MS", sans-serif' },
-  { id: "futura", label: "Futura", icon: Type, family: 'Futura, "Century Gothic", sans-serif' },
-  { id: "gill", label: "Gill Sans", icon: Type, family: '"Gill Sans MT", "Trebuchet MS", sans-serif' },
-  { id: "optima", label: "Optima", icon: Type, family: 'Optima, "Segoe UI", sans-serif' },
-  { id: "lucida", label: "Lucida Sans", icon: Type, family: '"Lucida Sans Unicode", "Lucida Grande", sans-serif' },
-  { id: "lucida-console", label: "Lucida Console", icon: Type, family: '"Lucida Console", Consolas, monospace' },
-  { id: "arialn", label: "Arial Narrow", icon: Type, family: '"Arial Narrow", Arial, sans-serif' },
-  { id: "georgia", label: "Georgia", icon: Type, family: 'Georgia, "Times New Roman", serif' },
-  { id: "times", label: "Times New Roman", icon: Type, family: '"Times New Roman", Times, serif' },
-  { id: "cambria", label: "Cambria", icon: Type, family: 'Cambria, Georgia, serif' },
-  { id: "constantia", label: "Constantia", icon: Type, family: 'Constantia, Cambria, serif' },
-  { id: "palatino", label: "Palatino", icon: Type, family: '"Palatino Linotype", "Book Antiqua", serif' },
-  { id: "garamond", label: "Garamond", icon: Type, family: 'Garamond, "Times New Roman", serif' },
-  { id: "bookman", label: "Bookman", icon: Type, family: '"Bookman Old Style", Garamond, serif' },
-  { id: "rockwell", label: "Rockwell", icon: Type, family: 'Rockwell, Georgia, serif' },
-  { id: "sitka", label: "Sitka", icon: Type, family: 'Sitka, Georgia, serif' },
-  { id: "serif", label: "Book Antiqua", icon: Type, family: '"Book Antiqua", Cambria, serif' },
-  { id: "impact", label: "Impact", icon: Type, family: 'Impact, Haettenschweiler, sans-serif' },
-  { id: "comic", label: "Comic Sans MS", icon: Type, family: '"Comic Sans MS", "Segoe UI", cursive' },
-  { id: "mono", label: "Consolas", icon: Type, family: 'Consolas, "Cascadia Mono", monospace' },
-  { id: "courier", label: "Courier New", icon: Type, family: '"Courier New", Courier, monospace' },
+const UI_FONT_OPTIONS_RAW = [
+  { id: "bahnschrift", label: "Bahnschrift", icon: Type, localStack: '"Bahnschrift", "Segoe UI"' },
+  { id: "segoe", label: "Segoe UI", icon: Type, localStack: '"Segoe UI", "Segoe UI Variable"' },
+  { id: "arial", label: "Arial", icon: Type, localStack: "Arial, Helvetica" },
+  { id: "arial-black", label: "Arial Black", icon: Type, localStack: '"Arial Black", Arial' },
+  { id: "trebuchet", label: "Trebuchet MS", icon: Type, localStack: '"Trebuchet MS", "Segoe UI"' },
+  { id: "verdana", label: "Verdana", icon: Type, localStack: "Verdana, Arial" },
+  { id: "tahoma", label: "Tahoma", icon: Type, localStack: "Tahoma, Verdana" },
+  { id: "calibri", label: "Calibri", icon: Type, localStack: 'Calibri, "Segoe UI"' },
+  { id: "candara", label: "Candara", icon: Type, localStack: "Candara, Calibri" },
+  { id: "corbel", label: "Corbel", icon: Type, localStack: "Corbel, Candara" },
+  { id: "franklin", label: "Franklin Gothic", icon: Type, localStack: '"Franklin Gothic Medium", Arial' },
+  { id: "century", label: "Century Gothic", icon: Type, localStack: '"Century Gothic", "Trebuchet MS"' },
+  { id: "futura", label: "Futura", icon: Type, localStack: 'Futura, "Century Gothic"' },
+  { id: "gill", label: "Gill Sans", icon: Type, localStack: '"Gill Sans MT", "Trebuchet MS"' },
+  { id: "optima", label: "Optima", icon: Type, localStack: 'Optima, "Segoe UI"' },
+  { id: "lucida", label: "Lucida Sans", icon: Type, localStack: '"Lucida Sans Unicode", "Lucida Grande"' },
+  { id: "lucida-console", label: "Lucida Console", icon: Type, localStack: '"Lucida Console", Consolas' },
+  { id: "arialn", label: "Arial Narrow", icon: Type, localStack: '"Arial Narrow", Arial' },
+  { id: "georgia", label: "Georgia", icon: Type, localStack: 'Georgia, "Times New Roman"' },
+  { id: "times", label: "Times New Roman", icon: Type, localStack: '"Times New Roman", Times' },
+  { id: "cambria", label: "Cambria", icon: Type, localStack: "Cambria, Georgia" },
+  { id: "constantia", label: "Constantia", icon: Type, localStack: "Constantia, Cambria" },
+  { id: "palatino", label: "Palatino", icon: Type, localStack: '"Palatino Linotype", "Book Antiqua"' },
+  { id: "garamond", label: "Garamond", icon: Type, localStack: 'Garamond, "Times New Roman"' },
+  { id: "bookman", label: "Bookman", icon: Type, localStack: '"Bookman Old Style", Garamond' },
+  { id: "rockwell", label: "Rockwell", icon: Type, localStack: "Rockwell, Georgia" },
+  { id: "sitka", label: "Sitka", icon: Type, localStack: "Sitka, Georgia" },
+  { id: "serif", label: "Book Antiqua", icon: Type, localStack: '"Book Antiqua", Cambria' },
+  { id: "impact", label: "Impact", icon: Type, localStack: "Impact, Haettenschweiler" },
+  { id: "comic", label: "Comic Sans MS", icon: Type, localStack: '"Comic Sans MS", "Segoe UI"' },
+  { id: "mono", label: "Consolas", icon: Type, localStack: 'Consolas, "Cascadia Mono"' },
+  { id: "courier", label: "Courier New", icon: Type, localStack: '"Courier New", Courier' },
 ];
+
+const UI_FONT_OPTIONS = UI_FONT_OPTIONS_RAW.map((option) => {
+  const web = UI_FONT_WEB_SOURCES[option.id];
+  const category = web?.category || (option.id === "mono" || option.id === "lucida-console" || option.id === "courier" ? "monospace" : option.id.includes("serif") || ["georgia", "times", "cambria", "constantia", "palatino", "garamond", "bookman", "rockwell", "sitka", "serif"].includes(option.id) ? "serif" : "sans-serif");
+  return {
+    ...option,
+    webGoogle: web?.google || "",
+    category,
+    family: buildCrossPlatformFontStack(option.id, option.localStack, category),
+  };
+});
 
 const UI_FONT_SIZE_OPTIONS = [
   { id: "compacta", label: "Compacta", scale: 0.94 },
@@ -118,7 +135,7 @@ function groupThemesByKind(themes = UI_THEME_OPTIONS) {
   return { solid, gradient };
 }
 
-const DEFAULT_UI_FONT_FAMILY = '"Bahnschrift", "Segoe UI", sans-serif';
+const DEFAULT_UI_FONT_FAMILY = buildCrossPlatformFontStack("bahnschrift", '"Bahnschrift", "Segoe UI"', "sans-serif");
 
 function getFontOptionById(fontId, fonts = UI_FONT_OPTIONS) {
   const normalized = String(fontId || "bahnschrift").trim() || "bahnschrift";
@@ -126,13 +143,22 @@ function getFontOptionById(fontId, fonts = UI_FONT_OPTIONS) {
 }
 
 function getFontFamilyStack(fontId, fonts = UI_FONT_OPTIONS) {
-  return String(getFontOptionById(fontId, fonts)?.family || DEFAULT_UI_FONT_FAMILY);
+  const option = getFontOptionById(fontId, fonts);
+  if (option?.family) return String(option.family);
+  const web = UI_FONT_WEB_SOURCES[option?.id || fontId];
+  return buildCrossPlatformFontStack(
+    fontId,
+    option?.localStack || "",
+    web?.category || "sans-serif",
+  );
 }
 
 function applyUiFontFamilyToDocument(fontId, fonts = UI_FONT_OPTIONS) {
   if (typeof document === "undefined") return getFontFamilyStack(fontId, fonts);
-  const stack = getFontFamilyStack(fontId, fonts);
+  const normalizedId = String(fontId || "bahnschrift").trim() || "bahnschrift";
+  const stack = getFontFamilyStack(normalizedId, fonts);
   document.documentElement.style.setProperty("--ui-font-family", stack);
+  void ensureUiWebFontLoaded(normalizedId);
   return stack;
 }
 
@@ -154,4 +180,8 @@ export {
   getFontOptionById,
   getFontFamilyStack,
   applyUiFontFamilyToDocument,
+  ensureUiWebFontLoaded,
+  preloadCoreUiWebFonts,
+  buildCrossPlatformFontStack,
+  UI_FONT_WEB_SOURCES,
 };

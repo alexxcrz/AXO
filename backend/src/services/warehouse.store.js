@@ -15,7 +15,8 @@ import {
   markTransportNotificationsRead as markTransportNotificationsReadInList,
   getTransportNotificationsForUser as getTransportNotificationsForUserFromList,
 } from "./transport.notifications.js";
-import { repairWarehouseBoardTimes } from "./boardHistoryTimeRepair.js";
+import { repairBoardRowTimes, repairWarehouseBoardTimes } from "./boardHistoryTimeRepair.js";
+import { attachRoadMonitorToTransportState, syncTransportRoadMonitors } from "./transport-road-monitor.service.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -1832,7 +1833,7 @@ function normalizeTransportState(rawTransport = EMPTY_OBJECT) {
   const transportUnitServiceLogs = Array.isArray(rawTransport?.transportUnitServiceLogs)
     ? rawTransport.transportUnitServiceLogs.map((log) => normalizeTransportUnitServiceLog(log)).filter(Boolean)
     : [];
-  return {
+  const transportBase = {
     ...rawTransport,
     config: getTransportAreaConfig(),
     activeDateKey,
@@ -1842,6 +1843,16 @@ function normalizeTransportState(rawTransport = EMPTY_OBJECT) {
     transportExpenses,
     transportUnits,
     transportUnitServiceLogs,
+    roadMonitors: rawTransport?.roadMonitors && typeof rawTransport.roadMonitors === "object"
+      ? rawTransport.roadMonitors
+      : {},
+    roadMonitorConfig: rawTransport?.roadMonitorConfig && typeof rawTransport.roadMonitorConfig === "object"
+      ? rawTransport.roadMonitorConfig
+      : {},
+  };
+  return {
+    ...transportBase,
+    roadMonitors: syncTransportRoadMonitors(transportBase),
   };
 }
 
@@ -2117,12 +2128,14 @@ export function createWarehouseTransportRecord(auth, payload = {}) {
     archivedAt: "",
   };
 
+  const nextTransport = attachRoadMonitorToTransportState({
+    ...transport,
+    activeRecords: [record, ...(transport.activeRecords || [])],
+  }, record);
+
   const nextState = {
     ...currentState,
-    transport: {
-      ...transport,
-      activeRecords: [record, ...(transport.activeRecords || [])],
-    },
+    transport: nextTransport,
   };
 
   return { ok: true, state: replaceWarehouseState(nextState), recordId: record.id };
@@ -2322,17 +2335,19 @@ export function assignTransportRoute(auth, recordId, driverId = "") {
     updatedAt: nowIso,
   };
 
+  const nextTransport = attachRoadMonitorToTransportState({
+    ...transport,
+    activeRecords: activeIndex >= 0
+      ? transport.activeRecords.map((entry, index) => (index === activeIndex ? nextRecord : entry))
+      : [nextRecord, ...transport.activeRecords],
+    historyRecords: historyIndex >= 0
+      ? transport.historyRecords.filter((entry) => entry.id !== targetId)
+      : transport.historyRecords,
+  }, nextRecord);
+
   const nextState = {
     ...currentState,
-    transport: {
-      ...transport,
-      activeRecords: activeIndex >= 0
-        ? transport.activeRecords.map((entry, index) => (index === activeIndex ? nextRecord : entry))
-        : [nextRecord, ...transport.activeRecords],
-      historyRecords: historyIndex >= 0
-        ? transport.historyRecords.filter((entry) => entry.id !== targetId)
-        : transport.historyRecords,
-    },
+    transport: nextTransport,
   };
 
   replaceWarehouseState(nextState);
@@ -2416,15 +2431,18 @@ export function updateTransportRecordStatus(auth, recordId, newStatus = "", deli
     ]
     : (transport.historyRecords || []);
 
+  const stopMonitor = terminalStatuses.has(statusValue) || statusValue === "Pospuesto";
+  const nextTransport = attachRoadMonitorToTransportState({
+    ...transport,
+    activeRecords: terminalStatuses.has(statusValue)
+      ? nextActiveRecords
+      : transport.activeRecords.map((entry, index) => (index === activeIndex ? nextRecord : entry)),
+    historyRecords: nextHistoryRecords,
+  }, nextRecord, { stop: stopMonitor });
+
   const nextState = {
     ...currentState,
-    transport: {
-      ...transport,
-      activeRecords: terminalStatuses.has(statusValue)
-        ? nextActiveRecords
-        : transport.activeRecords.map((entry, index) => (index === activeIndex ? nextRecord : entry)),
-      historyRecords: nextHistoryRecords,
-    },
+    transport: nextTransport,
   };
 
   replaceWarehouseState(nextState);
@@ -7517,6 +7535,119 @@ export function deleteWarehouseBoardRow(auth, boardId, rowId) {
       index === boardIndex ? { ...item, rows: (item.rows || []).filter((entry) => entry.id !== rowId) } : item
     )),
   };
+  return { ok: true, state: replaceWarehouseState(nextState) };
+}
+
+function canEditBoardHistoryRecords(user, permissions) {
+  return canUserDoWarehouseAction(user, "editHistoryRecords", permissions)
+    || canUserDoWarehouseAction(user, "manageWeeks", permissions);
+}
+
+function canDeleteBoardHistoryRecords(user, permissions) {
+  return canEditBoardHistoryRecords(user, permissions)
+    || canUserDoWarehouseAction(user, "deleteWeekActivity", permissions);
+}
+
+function findBoardHistorySnapshotAndRow(state, snapshotId, rowId) {
+  const history = Array.isArray(state?.boardWeekHistory) ? state.boardWeekHistory : [];
+  const snapshotIndex = history.findIndex((entry) => String(entry?.id || "") === String(snapshotId || ""));
+  if (snapshotIndex === -1) {
+    return { snapshotIndex: -1, rowIndex: -1, snapshot: null, row: null };
+  }
+  const snapshot = history[snapshotIndex];
+  const rowIndex = (snapshot?.rows || []).findIndex((entry) => String(entry?.id || "") === String(rowId || ""));
+  const row = rowIndex >= 0 ? snapshot.rows[rowIndex] : null;
+  return { snapshotIndex, rowIndex, snapshot, row };
+}
+
+function buildPatchedBoardHistoryRow(row, patch = {}, fields = [], snapshot = {}) {
+  const stats = { rowsChanged: 0, valuesAligned: 0, isoRebuilt: 0 };
+  const nextRow = {
+    ...row,
+    values: {
+      ...(row?.values || {}),
+      ...(patch.values && typeof patch.values === "object" ? patch.values : {}),
+    },
+  };
+
+  if (hasOwn(patch, "status")) nextRow.status = String(patch.status || "").trim() || row.status;
+  if (hasOwn(patch, "startTime")) nextRow.startTime = String(patch.startTime || "").trim() || null;
+  if (hasOwn(patch, "endTime")) nextRow.endTime = String(patch.endTime || "").trim() || null;
+  if (hasOwn(patch, "accumulatedSeconds")) {
+    nextRow.accumulatedSeconds = Math.max(0, Number(patch.accumulatedSeconds || 0));
+  }
+  if (hasOwn(patch, "responsibleId")) {
+    const responsibleId = String(patch.responsibleId || "").trim();
+    nextRow.responsibleId = responsibleId;
+    nextRow.responsibleIds = responsibleId ? [responsibleId] : [];
+  }
+
+  const { row: repaired } = repairBoardRowTimes(nextRow, fields, snapshot, stats);
+  return freezeBoardRowTimeFields(repaired, fields);
+}
+
+export function patchBoardHistoryRow(auth, snapshotId, rowId, patch = {}) {
+  const currentUser = findWarehouseUserById(auth?.userId);
+  if (!currentUser?.isActive) {
+    return { ok: false, reason: "auth_required" };
+  }
+
+  const currentState = getRawWarehouseState();
+  if (!canEditBoardHistoryRecords(currentUser, currentState.permissions)) {
+    return { ok: false, reason: "forbidden" };
+  }
+
+  const { snapshotIndex, rowIndex, snapshot, row } = findBoardHistorySnapshotAndRow(currentState, snapshotId, rowId);
+  if (!snapshot) return { ok: false, reason: "snapshot_not_found" };
+  if (!row) return { ok: false, reason: "row_not_found" };
+
+  const fields = Array.isArray(snapshot.fields) ? snapshot.fields : [];
+  const nextRow = buildPatchedBoardHistoryRow(row, patch, fields, snapshot);
+  const nextSnapshot = {
+    ...snapshot,
+    rows: snapshot.rows.map((entry, index) => (index === rowIndex ? nextRow : entry)),
+  };
+
+  const nextState = {
+    ...currentState,
+    boardWeekHistory: currentState.boardWeekHistory.map((entry, index) => (
+      index === snapshotIndex ? nextSnapshot : entry
+    )),
+  };
+
+  const repairedState = repairWarehouseBoardTimes(nextState).state;
+  return { ok: true, state: replaceWarehouseState(repairedState), row: nextRow };
+}
+
+export function deleteBoardHistoryRow(auth, snapshotId, rowId) {
+  const currentUser = findWarehouseUserById(auth?.userId);
+  if (!currentUser?.isActive) {
+    return { ok: false, reason: "auth_required" };
+  }
+
+  const currentState = getRawWarehouseState();
+  if (!canDeleteBoardHistoryRecords(currentUser, currentState.permissions)) {
+    return { ok: false, reason: "forbidden" };
+  }
+
+  const { snapshotIndex, rowIndex, snapshot, row } = findBoardHistorySnapshotAndRow(currentState, snapshotId, rowId);
+  if (!snapshot) return { ok: false, reason: "snapshot_not_found" };
+  if (!row) {
+    return { ok: true, state: replaceWarehouseState(currentState) };
+  }
+
+  const nextSnapshot = {
+    ...snapshot,
+    rows: snapshot.rows.filter((entry) => entry.id !== rowId),
+  };
+
+  const nextState = {
+    ...currentState,
+    boardWeekHistory: currentState.boardWeekHistory.map((entry, index) => (
+      index === snapshotIndex ? nextSnapshot : entry
+    )),
+  };
+
   return { ok: true, state: replaceWarehouseState(nextState) };
 }
 

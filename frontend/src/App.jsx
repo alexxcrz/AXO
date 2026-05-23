@@ -1796,11 +1796,43 @@ function App() { // NOSONAR
       } catch (_) { /* ignorar */ }
     };
 
+    const handleTransportRoadAlert = async (data) => {
+      if (ignoreResponse) return;
+      if (canReceiveTransportBellNotifications) {
+        const alertCount = Number(data?.newAlerts || 0);
+        if (shouldShowTransportDeviceNotification && alertCount > 0) {
+          showTransportNotification("Alerta vial en envio activo", {
+            body: `${alertCount} posible afectacion detectada en ruta. Revisa Transporte.`,
+            tag: `transport-road-alert-${data?.ts || Date.now()}`,
+            playAlert: true,
+          });
+        }
+        if (alertCount > 0) {
+          pushNotificationToInbox({
+            id: `transport-road-${data?.ts || Date.now()}`,
+            title: "Alerta vial en envio activo",
+            message: `${alertCount} coincidencia(s) con noticias o incidentes en corredor.`,
+            meta: "Monitoreo automatico cada 7 min",
+            tone: "warning",
+            timestamp: new Date(data?.ts || Date.now()).toISOString(),
+            targetPage: PAGE_TRANSPORT,
+          });
+        }
+      }
+      try {
+        const remoteState = await requestJson("/warehouse/state");
+        if (!ignoreResponse) {
+          applyRemoteStatePreservingBoardDrafts(remoteState);
+        }
+      } catch (_) { /* ignorar */ }
+    };
+
     socket.on("transport_record_created", handleTransportRecordCreated);
     socket.on("transport_route_assigned", handleTransportRouteAssigned);
     socket.on("transport_record_postponed", handleTransportRecordPostponed);
     socket.on("transport_record_deleted", handleTransportRecordDeleted);
     socket.on("transport_status_updated", handleTransportStatusUpdated);
+    socket.on("transport_road_alert", handleTransportRoadAlert);
     socket.on("documentacion_record_created", handleDocumentacionRecordCreated);
     socket.on("documentacion_record_updated", handleDocumentacionRecordUpdated);
     socket.on("documentacion_route_assigned", handleDocumentacionRouteAssigned);
@@ -1813,6 +1845,7 @@ function App() { // NOSONAR
       socket.off("transport_record_postponed", handleTransportRecordPostponed);
       socket.off("transport_record_deleted", handleTransportRecordDeleted);
       socket.off("transport_status_updated", handleTransportStatusUpdated);
+      socket.off("transport_road_alert", handleTransportRoadAlert);
       socket.off("documentacion_record_created", handleDocumentacionRecordCreated);
       socket.off("documentacion_record_updated", handleDocumentacionRecordUpdated);
       socket.off("documentacion_route_assigned", handleDocumentacionRouteAssigned);
@@ -5341,9 +5374,6 @@ function App() { // NOSONAR
         ...payload.settings,
         ownerArea: forcedBoardArea,
       };
-      payload.visibilityType = "department";
-      payload.sharedDepartments = normalizeBoardSharedDepartments(sectionScopedBoardAreas);
-      payload.accessUserIds = [];
     }
     setIsBoardSaveSubmitting(true);
     setControlBoardFeedback("");
@@ -7727,6 +7757,7 @@ function App() { // NOSONAR
     pushAppToast,
     renderBoardFieldLabel,
     requestJson,
+    removeWeekActivity,
     ROLE_JR,
     ROLE_LEAD,
     roleModalEditId,

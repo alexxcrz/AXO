@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
+import { Pencil, Trash2 } from "lucide-react";
+import { Modal } from "../components/Modal";
+import OperationalInspectionRecordModal from "../components/OperationalInspectionRecordModal.jsx";
 import {
   formatPercent,
   formatBoardPreviewValue,
@@ -426,8 +429,12 @@ export default function HistorialSemanas({ contexto }) {
     setEditWeekId,
     actionPermissions,
     deleteWeek,
+    deleteBoardHistoryRecord,
+    updateBoardHistoryRecord,
+    removeWeekActivity,
+    setState,
     pushAppToast,
-    Trash2,
+    Trash2: Trash2Icon,
     operationalWorkWeek,
     selectedAreaSectionId,
     selectedAreaSection,
@@ -456,6 +463,12 @@ export default function HistorialSemanas({ contexto }) {
   const [selectedChecklistAreaTab, setSelectedChecklistAreaTab] = useState("");
   const [isExportingChecklistPdf, setIsExportingChecklistPdf] = useState(false);
   const [checklistRecordModalState, setChecklistRecordModalState] = useState({ open: false, activityLabel: "", record: null });
+  const [historyEditModal, setHistoryEditModal] = useState({
+    open: false,
+    submitting: false,
+    activity: null,
+    draft: null,
+  });
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   function resolveBoardHistoryAreaLabel(snapshot, responsibleUser) {
@@ -637,8 +650,13 @@ export default function HistorialSemanas({ contexto }) {
           const normalizedDayLabel = dayLabel.charAt(0).toUpperCase() + dayLabel.slice(1);
           const rowValueText = resolveBoardRowHistoryActivityValue(snapshot, row);
 
+          const historyIsLive = String(snapshot?.id || "").endsWith("-live");
           return {
             id: `${snapshot.id}-${row.id}`,
+            historySnapshotId: snapshot.id,
+            historyRowId: row.id,
+            historyBoardId: String(snapshot?.boardId || snapshot?.sourceBoardId || "").trim(),
+            historyIsLive,
             weekId: week.id,
             activityDate: rowDateIso,
             responsibleId: row.responsibleId,
@@ -1062,7 +1080,120 @@ export default function HistorialSemanas({ contexto }) {
     return buildWeekDaySections(effectiveHistoryWeek, playerScopedActivities, STATUS_FINISHED, normalizedOperationalWorkWeek);
   }, [STATUS_FINISHED, effectiveHistoryWeek, normalizedOperationalWorkWeek, playerScopedActivities]);
 
-  const canEditHistoricalWeekActivities = !useBoardHistoryFallback && Boolean(actionPermissions.editHistoryRecords || actionPermissions.manageWeeks || actionPermissions.deleteWeekActivity);
+  const canEditHistoricalWeekActivities = Boolean(
+    actionPermissions.editHistoryRecords || actionPermissions.manageWeeks || actionPermissions.deleteWeekActivity,
+  );
+  const canDeleteHistoricalRecords = Boolean(
+    actionPermissions.deleteWeekActivity || actionPermissions.editHistoryRecords || actionPermissions.manageWeeks,
+  );
+
+  function toDateTimeLocalValue(isoValue) {
+    const date = parseHistoryDate(isoValue);
+    if (!date) return "";
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, "0");
+    const d = String(date.getDate()).padStart(2, "0");
+    const hh = String(date.getHours()).padStart(2, "0");
+    const mm = String(date.getMinutes()).padStart(2, "0");
+    return `${y}-${m}-${d}T${hh}:${mm}`;
+  }
+
+  function fromDateTimeLocalValue(value) {
+    const raw = String(value || "").trim();
+    if (!raw) return "";
+    const date = new Date(raw);
+    if (Number.isNaN(date.getTime())) return "";
+    return date.toISOString();
+  }
+
+  function openHistoryEditModal(activity) {
+    if (!activity) return;
+    const editableFields = (activity.snapshotFields || []).filter((field) => {
+      if (!field?.id) return false;
+      if (field.type === "time" || field.type === "date" || field.type === "text" || field.type === "textarea" || field.type === "number") {
+        return true;
+      }
+      return false;
+    });
+    setHistoryEditModal({
+      open: true,
+      submitting: false,
+      activity,
+      draft: {
+        status: activity.status || "",
+        startTimeLocal: toDateTimeLocalValue(activity.startTime),
+        endTimeLocal: toDateTimeLocalValue(activity.endTime),
+        accumulatedMinutes: Math.round(Number(activity.accumulatedSeconds || 0) / 60),
+        responsibleId: activity.responsibleId || "",
+        fieldValues: Object.fromEntries(editableFields.map((field) => [field.id, String(activity.rowValues?.[field.id] ?? "").trim()])),
+        editableFields,
+      },
+    });
+  }
+
+  async function submitHistoryEditModal() {
+    const { activity, draft } = historyEditModal;
+    if (!activity || !draft || historyEditModal.submitting) return;
+    setHistoryEditModal((current) => ({ ...current, submitting: true }));
+    try {
+      if (activity.derivedFromBoardHistory) {
+        const patch = {
+          status: draft.status,
+          startTime: fromDateTimeLocalValue(draft.startTimeLocal) || null,
+          endTime: fromDateTimeLocalValue(draft.endTimeLocal) || null,
+          accumulatedSeconds: Math.max(0, Number(draft.accumulatedMinutes || 0) * 60),
+          values: { ...(activity.rowValues || {}), ...(draft.fieldValues || {}) },
+        };
+        if (draft.responsibleId) patch.responsibleId = draft.responsibleId;
+        await updateBoardHistoryRecord(
+          activity.historySnapshotId,
+          activity.historyRowId,
+          patch,
+          { boardId: activity.historyBoardId, isLive: activity.historyIsLive },
+        );
+      } else {
+        setState((current) => ({
+          ...current,
+          activities: (current.activities || []).map((entry) => (
+            entry.id === activity.id
+              ? {
+                ...entry,
+                status: draft.status,
+                startTime: fromDateTimeLocalValue(draft.startTimeLocal) || entry.startTime,
+                endTime: fromDateTimeLocalValue(draft.endTimeLocal) || entry.endTime,
+                accumulatedSeconds: Math.max(0, Number(draft.accumulatedMinutes || 0) * 60),
+                responsibleId: draft.responsibleId || entry.responsibleId,
+              }
+              : entry
+          )),
+        }));
+        pushAppToast("Actividad de semana actualizada.", "success");
+      }
+      setHistoryEditModal({ open: false, submitting: false, activity: null, draft: null });
+    } catch {
+      setHistoryEditModal((current) => ({ ...current, submitting: false }));
+    }
+  }
+
+  async function handleDeleteHistoryActivity(activity) {
+    if (!activity || !canDeleteHistoricalRecords) return;
+    const label = resolveHistoryActivityLabel(activity);
+    if (!globalThis.confirm(`¿Eliminar "${label}" del historial? Esta acción no se puede deshacer.`)) return;
+    try {
+      if (activity.derivedFromBoardHistory) {
+        await deleteBoardHistoryRecord(
+          activity.historySnapshotId,
+          activity.historyRowId,
+          { boardId: activity.historyBoardId, isLive: activity.historyIsLive },
+        );
+      } else if (typeof removeWeekActivity === "function") {
+        removeWeekActivity(activity.id);
+        pushAppToast("Actividad eliminada de la semana.", "success");
+      }
+    } catch {
+      // El toast de error lo muestra el helper del contexto.
+    }
+  }
 
   const applyHistoryTabFilters = useCallback((activities) => {
     let filtered = Array.isArray(activities) ? activities : [];
@@ -1731,10 +1862,13 @@ export default function HistorialSemanas({ contexto }) {
                            >
                              Descargar semana
                            </button>
-                          {effectiveHistoryWeek && canEditHistoricalWeekActivities ? (
+                          {effectiveHistoryWeek && canEditHistoricalWeekActivities && !useBoardHistoryFallback ? (
                             <button type="button" className="icon-button" onClick={() => setEditWeekId(effectiveHistoryWeek.id)}>
-                              Editar actividades
+                              Editar semana (catálogo)
                             </button>
+                          ) : null}
+                          {useBoardHistoryFallback ? (
+                            <span className="chip soft">Edita o elimina cada fila desde la tabla del día</span>
                           ) : null}
                         </div>
 
@@ -1866,6 +2000,7 @@ export default function HistorialSemanas({ contexto }) {
                                                 <th>Estado</th>
                                                 {!hasDynamicFields && <><th>Inicio</th><th>Fin</th></>}
                                                 <th>Tiempo</th>
+                                                {canEditHistoricalWeekActivities ? <th>Acciones</th> : null}
                                               </tr>
                                             </thead>
                                             <tbody>
@@ -1884,6 +2019,20 @@ export default function HistorialSemanas({ contexto }) {
                                                     </>
                                                   )}
                                                   <td>{formatDurationClock(activity.accumulatedSeconds)}</td>
+                                                  {canEditHistoricalWeekActivities ? (
+                                                    <td>
+                                                      <div style={{ display: "flex", gap: "0.35rem", flexWrap: "wrap" }}>
+                                                        <button type="button" className="icon-button" title="Editar registro" onClick={() => openHistoryEditModal(activity)}>
+                                                          <Pencil size={14} />
+                                                        </button>
+                                                        {canDeleteHistoricalRecords ? (
+                                                          <button type="button" className="icon-button danger" title="Eliminar registro" onClick={() => { void handleDeleteHistoryActivity(activity); }}>
+                                                            <Trash2 size={14} />
+                                                          </button>
+                                                        ) : null}
+                                                      </div>
+                                                    </td>
+                                                  ) : null}
                                                 </tr>
                                               ))}
                                             </tbody>
@@ -1942,6 +2091,125 @@ export default function HistorialSemanas({ contexto }) {
           </div>
         </div>,
         document.body,
+      ) : null}
+
+      <Modal
+        open={historyEditModal.open}
+        title="Editar registro del historial"
+        confirmLabel={historyEditModal.submitting ? "Guardando..." : "Guardar cambios"}
+        cancelLabel="Cancelar"
+        confirmDisabled={historyEditModal.submitting}
+        onClose={() => setHistoryEditModal({ open: false, submitting: false, activity: null, draft: null })}
+        onConfirm={() => { void submitHistoryEditModal(); }}
+      >
+        {historyEditModal.draft ? (
+          <div className="modal-form-grid">
+            <label className="app-modal-field">
+              <span>Estado</span>
+              <select
+                value={historyEditModal.draft.status}
+                onChange={(event) => setHistoryEditModal((current) => ({
+                  ...current,
+                  draft: { ...current.draft, status: event.target.value },
+                }))}
+              >
+                <option value="Terminado">Terminado</option>
+                <option value="En curso">En curso</option>
+                <option value="Pausado">Pausado</option>
+                <option value="Pendiente">Pendiente</option>
+              </select>
+            </label>
+            <label className="app-modal-field">
+              <span>Inicio</span>
+              <input
+                type="datetime-local"
+                value={historyEditModal.draft.startTimeLocal}
+                onChange={(event) => setHistoryEditModal((current) => ({
+                  ...current,
+                  draft: { ...current.draft, startTimeLocal: event.target.value },
+                }))}
+              />
+            </label>
+            <label className="app-modal-field">
+              <span>Fin</span>
+              <input
+                type="datetime-local"
+                value={historyEditModal.draft.endTimeLocal}
+                onChange={(event) => setHistoryEditModal((current) => ({
+                  ...current,
+                  draft: { ...current.draft, endTimeLocal: event.target.value },
+                }))}
+              />
+            </label>
+            <label className="app-modal-field">
+              <span>Tiempo acumulado (minutos)</span>
+              <input
+                type="number"
+                min="0"
+                value={historyEditModal.draft.accumulatedMinutes}
+                onChange={(event) => setHistoryEditModal((current) => ({
+                  ...current,
+                  draft: { ...current.draft, accumulatedMinutes: event.target.value },
+                }))}
+              />
+            </label>
+            {(historyEditModal.draft.editableFields || []).map((field) => (
+              <label key={field.id} className="app-modal-field">
+                <span>{field.label || field.id}</span>
+                {field.type === "time" ? (
+                  <input
+                    type="time"
+                    step="1"
+                    value={historyEditModal.draft.fieldValues?.[field.id] || ""}
+                    onChange={(event) => setHistoryEditModal((current) => ({
+                      ...current,
+                      draft: {
+                        ...current.draft,
+                        fieldValues: {
+                          ...current.draft.fieldValues,
+                          [field.id]: event.target.value,
+                        },
+                      },
+                    }))}
+                  />
+                ) : field.type === "date" ? (
+                  <input
+                    type="date"
+                    value={historyEditModal.draft.fieldValues?.[field.id] || ""}
+                    onChange={(event) => setHistoryEditModal((current) => ({
+                      ...current,
+                      draft: {
+                        ...current.draft,
+                        fieldValues: {
+                          ...current.draft.fieldValues,
+                          [field.id]: event.target.value,
+                        },
+                      },
+                    }))}
+                  />
+                ) : (
+                  <input
+                    value={historyEditModal.draft.fieldValues?.[field.id] || ""}
+                    onChange={(event) => setHistoryEditModal((current) => ({
+                      ...current,
+                      draft: {
+                        ...current.draft,
+                        fieldValues: {
+                          ...current.draft.fieldValues,
+                          [field.id]: event.target.value,
+                        },
+                      },
+                    }))}
+                  />
+                )}
+              </label>
+            ))}
+            <p className="modal-footnote">
+              Las horas inicio/fin se alinean automáticamente al guardar. Si hay muchos datos antiguos incorrectos, ejecuta en el servidor: npm run repair:history-times
+            </p>
+          </div>
+        ) : null}
+      </Modal>
 
       <OperationalInspectionRecordModal
         open={checklistRecordModalState.open}
@@ -1949,7 +2217,6 @@ export default function HistorialSemanas({ contexto }) {
         record={checklistRecordModalState.record}
         onClose={() => setChecklistRecordModalState({ open: false, activityLabel: "", record: null })}
       />
-      ) : null}
     </section>
   );
 }

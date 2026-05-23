@@ -26,6 +26,7 @@ const TRANSPORT_PUSH_TYPES = new Set([
   "documentacion_record_updated",
   "documentacion_route_assigned",
   "documentacion_status_updated",
+  "transport_road_alert",
 ]);
 
 function resolveSoundUrl(data, kind) {

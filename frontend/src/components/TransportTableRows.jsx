@@ -1,5 +1,20 @@
 import React from "react";
 
+export function TransportRoadAlertBadge({ recordId, roadMonitors = {} }) {
+  const monitor = roadMonitors?.[recordId];
+  const alerts = monitor?.monitoring && Array.isArray(monitor?.alerts) ? monitor.alerts : [];
+  if (!alerts.length) return null;
+  const latest = alerts[0];
+  return (
+    <span
+      className="transport-road-alert-badge"
+      title={latest?.suggestedAction || latest?.title || "Alerta vial detectada"}
+    >
+      Vial {alerts.length}
+    </span>
+  );
+}
+
 /**
  * Fila memoizada de envío pendiente
  * Previene re-renders innecesarios cuando otros registros cambian
@@ -9,12 +24,18 @@ export const TransportPendingRow = React.memo(function TransportPendingRow({
   isAssigning,
   formatDateTime,
   onTakeRoute,
+  roadMonitors,
 }) {
   return (
     <tr>
       <td>{record.areaLabel}</td>
       <td>{record.shipmentCode || "-"}</td>
-      <td>{record.destination}</td>
+      <td>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.35rem", flexWrap: "wrap" }}>
+          <span>{record.destination}</span>
+          <TransportRoadAlertBadge recordId={record.id} roadMonitors={roadMonitors} />
+        </div>
+      </td>
       <td>{record.boxes}</td>
       <td>{record.pieces}</td>
       <td>{record.postponedUntil ? formatDateTime(record.postponedUntil) : "-"}</td>

@@ -657,7 +657,7 @@ html {
 .mobile-nav-toggle {
   border: 1px solid rgba(177, 195, 210, 0.22);
   background: linear-gradient(135deg, rgba(24, 41, 56, 0.96) 0%, rgba(37, 68, 96, 0.92) 100%);
-  color: #eff7f3;
+  color: #eff7f3 !important;
   border-radius: 999px;
   min-height: 2.3rem;
   padding: 0.42rem 0.82rem;
@@ -5988,9 +5988,21 @@ html[data-ui-theme] body .switch-thumb {
 }
 
 .compact-template-actions {
-  display: grid;
-  grid-template-columns: 1fr;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  justify-content: flex-end;
+  align-items: center;
   margin-top: auto;
+}
+
+.board-builder-modal .board-builder-save-template-btn {
+  min-height: 2rem;
+  padding: 0.35rem 0.7rem;
+  font-size: 0.74rem;
+  white-space: nowrap;
+  width: auto;
+  max-width: 100%;
 }
 
 .compact-template-note {
@@ -6293,13 +6305,65 @@ html[data-ui-theme] body .switch-thumb {
 .board-builder-wizard-nav {
   grid-column: 1 / -1;
   display: grid;
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
   gap: 0.6rem;
   padding: 0.6rem 0.8rem;
   border-radius: 0.95rem;
   border: 1px solid rgba(162, 170, 181, 0.22);
   background: #f8fafc;
+}
+
+.board-builder-wizard-nav-start {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  justify-self: start;
+}
+
+.board-builder-wizard-nav .primary-button:last-child {
+  justify-self: end;
+}
+
+.board-builder-template-panel-toggle {
+  min-height: 2rem;
+  padding: 0.32rem 0.62rem;
+  font-size: 0.74rem;
+  gap: 0.32rem;
+  display: inline-flex;
+  align-items: center;
+}
+
+.board-builder-intuitive-title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.board-builder-fixed-area-banner {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.28rem 0.62rem;
+  border-radius: 999px;
+  border: 1px solid rgba(37, 68, 96, 0.22);
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.board-builder-fixed-area-banner span {
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: #607083;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.board-builder-fixed-area-banner strong {
+  font-size: 0.8rem;
+  color: #22384f;
 }
 
 .board-builder-wizard-step {
@@ -6347,29 +6411,18 @@ html[data-ui-theme] body .switch-thumb {
   pointer-events: none;
 }
 
-.board-builder-template-edge-toggle {
-  position: absolute;
-  top: 0.72rem;
-  left: 0.72rem;
-  z-index: 7;
-  min-height: 2.2rem;
-  padding: 0.38rem 0.62rem;
-  border-radius: 999px;
-  border: 1px solid rgba(30, 50, 68, 0.24);
-  background: linear-gradient(135deg, #f8fcfa 0%, #eef7f3 100%);
-  color: #10372f;
-  font-weight: 700;
-  font-size: 0.74rem;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  box-shadow: 0 8px 20px rgba(21, 38, 52, 0.1);
+.board-builder-modal .tab.active {
+  color: #ffffff !important;
 }
 
-.board-builder-template-edge-toggle.collapsed {
-  background: linear-gradient(135deg, #172f44 0%, #284762 100%);
-  color: #ffffff;
-  border-color: rgba(8, 36, 31, 0.45);
+.board-builder-modal .primary-button,
+.board-builder-modal .board-builder-template-panel-toggle.primary-button {
+  color: #ffffff !important;
+}
+
+.board-builder-modal .icon-button,
+.board-builder-modal .board-builder-template-panel-toggle.icon-button {
+  color: #22384f !important;
 }
 
 .board-builder-focus-layout.base-stage .board-builder-preview-panel {
@@ -6521,14 +6574,51 @@ html[data-ui-theme] body .switch-thumb {
 
 .board-builder-identity-grid {
   display: grid;
-  gap: 0.72rem;
-  grid-template-columns: repeat(2, minmax(260px, 1fr));
+  gap: 0.55rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
-.board-builder-identity-grid .board-preview-description-field,
-.board-builder-identity-grid .board-preview-assignment-panel,
-.board-builder-identity-grid .builder-settings-grid {
+.board-builder-identity-grid .board-builder-share-panel,
+.board-builder-identity-grid .board-builder-feature-switches,
+.board-builder-identity-grid .board-context-card {
   grid-column: 1 / -1;
+}
+
+.board-builder-share-panel {
+  display: grid;
+  gap: 0.5rem;
+  grid-template-columns: minmax(150px, 0.55fr) minmax(0, 1.45fr);
+  align-items: start;
+  padding: 0.6rem 0.72rem;
+  border-radius: 0.8rem;
+  border: 1px solid rgba(162, 170, 181, 0.2);
+  background: rgba(246, 250, 248, 0.96);
+}
+
+.board-builder-department-share {
+  display: grid;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.board-builder-department-share-label {
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: #607083;
+}
+
+.board-builder-department-chips {
+  gap: 0.35rem;
+}
+
+.board-builder-feature-switches {
+  display: grid;
+  gap: 0.45rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.board-builder-feature-switches .board-builder-switch-row {
+  min-width: 0;
 }
 
 .board-preview-intuitive-summary {
@@ -6644,6 +6734,11 @@ html[data-ui-theme] body .switch-thumb {
   border-radius: 0.8rem;
   border: 1px solid rgba(162, 170, 181, 0.2);
   background: rgba(246, 250, 248, 0.96);
+}
+
+.board-builder-share-panel.board-preview-assignment-panel {
+  grid-template-columns: minmax(150px, 0.55fr) minmax(0, 1.45fr);
+  align-items: start;
 }
 
 .board-preview-assignment-panel .board-access-selector,
@@ -8842,6 +8937,181 @@ html[data-ui-theme] body .switch-thumb {
 
 .transport-address-link:hover {
   color: #355f88;
+}
+
+.transport-map-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.32rem;
+  min-width: 5.4rem;
+  padding: 0.28rem 0.62rem;
+  border-radius: 999px;
+  border: 1px solid rgba(23, 54, 81, 0.22);
+  background: rgba(49, 77, 105, 0.07);
+  color: #173651;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-decoration: none;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+.transport-map-button:hover {
+  background: rgba(49, 77, 105, 0.14);
+  color: #0f2a40;
+}
+
+.transport-road-news-panel {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.transport-road-news-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.transport-road-news-refresh {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.transport-road-news-feed {
+  display: grid;
+  gap: 0.55rem;
+  max-height: min(68vh, 720px);
+  overflow: auto;
+  padding-right: 0.15rem;
+}
+
+.transport-road-news-empty {
+  margin: 0.35rem 0;
+}
+
+.transport-road-news-card {
+  border: 1px solid rgba(49, 77, 105, 0.14);
+  border-radius: 1rem;
+  padding: 0.72rem 0.8rem;
+  background: linear-gradient(180deg, rgba(250, 253, 252, 0.98), rgba(244, 249, 247, 0.95));
+  box-shadow: 0 8px 18px rgba(23, 54, 81, 0.05);
+}
+
+.transport-road-news-card--accidente {
+  border-left: 4px solid #c4473d;
+}
+
+.transport-road-news-card--bloqueo,
+.transport-road-news-card--seguridad {
+  border-left: 4px solid #c98a1d;
+}
+
+.transport-road-news-card--clima {
+  border-left: 4px solid #2f7f9b;
+}
+
+.transport-road-news-card-head,
+.transport-road-news-card-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.55rem;
+  flex-wrap: wrap;
+}
+
+.transport-road-news-card-title {
+  margin: 0.35rem 0 0.25rem;
+  font-size: 1rem;
+  line-height: 1.35;
+  color: #173651;
+}
+
+.transport-road-news-card-summary {
+  margin: 0;
+  color: #3f5f74;
+  font-size: 0.86rem;
+  line-height: 1.45;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.transport-road-news-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
+  color: #1f5f44;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.transport-road-news-link:hover {
+  color: #0f4a33;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.transport-road-alert-banner {
+  border: 1px solid rgba(201, 138, 29, 0.38);
+  border-left: 4px solid #c98a1d;
+  border-radius: 1rem;
+  padding: 0.72rem 0.85rem;
+  background: linear-gradient(90deg, rgba(255, 248, 232, 0.96), rgba(255, 252, 245, 0.92));
+  box-shadow: 0 10px 22px rgba(122, 78, 8, 0.08);
+}
+
+.transport-road-alert-banner-head {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin-bottom: 0.45rem;
+  color: #7a4e08;
+}
+
+.transport-road-alert-banner-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.42rem;
+}
+
+.transport-road-alert-banner-list li {
+  display: grid;
+  gap: 0.12rem;
+}
+
+.transport-road-alert-banner-item-title {
+  font-weight: 700;
+  color: #5c3d06;
+  font-size: 0.86rem;
+}
+
+.transport-road-alert-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.14rem 0.46rem;
+  border-radius: 999px;
+  background: rgba(201, 138, 29, 0.16);
+  border: 1px solid rgba(201, 138, 29, 0.42);
+  color: #7a4e08;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.mobile-nav-toggle span {
+  color: inherit !important;
+}
+
+.status-banner-warning {
+  background: rgba(201, 138, 29, 0.14);
+  border: 1px solid rgba(201, 138, 29, 0.35);
+  color: #7a4e08;
 }
 
 .transport-checklist-group {
@@ -11348,8 +11618,13 @@ html[data-ui-theme] body .switch-thumb {
   }
 
   .board-preview-inline-fields,
-  .board-preview-assignment-panel {
+  .board-preview-assignment-panel,
+  .board-builder-share-panel {
     grid-template-columns: 1fr;
+  }
+
+  .board-builder-feature-switches {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .board-preview-owner-field {
@@ -16008,6 +16283,15 @@ body {
   color: #294740;
 }
 
+.ep-font-card__hint {
+  display: block;
+  margin-top: 0.12rem;
+  font-size: 0.62rem;
+  font-weight: 600;
+  color: #5f7a73;
+  letter-spacing: 0.02em;
+}
+
 .ep-font-card__sample {
   font-size: 1rem;
   color: #0d3029;
@@ -16389,226 +16673,11 @@ html[data-ui-theme] body td {
   color: var(--sicfla-text);
 }
 
-html[data-ui-font="bahnschrift"] body,
-html[data-ui-font="bahnschrift"] button,
-html[data-ui-font="bahnschrift"] input,
-html[data-ui-font="bahnschrift"] select,
-html[data-ui-font="bahnschrift"] textarea {
-  font-family: "Bahnschrift", "Segoe UI", sans-serif;
-}
-
-html[data-ui-font="trebuchet"] body,
-html[data-ui-font="trebuchet"] button,
-html[data-ui-font="trebuchet"] input,
-html[data-ui-font="trebuchet"] select,
-html[data-ui-font="trebuchet"] textarea {
-  font-family: "Trebuchet MS", "Segoe UI", sans-serif;
-}
-
-html[data-ui-font="serif"] body,
-html[data-ui-font="serif"] button,
-html[data-ui-font="serif"] input,
-html[data-ui-font="serif"] select,
-html[data-ui-font="serif"] textarea {
-  font-family: "Book Antiqua", "Cambria", serif;
-}
-
-html[data-ui-font="mono"] body,
-html[data-ui-font="mono"] button,
-html[data-ui-font="mono"] input,
-html[data-ui-font="mono"] select,
-html[data-ui-font="mono"] textarea {
-  font-family: "Consolas", "Cascadia Mono", monospace;
-}
-
-html[data-ui-font="segoe"] body,
-html[data-ui-font="segoe"] button,
-html[data-ui-font="segoe"] input,
-html[data-ui-font="segoe"] select,
-html[data-ui-font="segoe"] textarea {
-  font-family: "Segoe UI", "Franklin Gothic Medium", sans-serif;
-}
-
-html[data-ui-font="georgia"] body,
-html[data-ui-font="georgia"] button,
-html[data-ui-font="georgia"] input,
-html[data-ui-font="georgia"] select,
-html[data-ui-font="georgia"] textarea {
-  font-family: "Georgia", "Times New Roman", serif;
-}
-
-html[data-ui-font="candara"] body,
-html[data-ui-font="candara"] button,
-html[data-ui-font="candara"] input,
-html[data-ui-font="candara"] select,
-html[data-ui-font="candara"] textarea {
-  font-family: "Candara", "Gill Sans MT", sans-serif;
-}
-
-html[data-ui-font="tahoma"] body,
-html[data-ui-font="tahoma"] button,
-html[data-ui-font="tahoma"] input,
-html[data-ui-font="tahoma"] select,
-html[data-ui-font="tahoma"] textarea {
-  font-family: "Tahoma", "Verdana", sans-serif;
-}
-
-html[data-ui-font="palatino"] body,
-html[data-ui-font="palatino"] button,
-html[data-ui-font="palatino"] input,
-html[data-ui-font="palatino"] select,
-html[data-ui-font="palatino"] textarea {
-  font-family: "Palatino Linotype", "Book Antiqua", serif;
-}
-
-html[data-ui-font="verdana"] body,
-html[data-ui-font="verdana"] button,
-html[data-ui-font="verdana"] input,
-html[data-ui-font="verdana"] select,
-html[data-ui-font="verdana"] textarea {
-  font-family: "Verdana", "Segoe UI", sans-serif;
-}
-
-html[data-ui-font="calibri"] body,
-html[data-ui-font="calibri"] button,
-html[data-ui-font="calibri"] input,
-html[data-ui-font="calibri"] select,
-html[data-ui-font="calibri"] textarea {
-  font-family: "Calibri", "Segoe UI", sans-serif;
-}
-
-html[data-ui-font="corbel"] body,
-html[data-ui-font="corbel"] button,
-html[data-ui-font="corbel"] input,
-html[data-ui-font="corbel"] select,
-html[data-ui-font="corbel"] textarea {
-  font-family: "Corbel", "Candara", sans-serif;
-}
-
-html[data-ui-font="garamond"] body,
-html[data-ui-font="garamond"] button,
-html[data-ui-font="garamond"] input,
-html[data-ui-font="garamond"] select,
-html[data-ui-font="garamond"] textarea {
-  font-family: "Garamond", "Times New Roman", serif;
-}
-
-html[data-ui-font="century"] body,
-html[data-ui-font="century"] button,
-html[data-ui-font="century"] input,
-html[data-ui-font="century"] select,
-html[data-ui-font="century"] textarea {
-  font-family: "Century Gothic", "Trebuchet MS", sans-serif;
-}
-
-html[data-ui-font="lucida"] body,
-html[data-ui-font="lucida"] button,
-html[data-ui-font="lucida"] input,
-html[data-ui-font="lucida"] select,
-html[data-ui-font="lucida"] textarea {
-  font-family: "Lucida Sans Unicode", "Lucida Grande", sans-serif;
-}
-
-html[data-ui-font="arialn"] body,
-html[data-ui-font="arialn"] button,
-html[data-ui-font="arialn"] input,
-html[data-ui-font="arialn"] select,
-html[data-ui-font="arialn"] textarea {
-  font-family: "Arial Narrow", "Arial", sans-serif;
-}
-
-html[data-ui-font="cambria"] body,
-html[data-ui-font="cambria"] button,
-html[data-ui-font="cambria"] input,
-html[data-ui-font="cambria"] select,
-html[data-ui-font="cambria"] textarea {
-  font-family: "Cambria", "Georgia", serif;
-}
-
-html[data-ui-font="franklin"] body,
-html[data-ui-font="franklin"] button,
-html[data-ui-font="franklin"] input,
-html[data-ui-font="franklin"] select,
-html[data-ui-font="franklin"] textarea {
-  font-family: "Franklin Gothic Medium", "Arial", sans-serif;
-}
-
-html[data-ui-font="bookman"] body,
-html[data-ui-font="bookman"] button,
-html[data-ui-font="bookman"] input,
-html[data-ui-font="bookman"] select,
-html[data-ui-font="bookman"] textarea {
-  font-family: "Bookman Old Style", "Garamond", serif;
-}
-
-html[data-ui-font="gill"] body,
-html[data-ui-font="gill"] button,
-html[data-ui-font="gill"] input,
-html[data-ui-font="gill"] select,
-html[data-ui-font="gill"] textarea {
-  font-family: "Gill Sans MT", "Trebuchet MS", sans-serif;
-}
-
-html[data-ui-font="optima"] body,
-html[data-ui-font="optima"] button,
-html[data-ui-font="optima"] input,
-html[data-ui-font="optima"] select,
-html[data-ui-font="optima"] textarea {
-  font-family: "Optima", "Segoe UI", sans-serif;
-}
-
-html[data-ui-font="constantia"] body,
-html[data-ui-font="constantia"] button,
-html[data-ui-font="constantia"] input,
-html[data-ui-font="constantia"] select,
-html[data-ui-font="constantia"] textarea {
-  font-family: "Constantia", "Cambria", serif;
-}
-
-html[data-ui-font="rockwell"] body,
-html[data-ui-font="rockwell"] button,
-html[data-ui-font="rockwell"] input,
-html[data-ui-font="rockwell"] select,
-html[data-ui-font="rockwell"] textarea {
-  font-family: "Rockwell", "Georgia", serif;
-}
-
-html[data-ui-font="futura"] body,
-html[data-ui-font="futura"] button,
-html[data-ui-font="futura"] input,
-html[data-ui-font="futura"] select,
-html[data-ui-font="futura"] textarea {
-  font-family: "Futura", "Century Gothic", sans-serif;
-}
-
-html[data-ui-font="bahnschrift"] { --ui-font-family: "Bahnschrift", "Segoe UI", sans-serif; }
-html[data-ui-font="trebuchet"] { --ui-font-family: "Trebuchet MS", "Segoe UI", sans-serif; }
-html[data-ui-font="serif"] { --ui-font-family: "Book Antiqua", "Cambria", serif; }
-html[data-ui-font="mono"] { --ui-font-family: "Consolas", "Cascadia Mono", monospace; }
-html[data-ui-font="segoe"] { --ui-font-family: "Segoe UI", "Franklin Gothic Medium", sans-serif; }
-html[data-ui-font="georgia"] { --ui-font-family: "Georgia", "Times New Roman", serif; }
-html[data-ui-font="candara"] { --ui-font-family: "Candara", "Gill Sans MT", sans-serif; }
-html[data-ui-font="tahoma"] { --ui-font-family: "Tahoma", "Verdana", sans-serif; }
-html[data-ui-font="palatino"] { --ui-font-family: "Palatino Linotype", "Book Antiqua", serif; }
-html[data-ui-font="verdana"] { --ui-font-family: "Verdana", "Segoe UI", sans-serif; }
-html[data-ui-font="calibri"] { --ui-font-family: "Calibri", "Segoe UI", sans-serif; }
-html[data-ui-font="corbel"] { --ui-font-family: "Corbel", "Candara", sans-serif; }
-html[data-ui-font="garamond"] { --ui-font-family: "Garamond", "Times New Roman", serif; }
-html[data-ui-font="century"] { --ui-font-family: "Century Gothic", "Trebuchet MS", sans-serif; }
-html[data-ui-font="lucida"] { --ui-font-family: "Lucida Sans Unicode", "Lucida Grande", sans-serif; }
-html[data-ui-font="arialn"] { --ui-font-family: "Arial Narrow", "Arial", sans-serif; }
-html[data-ui-font="cambria"] { --ui-font-family: "Cambria", "Georgia", serif; }
-html[data-ui-font="franklin"] { --ui-font-family: "Franklin Gothic Medium", "Arial", sans-serif; }
-html[data-ui-font="bookman"] { --ui-font-family: "Bookman Old Style", "Garamond", serif; }
-html[data-ui-font="gill"] { --ui-font-family: "Gill Sans MT", "Trebuchet MS", sans-serif; }
-html[data-ui-font="optima"] { --ui-font-family: "Optima", "Segoe UI", sans-serif; }
-html[data-ui-font="constantia"] { --ui-font-family: "Constantia", "Cambria", serif; }
-html[data-ui-font="rockwell"] { --ui-font-family: "Rockwell", "Georgia", serif; }
-html[data-ui-font="futura"] { --ui-font-family: "Futura", "Century Gothic", sans-serif; }
+/* Tipografía: --ui-font-family se define en JS (Google Fonts + respaldo local). Ver uiWebFonts.js */
 
 html[data-ui-font] body,
 html[data-ui-font] body *:not(.ep-font-picker-zone):not(.ep-font-picker-zone *) {
-  font-family: var(--ui-font-family, "Bahnschrift", "Segoe UI", sans-serif) !important;
+  font-family: var(--ui-font-family, "Barlow", "Bahnschrift", "Segoe UI", sans-serif) !important;
 }
 
 html[data-ui-font] .ep-font-picker-zone [data-font-preview] {

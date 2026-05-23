@@ -4,6 +4,7 @@ import {
   TransportPendingRow,
   TransportPendingDocRow,
   TransportPostponedRow,
+  TransportRoadAlertBadge,
 } from "../components/TransportTableRows";
 
 function resolveDateMs(value) {
@@ -228,6 +229,7 @@ export function TransportAssignmentsTab({
                 isAssigning={isAssigning}
                 formatDateTime={formatDateTime}
                 onTakeRoute={handleTakeRoute}
+                roadMonitors={transportState?.roadMonitors}
               />
             ))}
             {!pendingRecords.length && (
@@ -833,7 +835,12 @@ export function TransportMyRoutesTab({ transportState, documentacionState, curre
             {(routesViewTab === "active" ? activeTransportRecords : []).map((record) => (
               <tr key={record.id}>
                 <td>Transporte</td>
-                <td>{record.destination}</td>
+                <td>
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.35rem", flexWrap: "wrap" }}>
+                    <span>{record.destination}</span>
+                    <TransportRoadAlertBadge recordId={record.id} roadMonitors={transportState?.roadMonitors} />
+                  </div>
+                </td>
                 <td>{record.boxes}</td>
                 <td>{record.pieces}</td>
                 <td>{getStatusBadge(record.status)}</td>

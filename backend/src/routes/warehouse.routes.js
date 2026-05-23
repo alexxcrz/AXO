@@ -19,6 +19,8 @@ import {
   deleteWarehouseCatalogItem,
   deleteWarehouseBoard,
   deleteWarehouseBoardRow,
+  deleteBoardHistoryRow,
+  patchBoardHistoryRow,
   deleteWarehouseInventoryItem,
   deleteWarehouseTemplate,
   deleteWarehouseUser,
@@ -522,6 +524,12 @@ warehouseRouter.post("/transport/records", requireAuth, (req, res) => {
     });
   }
 
+  setImmediate(() => {
+    import("../services/transport-road-monitor.service.js")
+      .then((module) => module.runTransportRoadMonitorTick())
+      .catch((err) => console.debug("[road_monitor] post-create tick:", err?.message));
+  });
+
   auditSecurityEvent("warehouse_transport_record_created", req, {
     recordId: result.recordId,
     revision: result.state?.revision,
@@ -873,7 +881,12 @@ warehouseRouter.get("/transport/news", requireAuth, async (req, res) => {
     auditSecurityEvent("warehouse_transport_news_fetch_failed", req, {
       message: String(error?.message || "transport_news_error"),
     });
-    res.status(502).json({ ok: false, message: "No fue posible consultar noticias viales por el momento." });
+    const detail = String(error?.message || "").trim();
+    res.status(502).json({
+      ok: false,
+      message: "No fue posible consultar noticias viales por el momento. Intenta de nuevo en unos minutos.",
+      detail: detail && !detail.includes("password") ? detail : undefined,
+    });
   }
 });
 
@@ -1774,6 +1787,46 @@ warehouseRouter.delete("/boards/:boardId/rows/:rowId", (req, res) => {
 
   auditSecurityEvent("warehouse_board_row_deleted", req, {
     boardId: req.params.boardId,
+    rowId: req.params.rowId,
+    revision: result.state?.revision,
+  });
+  res.json(result.state);
+});
+
+warehouseRouter.patch("/board-history/:snapshotId/rows/:rowId", requireWarehouseAction("editHistoryRecords"), (req, res) => {
+  const result = patchBoardHistoryRow(req.auth, req.params.snapshotId, req.params.rowId, req.body || {});
+  if (!result.ok) {
+    const status = result.reason === "auth_required"
+      ? 401
+      : result.reason === "snapshot_not_found" || result.reason === "row_not_found"
+        ? 404
+        : 403;
+    res.status(status).json({ ok: false, message: "No fue posible actualizar el registro del historial." });
+    return;
+  }
+
+  auditSecurityEvent("warehouse_board_history_row_updated", req, {
+    snapshotId: req.params.snapshotId,
+    rowId: req.params.rowId,
+    revision: result.state?.revision,
+  });
+  res.json(result.state);
+});
+
+warehouseRouter.delete("/board-history/:snapshotId/rows/:rowId", requireAuth, (req, res) => {
+  const result = deleteBoardHistoryRow(req.auth, req.params.snapshotId, req.params.rowId);
+  if (!result.ok) {
+    const status = result.reason === "auth_required"
+      ? 401
+      : result.reason === "snapshot_not_found" || result.reason === "row_not_found"
+        ? 404
+        : 403;
+    res.status(status).json({ ok: false, message: "No fue posible eliminar el registro del historial." });
+    return;
+  }
+
+  auditSecurityEvent("warehouse_board_history_row_deleted", req, {
+    snapshotId: req.params.snapshotId,
     rowId: req.params.rowId,
     revision: result.state?.revision,
   });

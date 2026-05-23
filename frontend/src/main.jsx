@@ -6,6 +6,7 @@ import './components/modals.css'
 import App from './App.jsx'
 import copmecLogo from './assets/axo-logo.png'
 import { syncNotificationPrefsToServiceWorker } from './utils/pushBridge.js'
+import { preloadCoreUiWebFonts } from './app/uiPreferencesConfig.js'
 
 function isStandaloneApp() {
   return globalThis.matchMedia?.('(display-mode: standalone)').matches || globalThis.navigator?.standalone === true;
@@ -16,6 +17,7 @@ export function RootWithSplash() {
 
   useEffect(() => {
     document.documentElement.lang = "es-MX";
+    void preloadCoreUiWebFonts();
   }, []);
 
   useEffect(() => {

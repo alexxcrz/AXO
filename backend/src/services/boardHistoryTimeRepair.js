@@ -2,6 +2,12 @@
  * Repara horas inicio/fin en snapshots de tableros e filas activas.
  * - Congela columnas HH:mm:ss desde startTime/endTime ISO cuando existen.
  * - Reconstruye ISO faltantes desde Fecha + columna de hora (zona local).
+ *
+ * Se ejecuta automáticamente al normalizar el estado del almacén (cada carga/sync).
+ * Para corregir datos ya guardados en disco sin esperar al siguiente arranque:
+ *   npm run repair:history-times
+ * Simulación sin guardar:
+ *   npm run repair:history-times:dry
  */
 
 function normalizeTimeFieldLabel(field) {
