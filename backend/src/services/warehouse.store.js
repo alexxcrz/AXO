@@ -1956,7 +1956,7 @@ function normalizeState(state, previousState = null) {
     controlBoards: mergedControlBoards.map((board) => {
           const ownerId = board.ownerId ?? board.createdById ?? users[0]?.id ?? null;
           const visibility = resolveBoardVisibilitySnapshot(board, ownerId);
-          const normalizedBoard = {
+          const normalizedBoard = repairEmptySystemBoard({
             ...board,
             createdById: board.createdById ?? users[0]?.id ?? null,
             ownerId,
@@ -1966,7 +1966,7 @@ function normalizeState(state, previousState = null) {
             settings: withDefaultBoardSettings(board.settings),
             fields: normalizeBoardFields(board),
             rows: Array.isArray(board.rows) ? board.rows : [],
-          };
+          });
           return {
             ...normalizedBoard,
             permissions: normalizeBoardPermissions(board.permissions, permissions, normalizedBoard),
@@ -4797,6 +4797,118 @@ function resolveOfficialSystemBoardTemplate(entry) {
 
 function isProtectedSystemBoard(entry) {
   return Boolean(resolveOfficialSystemBoardTemplate(entry));
+}
+
+const SYSTEM_BOARD_DEFAULT_COLUMNS = {
+  "actividades-limpieza": [
+    { templateKey: "fechaActividadLimpieza", label: "Fecha", type: "date", width: "sm", groupName: "General", groupColor: "#e2f4ec" },
+    {
+      templateKey: "actividadLimpiezaOficial",
+      label: "Actividad",
+      type: "select",
+      optionSource: "catalogByCategory",
+      optionCatalogCategory: "Limpieza",
+      required: true,
+      width: "lg",
+      groupName: "Seguimiento",
+      groupColor: "#e0f2fe",
+    },
+    { templateKey: "inicioActividadLimpieza", label: "Inicio", type: "time", width: "sm", groupName: "Seguimiento", groupColor: "#e2f4ec" },
+    { templateKey: "finActividadLimpieza", label: "Fin", type: "time", width: "sm", groupName: "Seguimiento", groupColor: "#e2f4ec" },
+  ],
+  "devoluciones-reacondicionado": [
+    { templateKey: "tarimaDevolucion", label: "Tarima", type: "text", required: true, width: "sm", groupName: "Control", groupColor: "#ede9fe" },
+    {
+      templateKey: "tipoFlujoDevolucion",
+      label: "Tipo de flujo",
+      type: "select",
+      optionSource: "manual",
+      options: ["Devolución", "Reacondicionado"],
+      required: true,
+      width: "sm",
+      groupName: "Control",
+      groupColor: "#ede9fe",
+    },
+    {
+      templateKey: "productoDevolucion",
+      label: "Producto",
+      type: "inventoryLookup",
+      required: true,
+      width: "lg",
+      groupName: "Producto",
+      groupColor: "#e0f2fe",
+    },
+    { templateKey: "loteDevolucion", label: "Lote", type: "text", width: "sm", groupName: "Trazabilidad", groupColor: "#e8eff6" },
+    { templateKey: "caducidadDevolucion", label: "Caducidad", type: "text", width: "sm", groupName: "Trazabilidad", groupColor: "#e8eff6" },
+    { templateKey: "etiquetaDevolucion", label: "Etiqueta", type: "text", width: "sm", groupName: "Trazabilidad", groupColor: "#e8eff6" },
+    { templateKey: "piezasDevolucion", label: "Piezas", type: "number", defaultValue: 0, width: "sm", groupName: "Conteo", groupColor: "#fef3c7" },
+    { templateKey: "metaCajaDevolucion", label: "Meta de caja", type: "number", defaultValue: 50, width: "sm", groupName: "Conteo", groupColor: "#fef3c7" },
+  ],
+};
+
+const SYSTEM_BOARD_DEFAULT_SETTINGS = {
+  "actividades-limpieza": {
+    operationalContextType: "cleaningSite",
+    operationalContextLabel: "Sede de limpieza",
+    operationalContextOptions: ["C1", "C2", "C3", "P"],
+    operationalContextValue: "C1",
+  },
+  "devoluciones-reacondicionado": {
+    operationalContextType: "custom",
+    operationalContextLabel: "Proceso",
+    operationalContextOptions: ["Devolución", "Reacondicionado"],
+    operationalContextValue: "Devolución",
+  },
+};
+
+function buildDefaultSystemBoardField(column = {}) {
+  return {
+    id: makeId("fld"),
+    label: String(column.label || "").trim(),
+    type: String(column.type || "text").trim() || "text",
+    optionSource: column.optionSource || "manual",
+    optionCatalogCategory: column.optionCatalogCategory || "",
+    options: Array.isArray(column.options) ? [...column.options] : [],
+    inventoryProperty: column.inventoryProperty || "code",
+    sourceFieldId: column.sourceFieldId || null,
+    formulaOperation: column.formulaOperation || "add",
+    formulaLeftFieldId: column.formulaLeftFieldId || null,
+    formulaRightFieldId: column.formulaRightFieldId || null,
+    formulaTerms: [],
+    helpText: column.helpText || "",
+    placeholder: column.placeholder || "",
+    defaultValue: column.defaultValue ?? "",
+    width: column.width || "md",
+    widthPx: column.widthPx ? Number(column.widthPx) : null,
+    required: Boolean(column.required),
+    groupName: column.groupName || "General",
+    groupColor: column.groupColor || "#e2f4ec",
+    colorRules: [],
+    templateKey: column.templateKey || column.label,
+  };
+}
+
+function repairEmptySystemBoard(board) {
+  const template = resolveOfficialSystemBoardTemplate(board);
+  if (!template) return board;
+
+  const existingFields = normalizeBoardFields(board);
+  if (existingFields.length) return board;
+
+  const columnDefs = SYSTEM_BOARD_DEFAULT_COLUMNS[template.id];
+  if (!Array.isArray(columnDefs) || !columnDefs.length) return board;
+
+  const defaultSettings = SYSTEM_BOARD_DEFAULT_SETTINGS[template.id] || {};
+  return {
+    ...board,
+    fields: columnDefs.map((column) => buildDefaultSystemBoardField(column)),
+    settings: withDefaultBoardSettings({
+      ...(board.settings || {}),
+      ...defaultSettings,
+      systemBoardTemplateId: template.id,
+      systemBoardLocked: true,
+    }),
+  };
 }
 
 function normalizeAreaOption(area) {

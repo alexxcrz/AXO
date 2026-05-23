@@ -190,6 +190,8 @@ import {
 
 } from "./utils/constantes.js";
 
+import { EXTRA_SYSTEM_BOARD_TEMPLATES, PROTECTED_SYSTEM_BOARD_TEMPLATE_IDS } from "./utils/systemBoardTemplates.js";
+
 // â”€â”€ Utilidades puras â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 import {
@@ -651,12 +653,7 @@ function App() { // NOSONAR
     try {
       const parsed = JSON.parse(localStorage.getItem(HIDDEN_BASE_TEMPLATES_KEY) || "[]");
       if (!Array.isArray(parsed)) return [];
-      const protectedSystemTemplateIds = new Set([
-        "actividades-limpieza",
-        "revision-tarimas",
-        "devoluciones-reacondicionado",
-      ]);
-      return parsed.filter((id) => id && !protectedSystemTemplateIds.has(String(id).trim()));
+      return parsed.filter((id) => id && !PROTECTED_SYSTEM_BOARD_TEMPLATE_IDS.has(String(id).trim()));
     } catch {
       return [];
     }
@@ -3325,41 +3322,9 @@ function App() { // NOSONAR
       || canDoAction(currentUser, "saveBoard", normalizedPermissions);
   }, [currentUser, normalizedPermissions, selectedCustomBoard]);
 
-  const extraSystemBoardTemplates = useMemo(() => ([
-    {
-      id: "actividades-limpieza",
-      name: "Actividades de limpieza",
-      category: "Limpieza",
-      description: "Plantilla oficial para control de actividades de limpieza.",
-      aliases: ["activiades de limpieza", "control de actividades de limpieza"],
-      settings: {
-        showWorkflow: true,
-        showMetrics: true,
-        showAssignee: true,
-        showDates: true,
-      },
-      columns: [],
-    },
-    {
-      id: "devoluciones-reacondicionado",
-      name: "Devoluciones / Reacondicionado por tarima",
-      category: "Revisión",
-      description: "Plantilla oficial para flujo de escaneo continuo por tarima.",
-      aliases: ["devoluciones / reacondicionado", "devoluciones y reacondicionado", "reacondicionado por tarima"],
-      settings: {
-        showWorkflow: true,
-        showMetrics: true,
-        showAssignee: true,
-        showDates: true,
-      },
-      columns: [],
-    },
-  ]), []);
+  const extraSystemBoardTemplates = useMemo(() => EXTRA_SYSTEM_BOARD_TEMPLATES, []);
 
-  const allowedSystemTemplateIds = useMemo(
-    () => new Set(["actividades-limpieza", "revision-tarimas", "devoluciones-reacondicionado"]),
-    [],
-  );
+  const allowedSystemTemplateIds = useMemo(() => PROTECTED_SYSTEM_BOARD_TEMPLATE_IDS, []);
 
   const allowedSystemTemplateNames = useMemo(
     () => new Set([
@@ -4877,20 +4842,37 @@ function App() { // NOSONAR
     const template = availableBoardTemplates.find((item) => item.id === templateId);
     if (!template) return;
 
-    setControlBoardDraft((current) => {
-      const templateSettings = template.settings && typeof template.settings === "object" ? template.settings : undefined;
-      return {
-        ...current,
-        name: template.name,
-        description: template.description,
-        settings: withDefaultBoardSettings({ ...current.settings, ...templateSettings, columnOrder: [] }),
-        columns: buildTemplateColumns(template),
-        ...createEmptyFieldDraft(),
-      };
-    });
+    const templateColumns = buildTemplateColumns(template);
+    if (!templateColumns.length) {
+      setControlBoardFeedback(`La plantilla ${template.name} no tiene columnas configuradas. Contacta al administrador.`);
+      return;
+    }
+
+    const ownerId = currentUser?.id || "";
+    const ownerArea = resolveBoardOwnerAreaByUserId(ownerId);
+    const isSystemTemplate = PROTECTED_SYSTEM_BOARD_TEMPLATE_IDS.has(String(template.id || "").trim());
+    const templateSettings = template.settings && typeof template.settings === "object" ? template.settings : undefined;
+
+    setControlBoardDraft((current) => ({
+      ...current,
+      name: template.name,
+      description: template.description,
+      ownerId: ownerId || current.ownerId,
+      visibilityType: isSystemTemplate && ownerArea ? "department" : current.visibilityType,
+      sharedDepartments: isSystemTemplate && ownerArea ? normalizeBoardSharedDepartments([ownerArea]) : current.sharedDepartments,
+      accessUserIds: isSystemTemplate ? [] : current.accessUserIds,
+      settings: withDefaultBoardSettings({
+        ...current.settings,
+        ...templateSettings,
+        ownerArea: ownerArea || current.settings?.ownerArea || "",
+        columnOrder: [],
+      }),
+      columns: templateColumns,
+      ...createEmptyFieldDraft(),
+    }));
     setEditingDraftColumnId(null);
     setTemplatePreviewId(null);
-    setControlBoardFeedback(`Plantilla ${template.name} cargada al borrador. Puedes agregar, cambiar o quitar componentes antes de guardar.`);
+    setControlBoardFeedback(`Plantilla ${template.name} cargada al borrador (${templateColumns.length} campos). Revisa el área y guarda el tablero.`);
   }
 
   function previewBoardTemplate(templateId) {
@@ -5348,6 +5330,11 @@ function App() { // NOSONAR
         systemBoardTemplateId: protectedTemplate.id,
         systemBoardLocked: true,
       };
+      if (!forcedBoardArea && selectedBoardArea) {
+        payload.visibilityType = "department";
+        payload.sharedDepartments = normalizeBoardSharedDepartments([selectedBoardArea]);
+        payload.accessUserIds = [];
+      }
     }
     if (forcedBoardArea) {
       payload.settings = {
@@ -5381,6 +5368,19 @@ function App() { // NOSONAR
         });
       }
 
+      const savedBoard = (result.data.state?.controlBoards || []).find((board) => board.id === createdBoardId) || null;
+      const boardVisibleInList = savedBoard && (() => {
+        if (!getBoardVisibleToUser(savedBoard, currentUser)) return false;
+        if (!activeAreaScopes.length) return true;
+        const boardAreas = [
+          ...(savedBoard?.settings?.ownerArea ? [savedBoard.settings.ownerArea] : []),
+          ...(savedBoard.sharedDepartments || []),
+        ];
+        return boardAreas.some((area) =>
+          activeAreaScopes.some((selectedArea) => normalizeAreaOption(area) === normalizeAreaOption(selectedArea)),
+        );
+      })();
+
       setSelectedCustomBoardId(createdBoardId);
       setSelectedCustomBoardViewId("current");
       if (!isEditing) {
@@ -5400,11 +5400,14 @@ function App() { // NOSONAR
       setExcelFormulaWizard({ open: false, items: [] });
       setControlBoardFeedback("");
       if (isEditing || !boardImportedRowsDraft.length) {
+        const boardAreaLabel = savedBoard?.settings?.ownerArea || payload.settings?.ownerArea || "sin área";
         setBoardRuntimeFeedback({
-          tone: "success",
+          tone: boardVisibleInList ? "success" : "warning",
           message: isEditing
             ? `Se actualizó ${payload.name} sin cambiarte de pantalla.`
-            : `Se creó ${payload.name} y ya aparece en Mis tableros.`,
+            : boardVisibleInList
+              ? `Se creó ${payload.name} y ya aparece en Mis tableros.`
+              : `Se creó ${payload.name} (área ${boardAreaLabel}), pero no se ve en el filtro actual del menú lateral. Abre "Todas las áreas" o el área ${boardAreaLabel}.`,
         });
       }
     } catch (error) {

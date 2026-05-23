@@ -1,227 +1,438 @@
-/* Login � vista portal centrada (tema-adaptable) */
-.axo-login-v2 {
-  --login-bg-deep: color-mix(in srgb, var(--sicfla-primary, #0c4a6e) 72%, #020617 28%);
-  --login-card: color-mix(in srgb, var(--sicfla-surface-elevated, #ffffff) 94%, transparent);
-  --login-text: var(--sicfla-text, #0f172a);
-  --login-muted: var(--sicfla-text-muted, #64748b);
-  --login-accent: var(--sicfla-primary, #0f4c5c);
-  --login-on-accent: #ffffff;
-  min-height: 100vh;
-  min-height: 100dvh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 1.5rem;
-  position: relative;
-  overflow: hidden;
-  background:
-    radial-gradient(ellipse 80% 60% at 15% 20%, color-mix(in srgb, var(--login-accent) 35%, transparent), transparent 55%),
-    radial-gradient(ellipse 70% 50% at 85% 80%, color-mix(in srgb, #f59e0b 22%, transparent), transparent 50%),
-    linear-gradient(160deg, var(--login-bg-deep) 0%, color-mix(in srgb, var(--login-bg-deep) 85%, #000) 100%);
+/* Login unificado PC + móvil — efectos y layout responsive */
+
+/* ── Entrada escalonada (PC y móvil) ─────────────────────────────────────── */
+.login-shell.login-pro .login-panel {
+  animation:
+    loginPanelIn 680ms cubic-bezier(0.16, 1, 0.3, 1),
+    loginPanelDrift 11s ease-in-out infinite 780ms;
 }
 
-.axo-login-v2-mesh {
-  position: absolute;
-  inset: 0;
-  background-image:
-    linear-gradient(color-mix(in srgb, #fff 6%, transparent) 1px, transparent 1px),
-    linear-gradient(90deg, color-mix(in srgb, #fff 6%, transparent) 1px, transparent 1px);
-  background-size: 48px 48px;
-  mask-image: radial-gradient(ellipse 70% 60% at 50% 45%, black 20%, transparent 75%);
-  pointer-events: none;
+.login-shell.login-pro .login-hero-panel {
+  animation:
+    loginHeroEntrance 900ms cubic-bezier(0.16, 1, 0.3, 1) backwards,
+    loginHeroShift 12s ease-in-out infinite 900ms;
 }
 
-.axo-login-v2-orb {
-  position: absolute;
-  border-radius: 50%;
-  filter: blur(60px);
-  opacity: 0.45;
-  pointer-events: none;
+.login-shell.login-pro .login-form-panel {
+  animation:
+    loginFormPanelEntrance 980ms cubic-bezier(0.16, 1, 0.3, 1) 120ms backwards,
+    loginSurfaceFloat 6.2s ease-in-out infinite 1100ms,
+    loginPanelWhitePulse 4.4s ease-in-out infinite 1100ms;
 }
 
-.axo-login-v2-orb-a {
-  width: 280px;
-  height: 280px;
-  top: 8%;
-  left: 12%;
-  background: color-mix(in srgb, var(--login-accent) 80%, #22d3ee);
+.login-shell.login-pro .login-form-panel-head {
+  animation: loginStaggerFade 720ms cubic-bezier(0.16, 1, 0.3, 1) 220ms backwards;
 }
 
-.axo-login-v2-orb-b {
-  width: 220px;
-  height: 220px;
-  bottom: 10%;
-  right: 8%;
-  background: #fbbf24;
+.login-shell.login-pro .login-form .login-field:nth-child(1) {
+  animation: loginStaggerFade 680ms cubic-bezier(0.16, 1, 0.3, 1) 300ms backwards;
 }
 
-.axo-login-v2-card {
-  position: relative;
-  z-index: 1;
-  width: min(100%, 420px);
-  padding: 2rem 1.85rem 1.75rem;
-  border-radius: 24px;
-  background: var(--login-card);
-  border: 1px solid color-mix(in srgb, var(--login-accent) 22%, transparent);
+.login-shell.login-pro .login-form .login-field:nth-child(2) {
+  animation: loginStaggerFade 680ms cubic-bezier(0.16, 1, 0.3, 1) 380ms backwards;
+}
+
+.login-shell.login-pro .login-submit-button {
+  animation:
+    loginStaggerFade 680ms cubic-bezier(0.16, 1, 0.3, 1) 460ms backwards,
+    loginButtonGlow 5.8s ease-in-out infinite 1s;
+}
+
+.login-shell.login-pro .login-demo-users {
+  animation: loginStaggerFade 720ms cubic-bezier(0.16, 1, 0.3, 1) 540ms backwards;
+}
+
+.login-shell.login-pro .login-visual-scene {
+  animation: loginSceneReveal 1.1s cubic-bezier(0.16, 1, 0.3, 1) 200ms backwards;
+}
+
+/* Campos: transición al focus */
+.login-shell.login-pro .login-field input {
+  transition:
+    border-color 220ms ease,
+    box-shadow 280ms cubic-bezier(0.16, 1, 0.3, 1),
+    transform 280ms cubic-bezier(0.16, 1, 0.3, 1),
+    background 220ms ease;
+}
+
+.login-shell.login-pro .login-field input:focus {
+  transform: translateY(-2px);
   box-shadow:
-    0 0 0 1px color-mix(in srgb, #fff 40%, transparent) inset,
-    0 28px 60px color-mix(in srgb, #000 28%, transparent);
-  backdrop-filter: blur(12px);
+    0 10px 28px rgba(56, 88, 120, 0.14),
+    0 0 0 3px rgba(111, 143, 169, 0.22);
 }
 
-.axo-login-v2-brand {
-  text-align: center;
-  margin-bottom: 1.75rem;
+.login-shell.login-pro .login-demo-chip {
+  transition:
+    transform 200ms cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 200ms ease,
+    border-color 200ms ease,
+    background 200ms ease;
 }
 
-.axo-login-v2-brand .copmec-brand {
-  justify-content: center;
+.login-shell.login-pro .login-demo-chip:hover {
+  transform: translateY(-2px) scale(1.02);
 }
 
-.axo-login-v2-brand h2 {
-  margin: 0.85rem 0 0;
-  font-size: 1.5rem;
-  font-weight: 800;
-  color: var(--login-text);
-  letter-spacing: -0.03em;
+.login-shell.login-pro .login-aurora {
+  animation: auroraFloat 10s ease-in-out infinite, loginAuroraPulse 14s ease-in-out infinite;
 }
 
-.axo-login-v2-brand p {
-  margin: 0.35rem 0 0;
-  font-size: 0.82rem;
-  color: var(--login-muted);
+@media (hover: hover) and (pointer: fine) {
+  .login-shell.login-pro .login-visual-scene:hover .login-scene-card-main,
+  .login-shell.login-pro .login-visual-scene:hover .login-scene-card-pie {
+    filter: brightness(1.06);
+  }
 }
 
-.axo-login-v2-form {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
+@keyframes loginAuroraPulse {
+  0%,
+  100% {
+    opacity: 0.62;
+    filter: blur(14px);
+  }
+  50% {
+    opacity: 0.82;
+    filter: blur(18px);
+  }
 }
 
-.axo-login-v2-field {
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
+.login-shell.login-pro .login-submit-button:active {
+  transform: translateY(0) scale(0.98);
+  transition-duration: 80ms;
 }
 
-.axo-login-v2-field span {
-  font-size: 0.72rem;
-  font-weight: 700;
-  color: var(--login-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
+/* Brillo en borde del panel principal */
+.login-shell.login-pro .login-panel::before {
+  animation: loginInnerTracePro 6s ease-in-out infinite;
 }
 
-.axo-login-v2-field input {
-  width: 100%;
-  padding: 0.75rem 0.9rem;
-  border-radius: 12px;
-  border: 1px solid color-mix(in srgb, var(--login-accent) 25%, var(--sicfla-border, #cbd5e1));
-  background: var(--sicfla-input-bg, #f8fafc);
-  color: var(--login-text);
-  font-size: 0.95rem;
+@keyframes loginStaggerFade {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
-.axo-login-v2-field input:focus {
-  outline: 2px solid color-mix(in srgb, var(--login-accent) 35%, transparent);
-  outline-offset: 1px;
+@keyframes loginSceneReveal {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
 }
 
-.axo-login-v2-password {
-  position: relative;
-  display: flex;
-  align-items: stretch;
+@keyframes loginInnerTracePro {
+  0%,
+  100% {
+    opacity: 0.65;
+    border-color: rgba(228, 237, 247, 0.1);
+  }
+  50% {
+    opacity: 1;
+    border-color: rgba(228, 237, 247, 0.22);
+  }
 }
 
-.axo-login-v2-password input {
-  padding-right: 2.75rem;
-}
+/* ── Móvil: mismo login que PC, apilado y compacto ───────────────────────── */
+@media screen and (max-width: 768px) {
+  .login-shell.login-pro {
+    display: grid;
+    place-content: center;
+    place-items: center;
+    align-content: center;
+    justify-content: center;
+    min-height: 100dvh;
+    min-height: 100svh;
+    padding:
+      max(1rem, env(safe-area-inset-top, 0px))
+      0.65rem
+      max(1rem, env(safe-area-inset-bottom, 0px));
+    box-sizing: border-box;
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
 
-.axo-login-v2-password button {
-  position: absolute;
-  right: 0.35rem;
-  top: 50%;
-  transform: translateY(-50%);
-  border: none;
-  background: transparent;
-  color: var(--login-muted);
-  cursor: pointer;
-  padding: 0.35rem;
-  border-radius: 8px;
-}
-
-.axo-login-v2-submit {
-  margin-top: 0.35rem;
-  width: 100%;
-  padding: 0.85rem 1rem;
-  border: none;
-  border-radius: 14px;
-  font-size: 0.92rem;
-  font-weight: 800;
-  cursor: pointer;
-  background: linear-gradient(135deg, var(--login-accent), color-mix(in srgb, var(--login-accent) 70%, #0369a1));
-  color: var(--login-on-accent) !important;
-  box-shadow: 0 10px 24px color-mix(in srgb, var(--login-accent) 40%, transparent);
-  transition: transform 0.15s, box-shadow 0.15s;
-}
-
-.axo-login-v2-submit:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 14px 28px color-mix(in srgb, var(--login-accent) 45%, transparent);
-}
-
-.axo-login-v2-demo {
-  margin-top: 1.25rem;
-  padding-top: 1.1rem;
-  border-top: 1px dashed color-mix(in srgb, var(--login-accent) 20%, var(--sicfla-border, #e2e8f0));
-}
-
-.axo-login-v2-demo h3 {
-  margin: 0 0 0.55rem;
-  font-size: 0.72rem;
-  font-weight: 700;
-  color: var(--login-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.axo-login-v2-demo-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
-}
-
-.axo-login-v2-demo-chip {
-  font-size: 0.72rem;
-  padding: 0.35rem 0.65rem;
-  border-radius: 999px;
-  border: 1px solid color-mix(in srgb, var(--login-accent) 22%, var(--sicfla-border, #e2e8f0));
-  background: color-mix(in srgb, var(--login-accent) 6%, transparent);
-  color: var(--login-text);
-  cursor: pointer;
-}
-
-.axo-login-v2-demo-chip:hover {
-  background: color-mix(in srgb, var(--login-accent) 14%, transparent);
-}
-
-/* Bootstrap setup � misma familia visual */
-.axo-login-v2.setup-wide {
-  width: min(100%, 520px);
-}
-
-.axo-login-v2-setup-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.75rem;
-}
-
-.axo-login-v2-setup-grid .axo-login-v2-field.full {
-  grid-column: 1 / -1;
-}
-
-@media (max-width: 520px) {
-  .axo-login-v2-setup-grid {
+  .login-shell.login-pro .login-panel {
+    width: min(100%, 440px);
+    min-height: unset;
+    margin: 0 auto;
+    align-self: center;
+    justify-self: center;
     grid-template-columns: 1fr;
+    grid-template-rows: auto auto;
+    gap: 0.7rem;
+    padding: 0.7rem;
+    background: rgba(243, 247, 252, 0.09);
+    border: 1px solid rgba(214, 226, 239, 0.14);
+    box-shadow:
+      0 28px 80px rgba(4, 12, 24, 0.42),
+      inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(22px);
+    animation: loginPanelIn 620ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .login-shell.login-pro .login-panel::before,
+  .login-shell.login-pro .login-panel::after {
+    display: block;
+    opacity: 0.55;
+  }
+
+  .login-shell.login-pro .login-panel::after {
+    width: 55%;
+    animation: loginPanelShimmer 7s ease-in-out infinite;
+  }
+
+  /* Hero visible: marca + escena como en PC */
+  .login-shell.login-pro .login-hero-panel {
+    display: grid !important;
+    padding: 0.85rem 0.75rem 0.65rem;
+    gap: 0.55rem;
+    border-radius: 1.35rem;
+    min-height: unset;
+    animation:
+      loginHeroEntrance 780ms cubic-bezier(0.16, 1, 0.3, 1) backwards,
+      loginHeroShift 14s ease-in-out infinite 780ms;
+  }
+
+  .login-shell.login-pro .login-brand-block {
+    width: 100%;
+    gap: 0.35rem;
+  }
+
+  .login-shell.login-pro .login-brand-block .copmec-logo-mark {
+    width: 3.4rem;
+    height: 3.4rem;
+  }
+
+  .login-shell.login-pro .login-brand-block h1 {
+    font-size: 1.75rem;
+  }
+
+  .login-shell.login-pro .login-brand-block p {
+    font-size: 0.72rem;
+    opacity: 0.92;
+  }
+
+  .login-shell.login-pro .login-visual-scene {
+    display: block !important;
+    min-height: 148px;
+    max-height: 152px;
+    border-radius: 1rem;
+    margin-top: 0.15rem;
+    transform: none;
+    animation: loginSceneReveal 900ms cubic-bezier(0.16, 1, 0.3, 1) 140ms backwards;
+  }
+
+  /* Escena compacta: escala el contenido absoluto */
+  .login-shell.login-pro .login-visual-scene > * {
+    pointer-events: none;
+  }
+
+  .login-shell.login-pro .login-scene-card-main {
+    left: 8px;
+    top: 12px;
+    width: 52%;
+    min-height: 88px;
+    padding: 0.55rem;
+    transform: scale(0.92);
+    transform-origin: top left;
+  }
+
+  .login-shell.login-pro .login-scene-card-side {
+    right: 6px;
+    top: 78px;
+    width: 28%;
+    min-height: 72px;
+    padding: 0.5rem;
+  }
+
+  .login-shell.login-pro .login-scene-card-pie {
+    right: 38%;
+    top: 52px;
+    width: 42%;
+    min-height: 72px;
+    padding: 0.45rem;
+    grid-template-columns: auto 1fr;
+    gap: 0.35rem;
+  }
+
+  .login-shell.login-pro .login-scene-card-pie .login-scene-pie-chart {
+    width: 2.4rem;
+    height: 2.4rem;
+  }
+
+  .login-shell.login-pro .login-scene-card-pie .login-scene-pie-core {
+    inset: 0.5rem;
+  }
+
+  .login-shell.login-pro .login-scene-card-pie .login-scene-pie-legend span {
+    font-size: 0.48rem;
+  }
+
+  .login-shell.login-pro .login-scene-card-bottom {
+    left: 12px;
+    right: 12px;
+    bottom: 8px;
+    min-height: 36px;
+    padding: 0.45rem 0.55rem;
+  }
+
+  .login-shell.login-pro .login-scene-status-board {
+    top: 8px;
+    right: 8px;
+    gap: 0.28rem;
+    max-width: 120px;
+  }
+
+  .login-shell.login-pro .login-scene-status-chip {
+    font-size: 0.48rem;
+    min-height: 1.15rem;
+    padding: 0 0.4rem;
+  }
+
+  .login-shell.login-pro .login-scene-ring-one {
+    width: 100px;
+    height: 100px;
+    top: 18px;
+    right: 12px;
+  }
+
+  .login-shell.login-pro .login-scene-ring-two {
+    width: 62px;
+    height: 62px;
+    top: 38px;
+    right: 32px;
+  }
+
+  .login-shell.login-pro .login-scene-data-line.line-a {
+    top: 36px;
+    left: 42%;
+    width: 38%;
+  }
+
+  .login-shell.login-pro .login-scene-data-line.line-b {
+    top: 68px;
+    left: 38%;
+    width: 42%;
+  }
+
+  .login-shell.login-pro .login-scene-data-line.line-c {
+    bottom: 28px;
+    left: 18%;
+    width: 48%;
+  }
+
+  /* Formulario blanco como en PC */
+  .login-shell.login-pro .login-form-panel {
+    padding: 1rem 0.85rem 1.05rem;
+    border-radius: 1.35rem;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.99) 0%, rgba(245, 248, 252, 0.97) 100%);
+    border: 1px solid rgba(49, 77, 105, 0.1);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.85),
+      0 16px 40px rgba(18, 34, 56, 0.2);
+    animation:
+      loginFormPanelEntrance 820ms cubic-bezier(0.16, 1, 0.3, 1) 180ms backwards,
+      loginSurfaceFloat 7s ease-in-out infinite 1s;
+  }
+
+  .login-shell.login-pro .login-form-panel::before {
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.75) 0%, rgba(255, 255, 255, 0.06) 32%),
+      radial-gradient(circle at 18% 14%, rgba(111, 143, 169, 0.12) 0%, transparent 28%);
+    animation: loginPanelGloss 5.2s ease-in-out infinite;
+  }
+
+  .login-shell.login-pro .login-form-panel::after {
+    inset: 0.55rem;
+    border-radius: 1rem;
+    animation: loginInnerTracePro 5.6s ease-in-out infinite;
+  }
+
+  .login-shell.login-pro .login-form-panel-head h2 {
+    font-size: 1.32rem;
+    color: transparent;
+    background: linear-gradient(90deg, #22384f 0%, #4a6987 50%, #22384f 100%);
+    background-size: 200% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    text-shadow: none;
+    animation: loginTitleShimmer 5s linear infinite;
+  }
+
+  .login-shell.login-pro .login-form-panel-head p {
+    color: rgba(49, 77, 105, 0.72);
+    font-size: 0.82rem;
+  }
+
+  .login-shell.login-pro .login-form {
+    width: 100%;
+    max-width: none;
+  }
+
+  .login-shell.login-pro .login-field > span {
+    color: #314d69;
+  }
+
+  .login-shell.login-pro .login-field input {
+    font-size: 1rem;
+    background: rgba(248, 251, 255, 0.96);
+  }
+
+  .login-shell.login-pro .login-submit-button {
+    width: 100%;
+    min-height: 3rem;
+    border-radius: 999px;
+  }
+
+  .login-shell.login-pro .login-demo-users {
+    width: 100%;
+    max-width: none;
+    border-top-color: rgba(49, 77, 105, 0.1);
+  }
+
+  .login-shell.login-pro .login-demo-users h3 {
+    color: #314d69;
+    font-size: 0.88rem;
+  }
+
+  .login-shell.login-pro .login-password-toggle {
+    color: #5f83a8;
+  }
+
+  /* Ocultar marca duplicada del bloque móvil antiguo */
+  .login-shell.login-pro .login-mobile-brand {
+    display: none !important;
+  }
+
+  .login-shell.login-pro.setup-flow .login-visual-scene {
+    min-height: 120px;
+    max-height: 124px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .login-shell.login-pro .login-panel,
+  .login-shell.login-pro .login-hero-panel,
+  .login-shell.login-pro .login-form-panel,
+  .login-shell.login-pro .login-visual-scene,
+  .login-shell.login-pro .login-form-panel-head,
+  .login-shell.login-pro .login-form .login-field,
+  .login-shell.login-pro .login-submit-button,
+  .login-shell.login-pro .login-demo-users {
+    animation: none !important;
+  }
+
+  .login-shell.login-pro .login-field input:focus {
+    transform: none;
   }
 }

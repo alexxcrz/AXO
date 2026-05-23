@@ -1,0 +1,90 @@
+import { BOARD_ACTIVITY_LIST_FIELD } from "./constantes";
+
+/** Default columns for official system board templates (ids assigned by buildTemplateColumns). */
+export const EXTRA_SYSTEM_BOARD_TEMPLATES = [
+  {
+    id: "actividades-limpieza",
+    name: "Actividades de limpieza",
+    category: "Limpieza",
+    description: "Plantilla oficial para control de actividades de limpieza.",
+    aliases: ["activiades de limpieza", "control de actividades de limpieza"],
+    settings: {
+      showWorkflow: true,
+      showMetrics: true,
+      showAssignee: true,
+      showDates: true,
+      operationalContextType: "cleaningSite",
+      operationalContextLabel: "Sede de limpieza",
+      operationalContextOptions: ["C1", "C2", "C3", "P"],
+      operationalContextValue: "C1",
+    },
+    columns: [
+      { templateKey: "fechaActividadLimpieza", label: "Fecha", type: "date", width: "sm", groupName: "General", groupColor: "#e2f4ec" },
+      {
+        templateKey: "actividadLimpiezaOficial",
+        label: "Actividad",
+        type: BOARD_ACTIVITY_LIST_FIELD,
+        optionCatalogCategory: "Limpieza",
+        required: true,
+        width: "lg",
+        groupName: "Seguimiento",
+        groupColor: "#e0f2fe",
+        helpText: "Cada actividad del catalogo genera una fila operativa.",
+      },
+      { templateKey: "inicioActividadLimpieza", label: "Inicio", type: "time", width: "sm", groupName: "Seguimiento", groupColor: "#e2f4ec" },
+      { templateKey: "finActividadLimpieza", label: "Fin", type: "time", width: "sm", groupName: "Seguimiento", groupColor: "#e2f4ec" },
+    ],
+  },
+  {
+    id: "devoluciones-reacondicionado",
+    name: "Devoluciones / Reacondicionado por tarima",
+    category: "Revision",
+    description: "Plantilla oficial para flujo de escaneo continuo por tarima.",
+    aliases: ["devoluciones / reacondicionado", "devoluciones y reacondicionado", "reacondicionado por tarima"],
+    settings: {
+      showWorkflow: true,
+      showMetrics: true,
+      showAssignee: true,
+      showDates: true,
+      operationalContextType: "custom",
+      operationalContextLabel: "Proceso",
+      operationalContextOptions: ["Devolucion", "Reacondicionado"],
+      operationalContextValue: "Devolucion",
+    },
+    columns: [
+      { templateKey: "tarimaDevolucion", label: "Tarima", type: "text", required: true, width: "sm", groupName: "Control", groupColor: "#ede9fe" },
+      {
+        templateKey: "tipoFlujoDevolucion",
+        label: "Tipo de flujo",
+        type: "select",
+        optionSource: "manual",
+        options: ["Devolucion", "Reacondicionado"],
+        required: true,
+        width: "sm",
+        groupName: "Control",
+        groupColor: "#ede9fe",
+      },
+      {
+        templateKey: "productoDevolucion",
+        label: "Producto",
+        type: "inventoryLookup",
+        required: true,
+        width: "lg",
+        groupName: "Producto",
+        groupColor: "#e0f2fe",
+        helpText: "Producto desde inventario.",
+      },
+      { templateKey: "loteDevolucion", label: "Lote", type: "text", width: "sm", groupName: "Trazabilidad", groupColor: "#e8eff6" },
+      { templateKey: "caducidadDevolucion", label: "Caducidad", type: "text", width: "sm", groupName: "Trazabilidad", groupColor: "#e8eff6" },
+      { templateKey: "etiquetaDevolucion", label: "Etiqueta", type: "text", width: "sm", groupName: "Trazabilidad", groupColor: "#e8eff6" },
+      { templateKey: "piezasDevolucion", label: "Piezas", type: "number", defaultValue: 0, width: "sm", groupName: "Conteo", groupColor: "#fef3c7" },
+      { templateKey: "metaCajaDevolucion", label: "Meta de caja", type: "number", defaultValue: 50, width: "sm", groupName: "Conteo", groupColor: "#fef3c7" },
+    ],
+  },
+];
+
+export const PROTECTED_SYSTEM_BOARD_TEMPLATE_IDS = new Set([
+  "actividades-limpieza",
+  "revision-tarimas",
+  "devoluciones-reacondicionado",
+]);

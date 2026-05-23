@@ -492,36 +492,6 @@ export default function PanelIndicadores({ contexto }) {
     showGlobalAreaFilter,
   ]);
 
-  useEffect(() => {
-    if (!dashboardBuilderConfig?.components) return;
-
-    const playersComponent = dashboardBuilderConfig.components.find((component) => component.type === "players");
-    if (playersComponent?.settings?.chartType) {
-      setPeopleChartType(playersComponent.settings.chartType);
-    }
-
-    const mermaComponent = dashboardBuilderConfig.components.find((component) => component.type === "merma");
-    if (mermaComponent?.settings?.chartType) {
-      setMermaChartType(mermaComponent.settings.chartType);
-    }
-
-    const trendsComponent = dashboardBuilderConfig.components.find((component) => component.type === "trends");
-    if (trendsComponent?.settings?.chartType) {
-      setTrendChartType(trendsComponent.settings.chartType);
-    }
-
-    const inventoryComponent = dashboardBuilderConfig.components.find((component) => component.type === "inventory");
-    if (inventoryComponent?.settings?.chartType) {
-      setInventoryChartType(inventoryComponent.settings.chartType);
-    }
-    if (inventoryComponent?.settings?.metric) {
-      setInventoryMetric(inventoryComponent.settings.metric);
-    }
-    if (inventoryComponent?.settings?.view) {
-      setInventoryView(inventoryComponent.settings.view);
-    }
-  }, [dashboardBuilderConfig]);
-
   const areAllSectionsOpen = Object.values(dashboardSectionsOpen).every(Boolean);
   const dashboardExportRef = useRef(null);
   const detailPrefsRef = useRef(null);
@@ -533,6 +503,7 @@ export default function PanelIndicadores({ contexto }) {
   const [mermaChartType, setMermaChartType] = useState("bar");
   const [inventoryChartType, setInventoryChartType] = useState("bar");
   const [inventoryMetric, setInventoryMetric] = useState("secondsPerPiece");
+  const [inventoryView, setInventoryView] = useState("all");
   const [productLeaderboardSearch, setProductLeaderboardSearch] = useState("");
   const [expandedProductKey, setExpandedProductKey] = useState("");
   const [showInventoryDetailTable, setShowInventoryDetailTable] = useState(false);
@@ -575,6 +546,40 @@ export default function PanelIndicadores({ contexto }) {
   const [confirmResetOpen, setConfirmResetOpen] = useState(false);
   const [isResetSubmitting, setIsResetSubmitting] = useState(false);
   const [leaderboardBoardFilter, setLeaderboardBoardFilter] = useState("all");
+
+  useEffect(() => {
+    if (!dashboardBuilderConfig?.components) return;
+
+    const playersComponent = dashboardBuilderConfig.components.find((component) => component.type === "players");
+    if (playersComponent?.settings?.chartType) {
+      setPeopleChartType(playersComponent.settings.chartType);
+    }
+
+    const mermaComponent = dashboardBuilderConfig.components.find((component) => component.type === "merma");
+    if (mermaComponent?.settings?.chartType) {
+      setMermaChartType(mermaComponent.settings.chartType);
+    }
+
+    const trendsComponent = dashboardBuilderConfig.components.find((component) => component.type === "trends");
+    if (trendsComponent?.settings?.chartType) {
+      setTrendChartType(trendsComponent.settings.chartType);
+    }
+
+    const inventoryComponent = dashboardBuilderConfig.components.find((component) => component.type === "inventory");
+    if (inventoryComponent?.settings?.chartType) {
+      setInventoryChartType(inventoryComponent.settings.chartType);
+    }
+    if (inventoryComponent?.settings?.metric) {
+      setInventoryMetric(inventoryComponent.settings.metric);
+    }
+    if (inventoryComponent?.settings?.view) {
+      setInventoryView(inventoryComponent.settings.view);
+      if (inventoryComponent.settings.view === "all") {
+        setLeaderboardBoardFilter("all");
+      }
+    }
+  }, [dashboardBuilderConfig]);
+
   const isWeeklyDashboardPeriod = dashboardFilters?.periodType === "week";
   const effectiveTrendChartType = isWeeklyDashboardPeriod ? "line" : trendChartType;
   const effectiveAreaChartType = isWeeklyDashboardPeriod ? "line" : areaChartType;
