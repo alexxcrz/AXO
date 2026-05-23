@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import ReturnsReconditionScanner from "../features/boards/ReturnsReconditionScanner.jsx";
 import OperationalInspectionStartModal from "../components/OperationalInspectionStartModal.jsx";
+import { SpanishDateInput } from "../components/SpanishDateInput";
 import OperationalInspectionRecordModal from "../components/OperationalInspectionRecordModal.jsx";
 import { BoardEditableInventoryPropertyInput, BoardEvidenceCell, BoardMultiSelectDetailCell } from "../components/BoardRuntimeFieldCells.jsx";
 import { downloadBoardAsJson, parseBoardImportJson } from "../utils/boardImportExport";
@@ -130,7 +131,7 @@ function normalizeMaintenanceInventoryLookupValue(rawValue) {
   return [rawValue];
 }
 
-function BoardMaintenanceInventoryLookupCell({ field, inventoryItems, value, onChange, disabled, InventoryLookupInput }) {
+function BoardMaintenanceInventoryLookupCell({ field, inventoryItems, value, onChange, disabled }) {
   const selectedItems = normalizeMaintenanceInventoryLookupValue(value);
   const resolvedItems = selectedItems.map((entry) => {
     const item = resolveInventoryItemFromLookupValue(inventoryItems, entry);
@@ -354,7 +355,6 @@ export default function MisTableros({ contexto }) {
     selectedCustomBoardViewId,
     setSelectedCustomBoardViewId,
     selectedCustomBoardRowId,
-    setSelectedCustomBoardRowId,
     isHistoricalCustomBoardView,
     canChangeSelectedBoardOperationalContext,
     customBoardMetrics: _customBoardMetrics,
@@ -507,15 +507,6 @@ export default function MisTableros({ contexto }) {
     if (!Number.isFinite(hourValue) || !Number.isFinite(minuteValue) || !Number.isFinite(secondValue)) return "";
     if (hourValue < 0 || hourValue > 23 || minuteValue < 0 || minuteValue > 59 || secondValue < 0 || secondValue > 59) return "";
     return `${String(hourValue).padStart(2, "0")}:${String(minuteValue).padStart(2, "0")}:${String(secondValue).padStart(2, "0")}`;
-  }
-
-  // Helpers for Lead time overrides
-  function parseHhmmToSeconds(hhmm) {
-    const parts = String(hhmm || "").split(":");
-    const h = Number.parseInt(parts[0], 10);
-    const m = Number.parseInt(parts[1] || "0", 10);
-    if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
-    return h * 3600 + m * 60;
   }
 
   function _secondsToHhmm(secs) {
@@ -813,11 +804,11 @@ export default function MisTableros({ contexto }) {
     };
 
     updateAssigneeMenuPosition();
-    window.addEventListener("resize", updateAssigneeMenuPosition);
-    window.addEventListener("scroll", updateAssigneeMenuPosition, true);
+    window.addEventListener("resize", updateAssigneeMenuPosition, { passive: true });
+    window.addEventListener("scroll", updateAssigneeMenuPosition, { capture: true, passive: true });
     return () => {
       window.removeEventListener("resize", updateAssigneeMenuPosition);
-      window.removeEventListener("scroll", updateAssigneeMenuPosition, true);
+      window.removeEventListener("scroll", updateAssigneeMenuPosition, { capture: true });
     };
   }, [openAssigneeMenuRowId]);
 
@@ -1949,7 +1940,24 @@ export default function MisTableros({ contexto }) {
                             const fieldEditKey = `${row.id}-${field.id}`;
                             const hasDraft = Object.prototype.hasOwnProperty.call(fieldEditDrafts, fieldEditKey);
                             const inputValue = hasDraft ? fieldEditDrafts[fieldEditKey] : (row.values?.[field.id] || "");
-                            return <td key={field.id} style={columnStyle}><input type="date" value={inputValue} onChange={(event) => setFieldEditDrafts((prev) => ({ ...prev, [fieldEditKey]: event.target.value }))} onBlur={() => commitBoardFieldDraft(selectedCustomBoard.id, row, field, fieldEditKey)} onKeyDown={(event) => { if (event.key !== "Enter") return; event.preventDefault(); commitBoardFieldDraft(selectedCustomBoard.id, row, field, fieldEditKey); }} style={controlStyle} title={field.helpText || field.label} disabled={!rowFieldEditable} /></td>;
+                            return (
+                              <td key={field.id} style={columnStyle}>
+                                <SpanishDateInput
+                                  className="board-inline-date"
+                                  value={inputValue}
+                                  onChange={(event) => {
+                                    updateBoardRowValue(selectedCustomBoard.id, row.id, field, event.target.value);
+                                    setFieldEditDrafts((prev) => {
+                                      const next = { ...prev };
+                                      delete next[fieldEditKey];
+                                      return next;
+                                    });
+                                  }}
+                                  placeholder="Seleccionar fecha"
+                                  disabled={!rowFieldEditable}
+                                />
+                              </td>
+                            );
                           }
 
                           if (field.type === "time") {

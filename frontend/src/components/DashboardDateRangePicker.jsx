@@ -131,11 +131,11 @@ export default function DashboardDateRangePicker({
     }
 
     updatePopoverPosition();
-    globalThis.addEventListener("resize", updatePopoverPosition);
-    globalThis.addEventListener("scroll", updatePopoverPosition, true);
+    globalThis.addEventListener("resize", updatePopoverPosition, { passive: true });
+    globalThis.addEventListener("scroll", updatePopoverPosition, { capture: true, passive: true });
     return () => {
       globalThis.removeEventListener("resize", updatePopoverPosition);
-      globalThis.removeEventListener("scroll", updatePopoverPosition, true);
+      globalThis.removeEventListener("scroll", updatePopoverPosition, { capture: true });
     };
   }, [isOpen]);
 
@@ -154,24 +154,6 @@ export default function DashboardDateRangePicker({
     }
 
     setDraftEndDate(selectedValue);
-  }
-
-  function applyVisibleMonthRange() {
-    const monthStart = new Date(visibleMonth.getFullYear(), visibleMonth.getMonth(), 1);
-    const monthEnd = new Date(visibleMonth.getFullYear(), visibleMonth.getMonth() + 1, 0);
-    setDraftStartDate(formatDashboardDateValue(monthStart));
-    setDraftEndDate(formatDashboardDateValue(monthEnd));
-  }
-
-  function applyVisibleWeekRange() {
-    const base = draftStart || new Date(visibleMonth.getFullYear(), visibleMonth.getMonth(), 1);
-    const weekStart = new Date(base);
-    const weekDay = (weekStart.getDay() + 6) % 7;
-    weekStart.setDate(weekStart.getDate() - weekDay);
-    const weekEnd = new Date(weekStart);
-    weekEnd.setDate(weekEnd.getDate() + 6);
-    setDraftStartDate(formatDashboardDateValue(weekStart));
-    setDraftEndDate(formatDashboardDateValue(weekEnd));
   }
 
   function applyVisibleYearRange() {

@@ -1,9 +1,9 @@
-﻿import { Bell, Pin, X } from "lucide-react";
+import { Bell, Pin, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { formatNotificationTimestamp } from "../utils/utilidades.jsx";
 
 function AppToastStack({ toasts, onDismiss, onPin }) {
-  const [nowMs, setNowMs] = useState(Date.now());
+  const [nowMs, setNowMs] = useState(() => Date.now());
 
   useEffect(() => {
     const timer = globalThis.setInterval(() => setNowMs(Date.now()), 100);
@@ -71,7 +71,7 @@ function AppNotificationCenter({ unreadNotifications, readNotifications, unreadC
   return (
     <div className={`app-notification-center${isOpen ? " open" : ""}`}>
       <button type="button" className={`app-notification-trigger ${unreadCount ? "has-unread" : ""} ${isAttentionActive ? "is-attention" : ""}`.trim()} onClick={onToggle} aria-label="Abrir alertas" aria-expanded={isOpen}>
-        <Bell size={18} />
+        <Bell size={20} strokeWidth={2.35} className="app-notification-bell-icon" aria-hidden="true" />
         {unreadCount ? <span className="app-notification-badge">{Math.min(unreadCount, 99)}</span> : null}
       </button>
       {isOpen ? (

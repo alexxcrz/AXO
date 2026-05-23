@@ -1,16 +1,22 @@
 import { StrictMode, useEffect, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
+import './app/uiThemeExtensions.css'
 import './components/modals.css'
 import App from './App.jsx'
 import copmecLogo from './assets/axo-logo.png'
+import { syncNotificationPrefsToServiceWorker } from './utils/pushBridge.js'
 
 function isStandaloneApp() {
   return globalThis.matchMedia?.('(display-mode: standalone)').matches || globalThis.navigator?.standalone === true;
 }
 
-function RootWithSplash() {
+export function RootWithSplash() {
   const [showStandaloneSplash, setShowStandaloneSplash] = useState(() => isStandaloneApp());
+
+  useEffect(() => {
+    document.documentElement.lang = "es-MX";
+  }, []);
 
   useEffect(() => {
     const lowEnd = (Number(globalThis.navigator?.hardwareConcurrency || 0) > 0 && Number(globalThis.navigator.hardwareConcurrency) <= 4)
@@ -48,7 +54,8 @@ createRoot(document.getElementById('root')).render(
 if ('serviceWorker' in navigator) {
   (async () => {
     try {
-      const registration = await navigator.serviceWorker.register('/service-worker.js');
+      await navigator.serviceWorker.register('/service-worker.js');
+      await syncNotificationPrefsToServiceWorker();
       // Solicitar permisos de notificación
       if ('Notification' in globalThis && Notification.permission === 'default') {
         const permission = await Notification.requestPermission();

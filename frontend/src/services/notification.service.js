@@ -71,7 +71,7 @@ export function showTransportNotification(title, options = {}) {
 
     // Mostrar notificación push si tiene permiso
     if ("Notification" in window && Notification.permission === "granted") {
-      const { playAlert, alertMode, ...notificationOptions } = options || {};
+      const { playAlert: _playAlert, alertMode: _alertMode, ...notificationOptions } = options || {};
       const notification = new Notification(title, {
         icon: "/favicon.ico",
         badge: "/favicon.ico",

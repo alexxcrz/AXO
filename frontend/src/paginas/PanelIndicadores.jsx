@@ -62,8 +62,31 @@ function getDashboardDatePopoverStyle(triggerElement) {
   };
 }
 
-import { formatMinutesToHourMinute, normalizeBoardMultiSelectDetailValue } from "../utils/utilidades";
-import { PAGE_CUSTOM_BOARDS } from "../utils/constantes";
+import { formatMinutesToHourMinute, formatTime, getDashboardPeriodKey, normalizeBoardMultiSelectDetailValue, resolveDashboardInventoryRowMetrics } from "../utils/utilidades";
+import { createDashboardPdfContext, DASHBOARD_PDF_THEME, getDashboardPdfAreaAccent } from "../utils/dashboardPdfTheme";
+import {
+  appendGeneralAreaPanelsToPdf,
+  buildDashboardPdfFileName,
+  exportAreaPanelDashboardPdf,
+  kpiCardsToPdfGridItems,
+  spotlightsToPdfTableBody,
+} from "../utils/dashboardPdfExport";
+import {
+  buildAreaDashboardSpotlights,
+  getAreaDashboardTheme,
+  getAreaDashboardZoneWrapClass,
+} from "../utils/areaDashboardThemes";
+import { buildAreaBridgeKpiCards, buildAreaExecutiveKpiCards } from "../utils/areaDashboardKpis";
+import { navigateToAreaDashboard, openGeneralDashboard } from "../utils/areaDashboardNavigation";
+import {
+  buildGeneralAreaDashboardPanels,
+  mergeAreaSectionsForGeneralDashboard,
+  summarizeTransportForGeneralDashboard,
+} from "../utils/generalAreaDashboardPanels";
+import { getAreaDashboardSections } from "../utils/areaDashboardThemes";
+import { PAGE_CUSTOM_BOARDS, STATUS_FINISHED } from "../utils/constantes";
+import { DashboardRecordStatusCell, formatDashboardRecordStatusSummary } from "../components/ComponentesDashboard";
+import "./PanelIndicadores.css";
 
 function DashboardDateRangePicker({ startDate, endDate, onChange }) {
   const pickerRef = useRef(null);
@@ -115,11 +138,11 @@ function DashboardDateRangePicker({ startDate, endDate, onChange }) {
     }
 
     updatePopoverPosition();
-    globalThis.addEventListener("resize", updatePopoverPosition);
-    globalThis.addEventListener("scroll", updatePopoverPosition, true);
+    globalThis.addEventListener("resize", updatePopoverPosition, { passive: true });
+    globalThis.addEventListener("scroll", updatePopoverPosition, { capture: true, passive: true });
     return () => {
       globalThis.removeEventListener("resize", updatePopoverPosition);
-      globalThis.removeEventListener("scroll", updatePopoverPosition, true);
+      globalThis.removeEventListener("scroll", updatePopoverPosition, { capture: true });
     };
   }, [isOpen]);
 
@@ -210,6 +233,7 @@ export default function PanelIndicadores({ contexto }) {
     dashboardMetrics,
     Gauge,
     DashboardKpiCard,
+    DashboardKpiBento,
     ClipboardList,
     CircleCheckBig,
     Play,
@@ -232,7 +256,23 @@ export default function PanelIndicadores({ contexto }) {
     dashboardDynamicMetricRows,
     dashboardAreaBoardDetailedRows,
     dashboardInventoryProductTimeRows,
+    dashboardPalletLeaderboardRows,
+    dashboardProductPerformanceRows,
     dashboardProductAggregateRows,
+    dashboardBoardInsightRows,
+    dashboardBoardKpiCards,
+    processAuditMetrics,
+    dateFilteredDashboardRecords,
+    areaNavSections,
+    dynamicAreaSectionRoots,
+    transportRecords,
+    PAGE_DASHBOARD,
+    PAGE_PROCESS_AUDITS,
+    PAGE_TRANSPORT,
+    setPage,
+    setSelectedAreaSectionId,
+    setNavTransportSection,
+    setAuditShortcutPreset,
     DashboardProgressMetric,
     PieChart,
     dashboardDistributionRows,
@@ -271,7 +311,6 @@ export default function PanelIndicadores({ contexto }) {
     selectedAreaSection,
     Zap,
     dashboardPauseLogs,
-    setPage,
     setSelectedCustomBoardId,
     setSelectedCustomBoardViewId,
     setSelectedCustomBoardRowId,
@@ -332,6 +371,127 @@ export default function PanelIndicadores({ contexto }) {
 
   const hasDashboardSection = useCallback((sectionType) => visibleDashboardSections.has(sectionType), [visibleDashboardSections]);
 
+  const areaDashboardThemeEarly = useMemo(
+    () => getAreaDashboardTheme(selectedAreaSectionId),
+    [selectedAreaSectionId],
+  );
+
+  const enabledAreaDashboardSections = useMemo(
+    () => new Set(getAreaDashboardSections(areaDashboardThemeEarly)),
+    [areaDashboardThemeEarly],
+  );
+
+  const isDashboardSectionEnabled = useCallback((sectionType) => {
+    if (!hasDashboardSection(sectionType)) return false;
+    if (showGlobalAreaFilter) {
+      if (sectionType === "areas") return true;
+      return true;
+    }
+    return enabledAreaDashboardSections.has(sectionType);
+  }, [enabledAreaDashboardSections, hasDashboardSection, showGlobalAreaFilter]);
+
+  const globalPeriodMetrics = useMemo(() => {
+    const records = Array.isArray(dateFilteredDashboardRecords) ? dateFilteredDashboardRecords : [];
+    const filtered = records.filter((record) => {
+      const periodOk = dashboardFilters.periodKey === "all"
+        || getDashboardPeriodKey(record.occurredAt, dashboardFilters.periodType) === dashboardFilters.periodKey;
+      const responsibleOk = dashboardFilters.responsibleId === "all" || record.responsibleId === dashboardFilters.responsibleId;
+      const sourceOk = dashboardFilters.source === "all" || record.source === dashboardFilters.source;
+      return periodOk && responsibleOk && sourceOk;
+    });
+    const completed = filtered.filter((record) => record.status === STATUS_FINISHED).length;
+    const transportSummary = summarizeTransportForGeneralDashboard(transportRecords, {
+      startDate: dashboardFilters.startDate,
+      endDate: dashboardFilters.endDate,
+    });
+    const auditVolume = Number(processAuditMetrics?.totalAudits || 0);
+    const transportVolume = transportSummary.hasData ? transportSummary.totalSalidas : 0;
+    const boardVolume = filtered.length;
+    return {
+      total: boardVolume + transportVolume + auditVolume,
+      completed,
+      running: filtered.filter((record) => record.status === "running").length,
+      paused: filtered.filter((record) => record.status === "paused").length,
+      boardVolume,
+      transportVolume,
+      auditVolume,
+    };
+  }, [
+    dashboardFilters.endDate,
+    dashboardFilters.periodKey,
+    dashboardFilters.periodType,
+    dashboardFilters.responsibleId,
+    dashboardFilters.source,
+    dashboardFilters.startDate,
+    dateFilteredDashboardRecords,
+    processAuditMetrics?.totalAudits,
+    transportRecords,
+  ]);
+
+  const areaShareOfGeneral = useMemo(() => {
+    if (showGlobalAreaFilter || !globalPeriodMetrics.total) return null;
+    return Math.round((dashboardMetrics.total / globalPeriodMetrics.total) * 100);
+  }, [dashboardMetrics.total, globalPeriodMetrics.total, showGlobalAreaFilter]);
+
+  const dashboardNavigationHandlers = useMemo(() => ({
+    setSelectedAreaSectionId,
+    setPage,
+    PAGE_DASHBOARD,
+    PAGE_PROCESS_AUDITS,
+    PAGE_TRANSPORT,
+    setNavTransportSection,
+    setAuditShortcutPreset,
+    setDashboardFilters,
+  }), [PAGE_DASHBOARD, PAGE_PROCESS_AUDITS, PAGE_TRANSPORT, setAuditShortcutPreset, setDashboardFilters, setNavTransportSection, setPage, setSelectedAreaSectionId]);
+
+  const allAreaSectionsForGeneral = useMemo(
+    () => mergeAreaSectionsForGeneralDashboard(areaNavSections, dynamicAreaSectionRoots),
+    [areaNavSections, dynamicAreaSectionRoots],
+  );
+
+  const linkedAreaSections = useMemo(() => {
+    if (showGlobalAreaFilter) {
+      return allAreaSectionsForGeneral;
+    }
+    return allAreaSectionsForGeneral.filter((section) => section.id !== selectedAreaSectionId);
+  }, [allAreaSectionsForGeneral, selectedAreaSectionId, showGlobalAreaFilter]);
+
+  const generalAreaDashboardPanels = useMemo(() => {
+    if (!showGlobalAreaFilter) return [];
+    return buildGeneralAreaDashboardPanels({
+      areaNavSections,
+      dynamicAreaSectionRoots,
+      filteredDashboardRecords,
+      dashboardAreaRows,
+      dashboardBoardInsightRows,
+      dashboardInventoryProductTimeRows,
+      dashboardResponsibleRows,
+      dashboardPalletLeaderboardRows,
+      processAuditMetrics,
+      globalPeriodMetrics,
+      transportRecords,
+      dashboardDateFilters: {
+        startDate: dashboardFilters.startDate,
+        endDate: dashboardFilters.endDate,
+      },
+    });
+  }, [
+    areaNavSections,
+    dashboardAreaRows,
+    dashboardBoardInsightRows,
+    dynamicAreaSectionRoots,
+    dashboardInventoryProductTimeRows,
+    dashboardPalletLeaderboardRows,
+    dashboardResponsibleRows,
+    filteredDashboardRecords,
+    globalPeriodMetrics,
+    processAuditMetrics,
+    dashboardFilters.endDate,
+    dashboardFilters.startDate,
+    transportRecords,
+    showGlobalAreaFilter,
+  ]);
+
   useEffect(() => {
     if (!dashboardBuilderConfig?.components) return;
 
@@ -366,13 +526,17 @@ export default function PanelIndicadores({ contexto }) {
   const dashboardExportRef = useRef(null);
   const detailPrefsRef = useRef(null);
   const [isExportingPdf, setIsExportingPdf] = useState(false);
-  const [trendChartType, setTrendChartType] = useState("bar");
+  const [exportingAreaPanelId, setExportingAreaPanelId] = useState(null);
+  const [trendChartType, setTrendChartType] = useState("line");
   const [peopleChartType, setPeopleChartType] = useState("bar");
   const [areaChartType, setAreaChartType] = useState("bar");
   const [mermaChartType, setMermaChartType] = useState("bar");
   const [inventoryChartType, setInventoryChartType] = useState("bar");
-  const [inventoryMetric, setInventoryMetric] = useState("totalMinutes");
-  const [inventoryView, setInventoryView] = useState("all");
+  const [inventoryMetric, setInventoryMetric] = useState("secondsPerPiece");
+  const [productLeaderboardSearch, setProductLeaderboardSearch] = useState("");
+  const [expandedProductKey, setExpandedProductKey] = useState("");
+  const [showInventoryDetailTable, setShowInventoryDetailTable] = useState(false);
+  const [isExportingProductPdf, setIsExportingProductPdf] = useState(false);
   const [catalogTypeChartType, setCatalogTypeChartType] = useState("bar");
   const [catalogFreqChartType, setCatalogFreqChartType] = useState("bar");
   const [distributionChartType, setDistributionChartType] = useState("pie");
@@ -411,6 +575,15 @@ export default function PanelIndicadores({ contexto }) {
   const [confirmResetOpen, setConfirmResetOpen] = useState(false);
   const [isResetSubmitting, setIsResetSubmitting] = useState(false);
   const [leaderboardBoardFilter, setLeaderboardBoardFilter] = useState("all");
+  const isWeeklyDashboardPeriod = dashboardFilters?.periodType === "week";
+  const effectiveTrendChartType = isWeeklyDashboardPeriod ? "line" : trendChartType;
+  const effectiveAreaChartType = isWeeklyDashboardPeriod ? "line" : areaChartType;
+
+  useEffect(() => {
+    if (!isWeeklyDashboardPeriod) return;
+    setTrendChartType("line");
+    setAreaChartType("line");
+  }, [isWeeklyDashboardPeriod]);
 
   useEffect(() => {
     if (!confirmResetOpen) return undefined;
@@ -625,60 +798,6 @@ export default function PanelIndicadores({ contexto }) {
 
   
 
-  const areaScopedDynamicMetrics = useMemo(() => {
-    if (!Array.isArray(dashboardDynamicMetricRows)) return [];
-    if (dashboardFilters.area === "all") return dashboardDynamicMetricRows;
-    return dashboardDynamicMetricRows.filter((item) => areaMatchesFilter(item.area, dashboardFilters.area));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dashboardDynamicMetricRows, dashboardFilters.area]);
-
-  const areaPriorityMetricRows = useMemo(() => {
-    const normalizedArea = String(activeAreaLabel || "").toLowerCase();
-    const keywordProfiles = [
-      {
-        match: ["inventario"],
-        preferred: ["tiempo", "revision", "producto", "piez", "sku", "cantidad", "caja", "tarima", "existencia", "stock"],
-      },
-      {
-        match: ["limpieza"],
-        preferred: ["tiempo", "frecuencia", "turno", "check", "cumpl", "avance", "porcentaje"],
-      },
-      {
-        match: ["pedido", "embarque", "logistica"],
-        preferred: ["tiempo", "pedido", "surt", "entrega", "guia", "paquete", "caja", "cumpl"],
-      },
-    ];
-
-    const fallbackPreferred = ["tiempo", "cumpl", "porcentaje", "avance", "cantidad", "piez", "product", "score", "rating"];
-    const selectedProfile = keywordProfiles.find((profile) => profile.match.some((token) => normalizedArea.includes(token)));
-    const preferredTokens = selectedProfile?.preferred || fallbackPreferred;
-
-    return [...areaScopedDynamicMetrics]
-      .map((item) => {
-        const metricLabel = `${item.fieldLabel} ${item.boardName}`.toLowerCase();
-        const score = preferredTokens.reduce((sum, token) => (metricLabel.includes(token) ? sum + 1 : sum), 0);
-        return { ...item, priorityScore: score };
-      })
-      .sort((left, right) => {
-        if (right.priorityScore !== left.priorityScore) return right.priorityScore - left.priorityScore;
-        if (right.count !== left.count) return right.count - left.count;
-        return right.average - left.average;
-      })
-      .slice(0, 4);
-  }, [activeAreaLabel, areaScopedDynamicMetrics]);
-
-  const areaPriorityKpiCards = useMemo(() => {
-    return areaPriorityMetricRows.map((item, index) => ({
-      cardKey: String(item.key || `${item.area}-${item.boardName}-${item.fieldLabel}-${index}`),
-      title: item.fieldLabel,
-      value: `${formatMetricNumber(item.average, 2)}${item.unit ? ` ${item.unit}` : ""}`,
-      subtitle: `${item.area} · ${item.boardName} · ${item.count} muestra(s)`,
-      tone: item.fieldType === "time" ? "cyan" : item.fieldType === "percentage" || item.fieldType === "progress" ? "lime" : "slate",
-      icon: Gauge,
-    }));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [areaPriorityMetricRows]);
-
   const scopedInventoryProductTimeRows = useMemo(() => {
     const rows = Array.isArray(dashboardInventoryProductTimeRows) ? dashboardInventoryProductTimeRows : [];
     const areaFiltered = dashboardFilters.area === "all" ? rows : rows.filter((item) => areaMatchesFilter(item.area, dashboardFilters.area));
@@ -686,88 +805,29 @@ export default function PanelIndicadores({ contexto }) {
       ? areaFiltered
       : areaFiltered.filter((item) => String(item.boardId || "") === leaderboardBoardFilter);
 
-    const mapped = boardFiltered.map((item, index) => {
-      if (index < 3 && typeof window !== "undefined") {
-        window.__INVENTORY_ROW_DEBUG_ITEMS__ = window.__INVENTORY_ROW_DEBUG_ITEMS__ || [];
-        window.__INVENTORY_ROW_DEBUG_ITEMS__.push({
-          index,
-          sourceFields: Array.isArray(item.sourceFields) ? item.sourceFields.map((field) => ({ id: field.id, label: field.label, name: field.name, key: field.key, type: field.type })) : [],
-          rowValues: item.rowValues || {},
-          rawRowValues: item.rawRecord?.rowValues || {},
-          rowLabel: item.rowLabel,
-          boardName: item.boardName,
-          productLookupField: item.sourceFields?.find((field) => String(field?.label || field?.name || field?.key || "").toLowerCase().includes("producto")) || null,
-        });
-      }
-      const tarimaValue = getInventoryRowValue(item, ["tarima", "pallet", "palet"]);
-      const productValue = getInventoryProductLabel(item) || String(item.rowLabel || "").trim();
-      const explicitExpectedPieces = resolveInventoryRowNumericValue(item, ["piezas esperadas", "piezas esperada", "piezas a revisar", "cantidad esperada", "esperadas", "esperado", "piezas previstas"]);
-      const cajasTarima = resolveInventoryRowNumericValue(item, ["cajas tarima", "cajas", "tarimas", "palets", "pallets"]);
-      const piezasPorCaja = resolveInventoryRowNumericValue(item, ["piezas por caja", "piezas/caja", "pieza por caja", "pieza caja", "piezas caja"]);
-      const lookupProductField = item.sourceFields?.find((field) => String(field?.label || field?.name || field?.key || "").toLowerCase().includes("producto"));
-      const productLookupId = lookupProductField ? (item.rowValues?.[lookupProductField.id] ?? item.rowValues?.[lookupProductField.key] ?? item.rowValues?.[lookupProductField.name]) : null;
-      const inventoryProduct = inventoryItemsById && productLookupId ? inventoryItemsById.get(productLookupId) : null;
-      const fallbackPiecesPerBox = Number.isFinite(piezasPorCaja)
-        ? piezasPorCaja
-        : inventoryProduct && Number.isFinite(Number(inventoryProduct.piecesPerBox))
-          ? Number(inventoryProduct.piecesPerBox)
-          : null;
-      const expectedPieces = Number.isFinite(explicitExpectedPieces)
-        ? explicitExpectedPieces
-        : (Number.isFinite(cajasTarima) && Number.isFinite(fallbackPiecesPerBox) ? cajasTarima * fallbackPiecesPerBox : null);
-      const missingPieces = resolveInventoryRowNumericValue(item, ["piezas faltantes", "faltantes", "faltante", "diferencia", "faltan", "piezas faltan"]);
-      const explicitRealPieces = resolveInventoryRowNumericValue(item, ["piezas reales", "reales", "piezas finales", "resultado", "total real"]);
-      const loteValue = resolveInventoryRowFieldValue(item, ["lote", "batch", "corrida"]);
-      const caducityValue = resolveInventoryRowFieldValue(item, ["caducidad", "vence", "expira", "expiracion"]);
-      const startValue = getInventoryRowValue(item, ["inicio", "fecha inicio", "hora inicio", "start", "start time", "hora de inicio"]);
-      const endValue = getInventoryRowValue(item, ["fin", "fecha fin", "hora fin", "end", "end time", "hora de fin"]);
-      const durationMinutes = Number.isFinite(Number(item.durationSeconds)) ? Number(item.durationSeconds) / 60 : 0;
-      // Parse mermas locally from the board row without using leaderboard helpers
-      let rawMerma = resolveInventoryRowFieldValue(item, ["causal", "causales", "motivo", "causa", "causas"]);
-      // Fallback: if resolver returned empty, try direct lookup for multiSelectDetail field
-      if (rawMerma === undefined || rawMerma === null || (typeof rawMerma === "string" && String(rawMerma).trim() === "") || (Array.isArray(rawMerma) && rawMerma.length === 0)) {
-        const fieldsList = Array.isArray(item.sourceFields) ? item.sourceFields : [];
-        const mermaField = fieldsList.find((f) => f?.type === "multiSelectDetail") || fieldsList.find((f) => {
-          const label = String(f?.label || f?.name || f?.key || "").toLowerCase();
-          // prefer causal/causales/motivo fields but avoid matching numeric "piezas" fields
-          return (label.includes("causal") || label.includes("causales") || label.includes("motivo")) && !label.includes("pieza") && !label.includes("piezas");
-        });
-        if (mermaField) {
-          rawMerma = item.rowValues?.[mermaField.id] ?? item.rowValues?.[mermaField.key] ?? item.rowValues?.[mermaField.name] ?? item.rawRecord?.rowValues?.[mermaField.id] ?? item.rawRecord?.rowValues?.[mermaField.key] ?? item.rawRecord?.rowValues?.[mermaField.name] ?? rawMerma;
-        }
-      }
-      const normalizedMerma = normalizeBoardMultiSelectDetailValue(rawMerma);
-      const mermas = normalizedMerma.length
-        ? normalizedMerma.map((entry) => ({ motivo: String(entry.label || entry.option || "").trim(), piezas: Number(String(entry.detail || "").replace(/,/g, ".")) }))
-        : (String(rawMerma || "").trim() ? String(rawMerma || "").split("|").map((part) => {
-          const [motivoRaw, detailRaw = ""] = String(part || "").split(":");
-          return { motivo: String(motivoRaw || "").trim(), piezas: Number(String(detailRaw || "").replace(/,/g, ".")) };
-        }).filter((it) => it.motivo) : []);
-      const totalMermaPieces = mermas.reduce((sum, entry) => sum + (Number.isFinite(entry.piezas) ? entry.piezas : 0), 0);
-      const realPieces = Number.isFinite(explicitRealPieces)
-        ? explicitRealPieces
-        : (Number.isFinite(expectedPieces) ? Math.max(0, expectedPieces - totalMermaPieces - Math.max(0, missingPieces || 0)) : null);
-      const mermasText = mermas.filter((m) => Number.isFinite(m.piezas) && m.piezas > 0).length > 0 ? mermas.filter((m) => Number.isFinite(m.piezas) && m.piezas > 0).map((entry) => `${entry.motivo}: ${Math.round(entry.piezas)}`).join(", ") : "-";
+    return boardFiltered.map((item) => {
+      const metrics = resolveDashboardInventoryRowMetrics(item, inventoryItemsById);
+      const loteValue = getInventoryRowValue(item, ["lote", "batch", "corrida"]);
+      const caducityValue = getInventoryRowValue(item, ["caducidad", "vence", "expira", "expiracion"]);
+      const startValue = item.startTime
+        ? formatTime(item.startTime)
+        : getInventoryRowValue(item, ["inicio", "fecha inicio", "hora inicio", "start", "start time", "hora de inicio"]);
+      const endValue = item.endTime
+        ? formatTime(item.endTime)
+        : getInventoryRowValue(item, ["fin", "fecha fin", "hora fin", "end", "end time", "hora de fin"]);
 
       return {
         ...item,
-        tarimaValue: tarimaValue || "Sin tarima",
-        productValue: productValue || "Sin producto",
-        expectedPieces: Number.isFinite(expectedPieces) ? expectedPieces : null,
-        totalMermaPieces,
-        missingPieces: Number.isFinite(missingPieces) ? missingPieces : null,
-        realPieces: Number.isFinite(realPieces) ? realPieces : null,
+        ...metrics,
         loteValue: loteValue || "-",
         caducityValue: caducityValue || "-",
         startValue: startValue || "-",
         endValue: endValue || "-",
-        durationMinutes,
         occurredAtLabel: item.occurredAt ? new Date(item.occurredAt).toLocaleString("es-MX", { dateStyle: "short", timeStyle: "short" }) : "-",
-        mermas: mermasText,
+        mermas: metrics.mermasText,
       };
     });
-    return mapped;
-  }, [dashboardFilters.area, dashboardInventoryProductTimeRows, leaderboardBoardFilter, areaMatchesFilter, getInventoryRowValue, resolveInventoryRowFieldValue, getInventoryProductLabel, resolveInventoryRowNumericValue, inventoryItemsById]);
+  }, [dashboardFilters.area, dashboardInventoryProductTimeRows, leaderboardBoardFilter, areaMatchesFilter, getInventoryRowValue, inventoryItemsById]);
 
   const scopedProductAggregateRows = useMemo(() => {
     const rows = Array.isArray(dashboardProductAggregateRows) ? dashboardProductAggregateRows : [];
@@ -793,6 +853,135 @@ export default function PanelIndicadores({ contexto }) {
 
   // Si el tablero seleccionado ya no existe en las opciones, resetear
   const leaderboardBoardFilterSafe = leaderboardBoardOptions.some((o) => o.value === leaderboardBoardFilter) ? leaderboardBoardFilter : "all";
+
+  const scopedProductPerformanceRows = useMemo(() => {
+    if (leaderboardBoardFilterSafe === "all" && Array.isArray(dashboardProductPerformanceRows) && dashboardProductPerformanceRows.length) {
+      return dashboardProductPerformanceRows;
+    }
+
+    const productMap = new Map();
+    scopedInventoryProductTimeRows.forEach((row) => {
+      const productKey = row.productKey || String(row.productValue || "sin producto").trim().toLowerCase();
+      const tarimaKey = String(row.tarimaValue || "Sin tarima").trim() || "Sin tarima";
+
+      if (!productMap.has(productKey)) {
+        productMap.set(productKey, {
+          key: productKey,
+          product: row.productValue || "Sin producto",
+          sessions: 0,
+          totalMinutes: 0,
+          totalPieces: 0,
+          tarimas: new Map(),
+        });
+      }
+
+      const productEntry = productMap.get(productKey);
+      productEntry.sessions += 1;
+      productEntry.totalMinutes += Math.max(0, Number(row.durationMinutes || 0));
+      productEntry.totalPieces += Math.max(0, Number(row.piecesReviewed || 0));
+
+      if (!productEntry.tarimas.has(tarimaKey)) {
+        productEntry.tarimas.set(tarimaKey, {
+          key: `${productKey}::${tarimaKey}`,
+          tarima: tarimaKey,
+          sessions: 0,
+          totalMinutes: 0,
+          totalPieces: 0,
+        });
+      }
+
+      const tarimaEntry = productEntry.tarimas.get(tarimaKey);
+      tarimaEntry.sessions += 1;
+      tarimaEntry.totalMinutes += Math.max(0, Number(row.durationMinutes || 0));
+      tarimaEntry.totalPieces += Math.max(0, Number(row.piecesReviewed || 0));
+    });
+
+    return Array.from(productMap.values())
+      .map((entry) => {
+        const tarimas = Array.from(entry.tarimas.values())
+          .map((tarima) => ({
+            ...tarima,
+            avgMinutesPerSession: tarima.sessions > 0 ? tarima.totalMinutes / tarima.sessions : 0,
+            secondsPerPiece: tarima.totalPieces > 0 ? (tarima.totalMinutes * 60) / tarima.totalPieces : null,
+          }))
+          .sort((left, right) => right.totalPieces - left.totalPieces || right.totalMinutes - left.totalMinutes);
+
+        const palletCount = tarimas.length;
+        return {
+          key: entry.key,
+          product: entry.product,
+          sessions: entry.sessions,
+          palletCount,
+          totalMinutes: entry.totalMinutes,
+          totalPieces: entry.totalPieces,
+          avgMinutesPerPallet: palletCount > 0 ? entry.totalMinutes / palletCount : 0,
+          avgMinutesPerSession: entry.sessions > 0 ? entry.totalMinutes / entry.sessions : 0,
+          secondsPerPiece: entry.totalPieces > 0 ? (entry.totalMinutes * 60) / entry.totalPieces : null,
+          tarimas,
+        };
+      })
+      .sort((left, right) => right.totalPieces - left.totalPieces || right.totalMinutes - left.totalMinutes);
+  }, [dashboardProductPerformanceRows, leaderboardBoardFilterSafe, scopedInventoryProductTimeRows]);
+
+  const filteredProductPerformanceRows = useMemo(() => {
+    const query = productLeaderboardSearch.trim().toLowerCase();
+    if (!query) return scopedProductPerformanceRows;
+    return scopedProductPerformanceRows.filter((product) => {
+      if (String(product.product || "").toLowerCase().includes(query)) return true;
+      return (product.tarimas || []).some((tarima) => String(tarima.tarima || "").toLowerCase().includes(query));
+    });
+  }, [scopedProductPerformanceRows, productLeaderboardSearch]);
+
+  const topProductPerformanceRows = useMemo(() => {
+    if (productLeaderboardSearch.trim()) return filteredProductPerformanceRows.slice(0, 12);
+    return filteredProductPerformanceRows.slice(0, 5);
+  }, [filteredProductPerformanceRows, productLeaderboardSearch]);
+
+  const reviewedTarimaSearchOptions = useMemo(() => {
+    const tarimaSet = new Set();
+    scopedInventoryProductTimeRows.forEach((row) => {
+      const tarima = String(row.tarimaValue || "").trim();
+      if (tarima && tarima !== "Sin tarima") tarimaSet.add(tarima);
+    });
+    return Array.from(tarimaSet).sort((left, right) => left.localeCompare(right, "es-MX", { numeric: true }));
+  }, [scopedInventoryProductTimeRows]);
+
+  const scopedPalletLeaderboardRows = useMemo(() => {
+    const sourceRows = leaderboardBoardFilterSafe === "all"
+      ? (Array.isArray(dashboardPalletLeaderboardRows) ? dashboardPalletLeaderboardRows : [])
+      : (() => {
+        const palletMap = new Map();
+        scopedInventoryProductTimeRows.forEach((row) => {
+          const tarimaKey = String(row.tarimaValue || "Sin tarima").trim() || "Sin tarima";
+          const durationMinutes = Math.max(0, Number(row.durationMinutes || 0));
+          const pieces = Math.max(0, Number(row.piecesReviewed || row.realPieces || row.expectedPieces || 0));
+          if (!palletMap.has(tarimaKey)) {
+            palletMap.set(tarimaKey, {
+              key: tarimaKey,
+              tarima: tarimaKey,
+              sessions: 0,
+              totalMinutes: 0,
+              totalPieces: 0,
+            });
+          }
+          const entry = palletMap.get(tarimaKey);
+          entry.sessions += 1;
+          entry.totalMinutes += durationMinutes;
+          entry.totalPieces += pieces;
+        });
+        return Array.from(palletMap.values()).map((entry) => ({
+          ...entry,
+          avgMinutesPerSession: entry.sessions > 0 ? entry.totalMinutes / entry.sessions : 0,
+          secondsPerPiece: entry.totalPieces > 0 ? (entry.totalMinutes * 60) / entry.totalPieces : null,
+        }));
+      })();
+    return sourceRows.sort((left, right) => {
+      const metricKey = inventoryMetric === "secondsPerPiece" ? "secondsPerPiece" : inventoryMetric;
+      const leftValue = Number(left[metricKey] || left.totalMinutes || 0);
+      const rightValue = Number(right[metricKey] || right.totalMinutes || 0);
+      return rightValue - leftValue;
+    });
+  }, [dashboardPalletLeaderboardRows, inventoryMetric, leaderboardBoardFilterSafe, scopedInventoryProductTimeRows]);
 
   const scopedLeaderboardBoardRecords = useMemo(() => {
     const rows = Array.isArray(filteredDashboardRecords)
@@ -1158,12 +1347,119 @@ export default function PanelIndicadores({ contexto }) {
     }
   }
 
+  async function exportProductPerformancePdf() {
+    if (!canExportDashboardActions) return;
+    if (isExportingProductPdf) return;
+
+    try {
+      setIsExportingProductPdf(true);
+      const [{ jsPDF }, autoTableModule] = await Promise.all([import("jspdf"), import("jspdf-autotable")]);
+      const autoTable = autoTableModule.default || autoTableModule.autoTable;
+      const pdf = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
+      const pdfCtx = createDashboardPdfContext(pdf, {
+        areaLabel: activeAreaLabel,
+        accent: DASHBOARD_PDF_THEME.brand,
+      });
+      const { addPageHeader, addPageFooter, drawSectionTable, marginX } = pdfCtx;
+
+      addPageHeader("Rendimiento por producto — Tarimas y piezas", "Promedios acumulados por producto y desglose de tarimas");
+      drawSectionTable(
+        "Promedio por producto",
+        ["Producto", "Tarimas", "Sesiones", "Piezas revisadas", "Min total", "Min / tarima", "Min / sesión", "Seg / pieza"],
+        scopedProductPerformanceRows.map((product) => [
+          product.product,
+          String(product.palletCount || 0),
+          String(product.sessions || 0),
+          formatMetricNumber(product.totalPieces, 0),
+          formatMetricNumber(product.totalMinutes, 1),
+          formatMetricNumber(product.avgMinutesPerPallet, 1),
+          formatMetricNumber(product.avgMinutesPerSession, 1),
+          product.secondsPerPiece !== null ? formatMetricNumber(product.secondsPerPiece, 1) : "-",
+        ]),
+        { autoTable, accent: DASHBOARD_PDF_THEME.brandLight },
+      );
+
+      scopedProductPerformanceRows.forEach((product) => {
+        if (!product.tarimas?.length) return;
+        if ((pdf.lastAutoTable?.finalY || 0) > pdf.internal.pageSize.getHeight() - 120) pdf.addPage();
+        drawSectionTable(
+          `Detalle de tarimas · ${product.product}`,
+          ["Tarima", "Sesiones", "Piezas", "Min total", "Prom / sesión", "Seg / pieza"],
+          product.tarimas.map((tarima) => [
+            tarima.tarima,
+            String(tarima.sessions || 0),
+            formatMetricNumber(tarima.totalPieces, 0),
+            formatMetricNumber(tarima.totalMinutes, 1),
+            formatMetricNumber(tarima.avgMinutesPerSession, 1),
+            tarima.secondsPerPiece !== null ? formatMetricNumber(tarima.secondsPerPiece, 1) : "-",
+          ]),
+          { autoTable, accent: getDashboardPdfAreaAccent("inventario") },
+        );
+      });
+
+      addPageFooter("Rendimiento por producto");
+      pdf.save(`rendimiento-productos-${new Date().toISOString().slice(0, 10)}.pdf`);
+      pushAppToast?.("PDF de rendimiento por producto descargado.", "success");
+    } catch (error) {
+      pushAppToast?.(error?.message || "No fue posible exportar el PDF de productos.", "danger");
+    } finally {
+      setIsExportingProductPdf(false);
+    }
+  }
+
   async function exportDashboardToPdf() {
     if (!canExportDashboardActions) return;
     if (isExportingPdf) return;
 
     try {
       setIsExportingPdf(true);
+      const exportKpiCardsForPdf = showGlobalAreaFilter
+        ? executiveKpiCards
+          .filter((item) => new Set([
+            "Registros analizados",
+            "Cerrados",
+            "En curso",
+            "Pausados",
+            "Tiempo promedio",
+            "Horas productivas",
+            "Eficiencia operativa",
+            "Áreas activas",
+          ]).has(item.title))
+          .map((item) => ({
+            cardKey: `global-${item.title}`,
+            title: item.title,
+            value: item.value,
+            valueMeta: item.valueMeta,
+            subtitle: item.subtitle,
+            tone: item.tone,
+            icon: item.icon,
+            progress: item.progress,
+          }))
+          .concat(dashboardBoardKpiCards || [])
+        : buildAreaExecutiveKpiCards(selectedAreaSectionId, {
+          metrics: dashboardMetrics,
+          boardRows: dashboardBoardInsightRows,
+          inventoryRows: scopedInventoryProductTimeRows,
+          mermaRows: mermaAnalysisRows,
+          pauseAnalysis,
+          palletRows: dashboardPalletLeaderboardRows,
+          responsibleRows: dashboardResponsibleRows,
+          auditMetrics: processAuditMetrics,
+        }).concat(buildAreaBridgeKpiCards(globalPeriodMetrics, dashboardMetrics));
+      const exportAreaSpotlightsForPdf = showGlobalAreaFilter
+        ? []
+        : buildAreaDashboardSpotlights(areaDashboardThemeEarly, dashboardMetrics, {
+          boards: dashboardBoardInsightRows.length,
+          players: dashboardResponsibleRows.length,
+          slaPercent: Math.round(dashboardMetrics.withinPercent || 0),
+          hours: `${formatMetricNumber(dashboardMetrics.totalHours, 1)} h`,
+          inventorySkus: scopedInventoryProductTimeRows.length,
+          mermaRows: mermaAnalysisRows.length,
+          pauseCauses: pauseAnalysis.length,
+          running: dashboardMetrics.running,
+          paused: dashboardMetrics.paused,
+        });
+      const exportGeneralAreaPanelsForPdf = showGlobalAreaFilter ? generalAreaDashboardPanels : [];
       const [{ jsPDF }, autoTableModule] = await Promise.all([import("jspdf"), import("jspdf-autotable")]);
       const autoTable = autoTableModule.default || autoTableModule.autoTable;
       const pdf = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
@@ -1171,66 +1467,32 @@ export default function PanelIndicadores({ contexto }) {
       const pageWidth = pdf.internal.pageSize.getWidth();
       const pageHeight = pdf.internal.pageSize.getHeight();
       const printableWidth = pageWidth - marginX * 2;
-      const BRAND_GREEN = [17, 75, 62];
-      const BRAND_LIGHT = [22, 107, 87];
-      const TEXT_DARK = [24, 54, 47];
-      const TEXT_MID = [60, 80, 74];
-      const TEXT_MUTED = [116, 128, 143];
-      const COLOR_GREEN = [22, 163, 74];
-      const COLOR_AMBER = [217, 119, 6];
-      const COLOR_RED = [220, 38, 38];
-      const COLOR_BLUE = [14, 165, 233];
+      const BRAND_GREEN = DASHBOARD_PDF_THEME.brand;
+      const BRAND_LIGHT = DASHBOARD_PDF_THEME.brandLight;
+      const TEXT_DARK = DASHBOARD_PDF_THEME.textDark;
+      const TEXT_MID = DASHBOARD_PDF_THEME.textMid;
+      const TEXT_MUTED = DASHBOARD_PDF_THEME.textMuted;
+      const COLOR_GREEN = DASHBOARD_PDF_THEME.success;
+      const COLOR_AMBER = DASHBOARD_PDF_THEME.warning;
+      const COLOR_RED = DASHBOARD_PDF_THEME.danger;
+      const COLOR_BLUE = DASHBOARD_PDF_THEME.info;
+      const pdfCtx = createDashboardPdfContext(pdf, { areaLabel: activeAreaLabel, accent: BRAND_GREEN });
+      const exportDate = pdfCtx.exportDate;
 
-      const exportDate = new Intl.DateTimeFormat("es-MX", { day: "2-digit", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" }).format(new Date());
-
-      function addPageHeader(title, subtitle) {
-        pdf.setFillColor(...BRAND_GREEN);
-        pdf.rect(0, 0, pageWidth, 54, "F");
-        pdf.setFillColor(...BRAND_LIGHT);
-        pdf.rect(0, 48, pageWidth, 4, "F");
-        pdf.setTextColor(255, 255, 255);
-        pdf.setFont("helvetica", "bold");
-        pdf.setFontSize(14);
-        pdf.text(title, marginX, 24);
-        pdf.setFont("helvetica", "normal");
-        pdf.setFontSize(8.5);
-        pdf.text(subtitle || `Exportado: ${exportDate}`, marginX, 40);
-        pdf.setFontSize(8.5);
-        pdf.text(`COPMEC · ${activeAreaLabel}`, pageWidth - marginX, 40, { align: "right" });
+      function addPageHeader(title, subtitle, headerAccent = BRAND_GREEN) {
+        pdfCtx.addPageHeader(title, subtitle, headerAccent);
       }
 
       function addPageFooter() {
-        const totalPages = pdf.getNumberOfPages();
-        for (let pageIndex = 1; pageIndex <= totalPages; pageIndex += 1) {
-          pdf.setPage(pageIndex);
-          pdf.setFillColor(245, 248, 246);
-          pdf.rect(0, pageHeight - 22, pageWidth, 22, "F");
-          pdf.setFontSize(7.5);
-          pdf.setTextColor(...TEXT_MUTED);
-          pdf.text(`Dashboard COPMEC · Reporte operativo · ${exportDate}`, marginX, pageHeight - 8);
-          pdf.text(`Página ${pageIndex} de ${totalPages}`, pageWidth - marginX, pageHeight - 8, { align: "right" });
-        }
+        pdfCtx.addPageFooter("Dashboard operativo AXIS ORDO");
       }
 
       function drawSectionTable(title, head, body, options = {}) {
-        const startY = (pdf.lastAutoTable?.finalY || 70) + 16;
-        pdf.setFont("helvetica", "bold");
-        pdf.setFontSize(10);
-        pdf.setTextColor(...TEXT_DARK);
-        pdf.text(title, marginX, startY);
-        pdf.setDrawColor(...BRAND_LIGHT);
-        pdf.setLineWidth(1.5);
-        pdf.line(marginX, startY + 3, marginX + pdf.getTextWidth(title) + 8, startY + 3);
-        autoTable(pdf, {
-          startY: startY + 10,
-          head: [head],
-          body,
-          margin: { left: marginX, right: marginX },
-          tableWidth: printableWidth,
-          styles: { fontSize: 7.5, cellPadding: 4.5, lineColor: [220, 228, 224], lineWidth: 0.3, textColor: [38, 48, 58] },
-          headStyles: { fillColor: BRAND_LIGHT, textColor: [255, 255, 255], fontSize: 8, fontStyle: "bold" },
-          alternateRowStyles: { fillColor: [247, 250, 248] },
-          ...options,
+        const areaAccent = options.areaAccent || BRAND_LIGHT;
+        pdfCtx.drawSectionTable(title, head, body, {
+          autoTable,
+          accent: areaAccent,
+          tableConfig: options,
         });
       }
 
@@ -1263,34 +1525,7 @@ export default function PanelIndicadores({ contexto }) {
       }
 
       function drawKpiGrid(startY, items) {
-        const cols = 4;
-        const cellW = printableWidth / cols;
-        const cellH = 44;
-        items.forEach((item, i) => {
-          const col = i % cols;
-          const row = Math.floor(i / cols);
-          const cx = marginX + col * cellW;
-          const cy = startY + row * (cellH + 6);
-          pdf.setFillColor(247, 250, 248);
-          pdf.setDrawColor(210, 225, 218);
-          pdf.setLineWidth(0.5);
-          pdf.roundedRect(cx, cy, cellW - 6, cellH, 4, 4, "FD");
-          pdf.setFillColor(...(item.alert ? COLOR_RED : item.warn ? COLOR_AMBER : BRAND_LIGHT));
-          pdf.roundedRect(cx, cy, 4, cellH, 2, 2, "F");
-          pdf.setFont("helvetica", "bold");
-          pdf.setFontSize(13);
-          pdf.setTextColor(...TEXT_DARK);
-          pdf.text(String(item.value), cx + 12, cy + 18);
-          pdf.setFont("helvetica", "normal");
-          pdf.setFontSize(7);
-          pdf.setTextColor(...TEXT_MID);
-          pdf.text(item.label, cx + 12, cy + 30);
-          pdf.setFontSize(6);
-          pdf.setTextColor(...TEXT_MUTED);
-          pdf.text(item.sub || "", cx + 12, cy + 40);
-        });
-        const rows = Math.ceil(items.length / cols);
-        return startY + rows * (cellH + 6) + 10;
+        return pdfCtx.drawKpiGrid(startY, items, 6);
       }
 
       // ─── PORTADA ─────────────────────────────────────────────────────────────────
@@ -1303,7 +1538,7 @@ export default function PanelIndicadores({ contexto }) {
       pdf.setFontSize(32);
       pdf.text("Reporte Operativo", marginX, 120);
       pdf.setFontSize(22);
-      pdf.text("Dashboard COPMEC", marginX, 150);
+      pdf.text("Dashboard AXIS ORDO", marginX, 150);
       pdf.setFont("helvetica", "normal");
       pdf.setFontSize(13);
       pdf.setTextColor(180, 230, 210);
@@ -1351,22 +1586,18 @@ export default function PanelIndicadores({ contexto }) {
         headStyles: { fillColor: BRAND_LIGHT, textColor: [255, 255, 255] },
         alternateRowStyles: { fillColor: [247, 250, 248] },
       });
-      // KPI grid
-      const kpiItems = [
-        { value: dashboardMetrics.total, label: "Registros analizados", sub: "actividades y tableros" },
-        { value: dashboardMetrics.completed, label: "Cerrados", sub: "terminados" },
-        { value: dashboardMetrics.running, label: "En curso", sub: "operaciones activas", warn: dashboardMetrics.running > 0 },
-        { value: dashboardMetrics.paused, label: "Pausados", sub: "detenidos", alert: dashboardMetrics.paused > 0 },
-        { value: `${formatMetricNumber(dashboardMetrics.averageMinutes, 1)} min`, label: "Tiempo promedio", sub: "de cierre" },
-        { value: `${formatMetricNumber(dashboardMetrics.medianMinutes, 1)} min`, label: "Mediana", sub: "punto medio ciclo" },
-        { value: `${formatMetricNumber(dashboardMetrics.productionHours ?? dashboardMetrics.totalHours, 1)} h`, label: "Horas productivas", sub: "tiempo real de producción" },
-        { value: `${formatMetricNumber(dashboardMetrics.pauseHours, 1)} h`, label: "Horas en pausa", sub: "tiempo no productivo", alert: dashboardMetrics.pauseHours > 1 },
-        { value: `${formatMetricNumber(dashboardMetrics.efficiency ?? 100, 1)}%`, label: "Eficiencia operativa", sub: "producción / total", alert: (dashboardMetrics.efficiency ?? 100) < 60, warn: (dashboardMetrics.efficiency ?? 100) < 80 },
-        { value: `${formatMetricNumber(dashboardMetrics.withinPercent, 1)}%`, label: "Cumplimiento SLA", sub: "dentro del límite", warn: dashboardMetrics.withinPercent < 80 },
-        { value: dashboardMetrics.pauseCount, label: "Pausas registradas", sub: "con log", warn: dashboardMetrics.pauseCount > 5 },
-        { value: dashboardMetrics.areaCount, label: "Áreas activas", sub: "con movimiento" },
-      ];
+      // KPI grid — mismos KPIs visibles en pantalla
+      const kpiItems = kpiCardsToPdfGridItems(exportKpiCardsForPdf);
       drawKpiGrid((pdf.lastAutoTable?.finalY || 66) + 18, kpiItems);
+
+      if (!showGlobalAreaFilter && exportAreaSpotlightsForPdf.length) {
+        drawSectionTable(
+          "Indicadores destacados del área",
+          ["Indicador", "Valor"],
+          spotlightsToPdfTableBody(exportAreaSpotlightsForPdf),
+          { areaAccent: getDashboardPdfAreaAccent(activeAreaLabel) },
+        );
+      }
 
       // ─── PÁGINA 3: GRÁFICA PLAYER + DISTRIBUCIÓN ─────────────────────────────
       pdf.addPage();
@@ -1461,14 +1692,28 @@ export default function PanelIndicadores({ contexto }) {
       drawSectionTable("Tendencia general", ["Periodo", "Registros", "Cerrados", "En curso", "Pausados", "Horas prod."], dashboardTrendRows.map((item) => [item.label, String(item.total), String(item.completed), String(item.running || 0), String(item.paused || 0), formatMetricNumber(item.totalSeconds / 3600, 1)]));
       drawSectionTable("Consolidado por área", ["Área", "Registros", "Cerrados", "Promedio (min)", "SLA %", "Tableros / Fuentes"], dashboardAreaRows.map((item) => [item.area, String(item.total), String(item.completed), formatMetricNumber(item.averageMinutes, 1), `${formatMetricNumber(item.slaPercent, 1)}%`, String(item.boardCount)]));
 
+      if (showGlobalAreaFilter && exportGeneralAreaPanelsForPdf.length) {
+        appendGeneralAreaPanelsToPdf(pdf, pdfCtx, {
+          panels: exportGeneralAreaPanelsForPdf,
+          autoTable,
+          formatMetricNumber,
+        });
+      }
+
       // ─── PÁGINA 8: DETALLE ÁREA -> TABLERO ───────────────────────────────────
       pdf.addPage();
       addPageHeader("Detalle Operativo por Área y Tablero", "Resumen granular con estado, eficiencia, pausas y métricas detectadas");
-      drawSectionTable("Detalle consolidado", ["Área", "Tablero", "Estados", "Tiempo", "Eficiencia", "Pausas top", "Métricas top", "SKU/Producto top"], filteredAreaBoardDetailedRows.flatMap((areaItem) =>
+      drawSectionTable("Detalle consolidado", ["Área", "Tablero", "Registros por estado", "Tiempo", "Eficiencia", "Pausas top", "Métricas top", "SKU/Producto top"], filteredAreaBoardDetailedRows.flatMap((areaItem) =>
         areaItem.boards.map((board) => [
           areaItem.area,
           board.boardName,
-          `C:${board.completed} R:${board.running} P:${board.paused}`,
+          formatDashboardRecordStatusSummary({
+            completed: board.completed,
+            running: board.running,
+            paused: board.paused,
+            totalRecords: board.totalRecords,
+            completionPercent: board.completionPercent,
+          }).pdfLine,
           `${formatMetricNumber(board.productionHours, 1)}h prod / ${formatMetricNumber(board.pauseHours, 1)}h pausa`,
           `${formatMetricNumber(board.efficiencyPercent, 1)}%`,
           (board.topPauseReasons || []).slice(0, 2).map((reason) => `${reason.reason} (${formatMetricNumber((reason.seconds || 0) / 60, 1)}m)`).join(" | ") || "Sin pausas",
@@ -1476,24 +1721,75 @@ export default function PanelIndicadores({ contexto }) {
           (board.inventoryProducts || []).slice(0, 2).map((product) => `${product.product}: ${formatMetricNumber(product.totalMinutes, 1)}m`).join(" | ") || "N/A",
         ]),
       ));
+      if (dashboardBoardInsightRows.length) {
+        pdf.addPage();
+        addPageHeader("KPIs por tablero", "Métricas automáticas por tablero, área y flujo operativo");
+        drawSectionTable(
+          "Resumen por tablero",
+          ["Área", "Tablero", "Registros", "Cerrados", "En curso", "Pausados", "Ciclo prom.", "Eficiencia", "Métricas top"],
+          dashboardBoardInsightRows.map((board) => [
+            board.area,
+            board.boardName,
+            String(board.totalRecords || 0),
+            String(board.completed || 0),
+            String(board.running || 0),
+            String(board.paused || 0),
+            formatMetricNumber(board.averageCycleMinutes, 1),
+            `${formatMetricNumber(board.efficiencyPercent, 1)}%`,
+            (board.dynamicMetrics || []).slice(0, 2).map((metric) => `${metric.fieldLabel}: ${formatMetricNumber(metric.average, 1)}${metric.unit ? ` ${metric.unit}` : ""}`).join(" | ") || "—",
+          ]),
+          { areaAccent: getDashboardPdfBoardAccent(dashboardBoardInsightRows[0]?.boardName, dashboardBoardInsightRows[0]?.area) },
+        );
+        const returnsBoard = dashboardBoardInsightRows.find((board) => board.isReturnsBoard);
+        if (returnsBoard) {
+          drawSectionTable(
+            "Devoluciones / Reacondicionado",
+            ["Indicador", "Valor"],
+            [
+              ["Registros totales", String(returnsBoard.totalRecords || 0)],
+              ["Flujo devolución", String(returnsBoard.returnsDevolucion || 0)],
+              ["Flujo reacondicionado", String(returnsBoard.returnsReacondicionado || 0)],
+              ["Tarimas distintas", String(returnsBoard.tarimaCount || 0)],
+              ["Piezas revisadas", String(Math.round(returnsBoard.piecesTotal || 0))],
+            ],
+            { areaAccent: getDashboardPdfBoardAccent(returnsBoard.boardName, returnsBoard.area) },
+          );
+        }
+      }
+
+      if (scopedProductPerformanceRows.length) {
+        pdf.addPage();
+        addPageHeader("Rendimiento por producto", "Promedios por producto con desglose de tarimas", DASHBOARD_PDF_THEME.brandLight);
+        drawSectionTable(
+          "Promedio por producto",
+          ["Producto", "Tarimas", "Sesiones", "Piezas", "Min total", "Min/tarima", "Min/sesión", "Seg/pieza"],
+          scopedProductPerformanceRows.map((product) => [
+            product.product,
+            String(product.palletCount || 0),
+            String(product.sessions || 0),
+            formatMetricNumber(product.totalPieces, 0),
+            formatMetricNumber(product.totalMinutes, 1),
+            formatMetricNumber(product.avgMinutesPerPallet, 1),
+            formatMetricNumber(product.avgMinutesPerSession, 1),
+            product.secondsPerPiece !== null ? formatMetricNumber(product.secondsPerPiece, 1) : "-",
+          ]),
+        );
+      }
+
       if (scopedInventoryProductTimeRows.length) {
         pdf.addPage();
         addPageHeader("Inventario literal", "Registros de producto, tarima y merma con causas identificadas");
         drawSectionTable(
           "Inventario literal",
-          ["Tablero", "Tarima", "Producto", "Pzas esperadas", "Pzas merma", "Pzas faltantes", "Pzas reales", "Lote", "Caducidad", "Inicio", "Fin", "Minutos", "Player", "Causal"],
+          ["Tablero", "Tarima", "Producto", "Piezas revisadas", "Pzas esperadas", "Pzas merma", "Pzas faltantes", "Minutos", "Player", "Causal"],
           scopedInventoryProductTimeRows.slice(0, 20).map((item) => [
             item.boardName || "—",
             item.tarimaValue || "—",
             item.productValue || "—",
+            formatMetricNumber(item.piecesReviewed, 0),
             Number.isFinite(item.expectedPieces) ? formatMetricNumber(item.expectedPieces, 0) : "-",
             Number.isFinite(item.totalMermaPieces) ? formatMetricNumber(item.totalMermaPieces, 0) : "-",
             Number.isFinite(item.missingPieces) ? formatMetricNumber(item.missingPieces, 0) : "-",
-            Number.isFinite(item.realPieces) ? formatMetricNumber(item.realPieces, 0) : "-",
-            item.loteValue || "-",
-            item.caducityValue || "-",
-            item.startValue || "-",
-            item.endValue || "-",
             formatMetricNumber(item.durationMinutes, 1),
             item.responsibleName || "-",
             item.mermas || "-",
@@ -1593,9 +1889,16 @@ export default function PanelIndicadores({ contexto }) {
       });
 
       addPageFooter();
-      const hasDateRange = dashboardFilters.startDate || dashboardFilters.endDate;
-      const fileSuffix = hasDateRange ? `${dashboardFilters.startDate || "inicio"}-${dashboardFilters.endDate || "fin"}` : activeAreaLabel.toLowerCase().replaceAll(/\s+/g, "-");
-      pdf.save(`dashboard-copmec-${fileSuffix}.pdf`);
+      pdf.save(buildDashboardPdfFileName({
+        areaLabel: activeAreaLabel,
+        sectionId: selectedAreaSectionId,
+        startDate: dashboardFilters.startDate,
+        endDate: dashboardFilters.endDate,
+        isGeneralView: showGlobalAreaFilter,
+      }));
+      pushAppToast?.("PDF del dashboard descargado con todos los KPIs visibles.", "success");
+    } catch (error) {
+      pushAppToast?.(error?.message || "No fue posible exportar el PDF del dashboard.", "danger");
     } finally {
       setIsExportingPdf(false);
     }
@@ -1636,9 +1939,9 @@ export default function PanelIndicadores({ contexto }) {
     },
     { title: "Horas productivas", value: `${formatMetricNumber(dashboardMetrics.productionHours ?? dashboardMetrics.totalHours, 1)} h`, subtitle: "tiempo real de producción", tone: "green", icon: CalendarDays, visible: hasAnyUsage },
     { title: "Horas en pausa", value: `${formatMetricNumber(dashboardMetrics.pauseHours, 1)} h`, subtitle: "tiempo no productivo acumulado", tone: "red", icon: OctagonAlert, visible: hasPauseUsage },
-    { title: "Eficiencia operativa", value: `${formatMetricNumber(dashboardMetrics.efficiency ?? 100, 1)}%`, subtitle: "producción / tiempo total", tone: dashboardMetrics.efficiency >= 80 ? "lime" : dashboardMetrics.efficiency >= 60 ? "amber" : "red", icon: Zap, visible: hasAnyUsage },
-    { title: "Cumplimiento SLA", value: `${formatMetricNumber(dashboardMetrics.withinPercent, 1)}%`, subtitle: "porcentaje dentro del límite", tone: "lime", icon: Zap, visible: hasSlaUsage && hasActivityUsage },
-    { title: "Fuera de SLA", value: `${formatMetricNumber(dashboardMetrics.outsidePercent, 1)}%`, subtitle: "proporción fuera del objetivo", tone: "amber", icon: AlertTriangle, visible: hasSlaUsage && hasActivityUsage },
+    { title: "Eficiencia operativa", value: `${formatMetricNumber(dashboardMetrics.efficiency ?? 100, 1)}%`, subtitle: "producción / tiempo total", tone: dashboardMetrics.efficiency >= 80 ? "lime" : dashboardMetrics.efficiency >= 60 ? "amber" : "red", icon: Zap, progress: dashboardMetrics.efficiency, visible: hasAnyUsage },
+    { title: "Cumplimiento SLA", value: `${formatMetricNumber(dashboardMetrics.withinPercent, 1)}%`, subtitle: "porcentaje dentro del límite", tone: "lime", icon: Zap, progress: dashboardMetrics.withinPercent, visible: hasSlaUsage && hasActivityUsage },
+    { title: "Fuera de SLA", value: `${formatMetricNumber(dashboardMetrics.outsidePercent, 1)}%`, subtitle: "proporción fuera del objetivo", tone: "amber", icon: AlertTriangle, progress: dashboardMetrics.outsidePercent, visible: hasSlaUsage && hasActivityUsage },
     { title: "Pausas registradas", value: String(dashboardMetrics.pauseCount), subtitle: "interrupciones con log", tone: "slate", icon: Pause, visible: hasPauseUsage },
     { title: "Áreas activas", value: String(dashboardMetrics.areaCount), subtitle: "áreas con movimiento operativo", tone: "cyan", icon: Users, visible: hasAnyUsage },
     { title: "Catálogo activo", value: String(dashboardMetrics.catalogActiveCount), subtitle: "actividades disponibles", tone: "slate", icon: ClipboardList, visible: hasCatalogUsage },
@@ -1648,34 +1951,263 @@ export default function PanelIndicadores({ contexto }) {
     { title: "Frecuencias activas", value: String(dashboardMetrics.catalogFrequencyTypes), subtitle: "tipos de periodicidad en uso", tone: "cyan", icon: CalendarDays, visible: hasCatalogUsage },
   ].filter((item) => item.visible !== false);
 
+  const unifiedDashboardKpiCards = useMemo(() => {
+    if (!showGlobalAreaFilter) {
+      const areaCards = buildAreaExecutiveKpiCards(selectedAreaSectionId, {
+        metrics: dashboardMetrics,
+        boardRows: dashboardBoardInsightRows,
+        inventoryRows: scopedInventoryProductTimeRows,
+        mermaRows: mermaAnalysisRows,
+        pauseAnalysis,
+        palletRows: dashboardPalletLeaderboardRows,
+        responsibleRows: dashboardResponsibleRows,
+        auditMetrics: processAuditMetrics,
+      });
+      const bridgeCards = buildAreaBridgeKpiCards(globalPeriodMetrics, dashboardMetrics);
+      return areaCards.concat(bridgeCards);
+    }
+
+    const essentialTitles = new Set([
+      "Registros analizados",
+      "Cerrados",
+      "En curso",
+      "Pausados",
+      "Tiempo promedio",
+      "Horas productivas",
+      "Eficiencia operativa",
+      "Áreas activas",
+    ]);
+    const globalCards = executiveKpiCards
+      .filter((item) => essentialTitles.has(item.title))
+      .map((item) => ({
+        cardKey: `global-${item.title}`,
+        title: item.title,
+        value: item.value,
+        valueMeta: item.valueMeta,
+        subtitle: item.subtitle,
+        tone: item.tone,
+        icon: item.icon,
+        progress: item.progress,
+      }));
+    return globalCards.concat(dashboardBoardKpiCards || []);
+  }, [
+    dashboardBoardInsightRows,
+    dashboardBoardKpiCards,
+    dashboardMetrics,
+    dashboardPalletLeaderboardRows,
+    dashboardResponsibleRows,
+    executiveKpiCards,
+    mermaAnalysisRows,
+    pauseAnalysis,
+    globalPeriodMetrics,
+    processAuditMetrics,
+    scopedInventoryProductTimeRows,
+    selectedAreaSectionId,
+    showGlobalAreaFilter,
+  ]);
+
+  const areaDashboardTheme = areaDashboardThemeEarly;
+
+  const areaDashboardSpotlights = useMemo(() => {
+    if (showGlobalAreaFilter) return [];
+    return buildAreaDashboardSpotlights(areaDashboardTheme, dashboardMetrics, {
+      boards: dashboardBoardInsightRows.length,
+      players: dashboardResponsibleRows.length,
+      slaPercent: Math.round(dashboardMetrics.withinPercent || 0),
+      hours: `${formatMetricNumber(dashboardMetrics.totalHours, 1)} h`,
+      inventorySkus: scopedInventoryProductTimeRows.length,
+      mermaRows: mermaAnalysisRows.length,
+      pauseCauses: pauseAnalysis.length,
+      running: dashboardMetrics.running,
+      paused: dashboardMetrics.paused,
+    });
+  }, [
+    areaDashboardTheme,
+    dashboardBoardInsightRows.length,
+    dashboardMetrics,
+    dashboardResponsibleRows.length,
+    mermaAnalysisRows.length,
+    pauseAnalysis.length,
+    scopedInventoryProductTimeRows.length,
+    showGlobalAreaFilter,
+  ]);
+
+  const exportAreaPanelToPdf = useCallback(async (panel) => {
+    if (!canExportDashboardActions || !panel) return;
+    if (exportingAreaPanelId) return;
+    try {
+      setExportingAreaPanelId(panel.section.id);
+      await exportAreaPanelDashboardPdf({
+        panel,
+        dashboardFilters,
+        visibleUsers,
+        formatMetricNumber,
+      });
+      pushAppToast?.(`PDF de ${panel.section.label} descargado.`, "success");
+    } catch (error) {
+      pushAppToast?.(error?.message || "No fue posible exportar el PDF del área.", "danger");
+    } finally {
+      setExportingAreaPanelId(null);
+    }
+  }, [
+    canExportDashboardActions,
+    dashboardFilters,
+    exportingAreaPanelId,
+    formatMetricNumber,
+    pushAppToast,
+    visibleUsers,
+  ]);
+
+  const dashboardModeClass = showGlobalAreaFilter
+    ? "dashboard-page--general"
+    : `dashboard-page--section dashboard-page--${selectedAreaSectionId} dashboard-page--layout-${areaDashboardTheme.layout}`;
+
+  const dashboardThemeStyle = showGlobalAreaFilter
+    ? undefined
+    : {
+        "--dash-accent": areaDashboardTheme.accent,
+        "--dash-accent-soft": areaDashboardTheme.accentSoft,
+        "--dash-accent-border": areaDashboardTheme.accentBorder,
+      };
+
+  const zoneWrap = (zoneKey, node) => (
+    <div className={showGlobalAreaFilter ? "dashboard-zone-wrap" : getAreaDashboardZoneWrapClass(areaDashboardTheme, zoneKey)}>
+      {node}
+    </div>
+  );
+
   return (
-    <section ref={dashboardExportRef} className="dashboard-page">
-      <div className="dashboard-topbar">
-        <div>
-          <h3>Dashboard COPMEC</h3>
+    <section
+      ref={dashboardExportRef}
+      className={`dashboard-page dashboard-page-v2 ${dashboardModeClass}`}
+      style={dashboardThemeStyle}
+    >
+      <header className={`dashboard-hero dashboard-hero--${showGlobalAreaFilter ? "general" : areaDashboardTheme.heroVariant}`}>
+        <div className="dashboard-hero-copy">
+          <p className="dashboard-hero-eyebrow">{showGlobalAreaFilter ? "Vista corporativa" : areaDashboardTheme.eyebrow}</p>
+          <h2 className="dashboard-hero-title">{showGlobalAreaFilter ? "Dashboard general" : `Dashboard · ${activeAreaLabel}`}</h2>
+          <p className="dashboard-hero-subtitle">
+            {showGlobalAreaFilter
+              ? "Cada bloque resume un aspecto distinto. Los datos de tableros se muestran tal cual fueron capturados."
+              : areaDashboardTheme.subtitle}
+          </p>
         </div>
-        <div className="dashboard-filter-panel">
-          <div className="dashboard-filter-row">
-            <label className="dashboard-filter-field dashboard-filter-field-range">
-              <span>Rango de fechas</span>
-              <DashboardDateRangePicker
-                startDate={dashboardFilters.startDate}
-                endDate={dashboardFilters.endDate}
-                onChange={({ startDate, endDate }) => setDashboardFilters((current) => ({ ...current, startDate, endDate }))}
-              />
-            </label>
-            {showGlobalAreaFilter ? (
-              <label className="dashboard-filter-field">
-                <span>Área</span>
-                <select value={dashboardFilters.area} onChange={(event) => setDashboardFilters((current) => ({ ...current, area: event.target.value }))}>
-                  {dashboardAreaOptions.map((option) => (
-                    <option key={option.value} value={option.value}>{option.label}</option>
-                  ))}
-                </select>
+        {areaDashboardTheme.heroVariant === "scorecard" && !showGlobalAreaFilter ? (
+          <div className="dashboard-hero-scorecard" aria-label="Cumplimiento SLA">
+            <span>SLA en periodo</span>
+            <strong>{formatMetricNumber(dashboardMetrics.withinPercent, 0)}%</strong>
+            <small>{dashboardMetrics.exceeded?.length || 0} fuera de objetivo</small>
+          </div>
+        ) : (
+          <div className="dashboard-hero-stats">
+            <div className="dashboard-hero-stat">
+              <span>Registros</span>
+              <strong>{dashboardMetrics.total}</strong>
+            </div>
+            <div className="dashboard-hero-stat">
+              <span>Cerrados</span>
+              <strong>{dashboardMetrics.completed}</strong>
+            </div>
+            <div className="dashboard-hero-stat">
+              <span>{showGlobalAreaFilter ? "Áreas" : "Tableros"}</span>
+              <strong>{showGlobalAreaFilter ? dashboardMetrics.areaCount : dashboardBoardInsightRows.length}</strong>
+            </div>
+          </div>
+        )}
+      </header>
+
+      {!showGlobalAreaFilter && areaDashboardSpotlights.length ? (
+        <div className={`dashboard-area-spotlight dashboard-area-spotlight--${areaDashboardTheme.layout}`}>
+          {areaDashboardSpotlights.map((item) => (
+            <article key={item.key} className={`dashboard-area-spotlight-card dashboard-area-spotlight-card--${item.tone}`}>
+              <span>{item.label}</span>
+              <strong>{item.value}</strong>
+            </article>
+          ))}
+        </div>
+      ) : null}
+
+      <nav className="dashboard-area-hub" aria-label="Navegación entre dashboard general y áreas">
+        {showGlobalAreaFilter ? (
+          <>
+            <span className="dashboard-area-hub-label">Ir al dashboard del área</span>
+            <div className="dashboard-area-hub-links">
+              {linkedAreaSections.map((section) => (
+                <button
+                  key={section.id}
+                  type="button"
+                  className="dashboard-area-hub-link"
+                  onClick={() => navigateToAreaDashboard(section, dashboardNavigationHandlers)}
+                >
+                  {section.label}
+                </button>
+              ))}
+            </div>
+          </>
+        ) : (
+          <>
+            <button
+              type="button"
+              className="dashboard-area-hub-back"
+              onClick={() => openGeneralDashboard(dashboardNavigationHandlers)}
+            >
+              Dashboard general
+            </button>
+            <span className="dashboard-area-hub-context">
+              Vista de <strong>{activeAreaLabel}</strong>
+              {areaShareOfGeneral != null ? (
+                <> · <strong>{areaShareOfGeneral}%</strong> del volumen corporativo ({formatMetricNumber(dashboardMetrics.total)} / {formatMetricNumber(globalPeriodMetrics.total)} registros)</>
+              ) : null}
+            </span>
+            <div className="dashboard-area-hub-links">
+              {linkedAreaSections.slice(0, 8).map((section) => (
+                <button
+                  key={section.id}
+                  type="button"
+                  className="dashboard-area-hub-link"
+                  onClick={() => navigateToAreaDashboard(section, dashboardNavigationHandlers)}
+                >
+                  {section.label}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+      </nav>
+
+      <div className="dashboard-topbar dashboard-topbar-v2">
+        <div className="dashboard-topbar-heading">
+          <h3>Filtros del periodo</h3>
+        </div>
+        <div className="dashboard-filter-panel dashboard-filter-panel-v2">
+          <div className="dashboard-filter-grid-v2">
+            <div className="dashboard-filter-grid-fields">
+              <label className="dashboard-filter-field dashboard-filter-field-range">
+                <span>Rango de fechas</span>
+                <DashboardDateRangePicker
+                  startDate={dashboardFilters.startDate}
+                  endDate={dashboardFilters.endDate}
+                  onChange={({ startDate, endDate }) => setDashboardFilters((current) => ({ ...current, startDate, endDate }))}
+                />
               </label>
-            ) : null}
-            <div className="dashboard-player-source-row">
-              <label className="dashboard-filter-field">
+              {showGlobalAreaFilter ? (
+                <label className="dashboard-filter-field dashboard-filter-field-area">
+                  <span>Área</span>
+                  <select value={dashboardFilters.area} onChange={(event) => setDashboardFilters((current) => ({ ...current, area: event.target.value }))}>
+                    {dashboardAreaOptions.map((option) => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
+                  </select>
+                </label>
+              ) : (
+                <label className="dashboard-filter-field dashboard-filter-field-area">
+                  <span>Área vinculada</span>
+                  <span className="dashboard-filter-locked-area" title="Sincronizada con el menú lateral y el dashboard general">
+                    {activeAreaLabel}
+                  </span>
+                </label>
+              )}
+              <label className="dashboard-filter-field dashboard-filter-field-player">
                 <span>Player</span>
                 <select value={dashboardFilters.responsibleId} onChange={(event) => setDashboardFilters((current) => ({ ...current, responsibleId: event.target.value }))}>
                   <option value="all">Todos los players</option>
@@ -1683,7 +2215,7 @@ export default function PanelIndicadores({ contexto }) {
                 </select>
               </label>
             </div>
-            <div className="dashboard-action-row dashboard-filter-inline-actions" role="group" aria-label="Acciones del dashboard">
+            <div className="dashboard-action-row dashboard-filter-inline-actions dashboard-filter-grid-actions" role="group" aria-label="Acciones del dashboard">
               {canManageDashboardActions ? (
                 <button
                   type="button"
@@ -1714,8 +2246,8 @@ export default function PanelIndicadores({ contexto }) {
                   className="icon-button dashboard-filter-icon-button"
                   onClick={exportDashboardToPdf}
                   disabled={isExportingPdf}
-                  title={isExportingPdf ? "Exportando PDF de datos" : "Exportar PDF"}
-                  aria-label={isExportingPdf ? "Exportando PDF de datos" : "Exportar PDF"}
+                  title={isExportingPdf ? "Generando PDF…" : "Descargar PDF con todos los KPIs visibles"}
+                  aria-label={isExportingPdf ? "Generando PDF…" : "Descargar PDF con todos los KPIs visibles"}
                 >
                   <Download size={16} />
                 </button>
@@ -1741,47 +2273,175 @@ export default function PanelIndicadores({ contexto }) {
         </div>
       </div>
 
-      {hasDashboardSection("executive") ? (
-      <DashboardSection title="Resumen ejecutivo" subtitle="KPIs principales para una lectura rápida del periodo filtrado." summary={`${dashboardMetrics.total} registros · ${dashboardMetrics.completed} cerrados · ${dashboardMetrics.areaCount} áreas`} icon={Gauge} open={dashboardSectionsOpen.executive} onToggle={() => setDashboardSectionsOpen((current) => ({ ...current, executive: !current.executive }))}>
-        <div className="dashboard-kpi-grid dashboard-kpi-grid-executive dashboard-kpi-grid-7">
-          {executiveKpiCards.map((item) => (
-            <DashboardKpiCard
-              key={item.title}
+      {isDashboardSectionEnabled("executive") ? zoneWrap("executive", (
+      <DashboardSection zone="executive" title={showGlobalAreaFilter ? "Resumen corporativo" : areaDashboardTheme.executiveTitle} subtitle={showGlobalAreaFilter ? "Totales del periodo. Debajo verás el dashboard completo de cada área con sus KPIs específicos." : areaDashboardTheme.executiveSubtitle} summary={`${dashboardMetrics.total} registros · ${dashboardMetrics.completed} cerrados · ${dashboardAreaRows.length} áreas activas`} icon={Gauge} open={dashboardSectionsOpen.executive} onToggle={() => setDashboardSectionsOpen((current) => ({ ...current, executive: !current.executive }))}>
+        <div className={`dashboard-kpi-bento-grid dashboard-kpi-bento-grid-6 dashboard-kpi-bento-grid-compact-cards${!showGlobalAreaFilter ? ` dashboard-kpi-bento-grid--area-${areaDashboardTheme.layout}` : ""}`}>
+          {unifiedDashboardKpiCards.map((item) => (
+            <DashboardKpiBento
+              key={item.cardKey}
               title={item.title}
-              value={item.value}
-              valueMeta={item.valueMeta}
+              value={item.valueMeta ? `${item.value} (${item.valueMeta})` : item.value}
               subtitle={item.subtitle}
               tone={item.tone}
-              icon={item.icon}
+              icon={item.icon || Gauge}
+              progress={item.progress}
+              compact
             />
           ))}
         </div>
-        {areaPriorityKpiCards.length ? (
-        <div className="dashboard-kpi-priority-shell">
-          <div className="dashboard-panel-header">
-            <h3>KPIs priorizados de {activeAreaLabel}</h3>
-            <Gauge size={18} />
+        {!unifiedDashboardKpiCards.length ? (
+          <p className="dashboard-empty-text">No hay indicadores para el filtro actual.</p>
+        ) : null}
+        {!showGlobalAreaFilter && dashboardBoardInsightRows.length > 0 ? (
+          <div className="dashboard-area-board-summary">
+            <h4 className="dashboard-area-board-summary-title">Tableros del área en este periodo</h4>
+            <div className="dashboard-table-wrap">
+              <table className="dashboard-table-clean dashboard-table-compact">
+                <thead>
+                  <tr>
+                    <th>Tablero</th>
+                    <th>Registros</th>
+                    <th>Cumplimiento</th>
+                    <th>Piezas</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {dashboardBoardInsightRows.slice(0, 12).map((board) => (
+                    <tr key={board.key}>
+                      <td>{board.boardName}</td>
+                      <td>{board.totalRecords}</td>
+                      <td>{Math.round(board.completionPercent || 0)}%</td>
+                      <td>{board.piecesTotal > 0 ? formatMetricNumber(board.piecesTotal, 0) : "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
-          <div className="dashboard-kpi-grid dashboard-kpi-grid-executive">
-            {areaPriorityKpiCards.map((item) => (
-              <DashboardKpiCard
-                key={item.cardKey}
-                title={item.title}
-                value={item.value}
-                valueMeta={item.valueMeta}
-                subtitle={item.subtitle}
-                tone={item.tone}
-                icon={item.icon}
-              />
-            ))}
-          </div>
-        </div>
         ) : null}
       </DashboardSection>
-      ) : null}
+      )) : null}
 
-      {hasDashboardSection("players") ? (
-      <DashboardSection title="Análisis por player" subtitle="Desempeño individual, carga y cumplimiento por persona." summary={`${dashboardResponsibleRows.length} players con métricas`} icon={Users} open={dashboardSectionsOpen.people} onToggle={() => setDashboardSectionsOpen((current) => ({ ...current, people: !current.people }))}>
+      {showGlobalAreaFilter && isDashboardSectionEnabled("areas") ? zoneWrap("areas", (
+      <DashboardSection
+        zone="areas"
+        title="Dashboards por área operativa"
+        subtitle="Cada bloque replica el dashboard dedicado del área con sus KPIs propios (mismo periodo y filtros que el general)."
+        summary={`${generalAreaDashboardPanels.filter((panel) => panel.hasActivity).length} con actividad · ${generalAreaDashboardPanels.length} áreas en el sistema`}
+        icon={BarChart3}
+        open={dashboardSectionsOpen.byArea ?? true}
+        onToggle={() => setDashboardSectionsOpen((current) => ({ ...current, byArea: !(current.byArea ?? true) }))}
+      >
+        <div className="dashboard-general-areas-stack">
+          {generalAreaDashboardPanels.map((panel) => (
+            <article
+              key={panel.section.id}
+              className={`dashboard-general-area-panel dashboard-general-area-panel--${panel.theme.layout}${panel.hasActivity ? "" : " dashboard-general-area-panel--empty"}`}
+              style={panel.themeStyle}
+            >
+              <header className={`dashboard-general-area-panel-hero dashboard-hero--${panel.theme.heroVariant}`}>
+                <div className="dashboard-general-area-panel-hero-copy">
+                  <p className="dashboard-hero-eyebrow">{panel.theme.eyebrow}</p>
+                  <h3 className="dashboard-general-area-panel-title">{panel.section.label}</h3>
+                  <p className="dashboard-hero-subtitle">{panel.theme.subtitle}</p>
+                </div>
+                <div className="dashboard-general-area-panel-hero-meta">
+                  {panel.hasActivity ? (
+                    <span className="dashboard-general-area-share">{panel.sharePercent}% del general</span>
+                  ) : (
+                    <span className="dashboard-general-area-share dashboard-general-area-share--muted">Sin actividad</span>
+                  )}
+                  <div className="dashboard-general-area-panel-actions">
+                    {canExportDashboardActions ? (
+                      <button
+                        type="button"
+                        className="dashboard-general-area-download-btn"
+                        onClick={() => exportAreaPanelToPdf(panel)}
+                        disabled={exportingAreaPanelId === panel.section.id}
+                        title="Descargar PDF con todos los KPIs de esta área"
+                      >
+                        <Download size={14} />
+                        {exportingAreaPanelId === panel.section.id ? "Generando…" : "Descargar PDF"}
+                      </button>
+                    ) : null}
+                    <button
+                      type="button"
+                      className="dashboard-general-area-open-btn"
+                      onClick={() => navigateToAreaDashboard(panel.section, dashboardNavigationHandlers)}
+                    >
+                      Abrir dashboard
+                    </button>
+                  </div>
+                </div>
+              </header>
+
+              {panel.spotlights.length ? (
+                <div className={`dashboard-area-spotlight dashboard-area-spotlight--${panel.theme.layout}`}>
+                  {panel.spotlights.map((item) => (
+                    <article key={`${panel.section.id}-${item.key}`} className={`dashboard-area-spotlight-card dashboard-area-spotlight-card--${item.tone}`}>
+                      <span>{item.label}</span>
+                      <strong>{item.value}</strong>
+                    </article>
+                  ))}
+                </div>
+              ) : null}
+
+              {panel.dataSourceNote ? (
+                <p className="dashboard-general-area-source-note">{panel.dataSourceNote}</p>
+              ) : null}
+
+              <div className={`dashboard-kpi-bento-grid dashboard-kpi-bento-grid-6 dashboard-kpi-bento-grid-compact-cards dashboard-kpi-bento-grid--area-${panel.theme.layout}`}>
+                {panel.kpiCards.map((item) => (
+                  <DashboardKpiBento
+                    key={`${panel.section.id}-${item.cardKey}`}
+                    title={item.title}
+                    value={item.valueMeta ? `${item.value} (${item.valueMeta})` : item.value}
+                    subtitle={item.subtitle}
+                    tone={item.tone}
+                    icon={item.icon || Gauge}
+                    progress={item.progress}
+                    compact
+                  />
+                ))}
+              </div>
+
+              {panel.boardRows.length > 0 ? (
+                <div className="dashboard-area-board-summary">
+                  <h4 className="dashboard-area-board-summary-title">Tableros · {panel.section.label}</h4>
+                  <div className="dashboard-table-wrap">
+                    <table className="dashboard-table-clean dashboard-table-compact">
+                      <thead>
+                        <tr>
+                          <th>Tablero</th>
+                          <th>Registros</th>
+                          <th>Cumplimiento</th>
+                          <th>Piezas</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {panel.boardRows.slice(0, 8).map((board) => (
+                          <tr key={`${panel.section.id}-${board.key}`}>
+                            <td>{board.boardName}</td>
+                            <td>{board.totalRecords}</td>
+                            <td>{Math.round(board.completionPercent || 0)}%</td>
+                            <td>{board.piecesTotal > 0 ? formatMetricNumber(board.piecesTotal, 0) : "—"}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ) : (
+                <p className="dashboard-empty-text">Sin registros de tableros en el periodo para esta área.</p>
+              )}
+            </article>
+          ))}
+        </div>
+      </DashboardSection>
+      )) : null}
+
+      {isDashboardSectionEnabled("players") ? zoneWrap("players", (
+      <DashboardSection zone="players" title={showGlobalAreaFilter ? "Análisis por player" : (areaDashboardTheme.playersTitle || "Análisis por player")} subtitle={showGlobalAreaFilter ? "Desempeño individual, carga y cumplimiento por persona." : (areaDashboardTheme.playersSubtitle || "Desempeño individual y carga del periodo.")} summary={`${dashboardResponsibleRows.length} players con métricas`} icon={Users} open={dashboardSectionsOpen.people} onToggle={() => setDashboardSectionsOpen((current) => ({ ...current, people: !current.people }))}>
         <div className="dashboard-main-grid">
           <article className="dashboard-panel dashboard-panel-wide">
             <div className="dashboard-panel-header">
@@ -2024,38 +2684,42 @@ export default function PanelIndicadores({ contexto }) {
         </>
         ) : null}
       </DashboardSection>
-      ) : null}
+      )) : null}
 
-      {hasDashboardSection("trends") ? (
-      <DashboardSection title="Tendencias y áreas" subtitle="Evolución del flujo y consolidado por área para comparar capacidad y carga." summary={`${dashboardTrendRows.length} periodos · ${dashboardAreaRows.length} áreas`} icon={BarChart3} open={dashboardSectionsOpen.trends} onToggle={() => setDashboardSectionsOpen((current) => ({ ...current, trends: !current.trends }))}>
+      {isDashboardSectionEnabled("trends") || isDashboardSectionEnabled("inventory") || isDashboardSectionEnabled("merma") ? zoneWrap("trends", (
+      <DashboardSection zone="trends" title={showGlobalAreaFilter ? "Tendencias, áreas e inventario" : (areaDashboardTheme.trendsTitle || "Tendencias y evolución")} subtitle={showGlobalAreaFilter ? "Evolución del flujo, consolidado por área y leaderboards de inventario/merma." : (areaDashboardTheme.trendsSubtitle || "Evolución del periodo y métricas de apoyo.")} summary={`${dashboardTrendRows.length} periodos · ${dashboardAreaRows.length} áreas`} icon={BarChart3} open={dashboardSectionsOpen.trends} onToggle={() => setDashboardSectionsOpen((current) => ({ ...current, trends: !current.trends }))}>
         <div className="dashboard-main-grid dashboard-lower-middle-grid">
           <article className="dashboard-panel dashboard-panel-half">
             <div className="dashboard-panel-header">
               <h3>Tendencia general</h3>
+              {!isWeeklyDashboardPeriod ? (
               <div className="dashboard-chart-toggle">
                 <button
                   type="button"
-                  className={`dashboard-chart-toggle-btn${trendChartType === "bar" ? " active" : ""}`}
+                  className={`dashboard-chart-toggle-btn${effectiveTrendChartType === "bar" ? " active" : ""}`}
                   onClick={() => setTrendChartType("bar")}
                   title="Gráfico de barras"
-                  aria-pressed={trendChartType === "bar"}
+                  aria-pressed={effectiveTrendChartType === "bar"}
                 >
                   <BarChart3 size={13} />
                   <span>Barras</span>
                 </button>
                 <button
                   type="button"
-                  className={`dashboard-chart-toggle-btn${trendChartType === "line" ? " active" : ""}`}
+                  className={`dashboard-chart-toggle-btn${effectiveTrendChartType === "line" ? " active" : ""}`}
                   onClick={() => setTrendChartType("line")}
                   title="Gráfico de líneas con puntos"
-                  aria-pressed={trendChartType === "line"}
+                  aria-pressed={effectiveTrendChartType === "line"}
                 >
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12" /></svg>
                   <span>Líneas</span>
                 </button>
               </div>
+              ) : (
+                <span className="dashboard-chart-mode-label">Vista semanal · líneas</span>
+              )}
             </div>
-            {trendChartType === "bar" ? (
+            {effectiveTrendChartType === "bar" ? (
               <DashboardColumnChart
                 rows={dashboardTrendRows.map((item) => ({
                   key: item.key,
@@ -2102,30 +2766,32 @@ export default function PanelIndicadores({ contexto }) {
           <article className="dashboard-panel dashboard-panel-half">
             <div className="dashboard-panel-header">
               <h3>Resumen Consolidado por Área</h3>
+              {!isWeeklyDashboardPeriod ? (
               <div className="dashboard-chart-toggle">
                 <button
                   type="button"
-                  className={`dashboard-chart-toggle-btn${areaChartType === "bar" ? " active" : ""}`}
+                  className={`dashboard-chart-toggle-btn${effectiveAreaChartType === "bar" ? " active" : ""}`}
                   onClick={() => setAreaChartType("bar")}
                   title="Gráfico de barras"
-                  aria-pressed={areaChartType === "bar"}
+                  aria-pressed={effectiveAreaChartType === "bar"}
                 >
                   <BarChart3 size={13} />
                   <span>Barras</span>
                 </button>
                 <button
                   type="button"
-                  className={`dashboard-chart-toggle-btn${areaChartType === "line" ? " active" : ""}`}
+                  className={`dashboard-chart-toggle-btn${effectiveAreaChartType === "line" ? " active" : ""}`}
                   onClick={() => setAreaChartType("line")}
                   title="Línea comparativa por área"
-                  aria-pressed={areaChartType === "line"}
+                  aria-pressed={effectiveAreaChartType === "line"}
                 >
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12" /></svg>
                   <span>Líneas</span>
                 </button>
               </div>
+              ) : null}
             </div>
-            {areaChartType === "bar" ? (
+            {effectiveAreaChartType === "bar" ? (
               <DashboardColumnChart
                 rows={dashboardAreaRows.slice(0, 6).map((item) => ({
                   key: item.area,
@@ -2242,19 +2908,67 @@ export default function PanelIndicadores({ contexto }) {
         </div>
         ) : null}
 
-        {hasDashboardSection("inventory") && (scopedInventoryProductTimeRows.length || filteredAreaBoardDetailedRows.length) ? (
+        {isDashboardSectionEnabled("inventory") ? (
         <>
         <div className="dashboard-main-grid">
-          <article className="dashboard-panel dashboard-panel-full">
+          <article className="dashboard-panel dashboard-panel-full dashboard-product-leaderboard">
             <div className="dashboard-panel-header">
-              <h3>Leaderboard producto/SKU por tiempo</h3>
-              <Clock3 size={18} />
+              <h3>Rendimiento por producto (tarimas y piezas)</h3>
+              <div className="dashboard-product-leaderboard-actions">
+                {canExportDashboardActions ? (
+                  <button
+                    type="button"
+                    className="icon-button dashboard-export-product-btn"
+                    onClick={exportProductPerformancePdf}
+                    disabled={isExportingProductPdf || !scopedProductPerformanceRows.length}
+                    title="Descargar PDF con promedios por producto"
+                  >
+                    <Download size={16} />
+                    <span>{isExportingProductPdf ? "Generando…" : "PDF productos"}</span>
+                  </button>
+                ) : null}
+                <Clock3 size={18} />
+              </div>
             </div>
             <p className="dashboard-panel-subtitle">
-              Ranking automático para Inventario: agrupa por producto/SKU y tarima, mostrando piezas y tiempo operativo real.
+              Agrupa automáticamente el mismo producto y acumula cada tarima nueva para calcular promedios de tiempo y piezas revisadas.
             </p>
-            <div className="dashboard-chart-toggle" style={{ display: "flex", flexWrap: "wrap", gap: "0.75rem", alignItems: "center", marginBottom: "0.75rem" }}>
-              <div>
+            <div className="dashboard-product-leaderboard-toolbar">
+              <label className="dashboard-product-search">
+                <Search size={16} />
+                <input
+                  type="search"
+                  value={productLeaderboardSearch}
+                  onChange={(event) => setProductLeaderboardSearch(event.target.value)}
+                  placeholder="Buscar producto o tarima revisada…"
+                  list="dashboard-reviewed-tarimas"
+                />
+                <datalist id="dashboard-reviewed-tarimas">
+                  {reviewedTarimaSearchOptions.map((tarima) => (
+                    <option key={tarima} value={tarima} />
+                  ))}
+                </datalist>
+              </label>
+              <label className="dashboard-filter-field">
+                <span>Métrica</span>
+                <select value={inventoryMetric} onChange={(event) => setInventoryMetric(event.target.value)}>
+                  <option value="secondsPerPiece">Segundos por pieza</option>
+                  <option value="totalPieces">Piezas revisadas</option>
+                  <option value="avgMinutesPerPallet">Promedio min / tarima</option>
+                  <option value="avgMinutesPerSession">Promedio min / sesión</option>
+                  <option value="totalMinutes">Tiempo total</option>
+                  <option value="palletCount">Tarimas distintas</option>
+                </select>
+              </label>
+              <label className="dashboard-filter-field">
+                <span>Tablero</span>
+                <select value={leaderboardBoardFilterSafe} onChange={(event) => setLeaderboardBoardFilter(event.target.value)}>
+                  {leaderboardBoardOptions.map((opt) => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+              </label>
+              <div className="dashboard-chart-toggle">
                 <button
                   type="button"
                   className={`dashboard-chart-toggle-btn${inventoryChartType === "bar" ? " active" : ""}`}
@@ -2270,125 +2984,153 @@ export default function PanelIndicadores({ contexto }) {
                   Líneas
                 </button>
               </div>
-              <label className="dashboard-filter-field" style={{ display: "flex", flexDirection: "column", gap: "0.25rem", minWidth: 180, fontSize: "0.82rem" }}>
-                <span style={{ fontWeight: 600, color: "#365151" }}>Métrica</span>
-                <select
-                  value={inventoryMetric}
-                  onChange={(e) => setInventoryMetric(e.target.value)}
-                  style={{ borderRadius: "0.75rem", border: "1px solid var(--sicfla-border)", padding: "0.35rem 0.7rem", fontSize: "0.84rem", background: "#ffffff", color: "#314d69", cursor: "pointer" }}
-                >
-                  <option value="totalMinutes">Total tiempo</option>
-                  <option value="averageMinutes">Tiempo promedio</option>
-                  <option value="count">Registros</option>
-                  <option value="minMinutes">Tiempo mínimo</option>
-                  <option value="maxMinutes">Tiempo máximo</option>
-                </select>
-              </label>
-              <label className="dashboard-filter-field" style={{ display: "flex", flexDirection: "column", gap: "0.25rem", minWidth: 180, fontSize: "0.82rem" }}>
-                <span style={{ fontWeight: 600, color: "#365151" }}>Vista</span>
-                <select
-                  value={inventoryView}
-                  onChange={(e) => setInventoryView(e.target.value)}
-                  style={{ borderRadius: "0.75rem", border: "1px solid var(--sicfla-border)", padding: "0.35rem 0.7rem", fontSize: "0.84rem", background: "#ffffff", color: "#314d69", cursor: "pointer" }}
-                >
-                  <option value="all">Todo</option>
-                  <option value="board">Por tablero</option>
-                </select>
-              </label>
             </div>
-            <div className="dashboard-filter-row" style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap", marginBottom: "0.5rem" }}>
-              <label className="dashboard-filter-field" style={{ display: "flex", flexDirection: "column", gap: "0.25rem", fontSize: "0.82rem" }}>
-                <span style={{ fontWeight: 600, color: "#365151" }}>Tablero</span>
-                <select
-                  value={leaderboardBoardFilterSafe}
-                  onChange={(e) => setLeaderboardBoardFilter(e.target.value)}
-                  style={{ borderRadius: "0.75rem", border: "1px solid var(--sicfla-border)", padding: "0.35rem 0.7rem", fontSize: "0.84rem", background: "#ffffff", color: "#314d69", cursor: "pointer" }}
-                >
-                  {leaderboardBoardOptions.map((opt) => (
-                    <option key={opt.value} value={opt.value}>{opt.label}</option>
-                  ))}
-                </select>
-              </label>
-              {leaderboardBoardFilterSafe !== "all" && (
-                <button
-                  type="button"
-                  className="icon-button"
-                  style={{ alignSelf: "flex-end", marginBottom: "0.05rem" }}
-                  onClick={() => setLeaderboardBoardFilter("all")}
-                >
-                  Limpiar
-                </button>
-              )}
-            </div>
-            {scopedProductAggregateRows.length > 0 ? (
+            {topProductPerformanceRows.length > 0 ? (
               <DashboardColumnChart
-                rows={scopedProductAggregateRows.slice(0, 12).map((item) => ({
-                  key: item.key,
-                  label: `${item.tarima} · ${item.product.length > 25 ? `${item.product.slice(0, 25)}...` : item.product}`,
-                  value: Number(item[inventoryMetric] || 0),
-                  valueLabel: inventoryMetric === "count"
-                    ? `${item.count} registros`
-                    : `${formatMetricNumber(Number(item[inventoryMetric] || 0), 1)} min`,
-                  tooltip: `Tarima ${item.tarima} - ${item.product}: ${inventoryMetric === "count" ? `${item.count} registros` : `${formatMetricNumber(Number(item[inventoryMetric] || 0), 2)} min`} · ${item.count} registro(s)`,
-                  color: "linear-gradient(180deg, #355f88 0%, #5f8fbe 100%)",
-                }))}
-                emptyLabel="No hay datos de producto/tarima para este filtro."
+                rows={topProductPerformanceRows.map((product) => {
+                  const metricValue = Number(product[inventoryMetric] || 0);
+                  const valueLabel = inventoryMetric === "secondsPerPiece"
+                    ? `${formatMetricNumber(metricValue, 1)} s/pieza`
+                    : inventoryMetric === "totalPieces" || inventoryMetric === "palletCount" || inventoryMetric === "sessions"
+                      ? `${formatMetricNumber(metricValue, 0)}${inventoryMetric === "palletCount" ? " tarimas" : inventoryMetric === "sessions" ? " sesiones" : " pzas"}`
+                      : `${formatMetricNumber(metricValue, 1)} min`;
+                  const shortLabel = product.product.length > 28 ? `${product.product.slice(0, 28)}…` : product.product;
+                  return {
+                    key: product.key,
+                    label: shortLabel,
+                    value: metricValue,
+                    valueLabel,
+                    tooltip: `${product.product}: ${valueLabel} · ${product.palletCount} tarima(s) · ${formatMetricNumber(product.totalPieces, 0)} piezas`,
+                    color: "linear-gradient(180deg, #0f766e 0%, #14b8a6 100%)",
+                  };
+                })}
+                emptyLabel="No hay productos con datos para este filtro."
               />
             ) : null}
-            <div className="dashboard-table-wrap">
-              {inventoryView === "board" && leaderboardBoardFilterSafe === "all" ? (
-                <div style={{ padding: "2rem", textAlign: "center", color: "#64748b" }}>
-                  <p>Has elegido la vista "Por tablero". Selecciona un tablero para ver el detalle literal y los tiempos por tarima.</p>
-                </div>
-              ) : (
+            {!productLeaderboardSearch.trim() && filteredProductPerformanceRows.length > 5 ? (
+              <p className="dashboard-product-leaderboard-hint">
+                Mostrando top 5 de {filteredProductPerformanceRows.length} productos. Usa el buscador para ver cualquier producto o tarima.
+              </p>
+            ) : null}
+            <div className="dashboard-product-card-grid">
+              {(productLeaderboardSearch.trim() ? filteredProductPerformanceRows : topProductPerformanceRows).map((product, index) => {
+                const isExpanded = expandedProductKey === product.key;
+                return (
+                  <section key={product.key} className={`dashboard-product-card${isExpanded ? " is-expanded" : ""}`}>
+                    <button
+                      type="button"
+                      className="dashboard-product-card-toggle"
+                      onClick={() => setExpandedProductKey((current) => (current === product.key ? "" : product.key))}
+                    >
+                      <div className="dashboard-product-card-rank">#{index + 1}</div>
+                      <div className="dashboard-product-card-main">
+                        <h4>{product.product}</h4>
+                        <p>{product.palletCount} tarima(s) · {product.sessions} sesión(es)</p>
+                      </div>
+                      <div className="dashboard-product-card-metrics">
+                        <span><strong>{formatMetricNumber(product.totalPieces, 0)}</strong> piezas</span>
+                        <span><strong>{formatMetricNumber(product.totalMinutes, 1)}</strong> min</span>
+                        <span>
+                          <strong>
+                            {product.secondsPerPiece !== null ? `${formatMetricNumber(product.secondsPerPiece, 1)} s` : "-"}
+                          </strong>
+                          {" "}/ pieza
+                        </span>
+                      </div>
+                    </button>
+                    {isExpanded ? (
+                      <div className="dashboard-product-card-detail">
+                        <div className="dashboard-product-card-summary">
+                          <span>Promedio por tarima: <strong>{formatMetricNumber(product.avgMinutesPerPallet, 1)} min</strong></span>
+                          <span>Promedio por sesión: <strong>{formatMetricNumber(product.avgMinutesPerSession, 1)} min</strong></span>
+                        </div>
+                        <table className="dashboard-table-clean dashboard-product-tarima-table">
+                          <thead>
+                            <tr>
+                              <th>Tarima</th>
+                              <th>Sesiones</th>
+                              <th>Piezas</th>
+                              <th>Tiempo</th>
+                              <th>Prom / sesión</th>
+                              <th>Seg / pieza</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {(product.tarimas || []).map((tarima) => (
+                              <tr key={tarima.key}>
+                                <td><strong>{tarima.tarima}</strong></td>
+                                <td>{tarima.sessions}</td>
+                                <td>{formatMetricNumber(tarima.totalPieces, 0)}</td>
+                                <td>{formatMetricNumber(tarima.totalMinutes, 1)} min</td>
+                                <td>{formatMetricNumber(tarima.avgMinutesPerSession, 1)} min</td>
+                                <td>{tarima.secondsPerPiece !== null ? `${formatMetricNumber(tarima.secondsPerPiece, 1)} s` : "-"}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : null}
+                  </section>
+                );
+              })}
+            </div>
+            {filteredProductPerformanceRows.length === 0 ? (
+              <p className="dashboard-product-leaderboard-empty">No hay productos ni tarimas que coincidan con la búsqueda actual.</p>
+            ) : null}
+            <div className="dashboard-product-detail-toggle-wrap">
+              <button
+                type="button"
+                className="icon-button"
+                onClick={() => setShowInventoryDetailTable((current) => !current)}
+              >
+                {showInventoryDetailTable ? "Ocultar registros detallados" : `Ver registros detallados (${scopedInventoryProductTimeRows.length})`}
+              </button>
+            </div>
+            {showInventoryDetailTable ? (
+              <div className="dashboard-table-wrap dashboard-product-detail-table">
                 <table className="dashboard-table-clean">
                   <thead>
                     <tr>
                       <th>Tablero</th>
                       <th>Tarima</th>
                       <th>Producto</th>
+                      <th>Piezas revisadas</th>
                       <th>Piezas esperadas</th>
-                      <th>Total mermas</th>
-                      <th>Piezas faltantes</th>
-                      <th>Piezas reales</th>
-                      <th>Lote</th>
-                      <th>Caducidad</th>
-                      <th>Inicio</th>
-                      <th>Fin</th>
+                      <th>Mermas</th>
+                      <th>Faltantes</th>
                       <th>Tiempo (min)</th>
                       <th>Fecha</th>
                       <th>Responsable</th>
-                      <th>Mermas</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {scopedInventoryProductTimeRows.slice(0, 30).map((item) => (
+                    {scopedInventoryProductTimeRows.slice(0, 40).map((item) => (
                       <tr key={item.key}>
                         <td>{item.boardName}</td>
                         <td>{item.tarimaValue}</td>
                         <td>{item.productValue}</td>
+                        <td>{formatMetricNumber(item.piecesReviewed, 0)}</td>
                         <td>{Number.isFinite(item.expectedPieces) ? formatMetricNumber(item.expectedPieces, 0) : "-"}</td>
                         <td>{item.totalMermaPieces > 0 ? formatMetricNumber(item.totalMermaPieces, 0) : "-"}</td>
                         <td>{Number.isFinite(item.missingPieces) ? formatMetricNumber(item.missingPieces, 0) : "-"}</td>
-                        <td>{Number.isFinite(item.realPieces) ? formatMetricNumber(item.realPieces, 0) : "-"}</td>
-                        <td>{item.loteValue}</td>
-                        <td>{item.caducityValue}</td>
-                        <td>{item.startValue}</td>
-                        <td>{item.endValue}</td>
                         <td>{formatMetricNumber(item.durationMinutes, 2)}</td>
                         <td>{item.occurredAtLabel}</td>
                         <td>{item.responsibleName || "-"}</td>
-                        <td style={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{item.mermas}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
-              )}
-            </div>
+              </div>
+            ) : null}
           </article>
         </div>
+        {scopedInventoryProductTimeRows.length === 0 && filteredProductPerformanceRows.length === 0 ? (
+          <p className="dashboard-empty-text">No hay datos de inventario en este periodo. Se mostrarán al capturar productos y tarimas en los tableros del área.</p>
+        ) : null}
+        </>
+        ) : null}
 
-        {hasDashboardSection("merma") && mermaAnalysisRows.length > 0 && (
+        {isDashboardSectionEnabled("merma") ? (
         <div className="dashboard-main-grid">
           <article className="dashboard-panel dashboard-panel-full">
             <div className="dashboard-panel-header">
@@ -2468,7 +3210,10 @@ export default function PanelIndicadores({ contexto }) {
             </div>
           </article>
         </div>
-        )}
+        ) : null}
+        {!mermaAnalysisRows.length && isDashboardSectionEnabled("merma") ? (
+          <p className="dashboard-empty-text">No hay merma registrada en el periodo seleccionado.</p>
+        ) : null}
 
         <div className="dashboard-main-grid">
           <article className="dashboard-panel dashboard-panel-full">
@@ -2543,7 +3288,7 @@ export default function PanelIndicadores({ contexto }) {
                           <tr>
                             <th>Tablero</th>
                             <th>Fuente</th>
-                            <th>Estados</th>
+                            <th>Registros por estado</th>
                             <th>Tiempo</th>
                             <th>Eficiencia</th>
                             <th>Pausas top</th>
@@ -2561,9 +3306,14 @@ export default function PanelIndicadores({ contexto }) {
                               </td>
                               <td>{board.sourceLabel}</td>
                               <td>
-                                C: {board.completed} · R: {board.running} · P: {board.paused}
-                                <br />
-                                <small>{formatMetricNumber(board.completionPercent, 1)}% cierre</small>
+                                <DashboardRecordStatusCell
+                                  completed={board.completed}
+                                  running={board.running}
+                                  paused={board.paused}
+                                  totalRecords={board.totalRecords}
+                                  completionPercent={board.completionPercent}
+                                  compact
+                                />
                               </td>
                               <td>
                                 {formatMetricNumber(board.productionHours, 2)} h prod.
@@ -2602,9 +3352,14 @@ export default function PanelIndicadores({ contexto }) {
                             </td>
                             <td>{areaItem.visibleBoardCount} tablero(s)</td>
                             <td>
-                              C: {areaItem.visibleCompleted} · R: {areaItem.visibleRunning} · P: {areaItem.visiblePaused}
-                              <br />
-                              <small>{formatMetricNumber(areaItem.visibleCompletionPercent, 1)}% cierre</small>
+                              <DashboardRecordStatusCell
+                                completed={areaItem.visibleCompleted}
+                                running={areaItem.visibleRunning}
+                                paused={areaItem.visiblePaused}
+                                totalRecords={areaItem.visibleTotalRecords}
+                                completionPercent={areaItem.visibleCompletionPercent}
+                                compact
+                              />
                             </td>
                             <td>
                               {formatMetricNumber(areaItem.visibleProductionHours, 2)} h prod.
@@ -2624,20 +3379,22 @@ export default function PanelIndicadores({ contexto }) {
             )}
           </article>
         </div>
-        </>
-        ) : null}
       </DashboardSection>
-      ) : null}
+      )) : null}
 
-      {hasDashboardSection("causes") && (dashboardParetoRows.length || dashboardIshikawaRows.length) ? (
-      <DashboardSection title="Incidencias y causa raíz" subtitle="Pareto de impacto y análisis Ishikawa para aislar las causas más pesadas." summary={`${dashboardParetoRows.length} incidencias priorizadas · ${dashboardIshikawaRows.length} categorías`} icon={Search} open={dashboardSectionsOpen.causes} onToggle={() => setDashboardSectionsOpen((current) => ({ ...current, causes: !current.causes }))}>
+      {isDashboardSectionEnabled("causes") ? zoneWrap("causes", (
+      <DashboardSection zone="causes" title={showGlobalAreaFilter ? "Pausas y excesos de tiempo" : (areaDashboardTheme.causesTitle || "Pausas y excesos de tiempo")} subtitle={showGlobalAreaFilter ? "Pareto de causas que consumen tiempo (pausas registradas y actividades fuera del tiempo establecido) y análisis Ishikawa." : (areaDashboardTheme.causesSubtitle || "Pareto e Ishikawa del periodo.")} summary={`${dashboardParetoRows.length} causas priorizadas · ${dashboardIshikawaRows.length} categorías`} icon={Search} open={dashboardSectionsOpen.causes} onToggle={() => setDashboardSectionsOpen((current) => ({ ...current, causes: !current.causes }))}>
         <div className="dashboard-main-grid dashboard-lower-middle-grid">
           <article className="dashboard-panel dashboard-panel-half">
             <div className="dashboard-panel-header">
-              <h3>Pareto de Incidencias e Impacto</h3>
+              <h3>Pareto de causas por impacto en tiempo</h3>
               <BarChart3 size={18} />
             </div>
+            {dashboardParetoRows.length ? (
             <DashboardParetoChart rows={dashboardParetoRows} />
+            ) : (
+              <p className="dashboard-empty-text">Sin causas priorizadas en el periodo.</p>
+            )}
             <div className="dashboard-pareto-list">
               {dashboardParetoRows.map((item, index) => (
                 <DashboardParetoRow key={item.label} label={item.label} percent={item.percent} cumulativePercent={item.cumulativePercent} impactText={`${Math.round(item.impactSeconds / 60)} min · ${item.count} evento(s)`} highlight={index < 3 || item.cumulativePercent <= 80} />
@@ -2650,7 +3407,11 @@ export default function PanelIndicadores({ contexto }) {
               <h3>Ishikawa Operativo</h3>
               <Search size={18} />
             </div>
+            {dashboardIshikawaRows.length ? (
             <DashboardIshikawaDiagram rows={dashboardIshikawaRows} />
+            ) : (
+              <p className="dashboard-empty-text">Sin categorías Ishikawa para este filtro.</p>
+            )}
             <div className="dashboard-cause-grid">
               {dashboardIshikawaRows.map((item) => (
                 <DashboardCauseCard key={item.category} title={item.category} share={item.impact} count={item.count} examples={item.examples} />
@@ -2659,10 +3420,10 @@ export default function PanelIndicadores({ contexto }) {
           </article>
         </div>
       </DashboardSection>
-      ) : null}
+      )) : null}
 
-      {hasDashboardSection("alerts") && (dashboardMetrics.exceeded.length || pauseAnalysis.length) ? (
-      <DashboardSection title="Alertas y tablas ejecutivas" subtitle="Excepciones, pausas críticas y consolidado por área para revisión puntual." summary={`${dashboardMetrics.exceeded.length} alertas · ${pauseAnalysis.length} causas de pausa`} icon={OctagonAlert} open={dashboardSectionsOpen.alerts} onToggle={() => setDashboardSectionsOpen((current) => ({ ...current, alerts: !current.alerts }))}>
+      {isDashboardSectionEnabled("alerts") ? zoneWrap("alerts", (
+      <DashboardSection zone="alerts" title={showGlobalAreaFilter ? "Alertas y tablas ejecutivas" : (areaDashboardTheme.alertsTitle || "Alertas y tablas ejecutivas")} subtitle={showGlobalAreaFilter ? "Excepciones, pausas críticas y consolidado por área para revisión puntual." : (areaDashboardTheme.alertsSubtitle || "Excepciones y pausas críticas del periodo.")} summary={`${dashboardMetrics.exceeded.length} alertas · ${pauseAnalysis.length} causas de pausa`} icon={OctagonAlert} open={dashboardSectionsOpen.alerts} onToggle={() => setDashboardSectionsOpen((current) => ({ ...current, alerts: !current.alerts }))}>
         <div className="dashboard-main-grid dashboard-bottom-grid">
           <article className="dashboard-panel dashboard-panel-wide">
             <div className="dashboard-panel-header with-badge">
@@ -2685,7 +3446,7 @@ export default function PanelIndicadores({ contexto }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {dashboardMetrics.exceeded.map((record) => {
+                  {dashboardMetrics.exceeded.length ? dashboardMetrics.exceeded.map((record) => {
                     const excess = record.durationSeconds / 60 - record.limitMinutes;
                     return (
                       <tr key={record.id}>
@@ -2697,7 +3458,11 @@ export default function PanelIndicadores({ contexto }) {
                         <td>{Math.max(0, Math.round(excess))}</td>
                       </tr>
                     );
-                  })}
+                  }) : (
+                    <tr>
+                      <td colSpan={6}>No hay registros fuera de SLA en el periodo.</td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>
@@ -2712,7 +3477,7 @@ export default function PanelIndicadores({ contexto }) {
               <PauseCircle size={18} />
             </div>
             <div className="dashboard-pause-list">
-              {pauseAnalysis.map((item) => (
+              {pauseAnalysis.length ? pauseAnalysis.map((item) => (
                 <div key={item.reason} className="dashboard-pause-card">
                   <span className="dashboard-pause-icon" />
                   <div>
@@ -2721,7 +3486,9 @@ export default function PanelIndicadores({ contexto }) {
                   </div>
                   <span className="dashboard-pause-dot">{Math.round(item.percent)}</span>
                 </div>
-              ))}
+              )) : (
+                <p className="dashboard-empty-text">Sin pausas registradas en el periodo.</p>
+              )}
             </div>
           </aside>
         </div>
@@ -2762,7 +3529,7 @@ export default function PanelIndicadores({ contexto }) {
           </div>
         </article>
       </DashboardSection>
-      ) : null}
+      )) : null}
 
       {confirmResetOpen ? createPortal(
         <div role="dialog" aria-modal="true" aria-labelledby="reset-confirm-title" style={{ position: "fixed", inset: 0, zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0, 0, 0, 0.45)", padding: "1rem" }}>

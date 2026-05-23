@@ -1,0 +1,227 @@
+/* Login � vista portal centrada (tema-adaptable) */
+.axo-login-v2 {
+  --login-bg-deep: color-mix(in srgb, var(--sicfla-primary, #0c4a6e) 72%, #020617 28%);
+  --login-card: color-mix(in srgb, var(--sicfla-surface-elevated, #ffffff) 94%, transparent);
+  --login-text: var(--sicfla-text, #0f172a);
+  --login-muted: var(--sicfla-text-muted, #64748b);
+  --login-accent: var(--sicfla-primary, #0f4c5c);
+  --login-on-accent: #ffffff;
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(ellipse 80% 60% at 15% 20%, color-mix(in srgb, var(--login-accent) 35%, transparent), transparent 55%),
+    radial-gradient(ellipse 70% 50% at 85% 80%, color-mix(in srgb, #f59e0b 22%, transparent), transparent 50%),
+    linear-gradient(160deg, var(--login-bg-deep) 0%, color-mix(in srgb, var(--login-bg-deep) 85%, #000) 100%);
+}
+
+.axo-login-v2-mesh {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(color-mix(in srgb, #fff 6%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, #fff 6%, transparent) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(ellipse 70% 60% at 50% 45%, black 20%, transparent 75%);
+  pointer-events: none;
+}
+
+.axo-login-v2-orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(60px);
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+.axo-login-v2-orb-a {
+  width: 280px;
+  height: 280px;
+  top: 8%;
+  left: 12%;
+  background: color-mix(in srgb, var(--login-accent) 80%, #22d3ee);
+}
+
+.axo-login-v2-orb-b {
+  width: 220px;
+  height: 220px;
+  bottom: 10%;
+  right: 8%;
+  background: #fbbf24;
+}
+
+.axo-login-v2-card {
+  position: relative;
+  z-index: 1;
+  width: min(100%, 420px);
+  padding: 2rem 1.85rem 1.75rem;
+  border-radius: 24px;
+  background: var(--login-card);
+  border: 1px solid color-mix(in srgb, var(--login-accent) 22%, transparent);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, #fff 40%, transparent) inset,
+    0 28px 60px color-mix(in srgb, #000 28%, transparent);
+  backdrop-filter: blur(12px);
+}
+
+.axo-login-v2-brand {
+  text-align: center;
+  margin-bottom: 1.75rem;
+}
+
+.axo-login-v2-brand .copmec-brand {
+  justify-content: center;
+}
+
+.axo-login-v2-brand h2 {
+  margin: 0.85rem 0 0;
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: var(--login-text);
+  letter-spacing: -0.03em;
+}
+
+.axo-login-v2-brand p {
+  margin: 0.35rem 0 0;
+  font-size: 0.82rem;
+  color: var(--login-muted);
+}
+
+.axo-login-v2-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.axo-login-v2-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.axo-login-v2-field span {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--login-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.axo-login-v2-field input {
+  width: 100%;
+  padding: 0.75rem 0.9rem;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--login-accent) 25%, var(--sicfla-border, #cbd5e1));
+  background: var(--sicfla-input-bg, #f8fafc);
+  color: var(--login-text);
+  font-size: 0.95rem;
+}
+
+.axo-login-v2-field input:focus {
+  outline: 2px solid color-mix(in srgb, var(--login-accent) 35%, transparent);
+  outline-offset: 1px;
+}
+
+.axo-login-v2-password {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+}
+
+.axo-login-v2-password input {
+  padding-right: 2.75rem;
+}
+
+.axo-login-v2-password button {
+  position: absolute;
+  right: 0.35rem;
+  top: 50%;
+  transform: translateY(-50%);
+  border: none;
+  background: transparent;
+  color: var(--login-muted);
+  cursor: pointer;
+  padding: 0.35rem;
+  border-radius: 8px;
+}
+
+.axo-login-v2-submit {
+  margin-top: 0.35rem;
+  width: 100%;
+  padding: 0.85rem 1rem;
+  border: none;
+  border-radius: 14px;
+  font-size: 0.92rem;
+  font-weight: 800;
+  cursor: pointer;
+  background: linear-gradient(135deg, var(--login-accent), color-mix(in srgb, var(--login-accent) 70%, #0369a1));
+  color: var(--login-on-accent) !important;
+  box-shadow: 0 10px 24px color-mix(in srgb, var(--login-accent) 40%, transparent);
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+
+.axo-login-v2-submit:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 14px 28px color-mix(in srgb, var(--login-accent) 45%, transparent);
+}
+
+.axo-login-v2-demo {
+  margin-top: 1.25rem;
+  padding-top: 1.1rem;
+  border-top: 1px dashed color-mix(in srgb, var(--login-accent) 20%, var(--sicfla-border, #e2e8f0));
+}
+
+.axo-login-v2-demo h3 {
+  margin: 0 0 0.55rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--login-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.axo-login-v2-demo-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.axo-login-v2-demo-chip {
+  font-size: 0.72rem;
+  padding: 0.35rem 0.65rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--login-accent) 22%, var(--sicfla-border, #e2e8f0));
+  background: color-mix(in srgb, var(--login-accent) 6%, transparent);
+  color: var(--login-text);
+  cursor: pointer;
+}
+
+.axo-login-v2-demo-chip:hover {
+  background: color-mix(in srgb, var(--login-accent) 14%, transparent);
+}
+
+/* Bootstrap setup � misma familia visual */
+.axo-login-v2.setup-wide {
+  width: min(100%, 520px);
+}
+
+.axo-login-v2-setup-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+
+.axo-login-v2-setup-grid .axo-login-v2-field.full {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 520px) {
+  .axo-login-v2-setup-grid {
+    grid-template-columns: 1fr;
+  }
+}

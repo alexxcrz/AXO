@@ -5,7 +5,9 @@ import "./ChatPro.css";
 function ReunionesPerfilUsuario() { return null; }
 
 import { useAlert } from "./AlertModal";
+import { SpanishDateInput } from "./SpanishDateInput";
 import { NOTIFICATION_SOUNDS, playNotificationSound, ensureAudioGestureUnlock } from "../utils/notificationSounds";
+import { syncNotificationPrefsToServiceWorker } from "../utils/pushBridge.js";
 // COPMEC: removed getServerUrl
 // COPMEC: removed ReunionesPerfilUsuario
 
@@ -53,6 +55,8 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
 
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
   const rateLimitedUntilRef = useRef(0);
+  const lastEstadosFetchAtRef = useRef(0);
+  const estadosFetchInFlightRef = useRef(false);
   const authFetch = async (url, opts = {}) => {
     const method = String(opts?.method || "GET").toUpperCase();
     const fullUrl = url.startsWith('http') ? url : (API_BASE_URL + (url.startsWith('/') ? url : '/' + url));
@@ -60,7 +64,6 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
     const isUserProfileFetch = fullUrl.includes("/api/chat/usuario/") && fullUrl.includes("/perfil");
     const isCriticalChatSync =
       fullUrl.includes("/api/chat/calls/pending") ||
-      fullUrl.includes("/api/chat/usuarios/estados") ||
       fullUrl.includes("/api/chat/calls/historial");
     if (isChatGet && !isCriticalChatSync && !isUserProfileFetch && Date.now() < rateLimitedUntilRef.current) {
       const err = new Error("Rate limit de chat activo");
@@ -172,6 +175,7 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
   const [mensajesGrupal, setMensajesGrupal] = useState({});
 
   const [mensajeInput, setMensajeInput] = useState("");
+  const [escribiendoPorChat, setEscribiendoPorChat] = useState({});
   const [noLeidos, setNoLeidos] = useState(0);
   const [filtroUsuarios, setFiltroUsuarios] = useState("");
   const [perfilAbierto, setPerfilAbierto] = useState(false);
@@ -320,6 +324,8 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
   const chatScrollFrameRef = useRef(null);
   const cargandoChatsActivosRef = useRef(false);
   const mensajeInputRef = useRef(null);
+  const typingStopTimerRef = useRef(null);
+  const lastTypingEmitRef = useRef(0);
   const fileInputRef = useRef(null);
   const imageInputRef = useRef(null);
   const videoInputRef = useRef(null);
@@ -607,9 +613,14 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
       if (key === "callOutgoingSound") localStorage.setItem(AUDIO_PREF_KEYS.callOutgoingSound, next.callOutgoingSound);
       if (key === "msgVolume") localStorage.setItem(AUDIO_PREF_KEYS.msgVolume, String(next.msgVolume));
       if (key === "callVolume") localStorage.setItem(AUDIO_PREF_KEYS.callVolume, String(next.callVolume));
+      syncNotificationPrefsToServiceWorker();
       return next;
     });
   };
+
+  useEffect(() => {
+    syncNotificationPrefsToServiceWorker();
+  }, [audioSettings.msgSound, audioSettings.callIncomingSound]);
 
   // Toca un sonido de videollamada — patrón idéntico a notificationSounds.js:
   // ctx fresco cada vez, sin async/await, sin estado compartido.
@@ -709,11 +720,18 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
     }
   };
 
+  const shouldPlayMessageSound = () => {
+    if (configNotificaciones && Number(configNotificaciones.sonido_activo) === 0) return false;
+    if (configNotificaciones && Number(configNotificaciones.notificaciones_activas) === 0) return false;
+    if (configNotificaciones && Number(configNotificaciones.privados_activos) === 0) return false;
+    return true;
+  };
+
   const playIncomingMessageSound = () => {
+    if (!shouldPlayMessageSound()) return;
     const messageVolume = Number(audioSettings.msgVolume) <= 0 ? 1 : audioSettings.msgVolume;
     const played = playNotificationSound(audioSettings.msgSound, { volume: messageVolume });
     if (!played) {
-      // Fallback si el sonido configurado falla por política de autoplay o contexto.
       playCallSound("accept");
     }
   };
@@ -746,6 +764,9 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
               badge: "/android-chrome-192x192.png",
               tag,
               requireInteraction: true,
+              vibrate: [500, 200, 500],
+              silent: false,
+              sound: "/sounds/notification-call.wav",
               actions: [
                 { action: "accept", title: "Aceptar" },
                 { action: "reject", title: "Rechazar" },
@@ -753,7 +774,9 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
               data: {
                 type: "call_invite",
                 room,
+                caller: fromNickname || "Usuario",
                 callerName: fromNickname || "Usuario",
+                fromNickname: fromNickname || "Usuario",
                 url: "/",
               },
             });
@@ -798,15 +821,18 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
   };
 
   const getAvatarUrl = (usuarioObj) => {
-    if (!usuarioObj) return makeInitialsAvatar('?');
+    const resolved = typeof usuarioObj === "string"
+      ? resolveUsuarioChat(usuarioObj)
+      : usuarioObj;
+    if (!resolved) return makeInitialsAvatar(typeof usuarioObj === "string" ? usuarioObj : '?');
 
     const serverUrl = SERVER_URL;
-    const cacheKey = usuarioObj.photoTimestamp || usuarioObj.id || "v1";
+    const cacheKey = resolved.photoTimestamp || resolved.id || "v1";
     const rawAvatarValue = String(
-      usuarioObj.photoThumbnailUrl
-      || usuarioObj.photo
-      || usuarioObj.avatarUrl
-      || usuarioObj.avatar_url
+      resolved.photoThumbnailUrl
+      || resolved.photo
+      || resolved.avatarUrl
+      || resolved.avatar_url
       || "",
     ).trim();
     const loweredAvatar = rawAvatarValue.toLowerCase();
@@ -830,7 +856,7 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
       return withCache(`${serverUrl}/uploads/perfiles/${avatarValue}`);
     }
 
-    const displayName = usuarioObj.name || usuarioObj.nickname || usuarioObj.nombre || '';
+    const displayName = resolved.name || resolved.nickname || resolved.nombre || '';
     return makeInitialsAvatar(displayName);
   };
 
@@ -848,16 +874,52 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
 
   const normalizeUserKey = (value) => String(value || "").trim().toLowerCase();
 
-  const buildProfileFallback = (nickname) => {
-    const targetKey = normalizeUserKey(nickname);
+  const resolveUsuarioChat = (clave) => {
+    const targetKey = normalizeUserKey(clave);
     if (!targetKey) return null;
-    const source = [
+    return [
       ...(Array.isArray(usuariosCOPMEC) ? usuariosCOPMEC : []),
       user,
     ].find((entry) => {
-      const aliases = [entry?.name, entry?.nickname, entry?.email, entry?.id].map(normalizeUserKey);
-      return aliases.includes(targetKey);
+      if (!entry) return false;
+      return [entry?.name, entry?.nickname, entry?.email, entry?.id].some(
+        (alias) => normalizeUserKey(alias) === targetKey,
+      );
+    }) || null;
+  };
+
+  const marcarEscritura = (deNickname, activo) => {
+    const key = normalizeUserKey(deNickname);
+    if (!key) return;
+    setEscribiendoPorChat((prev) => {
+      const next = { ...prev };
+      if (activo) next[key] = Date.now() + 5200;
+      else delete next[key];
+      return next;
     });
+  };
+
+  const estaEscribiendoClave = (clave) => {
+    const resolved = resolveUsuarioChat(clave);
+    const keys = [clave, resolved?.name, resolved?.nickname, resolved?.email]
+      .map((value) => normalizeUserKey(value))
+      .filter(Boolean);
+    const now = Date.now();
+    return keys.some((key) => (escribiendoPorChat[key] || 0) > now);
+  };
+
+  const emitirEstadoEscritura = (paraNickname, typing) => {
+    if (!socket?.connected || tipoChat !== "privado" || !paraNickname) return;
+    const now = Date.now();
+    if (typing && now - lastTypingEmitRef.current < 900) return;
+    if (typing) lastTypingEmitRef.current = now;
+    socket.emit("chat_typing", { para_nickname: paraNickname, typing: !!typing });
+  };
+
+  const buildProfileFallback = (nickname) => {
+    const targetKey = normalizeUserKey(nickname);
+    if (!targetKey) return null;
+    const source = resolveUsuarioChat(nickname);
     if (!source && !nickname) return null;
     return {
       id: source?.id || null,
@@ -869,10 +931,12 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
       cargo: source?.jobTitle || source?.cargo || null,
       area: source?.area || null,
       department: source?.department || null,
-      correo: source?.email || null,
+      playerAcceso: source?.email || null,
+      correo: source?.correoElectronico || null,
       telefono: source?.telefono || null,
       telefono_visible: Boolean(source?.telefono_visible),
       birthday: source?.birthday || null,
+      fechaIngreso: source?.fechaIngreso || null,
       active: source?.isActive !== false,
     };
   };
@@ -922,6 +986,74 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
     };
   }, []);
 
+  useEffect(() => {
+    const handleNotificationAction = async (event) => {
+      const data = event?.detail || {};
+      setOpen(true);
+      if (data.type === "call_invite") {
+        if (data.action === "accept" || data.action === "default") {
+          setCallIncoming({
+            room: data.room,
+            fromNickname: data.callerName || data.caller || data.fromNickname,
+            fromSocketId: null,
+          });
+          if (data.action === "accept") {
+            setTimeout(() => aceptarLlamada(), 400);
+          }
+        }
+        return;
+      }
+      if (data.type === "message" && data.fromNickname) {
+        setTabPrincipal("chats");
+        await abrirChat("privado", data.fromNickname);
+        return;
+      }
+      if (data.type === "group_message" && data.groupId) {
+        setTabPrincipal("chats");
+        await abrirChat("grupal", data.groupId);
+      }
+    };
+
+    const handlePushReply = async (event) => {
+      const { fromNickname, text } = event?.detail || {};
+      const mensaje = String(text || "").trim();
+      if (!fromNickname || !mensaje) return;
+      setOpen(true);
+      try {
+        await authFetch(`${SERVER_URL}/api/chat/privado`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ para_nickname: fromNickname, mensaje }),
+        });
+        await abrirChat("privado", fromNickname);
+      } catch {
+        showAlert("No se pudo enviar la respuesta desde la notificación.", "warning");
+      }
+    };
+
+    const handleRejectCall = (event) => {
+      const data = event?.detail || {};
+      if (data.room) {
+        setCallIncoming({
+          room: data.room,
+          fromNickname: data.caller || data.callerName || "Usuario",
+          fromSocketId: null,
+        });
+      }
+      rechazarLlamada();
+    };
+
+    window.addEventListener("axo-notification-action", handleNotificationAction);
+    window.addEventListener("axo-push-reply", handlePushReply);
+    window.addEventListener("axo-reject-call", handleRejectCall);
+    return () => {
+      window.removeEventListener("axo-notification-action", handleNotificationAction);
+      window.removeEventListener("axo-push-reply", handlePushReply);
+      window.removeEventListener("axo-reject-call", handleRejectCall);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // ============================
   // 👤 Cargar usuarios de COPMEC
   // ============================
@@ -960,6 +1092,24 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
+  useEffect(() => {
+    const timer = setInterval(() => {
+      const now = Date.now();
+      setEscribiendoPorChat((prev) => {
+        let changed = false;
+        const next = { ...prev };
+        Object.keys(next).forEach((key) => {
+          if ((next[key] || 0) <= now) {
+            delete next[key];
+            changed = true;
+          }
+        });
+        return changed ? next : prev;
+      });
+    }, 900);
+    return () => clearInterval(timer);
+  }, []);
+
   // Sincronización de chats activos en segundo plano (chat abierto o cerrado).
   // Esto mantiene el badge y la lista actualizados incluso si se pierde un evento socket.
   useEffect(() => {
@@ -979,7 +1129,7 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
     };
 
     syncActivos();
-    const interval = setInterval(syncActivos, 15000);
+    const interval = setInterval(syncActivos, 30000);
     return () => {
       cancelled = true;
       clearInterval(interval);
@@ -1054,7 +1204,7 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
 
     // Primer sync inmediato + intervalo moderado para evitar 429
     syncOpenChat();
-    const interval = setInterval(syncOpenChat, 12000);
+    const interval = setInterval(syncOpenChat, 20000);
     return () => clearInterval(interval);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, tipoChat, chatActual, SERVER_URL]);
@@ -1072,7 +1222,7 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
     const emitirLoginChat = () => {
       socket.emit("login_chat", {
         nickname: userDisplayName,
-        photo: user.photo || null,
+        photo: user.photoThumbnailUrl || user.photo || null,
       });
     };
 
@@ -1088,24 +1238,35 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
       }
     }, 20000);
 
-    const handleUsuarios = (lista) => {
-      // Usar la lista que viene del socket directamente (sin round-trip REST)
-      if (Array.isArray(lista) && lista.length > 0) {
-        const estados = {};
-        lista.forEach((u) => { if (u.nickname) estados[u.nickname] = u.status || 'offline'; });
-        setEstadosUsuarios(estados);
-      } else {
-        authFetch(`${SERVER_URL}/api/chat/usuarios/estados`)
-          .then((estados) => setEstadosUsuarios(estados || {}))
-          .catch(() => {});
+    const refreshEstadosUsuarios = async (force = false) => {
+      const now = Date.now();
+      if (!force && now - lastEstadosFetchAtRef.current < 45000) return;
+      if (estadosFetchInFlightRef.current) return;
+      estadosFetchInFlightRef.current = true;
+      try {
+        const estados = await authFetch(`${SERVER_URL}/api/chat/usuarios/estados`);
+        setEstadosUsuarios(estados || {});
+        lastEstadosFetchAtRef.current = Date.now();
+      } catch (_) {
+        /* noop */
+      } finally {
+        estadosFetchInFlightRef.current = false;
       }
     };
 
+    const handleUsuarios = (lista) => {
+      if (Array.isArray(lista) && lista.length > 0) {
+        const estados = {};
+        lista.forEach((u) => { if (u.nickname) estados[u.nickname] = u.status || "offline"; });
+        setEstadosUsuarios(estados);
+        lastEstadosFetchAtRef.current = Date.now();
+        return;
+      }
+      refreshEstadosUsuarios(false);
+    };
+
     const handleEstadosActualizados = () => {
-      // Sin payload: refrescar via REST
-      authFetch(`${SERVER_URL}/api/chat/usuarios/estados`)
-        .then((estados) => setEstadosUsuarios(estados || {}))
-        .catch(() => {});
+      refreshEstadosUsuarios(false);
     };
 
     socket.on("usuarios_activos", handleUsuarios);
@@ -1758,7 +1919,7 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
         const esMioMensaje = isSameNickname(mensaje.de_nickname, userDisplayName);
         // Mensaje a uno mismo: siempre ya leído, independientemente de userDisplayName
         const esSelfMessage = isSameNickname(mensaje.de_nickname, mensaje.para_nickname);
-        const _viendoEste = open && tipoChat === "privado" && isSameNickname(chatActual, otroUsuario);
+        const viendoEsteEnLista = open && tipoChat === "privado" && isSameNickname(chatActual, otroUsuario);
         // Si es mensaje de COPMEC para admin, siempre contar como no leído hasta que se abra
         const esMensajeCOPMECAdmin = mensaje.de_nickname === "COPMEC" && esAdmin && mensaje.es_admin;
         
@@ -1767,7 +1928,7 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
             if (c.otro_usuario === otroUsuario) {
               // Si estás viendo este chat, limpiar contador a 0 (excepto si es COPMEC para admin)
               // Si es tu mensaje o mensaje a ti mismo, también poner a 0
-              const nuevosNoLeidos = (viendoEste && !esMensajeCOPMECAdmin) || (esMioMensaje && !esMensajeCOPMECAdmin) || esSelfMessage
+              const nuevosNoLeidos = (viendoEsteEnLista && !esMensajeCOPMECAdmin) || (esMioMensaje && !esMensajeCOPMECAdmin) || esSelfMessage
                 ? 0
                 : (c.mensajes_no_leidos || 0) + 1;
               return {
@@ -1788,7 +1949,7 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
             ultimo_mensaje: mensaje.mensaje,
             ultima_fecha: mensaje.fecha,
             ultimo_remitente: mensaje.de_nickname,
-            mensajes_no_leidos: (viendoEste && !esMensajeCOPMECAdmin) || (esMioMensaje && !esMensajeCOPMECAdmin) || esSelfMessage ? 0 : 1,
+            mensajes_no_leidos: (viendoEsteEnLista && !esMensajeCOPMECAdmin) || (esMioMensaje && !esMensajeCOPMECAdmin) || esSelfMessage ? 0 : 1,
           },
           ...prev,
         ];
@@ -2048,6 +2209,14 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
       });
     };
 
+    const handleChatTyping = (payload) => {
+      const yo = normalizeUserKey(user?.nickname || user?.name);
+      const para = normalizeUserKey(payload?.para_nickname);
+      const de = normalizeUserKey(payload?.de_nickname);
+      if (!de || !para || para !== yo || de === yo) return;
+      marcarEscritura(payload.de_nickname, !!payload?.typing);
+    };
+
     socket.on("chat_general_nuevo", handleGeneral);
     socket.on("chat_privado_nuevo", handlePrivado);
     socket.on("chat_grupal_nuevo", handleGrupal);
@@ -2065,6 +2234,7 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
     socket.on("chat_general_editado", handleGeneralActualizado);
     socket.on("chat_privado_editado", handlePrivadoActualizado);
     socket.on("chat_grupal_editado", handleGrupalActualizado);
+    socket.on("chat_typing", handleChatTyping);
 
     return () => {
       socket.off("chat_general_nuevo", handleGeneral);
@@ -2084,6 +2254,7 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
       socket.off("chat_general_editado", handleGeneralActualizado);
       socket.off("chat_privado_editado", handlePrivadoActualizado);
       socket.off("chat_grupal_editado", handleGrupalActualizado);
+      socket.off("chat_typing", handleChatTyping);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [socket, open, tipoChat, chatActual, tabPrincipal, user, SERVER_URL, esAdmin, configNotificaciones, audioSettings.msgSound, audioSettings.msgVolume]);
@@ -4301,6 +4472,11 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
     const texto = mensajeInput.trim();
     if (!texto && !archivoAdjunto) return;
 
+    if (tipoChat === "privado" && chatActual) {
+      clearTimeout(typingStopTimerRef.current);
+      emitirEstadoEscritura(chatActual, false);
+    }
+
     // Usar nickname si existe, si no usar name
     const userDisplayName = user?.nickname || user?.name;
     if (!userDisplayName) {
@@ -4696,6 +4872,29 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
       return años >= 0 ? { años, meses } : null;
     } catch (_e) {
       return null;
+    }
+  };
+
+  const formatearFechaPerfil = (fecha) => {
+    if (!fecha) return "No definido";
+    try {
+      const parsed = new Date(`${fecha}T00:00:00`);
+      if (Number.isNaN(parsed.getTime())) return fecha;
+      const etiqueta = new Intl.DateTimeFormat("es-MX", {
+        day: "2-digit",
+        month: "long",
+        year: "numeric",
+      }).format(parsed);
+      const antiguedad = calcularEdad(fecha);
+      if (antiguedad) {
+        const tiempo = antiguedad.meses > 0
+          ? `${antiguedad.años} años y ${antiguedad.meses} ${antiguedad.meses === 1 ? "mes" : "meses"} en la empresa`
+          : `${antiguedad.años} ${antiguedad.años === 1 ? "año" : "años"} en la empresa`;
+        return `${etiqueta} (${tiempo})`;
+      }
+      return etiqueta;
+    } catch (_e) {
+      return fecha;
     }
   };
 
@@ -5983,7 +6182,7 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
             {(!tipoChat || window.innerWidth > 767) && (
               <div className="chat-sidebar">
                 {/* HEADER DEL SIDEBAR */}
-                <div className="chat-sidebar-header">
+                <div className="chat-sidebar-header ui-surface-dark">
                   <h2 className="chat-sidebar-title">Mensajes</h2>
                   <button 
                     className="chat-close-btn"
@@ -6470,9 +6669,7 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
                                     onClick={() => abrirChat("privado", chat.otro_usuario)}
                                   >
                                     <img
-                                      src={getAvatarUrl(
-                                        usuariosCOPMEC.find((u) => u.nickname === chat.otro_usuario)
-                                      )}
+                                      src={getAvatarUrl(chat.otro_usuario)}
                                       alt={chat.otro_usuario}
                                       className="chat-avatar"
                                       onError={(e) => {
@@ -6494,7 +6691,12 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
                                         {chat.otro_usuario}
                                       </span>
                                     </div>
-                                    {chat.ultimo_mensaje && (
+                                    {estaEscribiendoClave(chat.otro_usuario) ? (
+                                      <div className="chat-activo-mensaje chat-activo-typing">
+                                        <span className="chat-typing-label">escribiendo</span>
+                                        <span className="chat-typing-dots" aria-hidden="true"><i /><i /><i /></span>
+                                      </div>
+                                    ) : chat.ultimo_mensaje ? (
                                       <div className="chat-activo-mensaje">
                                         {esMioUltimoMensaje ? (
                                           <span className="chat-mensaje-prefijo">Tú:</span>
@@ -6503,7 +6705,7 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
                                         )}
                                         <span className="chat-mensaje-texto">{chat.ultimo_mensaje}</span>
                                       </div>
-                                    )}
+                                    ) : null}
                                   </div>
                                   <div className="chat-item-menu-container">
                                     <span
@@ -6615,9 +6817,7 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
                                       onClick={() => abrirChat("privado", chat.otro_usuario)}
                                     >
                                       <img
-                                        src={getAvatarUrl(
-                                          usuariosCOPMEC.find((u) => u.nickname === chat.otro_usuario)
-                                        )}
+                                        src={getAvatarUrl(chat.otro_usuario)}
                                         alt={chat.otro_usuario}
                                         className="chat-avatar"
                                         onError={(e) => {
@@ -6639,7 +6839,12 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
                                           {chat.otro_usuario}
                                         </span>
                                       </div>
-                                      {chat.ultimo_mensaje && (
+                                      {estaEscribiendoClave(chat.otro_usuario) ? (
+                                        <div className="chat-activo-mensaje chat-activo-typing">
+                                          <span className="chat-typing-label">escribiendo</span>
+                                          <span className="chat-typing-dots" aria-hidden="true"><i /><i /><i /></span>
+                                        </div>
+                                      ) : chat.ultimo_mensaje ? (
                                         <div className="chat-activo-mensaje">
                                           {esMioUltimoMensaje ? (
                                             <span className="chat-mensaje-prefijo">Tú:</span>
@@ -6648,7 +6853,7 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
                                           )}
                                           <span className="chat-mensaje-texto">{chat.ultimo_mensaje}</span>
                                         </div>
-                                      )}
+                                      ) : null}
                                     </div>
                                     <div className="chat-item-menu-container">
                                       <span
@@ -7482,7 +7687,11 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
                                 <div className="chat-profile-section">
                                   <div className="chat-profile-section-title">Información de contacto</div>
                                   <div className="chat-profile-card">
-                                    <span>Usuario</span>
+                                    <span>Player de acceso</span>
+                                    <strong>{perfilData?.playerAcceso || perfilData?.correo || "No definido"}</strong>
+                                  </div>
+                                  <div className="chat-profile-card">
+                                    <span>Correo electrónico</span>
                                     <strong>{perfilData?.correo || "No definido"}</strong>
                                   </div>
                                 </div>
@@ -7511,6 +7720,14 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
                                             }
                                             return perfilData.birthday;
                                           })()
+                                        : "No definido"}
+                                    </strong>
+                                  </div>
+                                  <div className="chat-profile-card">
+                                    <span>Fecha de ingreso</span>
+                                    <strong>
+                                      {perfilData?.fechaIngreso
+                                        ? formatearFechaPerfil(perfilData.fechaIngreso)
                                         : "No definido"}
                                     </strong>
                                   </div>
@@ -8412,9 +8629,7 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
                           <>
                             <div className="chat-header-left">
                               <img
-                                src={getAvatarUrl(
-                                  usuariosCOPMEC.find((u) => u.nickname === chatActual)
-                                )}
+                                src={getAvatarUrl(chatActual)}
                                 alt={chatActual}
                                 className="chat-avatar header-avatar"
                                 onError={(e) => {
@@ -8438,6 +8653,12 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
                                     {chatActual}
                                   </strong>
                                 </button>
+                                {estaEscribiendoClave(chatActual) ? (
+                                  <span className="chat-header-typing">
+                                    <span className="chat-typing-label">escribiendo</span>
+                                    <span className="chat-typing-dots" aria-hidden="true"><i /><i /><i /></span>
+                                  </span>
+                                ) : null}
                               </span>
                             </div>
                             <div className="chat-header-actions">
@@ -8514,6 +8735,13 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
                             <button onClick={eliminarMensajesSeleccionados}>Eliminar</button>
                             <button onClick={salirSeleccion}>Cancelar</button>
                           </div>
+                        </div>
+                      )}
+
+                      {tipoChat === "privado" && chatActual && estaEscribiendoClave(chatActual) && (
+                        <div className="chat-typing-live" role="status" aria-live="polite">
+                          <span className="chat-typing-dots" aria-hidden="true"><i /><i /><i /></span>
+                          <span>{resolveUsuarioChat(chatActual)?.name || chatActual} está escribiendo…</span>
                         </div>
                       )}
 
@@ -8961,27 +9189,13 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
                                   {esMio && tipoChat === "privado" && (
                                     <span
                                       className={`msg-read-indicator ${fueLeido ? "read" : fueEntregado ? "delivered" : "sent"}`}
-                                      title={fueLeido ? "Leído" : "Enviado"}
+                                      title={fueLeido ? "Leído" : fueEntregado ? "Entregado" : "Enviado"}
+                                      aria-label={fueLeido ? "Leído" : fueEntregado ? "Entregado" : "Enviado"}
                                     >
-                                      {fueLeido ? (
-                                        /* Leído: 2 anillos + punto verde */
-                                        <svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                          <circle cx="10" cy="10" r="8.5" stroke="#5f8fbe" strokeWidth="1.8"/>
-                                          <circle cx="10" cy="10" r="5.5" stroke="#5f8fbe" strokeWidth="1.5"/>
-                                          <circle cx="10" cy="10" r="2.2" fill="#5f8fbe"/>
-                                        </svg>
-                                      ) : fueEntregado ? (
-                                        /* Entregado: 2 anillos blancos */
-                                        <svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                          <circle cx="10" cy="10" r="8.5" stroke="white" strokeWidth="1.8"/>
-                                          <circle cx="10" cy="10" r="5" stroke="white" strokeWidth="1.5"/>
-                                        </svg>
-                                      ) : (
-                                        /* Enviado: 1 anillo blanco */
-                                        <svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                          <circle cx="10" cy="10" r="8.5" stroke="white" strokeWidth="1.8"/>
-                                        </svg>
-                                      )}
+                                      <span className="msg-read-dots" aria-hidden="true">
+                                        <i />
+                                        {(fueLeido || fueEntregado) ? <i /> : null}
+                                      </span>
                                     </span>
                                   )}
                                 </div>
@@ -9387,6 +9601,19 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
                             onChange={(e) => {
                               const texto = e.target.value;
                               setMensajeInput(texto);
+
+                              if (tipoChat === "privado" && chatActual) {
+                                if (texto.trim()) {
+                                  emitirEstadoEscritura(chatActual, true);
+                                  clearTimeout(typingStopTimerRef.current);
+                                  typingStopTimerRef.current = setTimeout(() => {
+                                    emitirEstadoEscritura(chatActual, false);
+                                  }, 2200);
+                                } else {
+                                  clearTimeout(typingStopTimerRef.current);
+                                  emitirEstadoEscritura(chatActual, false);
+                                }
+                              }
 
                               // Detectar @mentions
                               const ultimoArroba = texto.lastIndexOf("@");
@@ -10602,10 +10829,10 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
               <div className="reunion-form-row">
                 <div className="reunion-form-group">
                   <label>Fecha *</label>
-                  <input
-                    type="date"
+                  <SpanishDateInput
                     value={reunionForm.fecha}
-                    onChange={(e) => setReunionForm({...reunionForm, fecha: e.target.value})}
+                    onChange={(e) => setReunionForm({ ...reunionForm, fecha: e.target.value })}
+                    placeholder="Seleccionar fecha"
                     className="reunion-input"
                     min={new Date().toISOString().split('T')[0]}
                   />

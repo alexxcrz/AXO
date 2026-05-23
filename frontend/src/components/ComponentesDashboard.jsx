@@ -27,6 +27,83 @@ export function StatusBadge({ status }) {
   return <span className={`status-badge ${status.toLowerCase().replaceAll(" ", "-")}`}>{status}</span>;
 }
 
+/** Desglose legible de registros por estado (antes C/R/P). */
+export function formatDashboardRecordStatusSummary({
+  completed = 0,
+  running = 0,
+  paused = 0,
+  totalRecords = 0,
+  completionPercent,
+}) {
+  const total = Math.max(0, Number(totalRecords) || 0);
+  const terminados = Math.max(0, Number(completed) || 0);
+  const enCurso = Math.max(0, Number(running) || 0);
+  const pausados = Math.max(0, Number(paused) || 0);
+  const pendientes = Math.max(0, total - terminados - enCurso - pausados);
+  const cumplimiento = Number.isFinite(Number(completionPercent))
+    ? Number(completionPercent)
+    : (total ? (terminados / total) * 100 : 0);
+
+  const chips = [
+    { key: "finished", label: "Terminados", count: terminados },
+    { key: "running", label: "En curso", count: enCurso },
+    { key: "paused", label: "Pausados", count: pausados },
+    ...(pendientes > 0 ? [{ key: "pending", label: "Pendientes", count: pendientes }] : []),
+  ];
+
+  const partes = [
+    `${terminados} terminado${terminados === 1 ? "" : "s"}`,
+    `${enCurso} en curso`,
+    `${pausados} pausado${pausados === 1 ? "" : "s"}`,
+  ];
+  if (pendientes > 0) partes.push(`${pendientes} pendiente${pendientes === 1 ? "" : "s"}`);
+
+  const cumplimientoTexto = total > 0
+    ? `${cumplimiento.toFixed(1)}% cumplimiento · ${terminados} de ${total} registros`
+    : "Sin registros en el periodo";
+
+  return {
+    chips,
+    cumplimiento,
+    cumplimientoTexto,
+    pdfLine: total > 0 ? `${partes.join(" · ")} — ${cumplimientoTexto}` : "Sin registros",
+  };
+}
+
+export function DashboardRecordStatusCell({
+  completed = 0,
+  running = 0,
+  paused = 0,
+  totalRecords = 0,
+  completionPercent,
+  compact = false,
+}) {
+  const { chips, cumplimientoTexto } = formatDashboardRecordStatusSummary({
+    completed,
+    running,
+    paused,
+    totalRecords,
+    completionPercent,
+  });
+
+  return (
+    <div className={`dashboard-record-status${compact ? " dashboard-record-status--compact" : ""}`}>
+      <div className="dashboard-record-status-chips" aria-label="Registros por estado">
+        {chips.map((chip) => (
+          <span
+            key={chip.key}
+            className={`dashboard-record-status-chip dashboard-record-status-chip--${chip.key}${chip.count === 0 ? " dashboard-record-status-chip--zero" : ""}`}
+          >
+            <strong>{chip.count}</strong>
+            <span>{chip.label}</span>
+          </span>
+        ))}
+      </div>
+      <p className="dashboard-record-status-compliance">{cumplimientoTexto}</p>
+    </div>
+  );
+}
+
 export function MetricCard({ label, value, hint, tone = "default" }) {
   return (
     <article className={`metric-card ${tone}`}>
@@ -73,6 +150,46 @@ export function DashboardKpiCard({ title, value, valueMeta, _subtitle, tone, ico
         {value}
         {valueMeta ? <span className="dashboard-kpi-value-meta">{valueMeta}</span> : null}
       </strong>
+    </article>
+  );
+}
+
+const KPI_BENTO_THEMES = {
+  cyan: { accent: "#0891b2", bg: "linear-gradient(135deg, #ecfeff 0%, #ffffff 72%)", ring: "rgba(8, 145, 178, 0.22)" },
+  green: { accent: "#059669", bg: "linear-gradient(135deg, #ecfdf5 0%, #ffffff 72%)", ring: "rgba(5, 150, 105, 0.2)" },
+  red: { accent: "#dc2626", bg: "linear-gradient(135deg, #fef2f2 0%, #ffffff 72%)", ring: "rgba(220, 38, 38, 0.2)" },
+  lime: { accent: "#4d7c0f", bg: "linear-gradient(135deg, #f7fee7 0%, #ffffff 72%)", ring: "rgba(77, 124, 15, 0.2)" },
+  amber: { accent: "#d97706", bg: "linear-gradient(135deg, #fffbeb 0%, #ffffff 72%)", ring: "rgba(217, 119, 6, 0.22)" },
+  slate: { accent: "#475569", bg: "linear-gradient(135deg, #f8fafc 0%, #ffffff 72%)", ring: "rgba(71, 85, 105, 0.18)" },
+};
+
+/** KPI de bento: tipografía grande, barra lateral de color, aspecto distinto al card clásico. */
+export function DashboardKpiBento({ title, value, subtitle, tone, icon: Icon, progress = null, compact = false }) {
+  const theme = KPI_BENTO_THEMES[tone] || KPI_BENTO_THEMES.cyan;
+  const progressValue = Number.isFinite(Number(progress)) ? Math.min(100, Math.max(0, Number(progress))) : null;
+
+  return (
+    <article
+      className={`dashboard-kpi-bento${compact ? " dashboard-kpi-bento--compact" : ""}`}
+      style={{
+        background: theme.bg,
+        borderColor: theme.ring,
+        boxShadow: `inset 4px 0 0 ${theme.accent}`,
+      }}
+    >
+      <div className="dashboard-kpi-bento-top">
+        <div className="dashboard-kpi-bento-icon" style={{ color: theme.accent, background: `${theme.accent}18` }}>
+          {Icon ? <Icon size={18} strokeWidth={2.2} /> : null}
+        </div>
+        {progressValue !== null ? (
+          <div className="dashboard-kpi-bento-ring" style={{ background: `conic-gradient(${theme.accent} ${progressValue}%, #e2e8f0 0)` }}>
+            <span>{Math.round(progressValue)}%</span>
+          </div>
+        ) : null}
+      </div>
+      <p className="dashboard-kpi-bento-label">{title}</p>
+      <p className="dashboard-kpi-bento-value">{value}</p>
+      {subtitle ? <p className="dashboard-kpi-bento-sub">{subtitle}</p> : null}
     </article>
   );
 }
@@ -155,9 +272,9 @@ export function DashboardCauseCard({ title, share, count, examples }) {
   );
 }
 
-export function DashboardSection({ title, _subtitle, summary, icon: Icon, open = true, onToggle, children }) {
+export function DashboardSection({ title, _subtitle, summary, icon: Icon, open = true, onToggle, children, zone = "default" }) {
   return (
-    <details className="dashboard-section" open={open}>
+    <details className={`dashboard-section dashboard-zone dashboard-zone--${zone}`} open={open}>
       <summary className="dashboard-section-summary" onClick={(event) => {
         event.preventDefault();
         onToggle?.();

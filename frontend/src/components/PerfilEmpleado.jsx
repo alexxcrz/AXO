@@ -1,9 +1,11 @@
 // ── Perfil de Empleado ───────────────────────────────────────────────────────
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import { Modal } from "./Modal";
+import { SpanishDateInput } from "./SpanishDateInput";
 import { uploadFileToCloudinary } from "../services/upload.service";
+import { getThemePreview, groupThemesByKind, getFontFamilyStack, getFontOptionById } from "../app/uiPreferencesConfig.js";
 
 // ── Constantes y utilidades ───────────────────────────────────────────────────
 
@@ -81,6 +83,8 @@ export function createIdentityFormFromUser(currentUser) {
     telefono:         currentUser?.telefono         || "",
     telefono_visible: currentUser?.telefono_visible ?? false,
     birthday:         currentUser?.birthday         || "",
+    correoElectronico: currentUser?.correoElectronico || "",
+    fechaIngreso:     currentUser?.fechaIngreso     || "",
     photo:            currentUser?.photo            || "",
     photoThumbnailUrl: currentUser?.photoThumbnailUrl || "",
   };
@@ -100,6 +104,38 @@ function InfoField({ label, value, placeholder = "No definido", wide, children }
       <span className="ep-field__label">{label}</span>
       {children || <strong className="ep-field__value">{value || <span className="ep-field__empty">{placeholder}</span>}</strong>}
     </div>
+  );
+}
+
+function ThemePickerCard({ theme, active, onSelect }) {
+  const preview = getThemePreview(theme);
+  const bannerStyle = preview.isGradient
+    ? { background: preview.previewBackground }
+    : { background: `linear-gradient(135deg, ${preview.shell} 0%, ${preview.primary} 55%, ${preview.accent} 100%)` };
+
+  return (
+    <button
+      type="button"
+      className={`ep-theme-card ep-theme-card--visual${active ? " ep-theme-card--active" : ""}${preview.isGradient ? " ep-theme-card--gradient" : ""}`}
+      onClick={() => onSelect?.(theme.id)}
+      aria-pressed={active}
+    >
+      <span className="ep-theme-card__banner" style={bannerStyle} aria-hidden="true">
+        {preview.isGradient ? (
+          <span className="ep-theme-card__badge">Degradado</span>
+        ) : (
+          <span className="ep-theme-card__bands">
+            <span style={{ background: preview.shell }} title={preview.shell} />
+            <span style={{ background: preview.primary }} title={preview.primary} />
+            <span style={{ background: preview.accent }} title={preview.accent} />
+          </span>
+        )}
+      </span>
+      <span className="ep-theme-card__copy">
+        <strong>{theme.label}</strong>
+        <small>{preview.isGradient ? "Gradiente" : `${preview.shell} · ${preview.primary}`}</small>
+      </span>
+    </button>
   );
 }
 
@@ -175,6 +211,7 @@ export function EmployeeProfileModal({
   const [isEditMode, setIsEditMode]   = useState(false);
   const [activeTab, setActiveTab]     = useState("perfil");
   const [personalTab, setPersonalTab] = useState("colores");
+  const [hoveredFontId, setHoveredFontId] = useState(null);
   const [form, setForm]               = useState(() => createIdentityFormFromUser(currentUser));
   const [message, setMessage]         = useState("");
   const [pwOpen, setPwOpen]           = useState(false);
@@ -261,6 +298,11 @@ export function EmployeeProfileModal({
       setMessage("Nombre, acceso, área y cargo son obligatorios.");
       return;
     }
+    const correo = form.correoElectronico.trim();
+    if (correo && !correo.includes("@")) {
+      setMessage("El correo electrónico debe incluir @ (ejemplo: nombre@empresa.com).");
+      return;
+    }
     setSaving(true);
     const result = await onUpdateIdentity({
       name:             form.name.trim(),
@@ -270,6 +312,8 @@ export function EmployeeProfileModal({
       telefono:         form.telefono.trim(),
       telefono_visible: form.telefono_visible,
       birthday:         form.birthday.trim(),
+      correoElectronico: correo,
+      fechaIngreso:     form.fechaIngreso.trim(),
       photo:            form.photo,
       photoThumbnailUrl: form.photoThumbnailUrl,
     });
@@ -279,13 +323,21 @@ export function EmployeeProfileModal({
   }
 
   const selectedThemeOption = themeOptions.find((theme) => theme.id === (currentTheme || "copmec-bosque"));
-  const selectedFontOption = fontOptions.find((font) => font.id === (currentFont || "bahnschrift"));
   const selectedThemePreview = selectedThemeOption || { id: "copmec-bosque", label: "Bosque COPMEC", ...THEME_FALLBACK["copmec-bosque"] };
-  const selectedThemePrimary = String(selectedThemePreview.primary || THEME_FALLBACK[selectedThemePreview.id]?.primary || "#385878");
-  const selectedThemeShell = String(selectedThemePreview.shell || THEME_FALLBACK[selectedThemePreview.id]?.shell || "#22384f");
-  const selectedFontFamily = String(selectedFontOption?.family || FONT_FALLBACK[selectedFontOption?.id] || FONT_FALLBACK.bahnschrift);
+  const selectedThemeColors = getThemePreview(selectedThemePreview);
+  const selectedThemePrimary = selectedThemeColors.primary;
+  const selectedThemeShell = selectedThemeColors.shell;
+  const selectedThemeAccent = selectedThemeColors.accent;
+  const selectedThemeHeaderBackground = selectedThemeColors.previewBackground
+    || `linear-gradient(135deg, ${selectedThemeShell} 0%, ${selectedThemePrimary} 55%, ${selectedThemeAccent} 100%)`;
+  const themesByKind = useMemo(() => groupThemesByKind(themeOptions), [themeOptions]);
   const normalizedThemeId = String(currentTheme || "copmec-bosque").trim() || "copmec-bosque";
   const normalizedFontId = String(currentFont || "bahnschrift").trim() || "bahnschrift";
+  const previewFontId = hoveredFontId || normalizedFontId;
+  const previewFontOption = getFontOptionById(previewFontId, fontOptions);
+  const selectedFontFamily = getFontFamilyStack(normalizedFontId, fontOptions);
+  const previewFontFamily = getFontFamilyStack(previewFontId, fontOptions);
+  const isFontPreviewPending = Boolean(hoveredFontId && hoveredFontId !== normalizedFontId);
   const normalizedFontSizeId = String(currentFontSize || "normal").trim() || "normal";
   const selectedFontSizeOption = fontSizeOptions.find((size) => size.id === normalizedFontSizeId) || { id: "normal", label: "Normal", scale: 1 };
   const profileThemeVars = {
@@ -321,7 +373,7 @@ export function EmployeeProfileModal({
       <div className="ep-body ep-theme-scope" data-ui-theme={normalizedThemeId} data-ui-font={normalizedFontId} data-ui-font-size={normalizedFontSizeId} style={profileThemeVars}>
 
         {/* ── HERO ─────────────────────────────────────────────────────────── */}
-        <div className="ep-hero">
+        <div className="ep-hero ui-surface-dark">
           <div className="ep-hero__avatar">
             {avatarUrl ? <img src={avatarUrl} alt={`Avatar de ${currentUser.name}`} className="ep-hero__avatar-image" /> : initials}
           </div>
@@ -399,19 +451,19 @@ export function EmployeeProfileModal({
           <div className="ep-grid ep-grid--2">
             {isEditMode ? (
               <>
-                <div className="ep-field ep-field--wide">
+                <div className="ep-field">
                   <label className="ep-field__label">Nombre completo</label>
                   <input className="ep-input" value={form.name} onChange={(e) => field("name", e.target.value)} placeholder="Nombre del player" />
                 </div>
-                <div className="ep-field ep-field--wide">
+                <div className="ep-field">
                   <label className="ep-field__label">Player de acceso</label>
                   <input className="ep-input" value={form.email} onChange={(e) => field("email", e.target.value)} placeholder="Tu acceso" />
                 </div>
               </>
             ) : (
               <>
-                <InfoField label="Nombre completo" value={currentUser.name} wide />
-                <InfoField label="Player de acceso" value={currentUser.email} wide />
+                <InfoField label="Nombre completo" value={currentUser.name} />
+                <InfoField label="Player de acceso" value={currentUser.email} />
               </>
             )}
           </div>
@@ -423,19 +475,19 @@ export function EmployeeProfileModal({
           <div className="ep-grid ep-grid--2">
             {isEditMode ? (
               <>
-                <div className="ep-field ep-field--wide">
+                <div className="ep-field">
                   <label className="ep-field__label">Cargo</label>
                   <input className="ep-input" value={form.jobTitle} onChange={(e) => field("jobTitle", e.target.value)} placeholder="Ej: Encargado de Mejora Continua" />
                 </div>
                 <div className="ep-field">
                   <label className="ep-field__label">Área</label>
-                  <input className="ep-input" value={form.area} onChange={(e) => field("area", e.target.value)} placeholder="Ej: ESTO" />
+                  <input className="ep-input" value={form.area} onChange={(e) => field("area", e.target.value)} placeholder="Ej: Mejora Continua" />
                 </div>
                 <InfoField label="Nivel interno" value={currentUser.role} />
               </>
             ) : (
               <>
-                <InfoField label="Cargo" value={getUserJobTitle(currentUser)} wide />
+                <InfoField label="Cargo" value={getUserJobTitle(currentUser)} />
                 <InfoField label="Área" value={getUserArea(currentUser)} />
                 <InfoField label="Nivel interno" value={currentUser.role} />
               </>
@@ -455,19 +507,25 @@ export function EmployeeProfileModal({
                 </div>
                 <div className="ep-field">
                   <label className="ep-field__label">Cumpleaños</label>
-                  <input className="ep-input" type="date" value={form.birthday} onChange={(e) => field("birthday", e.target.value)} />
-                </div>
-                <div className="ep-field ep-field--wide ep-field--row">
-                  <input
-                    type="checkbox"
-                    id="ep-tel-visible"
-                    checked={form.telefono_visible}
-                    onChange={(e) => field("telefono_visible", e.target.checked)}
-                    style={{ accentColor: "#314d69", width: 16, height: 16 }}
+                  <SpanishDateInput
+                    className="ep-input-date"
+                    value={form.birthday}
+                    onChange={(e) => field("birthday", e.target.value)}
+                    placeholder="Seleccionar cumpleaños"
                   />
-                  <label htmlFor="ep-tel-visible" className="ep-field__label" style={{ cursor: "pointer", margin: 0 }}>
-                    Mostrar teléfono en mi perfil del chat
-                  </label>
+                </div>
+                <div className="ep-field">
+                  <label className="ep-field__label">Correo electrónico</label>
+                  <input className="ep-input" type="email" value={form.correoElectronico} onChange={(e) => field("correoElectronico", e.target.value)} placeholder="nombre@empresa.com" />
+                </div>
+                <div className="ep-field">
+                  <label className="ep-field__label">Fecha de ingreso</label>
+                  <SpanishDateInput
+                    className="ep-input-date"
+                    value={form.fechaIngreso}
+                    onChange={(e) => field("fechaIngreso", e.target.value)}
+                    placeholder="Seleccionar fecha de ingreso"
+                  />
                 </div>
               </>
             ) : (
@@ -478,20 +536,49 @@ export function EmployeeProfileModal({
                   placeholder="No definido"
                 />
                 <InfoField label="Cumpleaños" value={currentUser.birthday} placeholder="No definido" />
+                <InfoField label="Correo electrónico" value={currentUser.correoElectronico} placeholder="No definido" />
+                <InfoField label="Fecha de ingreso" value={currentUser.fechaIngreso} placeholder="No definido" />
               </>
             )}
           </div>
         </div>
 
         <div className="ep-section">
-          <button type="button" className="ep-pw-toggle" onClick={() => setPwOpen((v) => !v)}>
-            <span>🔒 Contraseña</span>
-            <span className="ep-pw-toggle__arrow" style={{ transform: pwOpen ? "rotate(180deg)" : "none" }}>▾</span>
-          </button>
+          <div className="ep-grid ep-grid--2 ep-grid--actions">
+            {isEditMode ? (
+              <div className="ep-field ep-field--switch">
+                <span className="ep-field__label">Teléfono en chat</span>
+                <label className="ep-switch" htmlFor="ep-tel-visible">
+                  <input
+                    id="ep-tel-visible"
+                    type="checkbox"
+                    className="ep-switch__input"
+                    checked={form.telefono_visible}
+                    onChange={(e) => field("telefono_visible", e.target.checked)}
+                  />
+                  <span className="ep-switch__track" aria-hidden="true">
+                    <span className="ep-switch__thumb" />
+                  </span>
+                  <span className="ep-switch__text">
+                    {form.telefono_visible ? "Visible en el perfil" : "Oculto en el perfil"}
+                  </span>
+                </label>
+              </div>
+            ) : (
+              <InfoField
+                label="Teléfono en chat"
+                value={currentUser.telefono_visible ? "Visible en el perfil" : "Oculto en el perfil"}
+              />
+            )}
+            <button type="button" className="ep-pw-toggle" onClick={() => setPwOpen((v) => !v)}>
+              <span>Contraseña</span>
+              <span className="ep-pw-toggle__arrow" style={{ transform: pwOpen ? "rotate(180deg)" : "none" }}>▾</span>
+            </button>
+          </div>
           {pwOpen && (
             <div className="ep-pw-body">
-              <div className="ep-grid ep-grid--1">
-                <div className="ep-field ep-field--wide">
+              <div className="ep-grid ep-grid--2">
+                <div className="ep-field">
                   <label className="ep-field__label">Nueva contraseña</label>
                   <div className="password-visibility-field">
                     <input className="ep-input" type={showPassword ? "text" : "password"} value={passwordForm.password} onChange={(e) => onPasswordChange((c) => ({ ...c, password: e.target.value, message: "" }))} />
@@ -505,7 +592,7 @@ export function EmployeeProfileModal({
                     </button>
                   </div>
                 </div>
-                <div className="ep-field ep-field--wide">
+                <div className="ep-field">
                   <label className="ep-field__label">Confirmar contraseña</label>
                   <div className="password-visibility-field">
                     <input className="ep-input" type={showConfirmPassword ? "text" : "password"} value={passwordForm.confirmPassword} onChange={(e) => onPasswordChange((c) => ({ ...c, confirmPassword: e.target.value, message: "" }))} />
@@ -519,9 +606,9 @@ export function EmployeeProfileModal({
                     </button>
                   </div>
                 </div>
-                <button type="button" className="ep-btn ep-btn--primary" onClick={onSubmit}>Guardar contraseña</button>
-                {passwordForm.message && <p className="ep-msg">{passwordForm.message}</p>}
               </div>
+              <button type="button" className="ep-btn ep-btn--primary ep-pw-save" onClick={onSubmit}>Guardar contraseña</button>
+              {passwordForm.message && <p className="ep-msg">{passwordForm.message}</p>}
             </div>
           )}
         </div>
@@ -534,14 +621,46 @@ export function EmployeeProfileModal({
             <div className="ep-section">
               <div className="ep-section__title">Vista previa</div>
               <div className="ep-personal-preview" style={{ borderColor: `${selectedThemePrimary}33` }}>
-                <div className="ep-personal-preview__header" style={{ background: `linear-gradient(135deg, ${selectedThemeShell} 0%, ${selectedThemePrimary} 100%)` }}>
-                  <span style={{ fontFamily: selectedFontFamily }}>Tema actual</span>
+                <div className="ep-personal-preview__header ui-surface-dark" style={{ background: selectedThemeHeaderBackground, color: "#ffffff" }}>
+                  <span className="ep-personal-preview__header-label" style={{ color: "#ffffff" }}>
+                    {personalTab === "fuentes" ? (isFontPreviewPending ? "Vista previa (al pasar el cursor)" : "Fuente actual") : "Tema actual"}
+                  </span>
                 </div>
-                <div className="ep-personal-preview__body" style={{ fontFamily: selectedFontFamily }}>
-                  <div className="ep-personal-preview__line" style={{ fontSize: `${0.84 * Number(selectedFontSizeOption.scale || 1)}rem` }}>Texto de ejemplo con tu fuente seleccionada</div>
+                <div
+                  className={`ep-personal-preview__body${personalTab === "fuentes" ? " ep-personal-preview__font-live" : ""}`}
+                  style={personalTab === "fuentes" ? { "--ep-preview-font-family": previewFontFamily } : undefined}
+                >
+                  {personalTab === "fuentes" ? (
+                    <>
+                      <span className="ep-personal-preview__font-name">{previewFontOption.label}</span>
+                      <div
+                        className="ep-personal-preview__line"
+                        data-font-preview
+                        style={{
+                          "--font-preview-stack": previewFontFamily,
+                          fontFamily: previewFontFamily,
+                          fontSize: `${1.05 * Number(selectedFontSizeOption.scale || 1)}rem`,
+                        }}
+                      >
+                        ABC abc 123 — Texto de ejemplo antes de aplicar
+                      </div>
+                      {isFontPreviewPending ? (
+                        <span className="ep-personal-preview__font-hint">Pasa el cursor sobre una fuente o haz clic para aplicarla.</span>
+                      ) : null}
+                    </>
+                  ) : (
+                    <div className="ep-personal-preview__line" style={{ fontSize: `${0.84 * Number(selectedFontSizeOption.scale || 1)}rem` }}>
+                      Texto de ejemplo con el tema seleccionado
+                    </div>
+                  )}
                   <div className="ep-personal-preview__chips">
                     <span className="ep-personal-chip" style={{ background: selectedThemePrimary, color: "#ffffff" }}>Principal {selectedThemePrimary}</span>
                     <span className="ep-personal-chip" style={{ background: selectedThemeShell, color: "#ffffff" }}>Base {selectedThemeShell}</span>
+                    {selectedThemeColors.isGradient ? (
+                      <span className="ep-personal-chip ep-personal-chip--muted">Degradado</span>
+                    ) : (
+                      <span className="ep-personal-chip" style={{ background: selectedThemeAccent, color: "#ffffff" }}>Acento {selectedThemeAccent}</span>
+                    )}
                   </div>
                 </div>
               </div>
@@ -569,32 +688,34 @@ export function EmployeeProfileModal({
             </div>
 
             {personalTab === "colores" ? (
-              <div className="ep-section">
-                <div className="ep-section__title">Temas ({themeOptions.length})</div>
-                <div className="ep-theme-grid">
-                  {themeOptions.map((theme) => {
-                    const preview = {
-                      primary: String(theme.primary || THEME_FALLBACK[theme.id]?.primary || "#385878"),
-                      shell: String(theme.shell || THEME_FALLBACK[theme.id]?.shell || "#22384f"),
-                    };
-                    const active = (currentTheme || "copmec-bosque") === theme.id;
-                    return (
-                      <button
+              <>
+                <div className="ep-section">
+                  <div className="ep-section__title">Colores sólidos ({themesByKind.solid.length})</div>
+                  <div className="ep-theme-grid ep-theme-grid--visual">
+                    {themesByKind.solid.map((theme) => (
+                      <ThemePickerCard
                         key={theme.id}
-                        type="button"
-                        className={`ep-theme-card${active ? " ep-theme-card--active" : ""}`}
-                        onClick={() => onThemeChange?.(theme.id)}
-                      >
-                        <span className="ep-theme-card__swatches" style={{ background: `linear-gradient(135deg, ${preview.shell} 0%, ${preview.primary} 100%)` }} />
-                        <span className="ep-theme-card__copy">
-                          <strong>{theme.label}</strong>
-                          <small>{preview.shell} / {preview.primary}</small>
-                        </span>
-                      </button>
-                    );
-                  })}
+                        theme={theme}
+                        active={(currentTheme || "copmec-bosque") === theme.id}
+                        onSelect={onThemeChange}
+                      />
+                    ))}
+                  </div>
                 </div>
-              </div>
+                <div className="ep-section">
+                  <div className="ep-section__title">Degradados ({themesByKind.gradient.length})</div>
+                  <div className="ep-theme-grid ep-theme-grid--visual">
+                    {themesByKind.gradient.map((theme) => (
+                      <ThemePickerCard
+                        key={theme.id}
+                        theme={theme}
+                        active={(currentTheme || "copmec-bosque") === theme.id}
+                        onSelect={onThemeChange}
+                      />
+                    ))}
+                  </div>
+                </div>
+              </>
             ) : null}
 
             {personalTab === "fuentes" ? (
@@ -619,24 +740,44 @@ export function EmployeeProfileModal({
                     );
                   })}
                 </div>
-                <div className="ep-font-grid">
-                  {fontOptions.map((font) => {
-                    const previewFamily = String(font.family || FONT_FALLBACK[font.id] || FONT_FALLBACK.bahnschrift);
-                    const active = (currentFont || "bahnschrift") === font.id;
-                    return (
-                      <button
-                        key={font.id}
-                        type="button"
-                        className={`ep-font-card${active ? " ep-font-card--active" : ""}`}
-                        onClick={() => onFontChange?.(font.id)}
-                      >
-                        <span className="ep-font-card__name">{font.label}</span>
-                        <span className="ep-font-card__sample" style={{ fontFamily: previewFamily }}>
-                          ABC abc 123
-                        </span>
-                      </button>
-                    );
-                  })}
+                <div className="ep-font-picker-zone" onMouseLeave={() => setHoveredFontId(null)}>
+                  <div className="ep-font-grid">
+                    {fontOptions.map((font) => {
+                      const previewFamily = getFontFamilyStack(font.id, fontOptions);
+                      const active = normalizedFontId === font.id;
+                      const isHovered = hoveredFontId === font.id;
+                      const previewStyle = { "--font-preview-stack": previewFamily, fontFamily: previewFamily };
+                      return (
+                        <button
+                          key={font.id}
+                          type="button"
+                          className={`ep-font-card${active ? " ep-font-card--active" : ""}${isHovered ? " ep-font-card--hover" : ""}`}
+                          onMouseEnter={() => setHoveredFontId(font.id)}
+                          onFocus={() => setHoveredFontId(font.id)}
+                          onBlur={() => setHoveredFontId((current) => (current === font.id ? null : current))}
+                          onClick={() => {
+                            setHoveredFontId(null);
+                            onFontChange?.(font.id);
+                          }}
+                        >
+                          <span
+                            className="ep-font-card__name ep-font-card__preview-text"
+                            data-font-preview
+                            style={previewStyle}
+                          >
+                            {font.label}
+                          </span>
+                          <span
+                            className="ep-font-card__sample ep-font-card__preview-text"
+                            data-font-preview
+                            style={previewStyle}
+                          >
+                            ABC abc 123
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
             ) : null}

@@ -127,15 +127,26 @@ const authLimiter = rateLimit({
   },
 });
 
-const chatLimiter = rateLimit({
+const chatReadLimiter = rateLimit({
   windowMs,
   max: chatRateLimitMaxRequests,
   standardHeaders: true,
   legacyHeaders: false,
-  // Excluir señales de llamada: mandan muchos ICE candidates en ráfaga
-  skip: (req) => req.path === "/calls/signal" || req.path === "/calls/pending",
+  skip: (req) => req.method !== "GET",
   handler: (req, res) => {
-    auditSecurityEvent("rate_limited", req, { scope: "chat" });
+    auditSecurityEvent("rate_limited", req, { scope: "chat_read" });
+    res.status(429).json({ message: "Chat temporalmente limitado por alta actividad. Reintentando..." });
+  },
+});
+
+const chatWriteLimiter = rateLimit({
+  windowMs,
+  max: Math.max(400, Math.floor(chatRateLimitMaxRequests / 4)),
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: (req) => req.method === "GET" || req.path === "/calls/signal" || req.path === "/calls/pending",
+  handler: (req, res) => {
+    auditSecurityEvent("rate_limited", req, { scope: "chat_write" });
     res.status(429).json({ message: "Chat temporalmente limitado por alta actividad. Reintentando..." });
   },
 });
@@ -170,7 +181,7 @@ app.use("/api/biblioteca", requireAuth, bibliotecaRouter);
 app.use("/api/warehouse", requireAuth, warehouseRouter);
 
 // DEBUG: dev-only endpoint to insert a process audit template without auth
-app.use("/api/chat", requireAuth, chatLimiter, chatRouter);
+app.use("/api/chat", requireAuth, chatReadLimiter, chatWriteLimiter, chatRouter);
 app.use("/api/copmec-ai", requireAuth, copmecAiRouter);
 
 if (hasFrontendBuild) {

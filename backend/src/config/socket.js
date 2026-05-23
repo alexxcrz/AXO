@@ -189,12 +189,18 @@ export function initSocket(httpServer) {
         });
 
         // Web Push for call target (works when app is backgrounded or phone is locked)
-        sendPushToNick(nick, {
-          type: 'call_invite',
-          room,
-          caller: fromNickname || socket.data.nickname || 'Usuario',
-          callerName: fromNickname || socket.data.nickname || 'Usuario',
-        }).catch(() => {});
+        sendPushToNick(
+          nick,
+          {
+            type: "call_invite",
+            room,
+            caller: fromNickname || socket.data.nickname || "Usuario",
+            callerName: fromNickname || socket.data.nickname || "Usuario",
+            soundUrl: "/sounds/notification-call.wav",
+            url: "/",
+          },
+          { skipIfOnline: false },
+        ).catch(() => {});
 
         // REST fallback: if this target had no active sockets, enqueue for HTTP polling
         if (targets.length === 0) {
@@ -336,6 +342,26 @@ export function initSocket(httpServer) {
     socket.on("call_ice", ({ to, room, candidate }) => {
       if (!to || !room || !candidate) return;
       io.to(to).emit("call_ice", { from: socket.id, room, candidate });
+    });
+
+    // ── INDICADOR DE ESCRITURA (chat privado) ───────────────
+    socket.on("chat_typing", ({ para_nickname, typing }) => {
+      const fromNickname = String(socket.data.nickname || usuarioNombre || "").trim();
+      const targetNickname = String(para_nickname || "").trim();
+      if (!fromNickname || !targetNickname || fromNickname === targetNickname) return;
+
+      const payload = {
+        de_nickname: fromNickname,
+        para_nickname: targetNickname,
+        typing: !!typing,
+        ts: Date.now(),
+      };
+
+      resolveTargetAliases(targetNickname).forEach((alias) => {
+        const roomKey = getUserRoomKey(alias);
+        if (!roomKey) return;
+        socket.to(roomKey).emit("chat_typing", payload);
+      });
     });
 
     // ── DESCONEXIÓN ─────────────────────────────────────────

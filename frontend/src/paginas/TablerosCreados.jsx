@@ -1,11 +1,30 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Modal } from "../components/Modal";
 import { downloadBoardAsJson, parseBoardImportJson } from "../utils/boardImportExport";
-import { CLEANING_CHECKLIST_TEMPLATE_V2, OPERATIONAL_INSPECTION_TEMPLATE, normalizeOperationalInspectionTemplate } from "../utils/operationalInspectionTemplate";
+import {
+  CLEANING_CHECKLIST_TEMPLATE_V2,
+  OPERATIONAL_INSPECTION_TEMPLATE,
+  generateChecklistTemplateId,
+  normalizeOperationalInspectionTemplate,
+} from "../utils/operationalInspectionTemplate";
 
 const CHECKLIST_SITE_OPTIONS = ["C1", "C2", "C3", "P"];
 const CHECKLIST_TEMPLATE_STORAGE_KEY = "copmec:operational-checklist-template:v1";
-const CHECKLIST_TEMPLATE_STORAGE_KEY_CLEANING = "copmec:operational-checklist-template:v1:cleaning";
+
+const CHECKLIST_AREA_OPTIONS = [
+  { value: "LIMPIEZA", label: "LIMPIEZA" },
+  { value: "MANTENIMIENTO", label: "MANTENIMIENTO" },
+  { value: "REGULATORIO", label: "REGULATORIO" },
+  { value: "CALIDAD", label: "CALIDAD" },
+  { value: "INVENTARIO", label: "INVENTARIO" },
+  { value: "OPERACIONES", label: "OPERACIONES" },
+  { value: "ESTO", label: "ESTO" },
+  { value: "GENERAL", label: "GENERAL" },
+];
+
+function normalizeChecklistAreaLabel(area) {
+  return String(area || "").trim().toUpperCase() || "GENERAL";
+}
 
 function loadPersistedChecklistTemplate() {
   if (typeof window === "undefined") return normalizeOperationalInspectionTemplate(OPERATIONAL_INSPECTION_TEMPLATE);
@@ -211,6 +230,47 @@ export default function TablerosCreados({ contexto }) {
       .filter(Boolean);
   }, [visibleCreatorBoards]);
 
+  const serverChecklistTemplates = useMemo(() => {
+    const raw = Array.isArray(state?.operationalInspectionTemplates) ? state.operationalInspectionTemplates : [];
+    return raw.map((entry) => normalizeOperationalInspectionTemplate(entry));
+  }, [state?.operationalInspectionTemplates]);
+
+  const allChecklistTemplates = useMemo(() => {
+    const map = new Map();
+    map.set(OPERATIONAL_INSPECTION_TEMPLATE.id, normalizeOperationalInspectionTemplate(OPERATIONAL_INSPECTION_TEMPLATE));
+    map.set(CLEANING_CHECKLIST_TEMPLATE_V2.id, normalizeOperationalInspectionTemplate(CLEANING_CHECKLIST_TEMPLATE_V2));
+    serverChecklistTemplates.forEach((template) => {
+      if (!template?.id) return;
+      if (template.id === OPERATIONAL_INSPECTION_TEMPLATE.id || template.id === CLEANING_CHECKLIST_TEMPLATE_V2.id) {
+        map.set(template.id, normalizeOperationalInspectionTemplate({ ...template, isBuiltIn: true }));
+        return;
+      }
+      map.set(template.id, normalizeOperationalInspectionTemplate({ ...template, isBuiltIn: false }));
+    });
+    return Array.from(map.values());
+  }, [serverChecklistTemplates]);
+
+  const checklistAreaFilter = useMemo(() => {
+    if (selectedAreaSectionId === "all") return [];
+    return selectedSectionAreaScopes.map((scope) => normalizeChecklistAreaLabel(scope));
+  }, [selectedAreaSectionId, selectedSectionAreaScopes]);
+
+  const checklistTemplatesByArea = useMemo(() => {
+    const grouped = new Map();
+    allChecklistTemplates.forEach((template) => {
+      const areaKey = normalizeChecklistAreaLabel(template.area);
+      if (checklistAreaFilter.length && !checklistAreaFilter.includes(areaKey)) return;
+      if (!grouped.has(areaKey)) grouped.set(areaKey, []);
+      grouped.get(areaKey).push(template);
+    });
+    return Array.from(grouped.entries())
+      .map(([area, templates]) => ({
+        area,
+        templates: templates.slice().sort((left, right) => String(left.name || "").localeCompare(String(right.name || ""), "es-MX")),
+      }))
+      .sort((left, right) => left.area.localeCompare(right.area, "es-MX"));
+  }, [allChecklistTemplates, checklistAreaFilter]);
+
   const [checklistTemplateDraft, setChecklistTemplateDraft] = useState(() => loadPersistedChecklistTemplate());
   const [checklistEditorOpen, setChecklistEditorOpen] = useState(false);
   const [checklistEditorMode, setChecklistEditorMode] = useState("edit");
@@ -223,10 +283,6 @@ export default function TablerosCreados({ contexto }) {
     error: "",
   });
   const [unlinkingChecklistItems, setUnlinkingChecklistItems] = useState({});
-  const checklistBaseChecksCount = useMemo(
-    () => checklistTemplateDraft.sections.reduce((total, section) => total + (Array.isArray(section?.checks) ? section.checks.length : 0), 0),
-    [checklistTemplateDraft],
-  );
 
   const checklistCatalogCategoryOptions = useMemo(
     () => Array.from(new Set(activeCatalogItems.map((item) => String(item?.category || "General").trim() || "General"))).sort((left, right) => left.localeCompare(right, "es-MX")),
@@ -240,16 +296,6 @@ export default function TablerosCreados({ contexto }) {
     [activeCatalogItems, checklistLinkModal.category],
   );
 
-  const checklistTemplateDraftKey = useMemo(
-    () => resolveChecklistTemplateReferenceKey(checklistTemplateDraft),
-    [checklistTemplateDraft],
-  );
-
-  const cleaningChecklistTemplateKey = useMemo(
-    () => resolveChecklistTemplateReferenceKey(CLEANING_CHECKLIST_TEMPLATE_V2),
-    [],
-  );
-
   const checklistLinkedCatalogActivitiesByTemplate = useMemo(() => {
     const map = new Map();
     activeCatalogItems.forEach((item) => {
@@ -261,18 +307,6 @@ export default function TablerosCreados({ contexto }) {
     });
     return map;
   }, [activeCatalogItems]);
-
-  const linkedChecklistCatalogActivities = useMemo(
-    () => checklistTemplateDraftKey
-      ? (checklistLinkedCatalogActivitiesByTemplate.get(checklistTemplateDraftKey) || [])
-      : [],
-    [checklistLinkedCatalogActivitiesByTemplate, checklistTemplateDraftKey],
-  );
-
-  const linkedCleaningChecklistCatalogActivities = useMemo(
-    () => checklistLinkedCatalogActivitiesByTemplate.get(cleaningChecklistTemplateKey) || [],
-    [checklistLinkedCatalogActivitiesByTemplate, cleaningChecklistTemplateKey],
-  );
 
   function getScopedBoardAssignmentSummary(board) {
     if (!selectedSectionAreaScopes.length) {
@@ -363,7 +397,12 @@ export default function TablerosCreados({ contexto }) {
   }
 
   function resetChecklistTemplateDraft() {
-    setChecklistTemplateDraft(normalizeOperationalInspectionTemplate(OPERATIONAL_INSPECTION_TEMPLATE));
+    const currentId = String(checklistTemplateDraft?.id || "").trim();
+    if (currentId === CLEANING_CHECKLIST_TEMPLATE_V2.id) {
+      setChecklistTemplateDraft(normalizeOperationalInspectionTemplate(CLEANING_CHECKLIST_TEMPLATE_V2));
+    } else {
+      setChecklistTemplateDraft(normalizeOperationalInspectionTemplate(OPERATIONAL_INSPECTION_TEMPLATE));
+    }
     if (typeof window !== "undefined") {
       try {
         window.localStorage.removeItem(CHECKLIST_TEMPLATE_STORAGE_KEY);
@@ -377,69 +416,27 @@ export default function TablerosCreados({ contexto }) {
     if (typeof window === "undefined") return;
     setChecklistTemplateSaving(true);
     try {
-        // Persist template to server so canonical templates are authoritative
-        const normalizedDraft = normalizeOperationalInspectionTemplate(checklistTemplateDraft);
-        const result = await requestJson("/warehouse/operational-templates", {
-          method: "POST",
-          body: JSON.stringify(normalizedDraft),
-        });
-        if (result?.ok) {
-          try {
-            applyRemoteWarehouseState(result.data.state, setState, setLoginDirectory, skipNextSyncRef, setSyncStatus);
-          } catch {}
-          pushAppToast("Checklist guardado en servidor.", "success");
-          // If creating a new checklist, also create a control board assigned to user's area
-          if (checklistEditorMode === "create") {
-            try {
-              const boardPayload = {
-                name: normalizedDraft.name || "Checklist",
-                description: normalizedDraft.description || "",
-                ownerId: String(currentUser?.id || "").trim(),
-                visibilityType: "users",
-                sharedDepartments: [],
-                accessUserIds: [],
-                settings: {
-                  ownerArea: String(currentUser?.area || "").trim() || undefined,
-                  operationalChecklistConfig: {
-                    enabled: true,
-                    template: normalizedDraft,
-                    linkedActivityNames: [],
-                  },
-                },
-                columns: [
-                  {
-                    id: createChecklistToken("field"),
-                    label: "Actividad",
-                    type: "select",
-                    optionSource: "catalogByCategory",
-                    optionCatalogCategory: "General",
-                    options: [],
-                    colorRules: [],
-                  },
-                ],
-              };
-
-              const createResult = await requestJson("/warehouse/boards", {
-                method: "POST",
-                body: JSON.stringify(boardPayload),
-              });
-              if (createResult?.data?.state) {
-                applyRemoteWarehouseState(createResult.data.state, setState, setLoginDirectory, skipNextSyncRef, setSyncStatus);
-              }
-              if (createResult?.data?.boardId) {
-                setSelectedCustomBoardId(createResult.data.boardId);
-              }
-              if (createResult?.ok) pushAppToast("Tablero creado y asignado al área del usuario.", "success");
-              else pushAppToast(createResult?.message || "No fue posible crear el tablero.", "danger");
-            } catch (err) {
-              pushAppToast(err?.message || "Error al crear el tablero.", "danger");
-            }
-          }
-        } else {
-          pushAppToast(result?.message || "No fue posible guardar el checklist en el servidor.", "danger");
+      const normalizedDraft = normalizeOperationalInspectionTemplate(checklistTemplateDraft);
+      const result = await requestJson("/warehouse/operational-templates", {
+        method: "POST",
+        body: JSON.stringify(normalizedDraft),
+      });
+      if (result?.ok) {
+        try {
+          applyRemoteWarehouseState(result.data.state, setState, setLoginDirectory, skipNextSyncRef, setSyncStatus);
+        } catch (_syncError) {
+          void _syncError;
         }
+        const toastLabel = checklistEditorMode === "create"
+          ? "Checklist creado."
+          : "Cambios guardados.";
+        pushAppToast(toastLabel, "success");
+        setChecklistEditorOpen(false);
+      } else {
+        pushAppToast(result?.message || "No fue posible guardar el checklist en el servidor.", "danger");
+      }
     } catch {
-        pushAppToast("No se pudo procesar el checklist.", "danger");
+      pushAppToast("No se pudo procesar el checklist.", "danger");
     } finally {
       setChecklistTemplateSaving(false);
     }
@@ -483,9 +480,13 @@ export default function TablerosCreados({ contexto }) {
     }));
   }
 
-  function openChecklistCreator() {
+  function openChecklistCreator(area = "") {
+    const defaultArea = normalizeChecklistAreaLabel(area || currentUser?.area || "LIMPIEZA");
     setChecklistTemplateDraft(normalizeOperationalInspectionTemplate({
+      id: generateChecklistTemplateId("checklist"),
       name: "Checklist nuevo",
+      area: defaultArea,
+      isBuiltIn: false,
       siteOptions: [],
       sections: [
         {
@@ -500,8 +501,14 @@ export default function TablerosCreados({ contexto }) {
     setChecklistEditorOpen(true);
   }
 
-  function openChecklistEditor(templateKey = "operational") {
-    const normalizedKey = String(templateKey || "").trim().toLowerCase();
+  function openChecklistEditor(templateOrKey = "operational") {
+    if (templateOrKey && typeof templateOrKey === "object") {
+      setChecklistTemplateDraft(normalizeOperationalInspectionTemplate(templateOrKey));
+      setChecklistEditorMode("edit");
+      setChecklistEditorOpen(true);
+      return;
+    }
+    const normalizedKey = String(templateOrKey || "").trim().toLowerCase();
     if (normalizedKey === "cleaning") {
       setChecklistTemplateDraft(normalizeOperationalInspectionTemplate(CLEANING_CHECKLIST_TEMPLATE_V2));
     } else {
@@ -509,6 +516,25 @@ export default function TablerosCreados({ contexto }) {
     }
     setChecklistEditorMode("edit");
     setChecklistEditorOpen(true);
+  }
+
+  async function deleteCustomChecklistTemplate(templateId) {
+    const id = String(templateId || "").trim();
+    if (!id) return;
+    if (!globalThis.confirm("¿Eliminar este checklist? Esta acción no se puede deshacer.")) return;
+    try {
+      const result = await requestJson(`/warehouse/operational-templates/${encodeURIComponent(id)}`, { method: "DELETE" });
+      if (result?.ok) {
+        if (result.data?.state) {
+          applyRemoteWarehouseState(result.data.state, setState, setLoginDirectory, skipNextSyncRef, setSyncStatus);
+        }
+        pushAppToast("Checklist eliminado.", "success");
+      } else {
+        pushAppToast(result?.message || "No fue posible eliminar el checklist.", "danger");
+      }
+    } catch (err) {
+      pushAppToast(err?.message || "Error al eliminar el checklist.", "danger");
+    }
   }
 
   function openChecklistLinkModal() {
@@ -656,11 +682,10 @@ export default function TablerosCreados({ contexto }) {
   }, [boardCreatorTabs, selectedBoardCreatorId]);
 
   useEffect(() => {
-    // Clear legacy localStorage checklist template keys on component mount
     if (typeof window !== "undefined") {
       try {
         window.localStorage.removeItem(CHECKLIST_TEMPLATE_STORAGE_KEY);
-        window.localStorage.removeItem(CHECKLIST_TEMPLATE_STORAGE_KEY_CLEANING);
+        window.localStorage.removeItem("copmec:operational-checklist-template:v1:cleaning");
       } catch {
         // noop
       }
@@ -752,7 +777,7 @@ export default function TablerosCreados({ contexto }) {
               </>
             ) : null}
             {creatorTab === "checklists" ? (
-              <button type="button" className="primary-button" onClick={openChecklistCreator} disabled={!actionPermissions.editCatalog}>
+              <button type="button" className="primary-button" onClick={() => openChecklistCreator("")} disabled={!actionPermissions.editCatalog}>
                 <Plus size={16} /> Crear checklist
               </button>
             ) : null}
@@ -944,145 +969,144 @@ export default function TablerosCreados({ contexto }) {
           <div className="card-header-row">
             <div>
               <h3>Catálogo de checklist</h3>
-              <p className="subtle-line" style={{ margin: 0 }}>
-                Plantilla compacta y editable del checklist de arranque.
-              </p>
             </div>
           </div>
 
+          {checklistTemplatesByArea.map(({ area, templates }) => (
+            <section key={`area-${area}`} style={{ display: "grid", gap: "0.6rem", marginBottom: "1rem" }}>
+              <div className="card-header-row" style={{ alignItems: "center", gap: "0.6rem" }}>
+                <h4 style={{ margin: 0 }}>
+                  <span className="chip primary" style={{ fontSize: "0.8rem" }}>{area}</span>
+                </h4>
+                <span className="subtle-line" style={{ margin: 0, fontSize: "0.78rem" }}>
+                  {templates.length} {templates.length === 1 ? "checklist" : "checklists"}
+                </span>
+                <div style={{ marginLeft: "auto" }}>
+                  <button
+                    type="button"
+                    className="icon-button"
+                    onClick={() => openChecklistCreator(area)}
+                    disabled={!actionPermissions.editCatalog}
+                    title={`Crear un checklist nuevo para ${area}`}
+                  >
+                    <Plus size={14} /> Nuevo en {area}
+                  </button>
+                </div>
+              </div>
+
+              <div className="created-board-grid full-width">
+                {templates.map((template) => {
+                  const templateKey = String(template.id || template.name || "").toLowerCase();
+                  const linkedItems = checklistLinkedCatalogActivitiesByTemplate.get(templateKey) || [];
+                  const sectionsCount = Array.isArray(template.sections) ? template.sections.length : 0;
+                  const checksCount = (Array.isArray(template.sections) ? template.sections : [])
+                    .reduce((total, section) => total + (Array.isArray(section?.checks) ? section.checks.length : 0), 0);
+                  const siteOptions = Array.isArray(template.siteOptions) ? template.siteOptions : [];
+                  return (
+                    <article
+                      key={`template-${template.id}`}
+                      className="created-board-card surface-card"
+                      style={{
+                        border: "1px solid rgba(49, 77, 105, 0.14)",
+                        background: template.isBuiltIn
+                          ? "linear-gradient(180deg, rgba(49, 77, 105, 0.02) 0%, rgba(255, 255, 255, 0.98) 100%)"
+                          : "linear-gradient(180deg, rgba(225, 245, 254, 0.45) 0%, rgba(255, 255, 255, 1) 100%)",
+                        maxWidth: "560px",
+                      }}
+                    >
+                      <div className="created-board-card-top">
+                        <div className="created-board-card-head">
+                          <strong>{template.name}</strong>
+                        </div>
+                        <div className="saved-board-list created-board-card-stats">
+                          <span className="chip primary">Área: {normalizeChecklistAreaLabel(template.area)}</span>
+                          <span className="chip primary">Secciones: {sectionsCount}</span>
+                          <span className="chip">Checks: {checksCount}</span>
+                          {template.isBuiltIn ? <span className="chip">Sistema</span> : null}
+                        </div>
+                      </div>
+
+                      <div style={{ display: "grid", gap: "0.45rem", marginBottom: "0.8rem" }}>
+                        <div className="saved-board-list" style={{ marginBottom: "0.25rem" }}>
+                          <span className="chip">Naves configuradas:</span>
+                          {siteOptions.length
+                            ? siteOptions.map((site) => <span key={site} className="chip primary">{site}</span>)
+                            : <span className="subtle-line">Sin naves fijas (usa catálogo o contexto operativo)</span>}
+                        </div>
+                        {(Array.isArray(template.sections) ? template.sections : []).map((section) => (
+                          <article key={section.id} className="surface-card" style={{ padding: "0.65rem 0.75rem", display: "grid", gap: "0.22rem" }}>
+                            <strong style={{ fontSize: "0.86rem", lineHeight: 1.2 }}>{section.title}</strong>
+                            <div className="board-meta-inline created-board-card-meta" style={{ margin: 0, fontSize: "0.74rem" }}>
+                              <span>{section.incidenceCategory || "Otro"}</span>
+                              <span>{section.checks.length} checks</span>
+                            </div>
+                          </article>
+                        ))}
+
+                        <div className="saved-board-list" style={{ marginTop: "0.25rem", gap: "0.35rem", alignItems: "center" }}>
+                          <span className="chip primary">Actividades vinculadas: {linkedItems.length}</span>
+                          {linkedItems.length
+                            ? linkedItems.map((item) => (
+                                <div key={`${template.id}-${item.id}`} style={{ display: "inline-flex", alignItems: "center", gap: "0.35rem" }}>
+                                  <span className="chip">{item.category || "General"} · {item.name}</span>
+                                  <button
+                                    type="button"
+                                    className="icon-button danger"
+                                    onClick={() => void unlinkChecklistActivityFromCatalogItem(item.id)}
+                                    disabled={Boolean(unlinkingChecklistItems[item.id])}
+                                    title="Eliminar vínculo"
+                                  >
+                                    <Trash2 size={14} />
+                                  </button>
+                                </div>
+                              ))
+                            : <span className="subtle-line">Aun no hay actividades vinculadas.</span>}
+                        </div>
+                      </div>
+
+                      <div className="toolbar-actions">
+                        <button type="button" className="icon-button" onClick={() => openChecklistEditor(template)}>
+                          <Pencil size={15} /> Editar checklist
+                        </button>
+                        <button
+                          type="button"
+                          className="primary-button created-board-open-action"
+                          onClick={() => {
+                            setChecklistTemplateDraft(normalizeOperationalInspectionTemplate(template));
+                            openChecklistLinkModal();
+                          }}
+                          disabled={!actionPermissions.editCatalog || !activeCatalogItems.length}
+                        >
+                          <Plus size={16} /> Vincular a actividad
+                        </button>
+                        {!template.isBuiltIn ? (
+                          <button
+                            type="button"
+                            className="icon-button danger"
+                            onClick={() => void deleteCustomChecklistTemplate(template.id)}
+                            disabled={!actionPermissions.editCatalog}
+                            title="Eliminar checklist"
+                          >
+                            <Trash2 size={15} /> Eliminar
+                          </button>
+                        ) : null}
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            </section>
+          ))}
+
+          {!checklistTemplatesByArea.length ? (
+            <p className="subtle-line" style={{ margin: "0.5rem 0 1rem 0" }}>
+              {selectedAreaSectionId === "all"
+                ? "No hay checklists cargados todavía. Usa \"Crear checklist\" para agregar uno."
+                : `No hay checklists para esta área. Usa "Crear checklist" para agregar uno.`}
+            </p>
+          ) : null}
+
           <div className="created-board-grid full-width">
-            <article className="created-board-card surface-card" style={{ border: "1px solid rgba(49, 77, 105, 0.14)", background: "linear-gradient(180deg, rgba(49, 77, 105, 0.02) 0%, rgba(255, 255, 255, 0.98) 100%)", maxWidth: "560px" }}>
-              <div className="created-board-card-top">
-                <div className="created-board-card-head">
-                  <strong>{checklistTemplateDraft.name}</strong>
-                  <p>Versión compacta para revisar y ajustar antes de crear un tablero.</p>
-                </div>
-                <div className="saved-board-list created-board-card-stats">
-                  <span className="chip primary">Secciones: {checklistTemplateDraft.sections.length}</span>
-                  <span className="chip">Checks: {checklistBaseChecksCount}</span>
-                </div>
-              </div>
-
-              <div style={{ display: "grid", gap: "0.45rem", marginBottom: "0.8rem" }}>
-                <div className="saved-board-list" style={{ marginBottom: "0.25rem" }}>
-                  <span className="chip">Naves configuradas:</span>
-                  {(Array.isArray(checklistTemplateDraft.siteOptions) ? checklistTemplateDraft.siteOptions : []).length
-                    ? checklistTemplateDraft.siteOptions.map((site) => <span key={site} className="chip primary">{site}</span>)
-                    : <span className="subtle-line">Sin naves fijas (usa catálogo o contexto operativo)</span>}
-                </div>
-                {checklistTemplateDraft.sections.map((section) => (
-                  <article key={section.id} className="surface-card" style={{ padding: "0.65rem 0.75rem", display: "grid", gap: "0.22rem" }}>
-                    <strong style={{ fontSize: "0.86rem", lineHeight: 1.2 }}>{section.title}</strong>
-                    <div className="board-meta-inline created-board-card-meta" style={{ margin: 0, fontSize: "0.74rem" }}>
-                      <span>{section.incidenceCategory || "Otro"}</span>
-                      <span>{section.checks.length} checks</span>
-                    </div>
-                  </article>
-                ))}
-                <div className="saved-board-list" style={{ marginTop: "0.25rem", gap: "0.35rem", alignItems: "center" }}>
-                  <span className="chip primary">Actividades vinculadas: {linkedChecklistCatalogActivities.length}</span>
-                  {linkedChecklistCatalogActivities.length
-                    ? linkedChecklistCatalogActivities.map((item) => (
-                        <div key={item.id} style={{ display: "inline-flex", alignItems: "center", gap: "0.35rem" }}>
-                          <span className="chip">{item.category || "General"} · {item.name}</span>
-                          <button
-                            type="button"
-                            className="icon-button danger"
-                            onClick={() => void unlinkChecklistActivityFromCatalogItem(item.id)}
-                            disabled={Boolean(unlinkingChecklistItems[item.id])}
-                            title="Eliminar vínculo"
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        </div>
-                      ))
-                    : <span className="subtle-line">Aun no hay actividades vinculadas.</span>}
-                </div>
-              </div>
-
-              <div className="toolbar-actions">
-                <button type="button" className="icon-button" onClick={() => openChecklistEditor()}>
-                  <Pencil size={15} /> Abrir checklist operativo
-                </button>
-                <button
-                  type="button"
-                  className="primary-button created-board-open-action"
-                  onClick={openChecklistLinkModal}
-                  disabled={!actionPermissions.editCatalog || !activeCatalogItems.length}
-                >
-                  <Plus size={16} /> Vincular a actividad
-                </button>
-              </div>
-            </article>
-
-            <article className="created-board-card surface-card" style={{ border: "1px solid rgba(49, 77, 105, 0.14)", background: "linear-gradient(180deg, rgba(248, 250, 252, 0.8) 0%, rgba(255, 255, 255, 1) 100%)", maxWidth: "560px" }}>
-              <div className="created-board-card-top">
-                <div className="created-board-card-head">
-                  <strong>{CLEANING_CHECKLIST_TEMPLATE_V2.name}</strong>
-                  <p>Checklist original de limpieza disponible sin afectar el checklist operativo.</p>
-                </div>
-                <div className="saved-board-list created-board-card-stats">
-                  <span className="chip primary">Secciones: {CLEANING_CHECKLIST_TEMPLATE_V2.sections.length}</span>
-                  <span className="chip">Checks: {CLEANING_CHECKLIST_TEMPLATE_V2.sections.reduce((total, section) => total + (Array.isArray(section.checks) ? section.checks.length : 0), 0)}</span>
-                </div>
-              </div>
-
-              <div style={{ display: "grid", gap: "0.45rem", marginBottom: "0.8rem" }}>
-                <div className="saved-board-list" style={{ marginBottom: "0.25rem" }}>
-                  <span className="chip primary">Naves configuradas:</span>
-                  {(Array.isArray(CLEANING_CHECKLIST_TEMPLATE_V2.siteOptions) ? CLEANING_CHECKLIST_TEMPLATE_V2.siteOptions : []).length
-                    ? CLEANING_CHECKLIST_TEMPLATE_V2.siteOptions.map((site) => <span key={site} className="chip primary">{site}</span>)
-                    : <span className="subtle-line">Sin naves fijas (usa catálogo o contexto operativo)</span>}
-                </div>
-                {CLEANING_CHECKLIST_TEMPLATE_V2.sections.map((section) => (
-                  <article key={section.id} className="surface-card" style={{ padding: "0.65rem 0.75rem", display: "grid", gap: "0.22rem" }}>
-                    <strong style={{ fontSize: "0.86rem", lineHeight: 1.2 }}>{section.title}</strong>
-                    <div className="board-meta-inline created-board-card-meta" style={{ margin: 0, fontSize: "0.74rem" }}>
-                      <span>{section.incidenceCategory || "Otro"}</span>
-                      <span>{section.checks.length} checks</span>
-                    </div>
-                  </article>
-                ))}
-
-                <div className="saved-board-list" style={{ marginTop: "0.25rem", gap: "0.35rem", alignItems: "center" }}>
-                  <span className="chip primary">Actividades vinculadas: {linkedCleaningChecklistCatalogActivities.length}</span>
-                  {linkedCleaningChecklistCatalogActivities.length
-                    ? linkedCleaningChecklistCatalogActivities.map((item) => (
-                        <div key={item.id} style={{ display: "inline-flex", alignItems: "center", gap: "0.35rem" }}>
-                          <span className="chip">{item.category || "General"} · {item.name}</span>
-                          <button
-                            type="button"
-                            className="icon-button danger"
-                            onClick={() => void unlinkChecklistActivityFromCatalogItem(item.id)}
-                            disabled={Boolean(unlinkingChecklistItems[item.id])}
-                            title="Eliminar vínculo"
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        </div>
-                      ))
-                    : <span className="subtle-line">Aun no hay actividades vinculadas.</span>}
-                </div>
-              </div>
-
-              <div className="toolbar-actions">
-                <button type="button" className="primary-button created-board-open-action" onClick={() => openChecklistEditor("cleaning") }>
-                  <Pencil size={16} /> Abrir checklist de limpieza
-                </button>
-                <button
-                  type="button"
-                  className="primary-button created-board-open-action"
-                  onClick={() => {
-                    setChecklistTemplateDraft(normalizeOperationalInspectionTemplate(CLEANING_CHECKLIST_TEMPLATE_V2));
-                    openChecklistLinkModal();
-                  }}
-                  disabled={!actionPermissions.editCatalog || !activeCatalogItems.length}
-                >
-                  <Plus size={16} /> Vincular a actividad
-                </button>
-              </div>
-            </article>
-
             {checklistBoards.map(({ board, checklistName, sectionsCount, checksCount, linkedActivityNames }) => (
                 <article key={`${board.id}-checklist`} className="created-board-card surface-card">
                   <div className="created-board-card-top">
@@ -1163,8 +1187,8 @@ export default function TablerosCreados({ contexto }) {
         )}
       >
         <div style={{ display: "grid", gap: "0.85rem" }}>
-          <div className="toolbar-actions" style={{ justifyContent: "space-between" }}>
-            <label className="app-modal-field" style={{ margin: 0, flex: 1 }}>
+          <div className="toolbar-actions" style={{ justifyContent: "space-between", gap: "0.6rem", flexWrap: "wrap" }}>
+            <label className="app-modal-field" style={{ margin: 0, flex: 2, minWidth: "220px" }}>
               <span>Nombre de checklist</span>
               <input
                 value={checklistTemplateDraft.name}
@@ -1172,13 +1196,50 @@ export default function TablerosCreados({ contexto }) {
                 placeholder="Checklist operativo"
               />
             </label>
-            <button type="button" className="icon-button" onClick={resetChecklistTemplateDraft}>Restaurar base</button>
+            <label className="app-modal-field" style={{ margin: 0, flex: 1, minWidth: "160px" }}>
+              <span>Área</span>
+              <select
+                value={normalizeChecklistAreaLabel(checklistTemplateDraft.area)}
+                onChange={(event) => updateChecklistTemplateDraft((current) => ({ ...current, area: normalizeChecklistAreaLabel(event.target.value) }))}
+                disabled={checklistTemplateDraft.isBuiltIn}
+              >
+                {CHECKLIST_AREA_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+                {!CHECKLIST_AREA_OPTIONS.some((option) => option.value === normalizeChecklistAreaLabel(checklistTemplateDraft.area))
+                  ? <option value={normalizeChecklistAreaLabel(checklistTemplateDraft.area)}>{normalizeChecklistAreaLabel(checklistTemplateDraft.area)}</option>
+                  : null}
+              </select>
+            </label>
+            {!checklistTemplateDraft.isBuiltIn ? null : (
+              <button type="button" className="icon-button" onClick={resetChecklistTemplateDraft}>Restaurar base</button>
+            )}
           </div>
 
           <article className="surface-card" style={{ padding: "0.75rem", display: "grid", gap: "0.55rem" }}>
-            <strong>Naves del checklist</strong>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "0.6rem", flexWrap: "wrap" }}>
+              <strong>Naves del checklist</strong>
+              <div className="toolbar-actions" style={{ gap: "0.35rem" }}>
+                <button
+                  type="button"
+                  className="icon-button"
+                  onClick={() => updateChecklistTemplateDraft((current) => ({ ...current, siteOptions: [] }))}
+                  title="Quitar todas las naves"
+                >
+                  Vaciar
+                </button>
+                <button
+                  type="button"
+                  className="icon-button"
+                  onClick={() => updateChecklistTemplateDraft((current) => ({ ...current, siteOptions: [...CHECKLIST_SITE_OPTIONS] }))}
+                  title="Marcar todas las naves"
+                >
+                  Marcar todas
+                </button>
+              </div>
+            </div>
             <p className="subtle-line" style={{ margin: 0 }}>
-              Selecciona las naves que deben completarse para poder finalizar la actividad.
+              Toca cada nave para incluirla o quitarla. Si la lista está vacía, el checklist se ejecuta en modo nave única.
             </p>
             <div className="saved-board-list" style={{ gap: "0.4rem" }}>
               {CHECKLIST_SITE_OPTIONS.map((siteOption) => {
@@ -1189,8 +1250,9 @@ export default function TablerosCreados({ contexto }) {
                     type="button"
                     className={active ? "tab active" : "tab"}
                     onClick={() => toggleChecklistSite(siteOption)}
+                    aria-pressed={active}
                   >
-                    {siteOption}
+                    {active ? "✓ " : ""}{siteOption}
                   </button>
                 );
               })}
@@ -1215,33 +1277,43 @@ export default function TablerosCreados({ contexto }) {
                 </div>
 
                 <div style={{ display: "grid", gap: "0.45rem" }}>
-                  {section.checks.map((check) => (
-                    <div key={check.id} style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: "0.45rem", alignItems: "start" }}>
-                      <label className="app-modal-field" style={{ margin: 0 }}>
-                        <span>Check</span>
-                        <input value={check.label} onChange={(event) => updateChecklistCheck(section.id, check.id, { label: event.target.value })} />
-                        <div style={{ marginTop: "0.45rem", display: "flex", gap: "0.35rem", flexWrap: "wrap" }}>
-                          {CHECKLIST_SITE_OPTIONS.map((siteOption) => {
-                            const active = Array.isArray(check.siteOptions) ? check.siteOptions.includes(siteOption) : false;
-                            return (
-                              <button
-                                key={siteOption}
-                                type="button"
-                                className={active ? "tab active" : "tab"}
-                                onClick={() => toggleChecklistCheckSite(section.id, check.id, siteOption)}
-                                style={{ fontSize: "0.8rem", padding: "0.25rem 0.45rem" }}
-                              >
-                                {siteOption}
-                              </button>
-                            );
-                          })}
+                  {section.checks.map((check) => {
+                    const templateSites = Array.isArray(checklistTemplateDraft.siteOptions) ? checklistTemplateDraft.siteOptions : [];
+                    const checkSiteOptions = templateSites.length ? templateSites : CHECKLIST_SITE_OPTIONS;
+                    return (
+                      <div key={check.id} style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: "0.45rem", alignItems: "start" }}>
+                        <div style={{ display: "grid", gap: "0.35rem" }}>
+                          <label className="app-modal-field" style={{ margin: 0 }}>
+                            <span>Check</span>
+                            <input value={check.label} onChange={(event) => updateChecklistCheck(section.id, check.id, { label: event.target.value })} />
+                          </label>
+                          {checkSiteOptions.length ? (
+                            <div style={{ display: "flex", gap: "0.35rem", flexWrap: "wrap", alignItems: "center" }}>
+                              <span className="subtle-line" style={{ fontSize: "0.72rem" }}>Naves específicas (opcional):</span>
+                              {checkSiteOptions.map((siteOption) => {
+                                const active = Array.isArray(check.siteOptions) ? check.siteOptions.includes(siteOption) : false;
+                                return (
+                                  <button
+                                    key={siteOption}
+                                    type="button"
+                                    className={active ? "tab active" : "tab"}
+                                    onClick={() => toggleChecklistCheckSite(section.id, check.id, siteOption)}
+                                    aria-pressed={active}
+                                    style={{ fontSize: "0.8rem", padding: "0.25rem 0.45rem" }}
+                                  >
+                                    {active ? "✓ " : ""}{siteOption}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          ) : null}
                         </div>
-                      </label>
-                      <button type="button" className="icon-button danger" onClick={() => removeChecklistCheck(section.id, check.id)} disabled={section.checks.length <= 1}>
-                        <Trash2 size={15} />
-                      </button>
-                    </div>
-                  ))}
+                        <button type="button" className="icon-button danger" onClick={() => removeChecklistCheck(section.id, check.id)} disabled={section.checks.length <= 1}>
+                          <Trash2 size={15} />
+                        </button>
+                      </div>
+                    );
+                  })}
                 </div>
 
                 <div className="toolbar-actions">

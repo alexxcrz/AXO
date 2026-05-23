@@ -1,0 +1,316 @@
+/* Temas adicionales (solidos y gradientes) */
+
+html[data-ui-theme="copmec-hielo"] {
+  --ui-primary: #5b8fa8;
+  --ui-primary-soft: #9ec5dc;
+  --ui-primary-strong: #2f4f62;
+  --ui-shell-top: #5b8fa8;
+  --ui-shell-bottom: #2f4f62;
+  --ui-header-from: #f4f9fc;
+  --ui-header-to: #e4f1f7;
+  --ui-bg: #eaf3f8;
+  --ui-card: #ffffff;
+  --ui-text: #1f3a4a;
+  --ui-muted: #5f7f92;
+  --ui-border: #c8dce8;
+}
+
+html[data-ui-theme="copmec-esmeralda"] {
+  --ui-primary: #1f6f4f;
+  --ui-primary-soft: #34a36f;
+  --ui-primary-strong: #0f3d2c;
+  --ui-shell-top: #1f6f4f;
+  --ui-shell-bottom: #0f3d2c;
+  --ui-header-from: #edf9f2;
+  --ui-header-to: #dff3e8;
+  --ui-bg: #e8f5ee;
+  --ui-card: #ffffff;
+  --ui-text: #123524;
+  --ui-muted: #4f7a62;
+  --ui-border: #c5e3d2;
+}
+
+html[data-ui-theme="copmec-rubi"] {
+  --ui-primary: #9f1239;
+  --ui-primary-soft: #e11d48;
+  --ui-primary-strong: #4c0519;
+  --ui-shell-top: #9f1239;
+  --ui-shell-bottom: #4c0519;
+  --ui-header-from: #fff1f4;
+  --ui-header-to: #fde4ea;
+  --ui-bg: #fae8ee;
+  --ui-card: #ffffff;
+  --ui-text: #4c0519;
+  --ui-muted: #9f4a62;
+  --ui-border: #e8c0cc;
+}
+
+html[data-ui-theme="copmec-azul-real"] {
+  --ui-primary: #1d4ed8;
+  --ui-primary-soft: #60a5fa;
+  --ui-primary-strong: #1e3a8a;
+  --ui-shell-top: #1d4ed8;
+  --ui-shell-bottom: #1e3a8a;
+  --ui-header-from: #eff6ff;
+  --ui-header-to: #dbeafe;
+  --ui-bg: #e8f0ff;
+  --ui-card: #ffffff;
+  --ui-text: #1e3a8a;
+  --ui-muted: #5b6fa8;
+  --ui-border: #c7d7f5;
+}
+
+html[data-ui-theme="copmec-lino"] {
+  --ui-primary: #78716c;
+  --ui-primary-soft: #a8a29e;
+  --ui-primary-strong: #44403c;
+  --ui-shell-top: #78716c;
+  --ui-shell-bottom: #44403c;
+  --ui-header-from: #fafaf9;
+  --ui-header-to: #f5f5f4;
+  --ui-bg: #f1efed;
+  --ui-card: #ffffff;
+  --ui-text: #44403c;
+  --ui-muted: #78716c;
+  --ui-border: #d6d3d1;
+}
+
+html[data-ui-theme="copmec-rosa-suave"] {
+  --ui-primary: #db2777;
+  --ui-primary-soft: #f472b6;
+  --ui-primary-strong: #831843;
+  --ui-shell-top: #db2777;
+  --ui-shell-bottom: #831843;
+  --ui-header-from: #fdf2f8;
+  --ui-header-to: #fce7f3;
+  --ui-bg: #faeaf4;
+  --ui-card: #ffffff;
+  --ui-text: #831843;
+  --ui-muted: #b45f84;
+  --ui-border: #f0c4da;
+}
+
+html[data-ui-theme="copmec-dorado"] {
+  --ui-primary: #a16207;
+  --ui-primary-soft: #eab308;
+  --ui-primary-strong: #713f12;
+  --ui-shell-top: #a16207;
+  --ui-shell-bottom: #713f12;
+  --ui-header-from: #fffbeb;
+  --ui-header-to: #fef3c7;
+  --ui-bg: #f8f1df;
+  --ui-card: #ffffff;
+  --ui-text: #713f12;
+  --ui-muted: #9a7b3f;
+  --ui-border: #e8d7a8;
+}
+
+html[data-ui-theme="copmec-pino"] {
+  --ui-primary: #166534;
+  --ui-primary-soft: #22c55e;
+  --ui-primary-strong: #14532d;
+  --ui-shell-top: #166534;
+  --ui-shell-bottom: #14532d;
+  --ui-header-from: #f0fdf4;
+  --ui-header-to: #dcfce7;
+  --ui-bg: #e7f5eb;
+  --ui-card: #ffffff;
+  --ui-text: #14532d;
+  --ui-muted: #4d7a5c;
+  --ui-border: #c8e6d0;
+}
+
+html[data-ui-theme="copmec-pizarra"] {
+  --ui-primary: #334155;
+  --ui-primary-soft: #64748b;
+  --ui-primary-strong: #1e293b;
+  --ui-shell-top: #334155;
+  --ui-shell-bottom: #1e293b;
+  --ui-header-from: #f8fafc;
+  --ui-header-to: #f1f5f9;
+  --ui-bg: #eef2f6;
+  --ui-card: #ffffff;
+  --ui-text: #1e293b;
+  --ui-muted: #64748b;
+  --ui-border: #cbd5e1;
+}
+
+html[data-ui-theme="copmec-g-cielo"] {
+  --ui-primary: #0284c7;
+  --ui-primary-soft: #7dd3fc;
+  --ui-primary-strong: #0c4a6e;
+  --ui-shell-top: #0284c7;
+  --ui-shell-bottom: #0c4a6e;
+  --ui-header-from: #f0f9ff;
+  --ui-header-to: #e0f2fe;
+  --ui-bg: #e8f6fc;
+  --ui-card: #ffffff;
+  --ui-text: #0c4a6e;
+  --ui-muted: #5b8cab;
+  --ui-border: #c3e3f3;
+}
+
+html[data-ui-theme="copmec-g-fuego"] {
+  --ui-primary: #dc2626;
+  --ui-primary-soft: #fbbf24;
+  --ui-primary-strong: #7f1d1d;
+  --ui-shell-top: #dc2626;
+  --ui-shell-bottom: #7f1d1d;
+  --ui-header-from: #fff7ed;
+  --ui-header-to: #ffedd5;
+  --ui-bg: #faeee5;
+  --ui-card: #ffffff;
+  --ui-text: #7f1d1d;
+  --ui-muted: #a66a4d;
+  --ui-border: #f0d0b8;
+}
+
+html[data-ui-theme="copmec-g-bosque"] {
+  --ui-primary: #15803d;
+  --ui-primary-soft: #86efac;
+  --ui-primary-strong: #14532d;
+  --ui-shell-top: #15803d;
+  --ui-shell-bottom: #14532d;
+  --ui-header-from: #f0fdf4;
+  --ui-header-to: #dcfce7;
+  --ui-bg: #e8f6ec;
+  --ui-card: #ffffff;
+  --ui-text: #14532d;
+  --ui-muted: #4f7d5f;
+  --ui-border: #c6e8d0;
+}
+
+html[data-ui-theme="copmec-g-violeta"] {
+  --ui-primary: #7c3aed;
+  --ui-primary-soft: #c4b5fd;
+  --ui-primary-strong: #4c1d95;
+  --ui-shell-top: #7c3aed;
+  --ui-shell-bottom: #4c1d95;
+  --ui-header-from: #f5f3ff;
+  --ui-header-to: #ede9fe;
+  --ui-bg: #f1ecfb;
+  --ui-card: #ffffff;
+  --ui-text: #4c1d95;
+  --ui-muted: #7c6aa8;
+  --ui-border: #ddd2f5;
+}
+
+html[data-ui-theme="copmec-g-rosa-dorado"] {
+  --ui-primary: #ec4899;
+  --ui-primary-soft: #fbbf24;
+  --ui-primary-strong: #9d174d;
+  --ui-shell-top: #ec4899;
+  --ui-shell-bottom: #9d174d;
+  --ui-header-from: #fdf2f8;
+  --ui-header-to: #fef9c3;
+  --ui-bg: #faeef3;
+  --ui-card: #ffffff;
+  --ui-text: #9d174d;
+  --ui-muted: #a66d82;
+  --ui-border: #eccfe0;
+}
+
+html[data-ui-theme="copmec-g-hielo-fuego"] {
+  --ui-primary: #3b82f6;
+  --ui-primary-soft: #f59e0b;
+  --ui-primary-strong: #1e3a8a;
+  --ui-shell-top: #3b82f6;
+  --ui-shell-bottom: #1e3a8a;
+  --ui-header-from: #eff6ff;
+  --ui-header-to: #fef3c7;
+  --ui-bg: #edf2fa;
+  --ui-card: #ffffff;
+  --ui-text: #1e3a8a;
+  --ui-muted: #5f73a0;
+  --ui-border: #cdd9ef;
+}
+
+html[data-ui-theme="copmec-g-metal"] {
+  --ui-primary: #64748b;
+  --ui-primary-soft: #cbd5e1;
+  --ui-primary-strong: #334155;
+  --ui-shell-top: #64748b;
+  --ui-shell-bottom: #334155;
+  --ui-header-from: #f8fafc;
+  --ui-header-to: #f1f5f9;
+  --ui-bg: #eef1f5;
+  --ui-card: #ffffff;
+  --ui-text: #334155;
+  --ui-muted: #64748b;
+  --ui-border: #cbd5e1;
+}
+
+html[data-ui-theme="copmec-g-cereza"] {
+  --ui-primary: #be123c;
+  --ui-primary-soft: #fda4af;
+  --ui-primary-strong: #881337;
+  --ui-shell-top: #be123c;
+  --ui-shell-bottom: #881337;
+  --ui-header-from: #fff1f2;
+  --ui-header-to: #ffe4e6;
+  --ui-bg: #fae9ec;
+  --ui-card: #ffffff;
+  --ui-text: #881337;
+  --ui-muted: #a65a6c;
+  --ui-border: #ebcbd2;
+}
+
+html[data-ui-theme="copmec-g-medianoche"] {
+  --ui-primary: #6366f1;
+  --ui-primary-soft: #38bdf8;
+  --ui-primary-strong: #020617;
+  --ui-shell-top: #6366f1;
+  --ui-shell-bottom: #020617;
+  --ui-header-from: #eef2ff;
+  --ui-header-to: #e0f2fe;
+  --ui-bg: #e9edf8;
+  --ui-card: #ffffff;
+  --ui-text: #1e293b;
+  --ui-muted: #5f6b8a;
+  --ui-border: #ccd4ea;
+}
+
+html[data-ui-theme="copmec-g-tropical"] {
+  --ui-primary: #059669;
+  --ui-primary-soft: #facc15;
+  --ui-primary-strong: #0f766e;
+  --ui-shell-top: #059669;
+  --ui-shell-bottom: #0f766e;
+  --ui-header-from: #ecfdf5;
+  --ui-header-to: #fef9c3;
+  --ui-bg: #eaf6ef;
+  --ui-card: #ffffff;
+  --ui-text: #0f5132;
+  --ui-muted: #5f8a6f;
+  --ui-border: #c8e6d4;
+}
+
+html[data-ui-theme="copmec-g-liquido"] {
+  --ui-primary: #06b6d4;
+  --ui-primary-soft: #a5f3fc;
+  --ui-primary-strong: #164e63;
+  --ui-shell-top: #06b6d4;
+  --ui-shell-bottom: #164e63;
+  --ui-header-from: #ecfeff;
+  --ui-header-to: #cffafe;
+  --ui-bg: #e6f7fa;
+  --ui-card: #ffffff;
+  --ui-text: #164e63;
+  --ui-muted: #5f8fa0;
+  --ui-border: #c3e9ef;
+}
+
+html[data-ui-theme="copmec-g-royal"] {
+  --ui-primary: #1e40af;
+  --ui-primary-soft: #93c5fd;
+  --ui-primary-strong: #172554;
+  --ui-shell-top: #1e40af;
+  --ui-shell-bottom: #172554;
+  --ui-header-from: #eff6ff;
+  --ui-header-to: #dbeafe;
+  --ui-bg: #e9f0fb;
+  --ui-card: #ffffff;
+  --ui-text: #172554;
+  --ui-muted: #5f6fa8;
+  --ui-border: #c9d8f2;
+}

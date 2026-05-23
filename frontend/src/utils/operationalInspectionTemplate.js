@@ -1,6 +1,8 @@
 export const OPERATIONAL_INSPECTION_TEMPLATE = {
   id: "operational-inspection-v1",
   name: "Checklist - Inspeccion Operativa",
+  area: "MANTENIMIENTO",
+  isBuiltIn: true,
   version: 1,
   incidenceRules: {
     createOnNoOk: true,
@@ -67,6 +69,8 @@ export const OPERATIONAL_INSPECTION_TEMPLATE = {
 export const CLEANING_CHECKLIST_TEMPLATE_V2 = {
   id: "cleaning-checklist-v2",
   name: "Checklist - Área de Limpieza",
+  area: "LIMPIEZA",
+  isBuiltIn: true,
   version: 2,
   incidenceRules: {
     createOnNoOk: true,
@@ -204,6 +208,18 @@ function makeChecklistToken(value, fallback) {
   return normalized || fallback;
 }
 
+export function generateChecklistTemplateId(prefix = "checklist") {
+  const safePrefix = makeChecklistToken(prefix, "checklist") || "checklist";
+  const random = Math.random().toString(36).slice(2, 8);
+  return `${safePrefix}-${Date.now()}-${random}`;
+}
+
+function normalizeChecklistArea(rawArea, fallback = "") {
+  const value = String(rawArea || "").trim();
+  if (!value) return String(fallback || "").trim().toUpperCase();
+  return value.toUpperCase();
+}
+
 export function normalizeOperationalInspectionTemplate(rawTemplate) {
   const source = rawTemplate && typeof rawTemplate === "object" ? rawTemplate : OPERATIONAL_INSPECTION_TEMPLATE;
   const sourceSections = Array.isArray(source.sections) ? source.sections : [];
@@ -239,10 +255,21 @@ export function normalizeOperationalInspectionTemplate(rawTemplate) {
     })
     .filter(Boolean);
 
+  const sanitizedSourceId = String(source.id || "").trim();
+  const resolvedId = sanitizedSourceId || generateChecklistTemplateId("checklist");
+  const isBuiltIn = Boolean(
+    source.isBuiltIn
+    || sanitizedSourceId === OPERATIONAL_INSPECTION_TEMPLATE.id
+    || sanitizedSourceId === CLEANING_CHECKLIST_TEMPLATE_V2.id,
+  );
+  const resolvedArea = normalizeChecklistArea(source.area, sanitizedSourceId === CLEANING_CHECKLIST_TEMPLATE_V2.id ? "LIMPIEZA" : sanitizedSourceId === OPERATIONAL_INSPECTION_TEMPLATE.id ? "MANTENIMIENTO" : "");
+
   return {
     ...OPERATIONAL_INSPECTION_TEMPLATE,
     ...source,
-    id: String(source.id || OPERATIONAL_INSPECTION_TEMPLATE.id).trim() || OPERATIONAL_INSPECTION_TEMPLATE.id,
+    id: resolvedId,
+    area: resolvedArea,
+    isBuiltIn,
     name: String(source.name || OPERATIONAL_INSPECTION_TEMPLATE.name).trim() || OPERATIONAL_INSPECTION_TEMPLATE.name,
     version: Number(source.version || OPERATIONAL_INSPECTION_TEMPLATE.version) || OPERATIONAL_INSPECTION_TEMPLATE.version,
     incidenceRules: {

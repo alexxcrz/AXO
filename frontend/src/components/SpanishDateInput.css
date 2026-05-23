@@ -1,0 +1,181 @@
+.spanish-date-input {
+  position: relative;
+  width: 100%;
+}
+
+.spanish-date-input__trigger {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.55rem 0.7rem;
+  border-radius: 0.55rem;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #0f172a;
+  font-size: 0.9rem;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.spanish-date-input__trigger:hover:not(:disabled) {
+  border-color: #94a3b8;
+}
+
+.spanish-date-input__trigger:focus-visible {
+  outline: 2px solid #0ea5e9;
+  outline-offset: 1px;
+}
+
+.spanish-date-input__trigger:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.spanish-date-input__trigger.open {
+  border-color: #314d69;
+  box-shadow: 0 0 0 2px rgba(49, 77, 105, 0.15);
+}
+
+.spanish-date-input__trigger.is-empty {
+  color: #64748b;
+}
+
+.spanish-date-input__icon {
+  flex-shrink: 0;
+  color: #475569;
+}
+
+.ep-input-date .spanish-date-input__popover,
+.ep-modal .spanish-date-input__popover,
+.modal-shell .spanish-date-input__popover {
+  z-index: 260;
+}
+
+.spanish-date-input__popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 120;
+  width: min(100%, 18.5rem);
+  padding: 0.65rem;
+  border-radius: 0.75rem;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  box-shadow: 0 14px 36px rgba(15, 23, 42, 0.14);
+}
+
+.spanish-date-input__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.35rem;
+  margin-bottom: 0.5rem;
+}
+
+.spanish-date-input__header strong {
+  font-size: 0.88rem;
+  color: #0f172a;
+  text-transform: capitalize;
+}
+
+.spanish-date-input__nav {
+  border: none;
+  background: #f1f5f9;
+  color: #334155;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 0.45rem;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.spanish-date-input__nav:hover {
+  background: #e2e8f0;
+}
+
+.spanish-date-input__weekdays,
+.spanish-date-input__grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 0.2rem;
+}
+
+.spanish-date-input__weekdays {
+  margin-bottom: 0.25rem;
+}
+
+.spanish-date-input__weekdays span {
+  text-align: center;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #64748b;
+}
+
+.spanish-date-input__day {
+  border: none;
+  background: transparent;
+  border-radius: 0.45rem;
+  min-height: 1.85rem;
+  font-size: 0.8rem;
+  color: #0f172a;
+  cursor: pointer;
+}
+
+.spanish-date-input__day:hover:not(:disabled) {
+  background: #f1f5f9;
+}
+
+.spanish-date-input__day.muted {
+  color: #94a3b8;
+}
+
+.spanish-date-input__day.selected {
+  background: #314d69;
+  color: #ffffff;
+  font-weight: 700;
+}
+
+.spanish-date-input__day:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.spanish-date-input__footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.55rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid #e2e8f0;
+}
+
+.spanish-date-input__footer button {
+  flex: 1;
+  min-width: 4.5rem;
+  border: 1px solid #cbd5e1;
+  background: #f8fafc;
+  color: #334155;
+  border-radius: 0.45rem;
+  padding: 0.35rem 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.spanish-date-input__footer button:hover {
+  background: #eef2f7;
+  border-color: #94a3b8;
+}
+
+.spanish-date-input__footer button.primary {
+  background: #314d69;
+  border-color: #314d69;
+  color: #ffffff;
+}
+
+.spanish-date-input__footer button.primary:hover {
+  background: #264056;
+}

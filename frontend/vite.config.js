@@ -11,6 +11,7 @@ export default defineConfig({
   build: {
     outDir: '../backend/frontend-dist',
     emptyOutDir: true,
+    chunkSizeWarningLimit: 1024,
   },
   server: {
     host: '0.0.0.0',

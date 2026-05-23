@@ -83,8 +83,8 @@ export default function OperationalInspectionRecordModal({
     pdf.text(`Checklist realizado${activityLabel ? ` · ${activityLabel}` : ""}`, 36, 40);
     pdf.setFontSize(9);
     pdf.text(`Plantilla: ${template.name}`, 36, 58);
-    pdf.text(`Completado por: ${String(completedByName || draft?.metadata?.responsable || "N/A")}`, 36, 72);
-    pdf.text(`Fecha: ${String(completedAt || draft?.metadata?.date || "N/A")}`, 36, 86);
+    pdf.text(`Completado por: ${String(completedByName || resolvedRecord.draft?.metadata?.responsable || "N/A")}`, 36, 72);
+    pdf.text(`Fecha: ${String(completedAt || resolvedRecord.draft?.metadata?.date || "N/A")}`, 36, 86);
 
     const body = [];
     resolvedRecord.siteKeys.forEach((siteKey) => {

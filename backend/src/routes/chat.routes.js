@@ -5,7 +5,12 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { requireAuth } from "../middleware/auth.middleware.js";
 import { getIO, getUsuariosActivos } from "../config/socket.js";
-import { storeSubscription, getVapidPublicKey, sendPushToNick, getPushStatusSnapshot } from "../services/push.service.js";
+import {
+  storeSubscriptionForUser,
+  getVapidPublicKey,
+  sendPushToNick,
+  getPushStatusSnapshot,
+} from "../services/push.service.js";
 import { prismaChat as prisma } from "../config/prisma-chat.js";
 import { getWarehouseState, updateUserUiPreferences } from "../services/warehouse.store.js";
 import { normalizeNick, enqueueCallSignal, drainCallSignals, nextSignalId } from "../utils/callSignalQueue.js";
@@ -100,9 +105,28 @@ chatRouter.post("/push-subscribe", (req, res) => {
   if (!nombre) return res.status(400).json({ error: "Usuario sin nombre" });
   const { subscription } = req.body;
   if (!subscription?.endpoint) return res.status(400).json({ error: "Subscription invalida" });
-  storeSubscription(nombre, subscription);
+  const warehouseUser = getAllUsers().find((u) => u.id === req.auth?.userId || u.name === nombre);
+  storeSubscriptionForUser(warehouseUser || { name: nombre }, subscription);
   res.json({ ok: true });
 });
+
+function resolveSenderPhotoUrl(userLike) {
+  const raw = String(userLike?.photoThumbnailUrl || userLike?.photo || "").trim();
+  if (!raw || raw === "null") return null;
+  if (raw.startsWith("http") || raw.startsWith("data:") || raw.startsWith("/")) return raw;
+  return `/uploads/perfiles/${raw}`;
+}
+
+function buildMessagePushPayload(sender, targetNickname, text) {
+  return {
+    type: "message",
+    fromNickname: sender?.name || targetNickname,
+    text: text || "",
+    senderPhoto: resolveSenderPhotoUrl(sender),
+    soundUrl: "/sounds/notification-alert.wav",
+    url: "/",
+  };
+}
 
 async function esAdminDeGrupo(grupoId, nombre) {
   const grupo = await prisma.chatGrupo.findUnique({ where: { id: grupoId } });
@@ -124,7 +148,10 @@ chatRouter.get("/usuarios", requireAuth, (_req, res) => {
       id: u.id,
       name: u.name,
       nickname: u.name,
-      photo: null,
+      email: u.email || null,
+      photo: u.photo || null,
+      photoThumbnailUrl: u.photoThumbnailUrl || null,
+      photoTimestamp: u.photoUpdatedAt || u.updatedAt || null,
       active: u.isActive ? 1 : 0,
     }));
     res.json(users);
@@ -411,10 +438,12 @@ chatRouter.get("/usuario/:nickname/perfil", requireAuth, (req, res) => {
       cargo: user.jobTitle || null,
       area: user.area || null,
       department: user.department || null,
-      correo: user.email || null,
+      playerAcceso: user.email || null,
+      correo: user.correoElectronico || null,
       telefono: user.telefono || null,
       telefono_visible: user.telefono_visible || false,
       birthday: user.birthday || null,
+      fechaIngreso: user.fechaIngreso || null,
       active: user.isActive,
     });
   } catch (e) {
@@ -668,14 +697,14 @@ chatRouter.post("/privado", requireAuth, async (req, res) => {
     getIO().emit("chat_privado_nuevo", out);
     emitChatsActivosActualizados();
 
-    // Push notification for recipient only (never sender)
+    // Push al destinatario (si la app no tiene socket activo)
     if (para_nickname !== nombre) {
-      sendPushToNick(para_nickname, {
-        type: 'message',
-        fromNickname: nombre,
-        text: nuevo.mensaje,
-        senderPhoto: null,
-      }).catch(() => {});
+      const sender = getAllUsers().find((u) => u.name === nombre);
+      sendPushToNick(
+        para_nickname,
+        buildMessagePushPayload(sender, para_nickname, nuevo.mensaje),
+        { skipIfOnline: true },
+      ).catch(() => {});
     }
 
     res.json({ ok: true, mensaje: out });
@@ -998,13 +1027,19 @@ chatRouter.post("/grupos/:id/mensajes", requireAuth, async (req, res) => {
       const grupoNombre = (await prisma.chatGrupo.findUnique({ where: { id: Number(id) }, select: { nombre: true } }))?.nombre || 'Grupo';
       miembros.forEach(({ usuarioNickname }) => {
         if (usuarioNickname !== nombre) {
-          sendPushToNick(usuarioNickname, {
-            type: 'group_message',
-            groupId: Number(id),
-            groupName: grupoNombre,
-            fromNickname: nombre,
-            text: nuevo.mensaje,
-          }).catch(() => {});
+          sendPushToNick(
+            usuarioNickname,
+            {
+              type: "group_message",
+              groupId: Number(id),
+              groupName: grupoNombre,
+              fromNickname: nombre,
+              text: nuevo.mensaje,
+              soundUrl: "/sounds/notification-alert.wav",
+              url: "/",
+            },
+            { skipIfOnline: true },
+          ).catch(() => {});
         }
       });
     } catch (_) {}

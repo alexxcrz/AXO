@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Modal } from "./Modal";
+import { SpanishDateInput } from "./SpanishDateInput";
 import { uploadFileToCloudinary } from "../services/upload.service";
 import {
   OPERATIONAL_INSPECTION_TEMPLATE,
@@ -342,7 +343,7 @@ export default function OperationalInspectionStartModal({
           </label>
           <label style={{ display: "grid", gap: "0.2rem" }}>
             <span>Fecha</span>
-            <input type="date" value={currentDraft.metadata.date} onChange={(event) => updateMetadata("date", event.target.value)} />
+            <SpanishDateInput value={currentDraft.metadata.date} onChange={(event) => updateMetadata("date", event.target.value)} placeholder="Seleccionar fecha" />
           </label>
           <label style={{ display: "grid", gap: "0.2rem" }}>
             <span>Responsable</span>

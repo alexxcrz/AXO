@@ -1,0 +1,90 @@
+/* Readable text on dark headers across all UI themes */
+
+html[data-ui-theme] body span:not(.ui-surface-dark *):not(.sidebar-shell *),
+html[data-ui-theme] body small:not(.ui-surface-dark *):not(.sidebar-shell *),
+html[data-ui-theme] body strong:not(.ui-surface-dark *):not(.sidebar-shell *),
+html[data-ui-theme] body label:not(.ui-surface-dark *):not(.sidebar-shell *),
+html[data-ui-theme] body p:not(.ui-surface-dark *):not(.sidebar-shell *) {
+  color: var(--sicfla-text);
+}
+
+html[data-ui-theme] body button:not(.ui-surface-dark *):not(.sidebar-shell *):not(.primary-button):not(.sicfla-button):not(.ep-btn--primary):not(.copmec-ai-send-btn):not(.board-action-button):not(.nav-item):not(.switch-button):not(.chat-boton-pro):not(.sidebar-collapse-button):not(.tab):not(.dashboard-chart-toggle-btn):not(.warehouse-tab):not(.detail-tab-btn):not(.audit-active-tab):not(.audit-person-tab):not(.audit-cycle-tab-btn):not(.transport-view-tab):not(.app-notification-tab):not(.app-notification-trigger):not(.component-studio-step):not(.ctp-type-chip):not(.component-type-card):not(.compact-template-card):not(.board-template-rail-item):not(.catalog-day-chip):not(.catalog-site-chip) {
+  color: var(--sicfla-text);
+}
+
+html[data-ui-theme] .ui-surface-dark,
+html[data-ui-theme] .ui-surface-dark span,
+html[data-ui-theme] .ui-surface-dark small,
+html[data-ui-theme] .ui-surface-dark strong,
+html[data-ui-theme] .ui-surface-dark label,
+html[data-ui-theme] .ui-surface-dark p,
+html[data-ui-theme] .ui-surface-dark div,
+html[data-ui-theme] .ui-surface-dark a,
+html[data-ui-theme] .ui-surface-dark button {
+  color: #ffffff !important;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.32);
+}
+
+html[data-ui-theme] .ui-surface-dark .ep-hero__nick,
+html[data-ui-theme] .ui-surface-dark .ep-hero__job,
+html[data-ui-theme] .ui-surface-dark .ep-hero__status,
+html[data-ui-theme] .ui-surface-dark .ep-hero__photo-msg {
+  color: rgba(255, 255, 255, 0.94) !important;
+}
+
+html[data-ui-theme] .ui-surface-dark .ep-personal-preview__header,
+html[data-ui-theme] .ui-surface-dark .ep-personal-preview__header-label,
+html[data-ui-theme] .ui-surface-dark .ep-personal-preview__header span {
+  color: #ffffff !important;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+html[data-ui-theme] .ui-surface-dark .ep-theme-card__badge {
+  color: rgba(255, 255, 255, 0.96) !important;
+}
+
+html[data-ui-theme] .ui-surface-dark .ep-btn--ghost {
+  color: #ffffff !important;
+  border-color: rgba(255, 255, 255, 0.5) !important;
+  background: rgba(255, 255, 255, 0.1) !important;
+}
+
+html[data-ui-theme] .ui-surface-dark .ep-role-chip {
+  text-shadow: none;
+}
+
+html[data-ui-theme] .ep-personal-preview__body,
+html[data-ui-theme] .ep-personal-preview__body span,
+html[data-ui-theme] .ep-personal-preview__body div,
+html[data-ui-theme] .ep-personal-preview__body p {
+  color: var(--sicfla-text) !important;
+  text-shadow: none;
+}
+
+html[data-ui-theme] .ep-personal-preview__body .ep-personal-preview__line {
+  color: #22384f !important;
+}
+
+html[data-ui-theme] .ep-personal-preview__body .ep-personal-preview__font-name {
+  color: #4a635c !important;
+}
+
+html[data-ui-theme] .ep-personal-preview__body .ep-personal-preview__font-hint {
+  color: #6b8580 !important;
+}
+
+html[data-ui-theme] .sidebar-shell.ui-surface-dark span,
+html[data-ui-theme] .sidebar-shell span {
+  color: rgba(255, 255, 255, 0.96) !important;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+}
+
+html[data-ui-theme] .sidebar-shell .sidebar-profile-meta span {
+  color: rgba(255, 255, 255, 0.82) !important;
+}
+
+html[data-ui-theme] .chat-pro-ventana .chat-sidebar-header.ui-surface-dark,
+html[data-ui-theme] .chat-pro-ventana .chat-sidebar-header.ui-surface-dark * {
+  color: #ffffff !important;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}

@@ -577,6 +577,8 @@ export default function GestionIncidencias({ contexto }) {
     actionPermissions,
     formatDate,
     activeAssignableUsers,
+    pendingOpenIncidenciaId,
+    setPendingOpenIncidenciaId,
   } = contexto;
 
   const incidencias = useMemo(() => state.incidencias || [], [state.incidencias]);
@@ -635,6 +637,19 @@ export default function GestionIncidencias({ contexto }) {
   const [detailId, setDetailId] = useState(null);
   const [detailTab, setDetailTab] = useState("info");
   const [uploadingEv, setUploadingEv] = useState(false);
+
+  useEffect(() => {
+    const targetId = String(pendingOpenIncidenciaId || "").trim();
+    if (!targetId || typeof setPendingOpenIncidenciaId !== "function") return;
+    const exists = incidencias.some((item) => item.id === targetId);
+    if (!exists) {
+      setPendingOpenIncidenciaId("");
+      return;
+    }
+    setDetailId(targetId);
+    setDetailTab("info");
+    setPendingOpenIncidenciaId("");
+  }, [incidencias, pendingOpenIncidenciaId, setPendingOpenIncidenciaId]);
 
   function openCreate() {
     setDraft(EMPTY_DRAFT);

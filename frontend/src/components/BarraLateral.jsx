@@ -18,8 +18,10 @@ import {
   FileText,
   HardHat,
   Hammer,
+  BarChart3,
   LayoutDashboard,
   Layers3,
+  Package,
   OctagonAlert,
   PackageSearch,
   PanelLeftClose,
@@ -37,6 +39,7 @@ import {
 import { CopmecBrand } from "./ComponentesDashboard";
 import logoIA from "../assets/AXOIA.png";
 import { PAGE_DASHBOARD, PAGE_PROCESS_AUDITS, PAGE_ROUTE_SLUGS, PAGE_TRANSPORT } from "../utils/constantes";
+import { formatNavNotificationCount } from "../utils/processAuditMetrics.js";
 
 // No hay atajos dentro de Mejora continua. Auditoría e Historial son entradas separadas en NAV_ITEMS.
 
@@ -83,13 +86,15 @@ function getUserInitial(name) {
 }
 
 const SECTION_ICON_BY_ID = {
-  dashboard: LayoutDashboard,
+  dashboard: BarChart3,
   esto: ScanSearch,
   transporte: Truck,
   limpieza: Sparkles,
   regulatorio: FileText,
   calidad: BadgeCheck,
   inventario: Boxes,
+  pedidos: Package,
+  pedido: Package,
   "recepcion-pedidos": PackageSearch,
   operaciones: Settings2,
   mantenimiento: Factory,
@@ -98,12 +103,16 @@ const SECTION_ICON_BY_ID = {
   fullfilment: Warehouse,
   admin: Users,
   "mejora-continua": Target,
+  problemas: OctagonAlert,
+  propuestas: ClipboardCheck,
+  autorizar: BadgeCheck,
+  seguimiento: CircleGauge,
   "produccion": Hammer,
   "recursos": Building2,
 };
 
 const TAB_ICON_BY_KEY = {
-  dashboard: LayoutDashboard,
+  dashboard: BarChart3,
   board: Layers3,
   customboards: ClipboardList,
   historial: ClipboardList,
@@ -112,7 +121,7 @@ const TAB_ICON_BY_KEY = {
   "control-transporte": ClipboardCheck,
   "incidencias-transporte": OctagonAlert,
   consolidados: CircleGauge,
-  "dashboard-transporte": LayoutDashboard,
+  "dashboard-transporte": BarChart3,
   "direcciones-gastos": Building2,
 };
 
@@ -126,15 +135,43 @@ function normalizeSidebarKey(value) {
 }
 
 function getSidebarSectionIcon(sectionId) {
-  return SECTION_ICON_BY_ID[normalizeSidebarKey(sectionId)] || LayoutDashboard;
+  const key = normalizeSidebarKey(sectionId);
+  if (SECTION_ICON_BY_ID[key]) return SECTION_ICON_BY_ID[key];
+  if (key.includes("pedido")) return Package;
+  if (key.includes("inventario")) return Boxes;
+  if (key.includes("transporte")) return Truck;
+  if (key.includes("mantenimiento")) return Factory;
+  if (key.includes("limpieza")) return Sparkles;
+  if (key.includes("calidad")) return BadgeCheck;
+  if (key.includes("operacion")) return Settings2;
+  if (key.includes("retail") || key.includes("mayoreo") || key.includes("ecommerce")) return Store;
+  if (key.includes("fullfil") || key.includes("fulfil")) return Warehouse;
+  return LayoutDashboard;
 }
 
 function getSidebarTabIcon(item = {}) {
+  const pageKey = normalizeSidebarKey(item.pageId || item.id || "");
+  const isGlobalDashboard = pageKey === "dashboard"
+    && !item.transportSection
+    && !item.transportTab
+    && !item.auditPreset?.tab;
+  if (isGlobalDashboard) return BarChart3;
+
+  const auditTab = normalizeSidebarKey(item.auditPreset?.tab || "");
+  if (auditTab === "dashboard") return BarChart3;
+  if (auditTab === "problemas") return OctagonAlert;
+  if (auditTab === "propuestas") return ClipboardCheck;
+  if (auditTab === "seguimiento") return BadgeCheck;
+  if (auditTab === "implementacion") return CircleGauge;
+  if (auditTab === "history") return ClipboardList;
+  if (auditTab === "auditoria" || auditTab === "capture") return ClipboardCheck;
+
   const candidates = [item.transportTab, item.transportSection, item.pageId, item.shortLabel, item.label];
   for (const candidate of candidates) {
     const normalized = normalizeSidebarKey(candidate).replaceAll(/\s+/g, "");
     if (TAB_ICON_BY_KEY[normalized]) return TAB_ICON_BY_KEY[normalized];
-    if (normalized.includes("dashboard")) return LayoutDashboard;
+    if (normalized.includes("pedido")) return Package;
+    if (normalized.includes("dashboard")) return BarChart3;
     if (normalized.includes("board") || normalized.includes("creador")) return Layers3;
     if (normalized.includes("incidencias")) return OctagonAlert;
     if (normalized.includes("hist")) return ClipboardList;
@@ -259,7 +296,7 @@ export const Sidebar = React.memo(function Sidebar({ currentUser, page, onPageCh
   }
 
   return (
-    <aside className={`sidebar-shell ${isOpen ? "open" : ""} ${isCollapsed && !isOpen ? "collapsed" : ""}`}>
+    <aside className={`sidebar-shell ui-surface-dark ${isOpen ? "open" : ""} ${isCollapsed && !isOpen ? "collapsed" : ""}`}>
       <div className="sidebar-mobile-actions">
         <button type="button" className="sidebar-close-button" onClick={onClose} aria-label="Cerrar menú">
           <X size={18} />
@@ -309,6 +346,11 @@ export const Sidebar = React.memo(function Sidebar({ currentUser, page, onPageCh
                   >
                     <SidebarIcon icon={getSidebarSectionIcon(section.id)} className="nav-section-toggle-icon" />
                     <span className="nav-section-toggle-label">{section.label}</span>
+                    {formatNavNotificationCount(section.sectionNotificationCount) ? (
+                      <span className="nav-section-badge" aria-label={`${section.sectionNotificationCount} pendientes en ${section.label}`}>
+                        {formatNavNotificationCount(section.sectionNotificationCount)}
+                      </span>
+                    ) : null}
                     <span className="nav-section-toggle-chevron" aria-hidden="true">
                       {sectionCollapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
                     </span>
@@ -334,8 +376,12 @@ export const Sidebar = React.memo(function Sidebar({ currentUser, page, onPageCh
                           }}
                         >
                           <SidebarIcon icon={getSidebarTabIcon(item)} className="nav-item-icon" />
-                          <span>{item.shortLabel || item.label}</span>
-                          {item.notificationCount > 0 ? <span className="nav-item-badge" aria-hidden="true" /> : null}
+                          <span className="nav-item-label">{item.shortLabel || item.label}</span>
+                          {formatNavNotificationCount(item.notificationCount) ? (
+                            <span className="nav-item-badge-count" aria-label={`${item.notificationCount} pendientes`}>
+                              {formatNavNotificationCount(item.notificationCount)}
+                            </span>
+                          ) : null}
                         </a>
                       );
                     })}

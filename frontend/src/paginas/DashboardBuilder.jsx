@@ -188,7 +188,7 @@ export default function DashboardBuilder() {
       const components = Array.isArray(config.components)
         ? config.components.map((component) => {
           if (component.type === "executive" && component.settings?.kpiGroup) {
-            const { kpiGroup, ...normalizedSettings } = component.settings;
+            const { kpiGroup: _kpiGroup, ...normalizedSettings } = component.settings;
             return { ...component, settings: normalizedSettings };
           }
           return component;

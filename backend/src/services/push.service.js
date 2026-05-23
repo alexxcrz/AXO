@@ -2,6 +2,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { getSocketsByNickname } from '../config/socket.js';
+import { getWarehouseState } from './warehouse.store.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const dataDirectory = process.env.RENDER ? '/var/data' : path.resolve(__dirname, '../../data');
@@ -94,18 +96,63 @@ function normNick(nick) {
   return String(nick || '').trim().toLowerCase();
 }
 
+function buildUserAliases(userLike) {
+  const aliases = [
+    userLike?.id,
+    userLike?.name,
+    userLike?.nickname,
+    userLike?.email,
+    userLike?.login,
+  ]
+    .map((value) => String(value || '').trim())
+    .filter(Boolean);
+  return Array.from(new Set(aliases));
+}
+
+function resolveTargetAliases(targetNickname) {
+  const raw = String(targetNickname || '').trim();
+  if (!raw) return [];
+
+  const targetKey = normNick(raw);
+  const userMatch = (getWarehouseState().users || []).find((user) => {
+    const aliases = buildUserAliases(user);
+    return aliases.some((alias) => normNick(alias) === targetKey);
+  });
+
+  return Array.from(new Set([raw, ...buildUserAliases(userMatch)]));
+}
+
+function collectSubscriptionsForNickname(nickname) {
+  const aliases = resolveTargetAliases(nickname);
+  const seenEndpoints = new Set();
+  const merged = [];
+  aliases.forEach((alias) => {
+    (getSubscriptionsForNick(alias) || []).forEach((sub) => {
+      if (!sub?.endpoint || seenEndpoints.has(sub.endpoint)) return;
+      seenEndpoints.add(sub.endpoint);
+      merged.push(sub);
+    });
+  });
+  return merged;
+}
+
 export function storeSubscription(nickname, subscription) {
-  const nick = normNick(nickname);
+  const nick = String(nickname || '').trim();
   if (!nick || !subscription?.endpoint) return;
   const subs = loadSubs();
   if (!subs[nick]) subs[nick] = [];
-  // Avoid duplicates by endpoint
   if (!subs[nick].some((s) => s.endpoint === subscription.endpoint)) {
     subs[nick].push(subscription);
   }
-  // Keep at most 5 devices per user
   subs[nick] = subs[nick].slice(-5);
   saveSubs(subs);
+}
+
+/** Registra la suscripción bajo todos los alias del usuario (nombre, email, etc.) */
+export function storeSubscriptionForUser(userLike, subscription) {
+  let aliases = buildUserAliases(userLike);
+  if (!aliases.length && userLike?.name) aliases = [String(userLike.name)];
+  aliases.forEach((alias) => storeSubscription(alias, subscription));
 }
 
 export function removeSubscriptionByEndpoint(endpoint) {
@@ -124,24 +171,30 @@ export function getSubscriptionsForNick(nickname) {
 }
 
 // ── Send push ──────────────────────────────────────────────────────────────────
-export async function sendPushToNick(nickname, payload) {
+export async function sendPushToNick(nickname, payload, options = {}) {
   if (!pushReady || !webpush) return;
-  const subscriptions = getSubscriptionsForNick(nickname);
+
+  const { skipIfOnline = false } = options;
+  if (skipIfOnline && getSocketsByNickname(nickname).length > 0) {
+    return;
+  }
+
+  const subscriptions = collectSubscriptionsForNickname(nickname);
   if (!subscriptions.length) return;
+
   const payloadStr = typeof payload === 'string' ? payload : JSON.stringify(payload);
   await Promise.allSettled(
     subscriptions.map(async (sub) => {
       try {
         await webpush.sendNotification(sub, payloadStr);
       } catch (err) {
-        // Remove stale subscriptions
         if (err.statusCode === 410 || err.statusCode === 404) {
           removeSubscriptionByEndpoint(sub.endpoint);
           return;
         }
         console.warn(`[Push] Error enviando push a ${normNick(nickname)}:`, err?.statusCode || err?.message || err);
       }
-    })
+    }),
   );
 }
 

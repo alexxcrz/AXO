@@ -3,6 +3,7 @@ import { uploadFileToCloudinary } from "../services/upload.service";
 import { FileText, Plus } from "lucide-react";
 import { TransportAssignmentsTab, TransportMyRoutesTab, TransportPostponedTab } from "./TransportTabs";
 import DashboardDateRangePicker from "../components/DashboardDateRangePicker";
+import { SpanishDateInput } from "../components/SpanishDateInput";
 
 function toPositiveNumber(value) {
   const parsed = Number(value);
@@ -766,6 +767,8 @@ export default function GestionTransporte({ contexto }) {
     applyRemoteWarehouseState,
     navTransportSection,
     navTransportTab,
+    pendingOpenTransportRecordId,
+    setPendingOpenTransportRecordId,
   } = contexto;
 
   const usersById = useMemo(() => {
@@ -841,7 +844,6 @@ export default function GestionTransporte({ contexto }) {
   const hasRetailManage = retailAreaIds.some((id) => canManageTransportArea(id));
   const hasPedidosManage = pedidosAreaIds.some((id) => canManageTransportArea(id));
   const hasInventarioManage = inventarioAreaIds.some((id) => canManageTransportArea(id));
-  const hasAnyTransportViewAccess = hasRetailAccess || hasPedidosAccess || hasInventarioAccess;
   const hasAnyTransportManageAccess = hasRetailManage || hasPedidosManage || hasInventarioManage;
   const hasTransportOnlyAccess = Boolean(
     hasActionPermission("viewTransportDocumentacion", false)
@@ -1091,6 +1093,24 @@ export default function GestionTransporte({ contexto }) {
     if (!transportSectionOptions.some((s) => s.id === navTransportSection)) return;
     setSelectedTransportSection(navTransportSection);
   }, [navTransportSection, transportSectionOptions]);
+
+  useEffect(() => {
+    const recordId = String(pendingOpenTransportRecordId || "").trim();
+    if (!recordId || typeof setPendingOpenTransportRecordId !== "function") return;
+    const timer = window.setTimeout(() => {
+      const rowElement = document.querySelector(`[data-transport-record-id="${recordId}"]`);
+      if (rowElement) {
+        rowElement.scrollIntoView({ behavior: "smooth", block: "center" });
+        const previousBackground = rowElement.style.background;
+        rowElement.style.background = "rgba(14, 165, 233, 0.14)";
+        window.setTimeout(() => {
+          rowElement.style.background = previousBackground;
+        }, 3200);
+      }
+      setPendingOpenTransportRecordId("");
+    }, 180);
+    return () => window.clearTimeout(timer);
+  }, [pendingOpenTransportRecordId, selectedTransportSection, selectedViewTab, setPendingOpenTransportRecordId]);
 
   const visibleMainTabOptions = useMemo(() => {
     if (selectedTransportSection === "registros-envios") {
@@ -1492,22 +1512,6 @@ export default function GestionTransporte({ contexto }) {
     }
 
     return resolvedState;
-  };
-
-  const saveTransportLogistics = async () => {
-    setLogisticsError("");
-    setLogisticsSaving(true);
-    try {
-      await persistWarehouseState({
-        ...(transportState || {}),
-        customerAddresses,
-        transportExpenses,
-      });
-    } catch (error) {
-      setLogisticsError(error?.message || "No se pudo guardar la información de logística.");
-    } finally {
-      setLogisticsSaving(false);
-    }
   };
 
   const loadTransportRoadNews = async () => {
@@ -3184,7 +3188,7 @@ export default function GestionTransporte({ contexto }) {
                   </thead>
                   <tbody>
                     {visibleAreaRecords.map((record) => (
-                      <tr key={record.id}>
+                      <tr key={record.id} data-transport-record-id={record.id}>
                         {selectedViewTab === "history" ? <td>{record.dateKey || "-"}</td> : null}
                         <td>{record.shipmentCode || "-"}</td>
                         <td>{record.destination}</td>
@@ -4339,7 +4343,7 @@ export default function GestionTransporte({ contexto }) {
                   </thead>
                   <tbody>
                     {(selectedDocViewTab === "history" ? docHistoryRecords : docActiveRecords).map((record) => (
-                      <tr key={record.id}>
+                      <tr key={record.id} data-transport-record-id={record.id}>
                         <td>{record.dateKey || "-"}</td>
                         <td>{record.shipmentCode || "-"}</td>
                         <td><span className="chip" style={{ fontSize: "0.75rem" }}>{record.ubicacion}</span></td>
@@ -4457,7 +4461,7 @@ export default function GestionTransporte({ contexto }) {
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "0.6rem" }}>
             <label className="app-modal-field">
               <span>Fecha</span>
-              <input type="date" value={logisticsExpenseDraft.dateKey} onChange={(event) => setLogisticsExpenseDraft((current) => ({ ...current, dateKey: event.target.value }))} />
+              <SpanishDateInput value={logisticsExpenseDraft.dateKey} onChange={(event) => setLogisticsExpenseDraft((current) => ({ ...current, dateKey: event.target.value }))} placeholder="Seleccionar fecha" />
             </label>
             <label className="app-modal-field">
               <span>Tipo</span>
@@ -4587,7 +4591,7 @@ export default function GestionTransporte({ contexto }) {
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "0.6rem" }}>
             <label className="app-modal-field">
               <span>Fecha</span>
-              <input type="date" value={logisticsUnitServiceDraft.dateKey} onChange={(event) => setLogisticsUnitServiceDraft((current) => ({ ...current, dateKey: event.target.value }))} />
+              <SpanishDateInput value={logisticsUnitServiceDraft.dateKey} onChange={(event) => setLogisticsUnitServiceDraft((current) => ({ ...current, dateKey: event.target.value }))} placeholder="Seleccionar fecha" />
             </label>
             <label className="app-modal-field">
               <span>Servicio</span>
@@ -4635,7 +4639,7 @@ export default function GestionTransporte({ contexto }) {
 
           <label className="app-modal-field">
             <span>Fecha</span>
-            <input type="date" value={logisticsUnitChecklistDraft.dateKey} onChange={(event) => setLogisticsUnitChecklistDraft((current) => ({ ...current, dateKey: event.target.value }))} />
+            <SpanishDateInput value={logisticsUnitChecklistDraft.dateKey} onChange={(event) => setLogisticsUnitChecklistDraft((current) => ({ ...current, dateKey: event.target.value }))} placeholder="Seleccionar fecha" />
           </label>
 
           <div className="transport-field-full" style={{ display: "grid", gap: "0.45rem" }}>
@@ -5038,10 +5042,10 @@ export default function GestionTransporte({ contexto }) {
                 <div className="transport-field-full transport-schedule-panel">
                   <label className="app-modal-field">
                     <span>Fecha programada</span>
-                    <input
-                      type="date"
+                    <SpanishDateInput
                       value={transportModal.scheduledDate}
                       onChange={(event) => setTransportModal((current) => ({ ...current, scheduledDate: event.target.value }))}
+                      placeholder="Seleccionar fecha"
                     />
                   </label>
 
@@ -5123,10 +5127,10 @@ export default function GestionTransporte({ contexto }) {
         <div className="modal-form-grid">
           <label className="app-modal-field">
             <span>Fecha nueva de entrega</span>
-            <input
-              type="date"
+            <SpanishDateInput
               value={postponeModal.postponedDate}
               onChange={(event) => setPostponeModal((prev) => ({ ...prev, postponedDate: event.target.value }))}
+              placeholder="Seleccionar fecha"
             />
           </label>
           <label className="app-modal-field">

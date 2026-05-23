@@ -3,6 +3,11 @@ import {
   STORAGE_KEY, SIDEBAR_COLLAPSED_KEY, ACTIVE_PAGE_KEY, DASHBOARD_SECTIONS_KEY, NOTIFICATION_READ_KEY, NOTIFICATION_DELETED_KEY, NOTIFICATION_INBOX_KEY, EMPTY_OBJECT, BOOTSTRAP_MASTER_ID, MASTER_USERNAME, API_BASE_URL, ENABLE_LEGACY_WHOLE_STATE_SYNC, PAGE_BOARD, PAGE_CUSTOM_BOARDS, PAGE_ADMIN, PAGE_DASHBOARD, PAGE_HISTORY, PAGE_PROCESS_AUDITS, PAGE_INVENTORY, PAGE_TRANSPORT, PAGE_USERS, PAGE_BIBLIOTECA, PAGE_INCIDENCIAS, PAGE_NOT_FOUND, PAGE_ROUTE_SLUGS, PAGE_ROUTE_ALIASES, EMPTY_LOGIN_DIRECTORY, ROLE_LEAD, ROLE_SR, ROLE_SSR, ROLE_JR, STATUS_PENDING, STATUS_RUNNING, STATUS_PAUSED, STATUS_FINISHED, INVENTORY_DOMAIN_BASE, INVENTORY_DOMAIN_CLEANING, INVENTORY_DOMAIN_ORDERS, INVENTORY_DOMAIN_MAINTENANCE, INVENTORY_DOMAIN_DESTINATIONS, INVENTORY_MOVEMENT_RESTOCK, INVENTORY_MOVEMENT_CONSUME, INVENTORY_MOVEMENT_TRANSFER, CONTROL_STATUS_OPTIONS, USER_ROLES, PERMISSION_SCHEMA_VERSION, ROLE_LEVEL, TEMPORARY_PASSWORD_MIN_LENGTH, PROFILE_SELF_EDIT_LIMIT, DEFAULT_AREA_OPTIONS, DEFAULT_BOARD_SECTION_OPTIONS, INVENTORY_LOOKUP_LOGISTICS_FIELD, BOARD_ACTIVITY_LIST_FIELD, DEFAULT_JOB_TITLE_BY_ROLE, DASHBOARD_CHART_PALETTE, DEFAULT_DASHBOARD_SECTION_STATE, DEFAULT_ADMIN_TAB, ACTIVITY_FREQUENCY_OPTIONS, ACTIVITY_FREQUENCY_LABELS, ACTIVITY_FREQUENCY_DAY_OFFSETS, BOARD_FIELD_TYPES, BOARD_FIELD_TYPE_DETAILS, BOARD_FIELD_WIDTHS, COLOR_RULE_OPERATORS, BOARD_FIELD_WIDTH_STYLES, BOARD_FIELD_MIN_WIDTH_BY_TYPE, DEFAULT_BOARD_AUX_COLUMNS_ORDER, BOARD_AUX_COLUMN_DEFINITIONS, BOARD_AUX_COLUMN_IDS, BOARD_TEMPLATES, FORMULA_OPERATIONS, OPTION_SOURCE_TYPES, INVENTORY_PROPERTIES, INVENTORY_IMPORT_FIELD_ALIASES, INVENTORY_DOMAIN_OPTIONS, INVENTORY_MOVEMENT_OPTIONS, CLEANING_SITE_OPTIONS, DEFAULT_CLEANING_SITE, BOARD_OPERATIONAL_CONTEXT_NONE, BOARD_OPERATIONAL_CONTEXT_CLEANING_SITE, BOARD_OPERATIONAL_CONTEXT_CUSTOM, BOARD_OPERATIONAL_CONTEXT_OPTIONS, NAV_ITEMS, ACTION_DEFINITIONS, BOARD_PERMISSION_ACTION_IDS, BOARD_PERMISSION_ACTIONS, PAGE_ACTION_GROUPS, PERMISSION_PRESETS, RESPONSIBLE_VISUALS, ALL_PAGES, ALL_ACTION_IDS, ROLE_PERMISSION_MATRIX, KPI_STYLES
 } from "./constantes.js";
 import { getExcelJsModule } from "./utilidadesImportExcel.js";
+import {
+  normalizeUserPermissionOverride,
+  hasUserOverrideValues,
+  normalizeDelegationGrants,
+} from "./userDelegationGrants.js";
 
 // Convierte milisegundos a formato hh:mm:ss
 export function formatElapsedMs(ms) {
@@ -813,10 +818,7 @@ export function buildDefaultPermissions(extraRoles = []) {
 }
 
 export function hasExplicitOverrideValues(override) {
-  if (!override) return false;
-  const pageValues = Object.values(override.pages ?? EMPTY_OBJECT);
-  const actionValues = Object.values(override.actions ?? EMPTY_OBJECT);
-  return pageValues.concat(actionValues).some((value) => typeof value === "boolean");
+  return hasUserOverrideValues(override);
 }
 
 export function remapPermissionsModel(permissions, users = []) {
@@ -827,13 +829,18 @@ export function remapPermissionsModel(permissions, users = []) {
     .filter(([userId]) => knownUserIds.has(userId))
     .filter(([userId]) => supportsManagedPermissionOverrides(userById.get(userId)?.role))
     .map(([userId, override]) => {
-      const normalizedOverride = {
+      const normalized = normalizeUserPermissionOverride({
         pages: Object.fromEntries(NAV_ITEMS.map((item) => [item.id, typeof override?.pages?.[item.id] === "boolean" ? override.pages[item.id] : null])),
         actions: Object.fromEntries(ACTION_DEFINITIONS.map((item) => [item.id, typeof override?.actions?.[item.id] === "boolean" ? override.actions[item.id] : null])),
-      };
-      return [userId, normalizedOverride];
+        delegation: override?.delegation,
+      });
+      return [userId, {
+        pages: Object.fromEntries(NAV_ITEMS.map((item) => [item.id, typeof normalized.pages?.[item.id] === "boolean" ? normalized.pages[item.id] : null])),
+        actions: Object.fromEntries(ACTION_DEFINITIONS.map((item) => [item.id, typeof normalized.actions?.[item.id] === "boolean" ? normalized.actions[item.id] : null])),
+        delegation: normalized.delegation,
+      }];
     })
-    .filter(([, override]) => hasExplicitOverrideValues(override)));
+    .filter(([, override]) => hasUserOverrideValues(override)));
 
   return {
     version: PERMISSION_SCHEMA_VERSION,
@@ -876,13 +883,14 @@ export function normalizePermissions(permissions) {
       item.id,
       normalizePermissionEntry(permissions?.actions?.[item.id], defaults.actions[item.id].roles),
     ])),
-    userOverrides: Object.fromEntries(Object.entries(permissions?.userOverrides ?? EMPTY_OBJECT).map(([userId, override]) => [
-      userId,
-      {
-        pages: Object.fromEntries(NAV_ITEMS.map((item) => [item.id, typeof override?.pages?.[item.id] === "boolean" ? override.pages[item.id] : null])),
-        actions: Object.fromEntries(ACTION_DEFINITIONS.map((item) => [item.id, typeof override?.actions?.[item.id] === "boolean" ? override.actions[item.id] : null])),
-      },
-    ])),
+    userOverrides: Object.fromEntries(Object.entries(permissions?.userOverrides ?? EMPTY_OBJECT).map(([userId, override]) => {
+      const normalized = normalizeUserPermissionOverride(override);
+      return [userId, {
+        pages: Object.fromEntries(NAV_ITEMS.map((item) => [item.id, typeof normalized.pages?.[item.id] === "boolean" ? normalized.pages[item.id] : null])),
+        actions: Object.fromEntries(ACTION_DEFINITIONS.map((item) => [item.id, typeof normalized.actions?.[item.id] === "boolean" ? normalized.actions[item.id] : null])),
+        delegation: normalized.delegation,
+      }];
+    })),
   };
 }
 
@@ -1391,6 +1399,60 @@ export function withDefaultBoardSettings(settings) {
   };
 }
 
+function normalizeBoardTimeFieldLabel(field) {
+  return String(field?.label || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
+export function formatBoardRowClockTime(isoValue) {
+  if (!isoValue) return "";
+  const parsed = new Date(isoValue);
+  if (Number.isNaN(parsed.getTime())) return String(isoValue || "").trim();
+  return new Intl.DateTimeFormat("es-MX", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).format(parsed);
+}
+
+/** Alinea columnas hora inicio/fin del tablero con los ISO persistidos (evita desfases en historial). */
+export function freezeBoardRowTimeFields(row, fields = []) {
+  const cloned = cloneBoardRowSnapshot(row);
+  const nextValues = { ...(cloned.values || {}) };
+  (Array.isArray(fields) ? fields : []).forEach((field) => {
+    if (field?.type !== "time") return;
+    const label = normalizeBoardTimeFieldLabel(field);
+    const isEndField = label.includes("fin") || label.includes("final") || label.includes("end");
+    const isStartField = label.includes("inicio") || label.includes("start");
+    if (isEndField && cloned.endTime) {
+      nextValues[field.id] = formatBoardRowClockTime(cloned.endTime);
+    }
+    if (isStartField && cloned.startTime) {
+      nextValues[field.id] = formatBoardRowClockTime(cloned.startTime);
+    }
+  });
+  cloned.values = nextValues;
+  return cloned;
+}
+
+export function resolveBoardRowHistoryTimeDisplay(row, field, rawValue) {
+  if (field?.type !== "time") {
+    return formatBoardPreviewValue(rawValue, field, {}, []);
+  }
+  const label = normalizeBoardTimeFieldLabel(field);
+  const isEndField = label.includes("fin") || label.includes("final") || label.includes("end");
+  const isStartField = label.includes("inicio") || label.includes("start");
+  if (isEndField && row?.endTime) return formatBoardRowClockTime(row.endTime);
+  if (isStartField && row?.startTime) return formatBoardRowClockTime(row.startTime);
+  const trimmed = String(rawValue || "").trim();
+  if (trimmed) return trimmed;
+  return formatBoardPreviewValue(rawValue, field, {}, []);
+}
+
 export function cloneBoardRowSnapshot(row) {
   const responsibleIds = normalizeBoardResponsibleIds(row?.responsibleIds, row?.responsibleId);
   return {
@@ -1429,7 +1491,9 @@ export function normalizeBoardHistorySnapshot(snapshot) {
     fields: Array.isArray(snapshot?.fields)
       ? snapshot.fields.map((field) => ({ ...field, colorRules: field.colorRules || [] }))
       : [],
-    rows: Array.isArray(snapshot?.rows) ? snapshot.rows.map((row) => cloneBoardRowSnapshot(row)) : [],
+    rows: Array.isArray(snapshot?.rows)
+      ? snapshot.rows.map((row) => freezeBoardRowTimeFields(row, snapshot?.fields || []))
+      : [],
   };
 }
 
@@ -1452,7 +1516,7 @@ export function buildBoardHistorySnapshot(board, weekKey, archivedAt = new Date(
     archivedAt,
     settings: { ...(board.settings ?? EMPTY_OBJECT) },
     fields: (board.fields || []).map((field) => ({ ...field, colorRules: field.colorRules || [] })),
-    rows: (board.rows || []).map((row) => cloneBoardRowSnapshot(row)),
+    rows: (board.rows || []).map((row) => freezeBoardRowTimeFields(row, board.fields || [])),
   });
 }
 
@@ -2556,6 +2620,184 @@ export function normalizeBoardMultiSelectDetailValue(value) {
   return [];
 }
 
+function formatDashboardInventoryFieldValue(value) {
+  if (value === null || value === undefined || value === "") return "";
+  if (Array.isArray(value)) return value.map((entry) => formatDashboardInventoryFieldValue(entry)).join(", ");
+  if (typeof value === "object") {
+    if (value.name || value.label || value.title) {
+      return String(value.name || value.label || value.title);
+    }
+    return "";
+  }
+  return String(value);
+}
+
+function findDashboardInventoryField(fields, keywords = []) {
+  const normalizedKeywords = keywords.map((keyword) => String(keyword || "").toLowerCase()).filter(Boolean);
+  return (Array.isArray(fields) ? fields : []).find((field) => {
+    const label = String(field?.label || field?.name || field?.key || "").toLowerCase();
+    return normalizedKeywords.some((keyword) => label.includes(keyword));
+  }) || null;
+}
+
+function readDashboardInventoryFieldValue(row, field) {
+  if (!field) return "";
+  const values = row?.rowValues && typeof row.rowValues === "object" ? row.rowValues : {};
+  const rawValue = values[field.id] ?? values[field.key] ?? values[field.name];
+  if (rawValue === undefined || rawValue === null || rawValue === "") return "";
+  if (field.type === "inventoryLookup" && row?.inventoryItemsById instanceof Map) {
+    const inventoryItem = row.inventoryItemsById.get(rawValue);
+    if (inventoryItem?.name) return String(inventoryItem.name).trim();
+  }
+  return formatDashboardInventoryFieldValue(rawValue);
+}
+
+function readDashboardInventoryNumericValue(row, keywords = []) {
+  const field = findDashboardInventoryField(row?.sourceFields, keywords);
+  if (!field) return null;
+  const raw = readDashboardInventoryFieldValue(row, field);
+  if (!String(raw || "").trim()) return null;
+  const normalized = String(raw).replace(/\./g, "").replace(/,/g, ".").match(/-?\d+(?:\.\d+)?/g);
+  if (!normalized?.length) return null;
+  const numeric = Number(normalized[0]);
+  return Number.isFinite(numeric) ? numeric : null;
+}
+
+function readDashboardInventoryProductLabel(row) {
+  const fields = Array.isArray(row?.sourceFields) ? row.sourceFields : [];
+  const productKeywords = ["nombre producto", "nombre", "descripcion", "producto", "sku", "articulo", "item", "producto/sku"];
+  const matchField = findDashboardInventoryField(fields, productKeywords);
+  if (matchField) {
+    const label = readDashboardInventoryFieldValue(row, matchField);
+    if (label) {
+      if (matchField.type === "inventoryLookup" && row?.inventoryItemsById instanceof Map) {
+        const values = row.rowValues || {};
+        const rawValue = values[matchField.id] ?? values[matchField.key] ?? values[matchField.name];
+        const inventoryItem = row.inventoryItemsById.get(rawValue);
+        if (inventoryItem) {
+          const nameLabel = inventoryItem.name || label;
+          const presentation = String(inventoryItem.presentation || "").trim();
+          return presentation ? `${nameLabel} - ${presentation}` : nameLabel;
+        }
+      }
+      return label;
+    }
+  }
+  return String(row?.rowLabel || "").trim();
+}
+
+function sumDashboardInventoryPieceFields(row, excludeFieldIds = new Set()) {
+  const fields = Array.isArray(row?.sourceFields) ? row.sourceFields : [];
+  const values = row?.rowValues && typeof row.rowValues === "object" ? row.rowValues : {};
+  let total = 0;
+  let found = false;
+
+  fields.forEach((field) => {
+    const fieldId = String(field?.id || field?.key || field?.name || "").trim();
+    if (!fieldId || excludeFieldIds.has(fieldId)) return;
+    const label = String(field?.label || field?.name || field?.key || "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase();
+    if (!label.includes("pieza") && !label.includes("pza") && !label.includes("cantidad")) return;
+    if (label.includes("merma") || label.includes("faltante") || label.includes("esperad") || label.includes("por caja")) return;
+    const raw = values[field.id] ?? values[field.key] ?? values[field.name];
+    if (raw === undefined || raw === null || raw === "") return;
+    const normalized = String(raw).replace(/\./g, "").replace(/,/g, ".").match(/-?\d+(?:\.\d+)?/g);
+    if (!normalized?.length) return;
+    const numeric = Number(normalized[0]);
+    if (Number.isFinite(numeric) && numeric > 0) {
+      total += numeric;
+      found = true;
+    }
+  });
+
+  return found ? total : null;
+}
+
+/** Métricas de inventario/tarima para dashboard (piezas, mermas, tiempos). */
+export function resolveDashboardInventoryRowMetrics(row, inventoryItemsById = null) {
+  const fields = Array.isArray(row?.sourceFields) ? row.sourceFields : [];
+  const enrichedRow = {
+    ...row,
+    sourceFields: fields,
+    inventoryItemsById: inventoryItemsById instanceof Map ? inventoryItemsById : null,
+  };
+
+  const tarimaValue = readDashboardInventoryFieldValue(enrichedRow, findDashboardInventoryField(fields, ["tarima", "pallet", "palet"])) || "Sin tarima";
+  const productValue = readDashboardInventoryProductLabel(enrichedRow) || "Sin producto";
+
+  const explicitExpectedPieces = readDashboardInventoryNumericValue(enrichedRow, ["piezas esperadas", "piezas esperada", "piezas a revisar", "cantidad esperada", "esperadas", "esperado", "piezas previstas", "total piezas"]);
+  const cajasTarima = readDashboardInventoryNumericValue(enrichedRow, ["cajas tarima", "cajas", "tarimas", "palets", "pallets"]);
+  const piezasPorCaja = readDashboardInventoryNumericValue(enrichedRow, ["piezas por caja", "piezas/caja", "pieza por caja", "pieza caja", "piezas caja"]);
+
+  const lookupProductField = findDashboardInventoryField(fields, ["producto", "sku", "articulo", "item", "nombre producto"]);
+  const productLookupId = lookupProductField
+    ? (row?.rowValues?.[lookupProductField.id] ?? row?.rowValues?.[lookupProductField.key] ?? row?.rowValues?.[lookupProductField.name])
+    : null;
+  const inventoryProduct = inventoryItemsById instanceof Map && productLookupId
+    ? inventoryItemsById.get(productLookupId)
+    : null;
+  const fallbackPiecesPerBox = Number.isFinite(piezasPorCaja)
+    ? piezasPorCaja
+    : inventoryProduct && Number.isFinite(Number(inventoryProduct.piecesPerBox))
+      ? Number(inventoryProduct.piecesPerBox)
+      : null;
+
+  const expectedPieces = Number.isFinite(explicitExpectedPieces)
+    ? explicitExpectedPieces
+    : (Number.isFinite(cajasTarima) && Number.isFinite(fallbackPiecesPerBox) ? cajasTarima * fallbackPiecesPerBox : null);
+
+  const missingPieces = readDashboardInventoryNumericValue(enrichedRow, ["piezas faltantes", "faltantes", "faltante", "diferencia", "faltan", "piezas faltan"]);
+  const explicitRealPieces = readDashboardInventoryNumericValue(enrichedRow, ["piezas reales", "reales", "piezas finales", "resultado", "total real", "piezas revisadas", "revisadas", "piezas surtidas", "surtidas"]);
+
+  const mermaField = fields.find((field) => field?.type === "multiSelectDetail")
+    || fields.find((field) => {
+      const label = String(field?.label || field?.name || field?.key || "").toLowerCase();
+      return (label.includes("causal") || label.includes("causales") || label.includes("motivo")) && !label.includes("pieza");
+    });
+  let rawMerma = mermaField
+    ? (row?.rowValues?.[mermaField.id] ?? row?.rowValues?.[mermaField.key] ?? row?.rowValues?.[mermaField.name])
+    : null;
+  const normalizedMerma = normalizeBoardMultiSelectDetailValue(rawMerma);
+  const mermas = normalizedMerma.length
+    ? normalizedMerma.map((entry) => ({
+      motivo: String(entry.label || entry.option || "").trim(),
+      piezas: Number(String(entry.detail || "").replace(/,/g, ".")),
+    }))
+    : [];
+  const totalMermaPieces = mermas.reduce((sum, entry) => sum + (Number.isFinite(entry.piezas) ? entry.piezas : 0), 0);
+
+  const realPieces = Number.isFinite(explicitRealPieces)
+    ? explicitRealPieces
+    : (Number.isFinite(expectedPieces) ? Math.max(0, expectedPieces - totalMermaPieces - Math.max(0, missingPieces || 0)) : null);
+
+  const scannedPieces = sumDashboardInventoryPieceFields(enrichedRow);
+  const piecesReviewed = Number.isFinite(realPieces) && realPieces > 0
+    ? realPieces
+    : (Number.isFinite(expectedPieces) && expectedPieces > 0 ? expectedPieces : (Number.isFinite(scannedPieces) && scannedPieces > 0 ? scannedPieces : 0));
+
+  const durationSeconds = Math.max(0, Number(row?.durationSeconds || 0));
+  const durationMinutes = durationSeconds / 60;
+
+  return {
+    tarimaValue,
+    productValue,
+    productKey: String(productValue || "Sin producto").trim().toLowerCase().replace(/\s+/g, " "),
+    expectedPieces: Number.isFinite(expectedPieces) ? expectedPieces : null,
+    totalMermaPieces,
+    missingPieces: Number.isFinite(missingPieces) ? missingPieces : null,
+    realPieces: Number.isFinite(realPieces) ? realPieces : null,
+    piecesReviewed: Math.max(0, Number(piecesReviewed || 0)),
+    durationSeconds,
+    durationMinutes,
+    secondsPerPiece: piecesReviewed > 0 ? durationSeconds / piecesReviewed : null,
+    mermasText: mermas.filter((entry) => Number.isFinite(entry.piezas) && entry.piezas > 0)
+      .map((entry) => `${entry.motivo}: ${Math.round(entry.piezas)}`)
+      .join(", ") || "-",
+  };
+}
+
 function buildBoardAssigneeInitials(name) {
   return String(name || "")
     .trim()
@@ -3393,6 +3635,8 @@ export function createUserModalState(overrides = {}) {
       pages: { ...(permissionOverrides.pages ?? EMPTY_OBJECT) },
       actions: { ...(permissionOverrides.actions ?? EMPTY_OBJECT) },
     },
+    delegationGrants: normalizeDelegationGrants(overrides.delegationGrants ?? overrides.delegation ?? EMPTY_OBJECT),
+    delegationPageId: "",
   };
 }
 

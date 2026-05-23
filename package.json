@@ -10,7 +10,9 @@
     "stop:all": "node scripts/local-stack.mjs stop --with-db",
     "test": "echo \"Error: no test specified\" && exit 1",
     "build": "npm run build --prefix frontend",
-    "start": "npm run start --prefix backend"
+    "start": "npm run start --prefix backend",
+    "repair:history-times": "node scripts/repair-board-history-times.mjs",
+    "repair:history-times:dry": "node scripts/repair-board-history-times.mjs --dry-run"
   },
   "keywords": [],
   "author": "",

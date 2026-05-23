@@ -61,7 +61,14 @@ function formatDate(iso) {
   return new Date(iso).toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric" });
 }
 
-export default function BibliotecaPage({ _currentUser, canUpload, canRenameName, canDelete }) {
+export default function BibliotecaPage({
+  _currentUser,
+  canUpload,
+  canRenameName,
+  canDelete,
+  pendingOpenFileId = "",
+  onPendingOpenFileConsumed,
+}) {
   const [files, setFiles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -152,6 +159,17 @@ export default function BibliotecaPage({ _currentUser, canUpload, canRenameName,
   }, []);
 
   useEffect(() => { fetchFiles(); }, [fetchFiles]);
+
+  useEffect(() => {
+    const fileId = String(pendingOpenFileId || "").trim();
+    if (!fileId || loading) return;
+    const match = files.find((entry) => entry.id === fileId);
+    if (match) {
+      if (match.area) setAreaFilter(match.area);
+      setPreviewFile(match);
+    }
+    onPendingOpenFileConsumed?.();
+  }, [files, loading, onPendingOpenFileConsumed, pendingOpenFileId]);
 
   const areas = useMemo(() => {
     const set = new Set([...PREDEFINED_AREAS, ...files.map((f) => f.area || "General")]);

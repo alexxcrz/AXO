@@ -73,6 +73,7 @@ import {
   deleteCotizacion,
   upsertProcessAuditTemplate,
   upsertOperationalInspectionTemplate,
+  deleteOperationalInspectionTemplate,
   deleteProcessAuditTemplate,
   createProcessAudit,
   updateProcessAudit,
@@ -88,10 +89,54 @@ import {
   updateDocumentacionRecordStatus,
   addDocumentacionArea,
   deleteDocumentacionArea,
+  publishTransportNotification,
+  getTransportNotificationRecipients,
+  listTransportNotificationsForUser,
+  markTransportNotificationsAsRead,
+  markInboxNotificationsAsRead,
 } from "../services/warehouse.store.js";
 import { getIO } from "../config/socket.js";
 
 export const warehouseRouter = Router();
+
+const TRANSPORT_AREA_LABELS = {
+  retail: "Retail",
+  pedidos: "Pedidos",
+  inventario: "Inventario",
+  foraneas: "Foráneas",
+  documentacion: "Documentación",
+};
+
+function dispatchTransportAlert({
+  type,
+  title,
+  message,
+  meta = "",
+  tone = "info",
+  alertMode = "sound-vibration",
+  targetPage = "transport",
+  recordId = "",
+  excludeUserId = "",
+  extraUserIds = [],
+}) {
+  try {
+    const recipients = getTransportNotificationRecipients({ excludeUserId });
+    const extras = (Array.isArray(extraUserIds) ? extraUserIds : [])
+      .map((id) => String(id || "").trim())
+      .filter(Boolean)
+      .filter((id) => id !== excludeUserId);
+    const targetUserIds = Array.from(new Set([...recipients, ...extras]));
+    if (!targetUserIds.length) return null;
+    return publishTransportNotification({
+      type, title, message, meta, tone, alertMode,
+      targetPage, recordId, targetUserIds,
+      highlightUserIds: extras,
+    });
+  } catch (err) {
+    console.warn("[transport_dispatch] error:", err?.message || err);
+    return null;
+  }
+}
 
 warehouseRouter.get("/state", (_req, res) => {
   res.json(getWarehouseState());
@@ -446,21 +491,35 @@ warehouseRouter.post("/transport/records", requireAuth, (req, res) => {
     return;
   }
 
-  // Emitir notificación a todos los usuarios conectados para actualizar estado
+  let createdRecord = null;
   try {
     const currentState = getWarehouseState();
     const transport = currentState?.transport || {};
-    const newRecord = (transport?.activeRecords || []).find((r) => r.id === result.recordId);
+    createdRecord = (transport?.activeRecords || []).find((r) => r.id === result.recordId);
     const io = getIO();
     io.emit("transport_record_created", {
       recordId: result.recordId,
-      record: newRecord,
-      createdByName: newRecord?.createdByName,
-      areaId: newRecord?.areaId,
+      record: createdRecord,
+      createdByName: createdRecord?.createdByName,
+      areaId: createdRecord?.areaId,
       ts: Date.now(),
     });
   } catch (socketErr) {
     console.debug("[transport_create] socket emit error:", socketErr?.message);
+  }
+
+  if (createdRecord) {
+    const areaLabel = TRANSPORT_AREA_LABELS[createdRecord.areaId] || createdRecord.areaId || "Transporte";
+    dispatchTransportAlert({
+      type: "transport_record_created",
+      title: `Nuevo envío de ${areaLabel}`,
+      message: `${createdRecord.shipmentCode || ""} hacia ${createdRecord.destination || "destino"}`.trim(),
+      meta: createdRecord.createdByName || "",
+      tone: "warning",
+      alertMode: "sound-vibration",
+      recordId: createdRecord.id,
+      excludeUserId: req.auth?.userId,
+    });
   }
 
   auditSecurityEvent("warehouse_transport_record_created", req, {
@@ -485,6 +544,37 @@ warehouseRouter.patch("/transport/records/:recordId", requireAuth, (req, res) =>
       : "No fue posible actualizar el registro de transporte.";
     res.status(status).json({ ok: false, message });
     return;
+  }
+
+  let updatedRecord = null;
+  try {
+    const currentState = result.state || getWarehouseState();
+    const transport = currentState?.transport || {};
+    updatedRecord = (transport?.activeRecords || []).find((r) => r.id === result.recordId)
+      || (transport?.history || []).find((r) => r.id === result.recordId)
+      || null;
+    const io = getIO();
+    io.emit("transport_record_updated", {
+      recordId: result.recordId,
+      record: updatedRecord,
+      ts: Date.now(),
+    });
+  } catch (socketErr) {
+    console.debug("[transport_update] socket emit error:", socketErr?.message);
+  }
+
+  if (updatedRecord) {
+    const areaLabel = TRANSPORT_AREA_LABELS[updatedRecord.areaId] || updatedRecord.areaId || "Transporte";
+    dispatchTransportAlert({
+      type: "transport_record_updated",
+      title: `Envío editado (${areaLabel})`,
+      message: `${updatedRecord.shipmentCode || ""} • ${updatedRecord.destination || "destino"}`.trim(),
+      meta: req.auth?.userName || "",
+      tone: "info",
+      alertMode: "vibration-only",
+      recordId: updatedRecord.id,
+      excludeUserId: req.auth?.userId,
+    });
   }
 
   auditSecurityEvent("warehouse_transport_record_updated", req, {
@@ -513,10 +603,25 @@ warehouseRouter.delete("/transport/records/:recordId", requireAuth, (req, res) =
     io.emit("transport_record_deleted", {
       recordId: result.recordId,
       record: result.record,
+      deletedByName: req.auth?.userName || result.deletedByName || null,
       ts: Date.now(),
     });
   } catch (socketErr) {
     console.debug("[transport_delete] socket emit error:", socketErr?.message);
+  }
+
+  if (result.record) {
+    const areaLabel = TRANSPORT_AREA_LABELS[result.record.areaId] || result.record.areaId || "Transporte";
+    dispatchTransportAlert({
+      type: "transport_record_deleted",
+      title: `Envío eliminado (${areaLabel})`,
+      message: `${result.record.shipmentCode || ""} • ${result.record.destination || "destino"}`.trim(),
+      meta: req.auth?.userName || "",
+      tone: "danger",
+      alertMode: "sound-vibration",
+      recordId: result.record.id,
+      excludeUserId: req.auth?.userId,
+    });
   }
 
   auditSecurityEvent("warehouse_transport_record_deleted", req, {
@@ -540,7 +645,6 @@ warehouseRouter.post("/transport/records/:recordId/assign", requireAuth, (req, r
     return;
   }
 
-  // Emitir notificación en tiempo real a través de Socket.io
   try {
     const io = getIO();
     io.emit("transport_route_assigned", {
@@ -551,6 +655,21 @@ warehouseRouter.post("/transport/records/:recordId/assign", requireAuth, (req, r
     });
   } catch (socketErr) {
     console.debug("[transport_assign] socket emit error:", socketErr?.message);
+  }
+
+  if (result.record) {
+    const areaLabel = TRANSPORT_AREA_LABELS[result.record.areaId] || result.record.areaId || "Transporte";
+    dispatchTransportAlert({
+      type: "transport_route_assigned",
+      title: `Ruta asignada (${areaLabel})`,
+      message: `${result.record.shipmentCode || ""} → ${result.driver?.name || "conductor"}`.trim(),
+      meta: req.auth?.userName || "",
+      tone: "info",
+      alertMode: "sound-vibration",
+      recordId: result.record.id,
+      excludeUserId: req.auth?.userId,
+      extraUserIds: result.driver?.id ? [result.driver.id] : [],
+    });
   }
 
   auditSecurityEvent("warehouse_transport_route_assigned", req, {
@@ -591,6 +710,20 @@ warehouseRouter.post("/transport/records/:recordId/postpone", requireAuth, (req,
     console.debug("[transport_postpone] socket emit error:", socketErr?.message);
   }
 
+  if (result.record) {
+    const areaLabel = TRANSPORT_AREA_LABELS[result.record.areaId] || result.record.areaId || "Transporte";
+    dispatchTransportAlert({
+      type: "transport_record_postponed",
+      title: `Envío pospuesto (${areaLabel})`,
+      message: `${result.record.shipmentCode || ""} • ${result.record.destination || ""}`.trim(),
+      meta: req.auth?.userName || "",
+      tone: "warning",
+      alertMode: "vibration-only",
+      recordId: result.record.id,
+      excludeUserId: req.auth?.userId,
+    });
+  }
+
   auditSecurityEvent("warehouse_transport_record_postponed", req, {
     recordId: result.recordId,
     postponedUntil: result.record?.postponedUntil,
@@ -622,6 +755,20 @@ warehouseRouter.post("/transport/records/:recordId/reactivate", requireAuth, (re
     });
   } catch (socketErr) {
     console.debug("[transport_reactivate] socket emit error:", socketErr?.message);
+  }
+
+  if (result.record) {
+    const areaLabel = TRANSPORT_AREA_LABELS[result.record.areaId] || result.record.areaId || "Transporte";
+    dispatchTransportAlert({
+      type: "transport_record_reactivated",
+      title: `Envío reactivado (${areaLabel})`,
+      message: `${result.record.shipmentCode || ""} • ${result.record.destination || ""}`.trim(),
+      meta: req.auth?.userName || "",
+      tone: "info",
+      alertMode: "vibration-only",
+      recordId: result.record.id,
+      excludeUserId: req.auth?.userId,
+    });
   }
 
   auditSecurityEvent("warehouse_transport_record_reactivated", req, {
@@ -656,7 +803,6 @@ warehouseRouter.patch("/transport/records/:recordId/status", requireAuth, (req, 
     return;
   }
 
-  // Emitir actualización en tiempo real
   try {
     const io = getIO();
     io.emit("transport_status_updated", {
@@ -666,6 +812,21 @@ warehouseRouter.patch("/transport/records/:recordId/status", requireAuth, (req, 
     });
   } catch (socketErr) {
     console.debug("[transport_status] socket emit error:", socketErr?.message);
+  }
+
+  if (result.record) {
+    const areaLabel = TRANSPORT_AREA_LABELS[result.record.areaId] || result.record.areaId || "Transporte";
+    const statusLabel = String(result.record.status || "").trim() || "actualizado";
+    dispatchTransportAlert({
+      type: "transport_status_updated",
+      title: `Ruta ${statusLabel} (${areaLabel})`,
+      message: `${result.record.shipmentCode || ""} • ${result.record.destination || ""}`.trim(),
+      meta: req.auth?.userName || "",
+      tone: statusLabel.toLowerCase().includes("entreg") ? "success" : "info",
+      alertMode: "sound-vibration",
+      recordId: result.record.id,
+      excludeUserId: req.auth?.userId,
+    });
   }
 
   auditSecurityEvent("warehouse_transport_status_updated", req, {
@@ -730,6 +891,46 @@ warehouseRouter.patch("/transport/logistics", requireAuth, (req, res) => {
   res.json({ ok: true, data: { state: result.state } });
 });
 
+// ─── Notificaciones de transporte (persistencia server-side) ─────────────────
+warehouseRouter.get("/transport/notifications", requireAuth, (req, res) => {
+  const limit = Number.parseInt(req.query?.limit, 10);
+  const result = listTransportNotificationsForUser(req.auth, {
+    limit: Number.isFinite(limit) && limit > 0 ? Math.min(limit, 300) : 100,
+  });
+  if (!result.ok) {
+    const status = result.reason === "auth_required" ? 401 : 400;
+    res.status(status).json({ ok: false, message: "No fue posible obtener las notificaciones." });
+    return;
+  }
+  res.json({ ok: true, data: { notifications: result.notifications } });
+});
+
+warehouseRouter.post("/transport/notifications/read", requireAuth, (req, res) => {
+  const ids = Array.isArray(req.body?.notificationIds)
+    ? req.body.notificationIds
+    : [req.body?.notificationId].filter(Boolean);
+  const result = markTransportNotificationsAsRead(req.auth, ids);
+  if (!result.ok) {
+    const status = result.reason === "auth_required" ? 401 : 400;
+    res.status(status).json({ ok: false, message: "No fue posible marcar las notificaciones." });
+    return;
+  }
+  res.json({ ok: true });
+});
+
+warehouseRouter.post("/notifications/read", requireAuth, (req, res) => {
+  const ids = Array.isArray(req.body?.notificationIds)
+    ? req.body.notificationIds
+    : [req.body?.notificationId].filter(Boolean);
+  const result = markInboxNotificationsAsRead(req.auth, ids);
+  if (!result.ok) {
+    const status = result.reason === "auth_required" ? 401 : 400;
+    res.status(status).json({ ok: false, message: "No fue posible marcar las notificaciones como leídas." });
+    return;
+  }
+  res.json({ ok: true, data: { readIds: result.readIds || [] } });
+});
+
 // ─── Documentación ───────────────────────────────────────────────────────────
 warehouseRouter.post("/documentacion/records", requireAuth, (req, res) => {
   const result = createDocumentacionRecord(req.auth, req.body || {});
@@ -745,17 +946,32 @@ warehouseRouter.post("/documentacion/records", requireAuth, (req, res) => {
     return;
   }
 
+  let createdDocRecord = null;
   try {
     const io = getIO();
     const docRecords = Array.isArray(result.state?.documentacion?.records) ? result.state.documentacion.records : [];
-    const newRecord = docRecords.find((entry) => entry.id === result.recordId) || null;
+    createdDocRecord = docRecords.find((entry) => entry.id === result.recordId) || null;
     io.emit("documentacion_record_created", {
       recordId: result.recordId,
-      record: newRecord,
+      record: createdDocRecord,
       ts: Date.now(),
     });
   } catch (socketErr) {
     console.debug("[documentacion_create] socket emit error:", socketErr?.message);
+  }
+
+  if (createdDocRecord) {
+    dispatchTransportAlert({
+      type: "documentacion_record_created",
+      title: "Nueva documentación",
+      message: `${createdDocRecord.dirigidoA || "Destinatario"} • ${createdDocRecord.area || ""}`.trim(),
+      meta: req.auth?.userName || "",
+      tone: "warning",
+      alertMode: "sound-vibration",
+      targetPage: "documentacion",
+      recordId: createdDocRecord.id,
+      excludeUserId: req.auth?.userId,
+    });
   }
 
   auditSecurityEvent("documentacion_record_created", req, { recordId: result.recordId });
@@ -770,17 +986,32 @@ warehouseRouter.patch("/documentacion/records/:recordId", requireAuth, (req, res
     return;
   }
 
+  let updatedDocRecord = null;
   try {
     const io = getIO();
     const docRecords = Array.isArray(result.state?.documentacion?.records) ? result.state.documentacion.records : [];
-    const updatedRecord = docRecords.find((entry) => entry.id === result.recordId) || null;
+    updatedDocRecord = docRecords.find((entry) => entry.id === result.recordId) || null;
     io.emit("documentacion_record_updated", {
       recordId: result.recordId,
-      record: updatedRecord,
+      record: updatedDocRecord,
       ts: Date.now(),
     });
   } catch (socketErr) {
     console.debug("[documentacion_update] socket emit error:", socketErr?.message);
+  }
+
+  if (updatedDocRecord) {
+    dispatchTransportAlert({
+      type: "documentacion_record_updated",
+      title: "Documentación editada",
+      message: `${updatedDocRecord.dirigidoA || "Destinatario"} • ${updatedDocRecord.area || ""}`.trim(),
+      meta: req.auth?.userName || "",
+      tone: "info",
+      alertMode: "vibration-only",
+      targetPage: "documentacion",
+      recordId: updatedDocRecord.id,
+      excludeUserId: req.auth?.userId,
+    });
   }
 
   auditSecurityEvent("documentacion_record_updated", req, { recordId: result.recordId });
@@ -811,6 +1042,21 @@ warehouseRouter.post("/documentacion/records/:recordId/assign", requireAuth, (re
     });
   } catch (socketErr) {
     console.debug("[documentacion_assign] socket emit error:", socketErr?.message);
+  }
+
+  if (result.record) {
+    dispatchTransportAlert({
+      type: "documentacion_route_assigned",
+      title: "Documentación asignada",
+      message: `${result.record.dirigidoA || ""} → ${result.driver?.name || "conductor"}`.trim(),
+      meta: req.auth?.userName || "",
+      tone: "info",
+      alertMode: "sound-vibration",
+      targetPage: "documentacion",
+      recordId: result.record.id,
+      excludeUserId: req.auth?.userId,
+      extraUserIds: result.driver?.id ? [result.driver.id] : [],
+    });
   }
 
   auditSecurityEvent("documentacion_route_assigned", req, {
@@ -849,6 +1095,21 @@ warehouseRouter.patch("/documentacion/records/:recordId/status", requireAuth, (r
     });
   } catch (socketErr) {
     console.debug("[documentacion_status] socket emit error:", socketErr?.message);
+  }
+
+  if (result.record) {
+    const statusLabel = String(result.record.status || "").trim() || "actualizado";
+    dispatchTransportAlert({
+      type: "documentacion_status_updated",
+      title: `Documentación ${statusLabel}`,
+      message: `${result.record.dirigidoA || ""} • ${result.record.area || ""}`.trim(),
+      meta: req.auth?.userName || "",
+      tone: statusLabel.toLowerCase().includes("entreg") ? "success" : "info",
+      alertMode: "sound-vibration",
+      targetPage: "documentacion",
+      recordId: result.record.id,
+      excludeUserId: req.auth?.userId,
+    });
   }
 
   auditSecurityEvent("documentacion_status_updated", req, {
@@ -980,6 +1241,36 @@ warehouseRouter.post("/operational-templates", requireAuth, (req, res) => {
       revision: result.state?.revision,
     });
     res.status(201).json({ ok: true, data: { state: result.state, templateId: result.templateId } });
+  } catch (err) {
+    res.status(500).json({ ok: false, message: String(err?.message || "error") });
+  }
+});
+
+warehouseRouter.delete("/operational-templates/:templateId", requireAuth, (req, res) => {
+  try {
+    const result = deleteOperationalInspectionTemplate(req.auth, req.params.templateId);
+    if (!result.ok) {
+      const statusByReason = {
+        auth_required: 401,
+        forbidden: 403,
+        forbidden_builtin: 403,
+        not_found: 404,
+        invalid_payload: 400,
+      };
+      const status = statusByReason[result.reason] || 400;
+      const messageByReason = {
+        forbidden_builtin: "No se puede eliminar un checklist de sistema.",
+        not_found: "Checklist no encontrado.",
+      };
+      res.status(status).json({ ok: false, message: messageByReason[result.reason] || "No fue posible eliminar el checklist." });
+      return;
+    }
+
+    auditSecurityEvent("warehouse_operational_template_deleted", req, {
+      templateId: result.templateId,
+      revision: result.state?.revision,
+    });
+    res.status(200).json({ ok: true, data: { state: result.state, templateId: result.templateId } });
   } catch (err) {
     res.status(500).json({ ok: false, message: String(err?.message || "error") });
   }
@@ -1309,7 +1600,16 @@ warehouseRouter.patch("/users/me/profile", (req, res) => {
   const result = updateWarehouseSelfProfile(req.auth, req.body || {});
   if (!result.ok) {
     const status = result.reason === "auth_required" ? 401 : result.reason === "duplicate_email" ? 409 : result.reason === "self_edit_limit_reached" ? 403 : 400;
-    res.status(status).json({ ok: false, message: result.reason === "duplicate_email" ? "Ya existe un player con ese acceso." : result.reason === "self_edit_limit_reached" ? "La autoedicion ya fue utilizada." : "No fue posible actualizar el perfil." });
+    res.status(status).json({
+      ok: false,
+      message: result.reason === "duplicate_email"
+        ? "Ya existe un player con ese acceso."
+        : result.reason === "self_edit_limit_reached"
+          ? "La autoedicion ya fue utilizada."
+          : result.reason === "invalid_email"
+            ? "El correo electronico no es valido."
+            : "No fue posible actualizar el perfil.",
+    });
     return;
   }
 
@@ -1340,7 +1640,7 @@ warehouseRouter.delete("/areas/:areaName", requireWarehouseAction("manageUsers")
   const result = removeWarehouseArea(req.auth, targetArea);
   if (!result.ok) {
     const status = result.reason === "auth_required" ? 401 : result.reason === "forbidden" ? 403 : result.reason === "area_not_found" ? 404 : 400;
-    res.status(status).json({ ok: false, message: result.reason === "area_not_found" ? "Área o subárea no encontrada." : "No fue posible eliminar el área." });
+    res.status(status).json({ ok: false, message: result.reason === "area_not_found" ? "Área no encontrada." : "No fue posible eliminar el área." });
     return;
   }
 

@@ -49,11 +49,6 @@ function getDetectedProblems(audit) {
     }));
 }
 
-function isProposalPending(proposal) {
-  const status = String(proposal?.status || "").trim().toLowerCase();
-  return status !== "accepted" && status !== "closed";
-}
-
 function getProposalStatusLabel(status) {
   const normalized = String(status || "").trim().toLowerCase();
   if (normalized === "accepted") return "Aprobada";
@@ -169,16 +164,6 @@ export default function AuditoriasProcesos({ contexto }) {
     [openAudits],
   );
 
-  const reviewProposals = useMemo(
-    () => openAudits.flatMap((audit) => (Array.isArray(audit.proposals) ? audit.proposals : []).map((proposal) => ({ ...proposal, audit }))),
-    [openAudits],
-  );
-
-  const unresolvedProposals = useMemo(
-    () => reviewProposals.filter((proposal) => isProposalPending(proposal)),
-    [reviewProposals],
-  );
-
   const resolvedProposals = useMemo(
     () => closedAudits.flatMap((audit) => (Array.isArray(audit.proposals) ? audit.proposals : []).map((proposal) => ({ ...proposal, audit }))),
     [closedAudits],
@@ -266,10 +251,6 @@ export default function AuditoriasProcesos({ contexto }) {
 
     return { total, closed, open, avgDuration, byArea };
   }, [sortedAudits]);
-
-  // Filtrar auditorías para cada vista
-  const openAudits = useMemo(() => sortedAudits.filter((audit) => audit.status !== "closed"), [sortedAudits]);
-  const closedAudits = useMemo(() => sortedAudits.filter((audit) => audit.status === "closed"), [sortedAudits]);
 
   async function handleSaveTemplate() {
     if (!canManageTemplates) return;
@@ -361,27 +342,6 @@ export default function AuditoriasProcesos({ contexto }) {
       pushAppToast("Propuesta registrada correctamente.", "success");
     } catch (error) {
       pushAppToast(error?.message || "No se pudo guardar la propuesta.", "danger");
-    }
-  }
-
-  async function handleReviewProposal(auditId, proposalId, approved) {
-    if (!canManageAudits) return;
-    const targetAudit = sortedAudits.find((audit) => audit.id === auditId);
-    if (!targetAudit) return;
-
-    const updatedProposals = (Array.isArray(targetAudit.proposals) ? targetAudit.proposals : []).map((proposal) => {
-      if (proposal.id !== proposalId) return proposal;
-      return {
-        ...proposal,
-        status: approved ? "accepted" : "closed",
-      };
-    });
-
-    try {
-      await updateProcessAudit(auditId, { proposals: updatedProposals });
-      pushAppToast(approved ? "Propuesta aprobada." : "Propuesta rechazada.", "success");
-    } catch (error) {
-      pushAppToast(error?.message || "No se pudo actualizar el estado de la propuesta.", "danger");
     }
   }
 

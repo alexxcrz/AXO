@@ -2,7 +2,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { BarChart3, Camera, Check, ChevronLeft, ChevronRight, ClipboardList, ExternalLink, Eye, EyeOff, Image as ImageIcon, Plus, RotateCcw, Settings, Trash2, Upload, X } from "lucide-react";
 import { Modal } from "../components/Modal";
+import { SpanishDateInput } from "../components/SpanishDateInput";
 import { uploadFileToCloudinary } from "../services/upload.service";
+import { summarizeProcessAuditMetrics } from "../utils/processAuditMetrics.js";
 
 const FALLBACK_PROCESS_TEMPLATES = [
   {
@@ -1225,10 +1227,10 @@ function TemplateQuestionEditor({
                   <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", paddingTop: "0.1rem" }}>
                     <button
                       type="button"
-                      className={`switch-button ${Boolean(question.allowNote) ? "on" : ""}`}
+                      className={`switch-button ${question.allowNote ? "on" : ""}`}
                       onClick={() => setDraft((current) => ({
                         ...current,
-                        questions: current.questions.map((item) => (item.id === question.id ? { ...item, allowNote: !Boolean(question.allowNote) } : item)),
+                        questions: current.questions.map((item) => (item.id === question.id ? { ...item, allowNote: !question.allowNote } : item)),
                       }))}
                       disabled={disabled}
                       aria-pressed={Boolean(question.allowNote)}
@@ -1236,7 +1238,7 @@ function TemplateQuestionEditor({
                     >
                       <span className="switch-thumb" />
                     </button>
-                    <span style={{ fontSize: "0.72rem" }}>{Boolean(question.allowNote) ? "Sí" : "No"}</span>
+                    <span style={{ fontSize: "0.72rem" }}>{question.allowNote ? "Sí" : "No"}</span>
                   </div>
                 </div>
               ) : <div />}
@@ -1245,10 +1247,10 @@ function TemplateQuestionEditor({
                 <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", paddingTop: "0.1rem" }}>
                   <button
                     type="button"
-                    className={`switch-button ${Boolean(question.evidenceRequired) ? "on" : ""}`}
+                    className={`switch-button ${question.evidenceRequired ? "on" : ""}`}
                     onClick={() => setDraft((current) => ({
                       ...current,
-                      questions: current.questions.map((item) => (item.id === question.id ? { ...item, evidenceRequired: !Boolean(question.evidenceRequired) } : item)),
+                      questions: current.questions.map((item) => (item.id === question.id ? { ...item, evidenceRequired: !question.evidenceRequired } : item)),
                     }))}
                     disabled={disabled}
                     aria-pressed={Boolean(question.evidenceRequired)}
@@ -1256,7 +1258,7 @@ function TemplateQuestionEditor({
                   >
                     <span className="switch-thumb" />
                   </button>
-                  <span style={{ fontSize: "0.72rem" }}>{Boolean(question.evidenceRequired) ? "Requerida" : "Opcional"}</span>
+                  <span style={{ fontSize: "0.72rem" }}>{question.evidenceRequired ? "Requerida" : "Opcional"}</span>
                 </div>
               </div>
               {/* Fila 3: Mostrar si | Valor esperado */}
@@ -1402,27 +1404,38 @@ function TemplateQuestionEditor({
 
 const AUDIT_CHART_PALETTE = ["#0ea5e9", "#405db0", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899", "#64748b", "#3375af"];
 
-function AuditHBarChart({ data, maxValue }) {
-  if (!data || !data.length) return <p style={{ color: "#94a3b8", fontSize: "13px" }}>Sin datos.</p>;
-  const barH = 26;
-  const labelW = 86;
-  const chartW = 196;
-  const gap = 7;
-  const totalH = data.length * (barH + gap);
+function AuditHBarChart({ data, maxValue, compact = false }) {
+  if (!data || !data.length) return <p className="subtle-line audit-chart-empty">Sin datos.</p>;
+  const barH = compact ? 16 : 22;
+  const labelW = compact ? 72 : 80;
+  const chartW = compact ? 120 : 160;
+  const gap = compact ? 4 : 6;
+  const valuePad = 28;
+  const svgWidth = labelW + chartW + valuePad;
+  const totalH = data.length * (barH + gap) - gap;
   const maxV = maxValue || Math.max(...data.map((d) => d.value), 1);
   return (
-    <svg viewBox={`0 0 ${labelW + chartW + 48} ${totalH}`} style={{ width: "100%", maxHeight: `${totalH + 4}px`, display: "block", overflow: "visible" }}>
+    <svg
+      className="audit-hbar-chart-svg"
+      width={svgWidth}
+      height={totalH}
+      viewBox={`0 0 ${svgWidth} ${totalH}`}
+      role="img"
+      aria-label="Gráfico de barras"
+    >
       {data.map((d, i) => {
-        const barW = Math.max(4, (d.value / maxV) * chartW);
+        const barW = Math.max(3, (d.value / maxV) * chartW);
         const y = i * (barH + gap);
         const color = AUDIT_CHART_PALETTE[i % AUDIT_CHART_PALETTE.length];
+        const label = String(d.label || "");
+        const shortLabel = label.length > 10 ? `${label.slice(0, 10)}\u2026` : label;
         return (
           <g key={d.label || i}>
-            <text x={labelW - 6} y={y + barH / 2 + 5} textAnchor="end" fontSize="11" fill="#64748b" fontFamily="inherit">
-              {String(d.label || "").length > 11 ? String(d.label).slice(0, 11) + "\u2026" : d.label}
+            <text x={labelW - 4} y={y + barH / 2 + 4} textAnchor="end" fontSize="9" fill="#64748b" fontFamily="inherit">
+              {shortLabel}
             </text>
-            <rect x={labelW} y={y + 2} width={barW} height={barH - 4} rx="5" fill={color} opacity="0.85" />
-            <text x={labelW + barW + 5} y={y + barH / 2 + 5} fontSize="12" fill="#1e293b" fontWeight="700" fontFamily="inherit">
+            <rect x={labelW} y={y + 1} width={barW} height={barH - 2} rx="4" fill={color} opacity="0.88" />
+            <text x={labelW + barW + 4} y={y + barH / 2 + 4} fontSize="10" fill="#1e293b" fontWeight="600" fontFamily="inherit">
               {d.value}
             </text>
           </g>
@@ -1460,7 +1473,7 @@ function AuditDonutChart({ segments }) {
     angle = endAngle;
   });
   return (
-    <svg viewBox="0 0 112 112" style={{ width: "100%", maxWidth: "112px", display: "block" }}>
+    <svg className="audit-donut-chart-svg" viewBox="0 0 112 112" width="96" height="96">
       {paths.map((p, i) => <path key={i} d={p.d} fill={p.color} />)}
       <text x={cx} y={cy - 7} textAnchor="middle" fontSize="17" fontWeight="700" fill="#1e293b" fontFamily="inherit">{total}</text>
       <text x={cx} y={cy + 9} textAnchor="middle" fontSize="10" fill="#64748b" fontFamily="inherit">auditorías</text>
@@ -1482,7 +1495,7 @@ function AuditMiniLineChart({ data }) {
   const linePath = pts.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(" ");
   const areaPath = `${linePath} L ${pts[pts.length - 1].x.toFixed(1)} ${(padT + cH).toFixed(1)} L ${pts[0].x.toFixed(1)} ${(padT + cH).toFixed(1)} Z`;
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", display: "block" }}>
+    <svg className="audit-line-chart-svg" viewBox={`0 0 ${W} ${H}`} width={W} height={H}>
       <path d={areaPath} fill="#0ea5e9" opacity="0.10" />
       <path d={linePath} fill="none" stroke="#0ea5e9" strokeWidth="2" strokeLinejoin="round" />
       {pts.map((p, i) => (
@@ -1513,7 +1526,28 @@ export default function AuditoriasProcesosCompact({ contexto }) {
     removeProcessAuditEvidence,
     pushAppToast,
     auditShortcutPreset,
+    onAuditTabChange,
+    processAuditMetrics: processAuditMetricsFromContext = {},
   } = contexto;
+
+  const processAuditMetrics = useMemo(
+    () => summarizeProcessAuditMetrics(processAudits),
+    [processAudits],
+  );
+
+  const auditNavMetrics = useMemo(() => ({
+    ...processAuditMetrics,
+    ...processAuditMetricsFromContext,
+  }), [processAuditMetrics, processAuditMetricsFromContext]);
+
+  const switchAuditTab = (tab) => {
+    const normalizedTab = String(tab || "").trim();
+    if (!normalizedTab) return;
+    setActiveTab(normalizedTab);
+    if (typeof onAuditTabChange === "function") {
+      onAuditTabChange(normalizedTab);
+    }
+  };
 
   const canManageAudits = Boolean(actionPermissions?.manageProcessAudits);
   const canManageTemplates = Boolean(actionPermissions?.manageProcessAuditTemplates);
@@ -1521,7 +1555,6 @@ export default function AuditoriasProcesosCompact({ contexto }) {
   const [activeTab, setActiveTab] = useState("capture");
   const [templateDraft, setTemplateDraft] = useState(() => emptyTemplateDraft());
   const [newAuditArea, setNewAuditArea] = useState("");
-  const [newAuditSubArea, setNewAuditSubArea] = useState("");
   const [newAuditProcess, setNewAuditProcess] = useState("");
   const [newAuditTemplateId, setNewAuditTemplateId] = useState("");
   const [newAuditTargetName, setNewAuditTargetName] = useState("");
@@ -1553,11 +1586,7 @@ export default function AuditoriasProcesosCompact({ contexto }) {
   const [auditViewerSaving, setAuditViewerSaving] = useState(false);
   const [auditViewerRichEditorState, setAuditViewerRichEditorState] = useState({});
   const [auditShieldActive, setAuditShieldActive] = useState(false);
-  const [auditShieldTick, setAuditShieldTick] = useState(() => Date.now());
-  const [isExportingPdf, setIsExportingPdf] = useState(false);
-  const [historyExpandedId, setHistoryExpandedId] = useState(null);
-  const [historyActiveTab, setHistoryActiveTab] = useState("problems");
-  const [proposalsProblemTab, setProposalsProblemTab] = useState("problemas");
+  const [, setAuditShieldTick] = useState(() => Date.now());
   const [showProposalForm, setShowProposalForm] = useState(false);
   const [proposalAuditId, setProposalAuditId] = useState(null);
   const [proposalDraft, setProposalDraft] = useState(null);
@@ -1566,18 +1595,10 @@ export default function AuditoriasProcesosCompact({ contexto }) {
   const [proposalDetailsAuditId, setProposalDetailsAuditId] = useState(null);
   const [proposalActionLoading, setProposalActionLoading] = useState(false);
   const [proposalRejectionDraft, setProposalRejectionDraft] = useState({ proposalId: null, reason: "" });
-  const [followingAreaTab, setFollowingAreaTab] = useState("");
   const [followingPendingAreaTab, setFollowingPendingAreaTab] = useState("");
   const [implementationAreaTab, setImplementationAreaTab] = useState("");
-  const [historyDraft, setHistoryDraft] = useState(null);
-  const [historyDirty, setHistoryDirty] = useState(false);
-  const [historySaving, setHistorySaving] = useState(false);
-  const [historyRichEditorState, setHistoryRichEditorState] = useState({});
-  const [historyFollowUpUploading, setHistoryFollowUpUploading] = useState(false);
   const [activeSubResponseId, setActiveSubResponseId] = useState(null); // null = respuesta principal
   const [subResponseRichState, setSubResponseRichState] = useState({});
-  const historyFollowUpFileRef = useRef(null);
-  const historyClosureFileRef = useRef(null);
   const galleryEvidenceInputRef = useRef(null);
   const mobileCameraInputRef = useRef(null);
   function openAuditViewer(audit) {
@@ -1615,7 +1636,7 @@ export default function AuditoriasProcesosCompact({ contexto }) {
       setShowProposalForm(false);
       setProposalDraft(null);
       setProposalAuditId(null);
-      setProposalsProblemTab("propuestas");
+      switchAuditTab("propuestas");
     } catch (error) {
       pushAppToast({ type: "error", label: error?.message || "Error al guardar la propuesta" });
     } finally {
@@ -1723,9 +1744,7 @@ export default function AuditoriasProcesosCompact({ contexto }) {
     try {
       await updateProposalStatus(auditId, proposalRejectionDraft.proposalId, "rejected", { rejectionReason: proposalRejectionDraft.reason.trim() });
       setShowProposalDetails(false);
-      setActiveTab("history");
-      setHistoryExpandedId(auditId);
-      setHistoryActiveTab("proposals");
+      switchAuditTab("history");
       pushAppToast({ type: "success", label: "Propuesta rechazada y auditoría enviada al historial." });
     } catch (error) {
       pushAppToast({ type: "error", label: error?.message || "Error al actualizar propuesta" });
@@ -1809,15 +1828,11 @@ export default function AuditoriasProcesosCompact({ contexto }) {
 
   const openProblemAudits = useMemo(() => {
     return sortedAudits.filter((audit) => {
+      if (audit.status === "closed") return false;
       if (!auditHasDetectedProblems(audit)) return false;
       return !auditHasPendingProposals(audit);
     });
   }, [sortedAudits]);
-
-  const canEditProposal = (proposal) => {
-    if (!proposal || !currentUser) return false;
-    return proposal.createdBy === currentUser.id || currentUser.role === "admin";
-  };
 
   const canAuthorizeProposal = () => {
     if (!currentUser) return false;
@@ -1825,17 +1840,16 @@ export default function AuditoriasProcesosCompact({ contexto }) {
   };
 
   const openProposalAudits = useMemo(() => {
-    return sortedAudits.filter((audit) => auditHasPendingProposals(audit));
+    return sortedAudits.filter((audit) => audit.status !== "closed" && auditHasPendingProposals(audit));
   }, [sortedAudits]);
 
-  const openProblemProposalAudits = useMemo(() => {
-    return sortedAudits.filter((audit) => auditHasDetectedProblems(audit) || auditHasPendingProposals(audit));
-  }, [sortedAudits]);
-
-  const selectedAudit = useMemo(
-    () => openAudits.find((entry) => entry.id === selectedAuditId) || openAudits[0] || null,
-    [openAudits, selectedAuditId],
-  );
+  const selectedAudit = useMemo(() => {
+    if (activeTab !== "capture") {
+      if (!selectedAuditId) return null;
+      return openAudits.find((entry) => entry.id === selectedAuditId) || null;
+    }
+    return openAudits.find((entry) => entry.id === selectedAuditId) || openAudits[0] || null;
+  }, [activeTab, openAudits, selectedAuditId]);
 
   const visibleAuditEvidences = useMemo(() => {
     if (!auditDraft) return [];
@@ -1946,50 +1960,33 @@ export default function AuditoriasProcesosCompact({ contexto }) {
     ];
   }, [newAuditArea, openAudits.length, processOptionsForArea, resolvedTemplates.length]);
 
-  const subAreaOptionsForSelectedArea = useMemo(() => {
-    if (!newAuditArea) return [];
-    const values = new Set();
-    sortedAudits.forEach((audit) => {
-      if (String(audit?.area || "").trim() !== String(newAuditArea || "").trim()) return;
-      const subArea = String(audit?.subArea || "").trim();
-      if (subArea) values.add(subArea);
-    });
-    resolvedTemplates.forEach((template) => {
-      if (String(template?.area || "").trim() !== String(newAuditArea || "").trim()) return;
-      const subArea = String(template?.subArea || "").trim();
-      if (subArea) values.add(subArea);
-    });
-    return Array.from(values).sort((a, b) => a.localeCompare(b, "es-MX"));
-  }, [newAuditArea, resolvedTemplates, sortedAudits]);
-
   useEffect(() => {
     if (!auditShortcutPreset || typeof auditShortcutPreset !== "object") return;
 
     const requestedTab = String(auditShortcutPreset.tab || "").trim();
-    const requestedHistoryTab = String(auditShortcutPreset.historyTab || "").trim();
     const presetArea = String(auditShortcutPreset.area || "").trim();
     const presetProcess = String(auditShortcutPreset.process || "").trim();
 
     if (requestedTab === "capture" || requestedTab === "auditoria") {
-      setActiveTab("capture");
+      switchAuditTab("capture");
     } else if (requestedTab === "history") {
-      setActiveTab("history");
-      setHistoryActiveTab("problems");
-    } else if (requestedTab === "problemas" || requestedTab === "propuestas" || requestedTab === "propuestasProblemas") {
-      setActiveTab("propuestasProblemas");
+      switchAuditTab("history");
+    } else if (requestedTab === "problemas" || requestedTab === "propuestasProblemas") {
+      switchAuditTab("problemas");
+    } else if (requestedTab === "propuestas") {
+      switchAuditTab("propuestas");
     } else if (requestedTab === "dashboard") {
-      setActiveTab("dashboard");
+      switchAuditTab("dashboard");
     } else if (requestedTab === "seguimiento") {
-      setActiveTab("seguimiento");
+      switchAuditTab("seguimiento");
     } else if (requestedTab === "implementacion") {
-      setActiveTab("implementacion");
+      switchAuditTab("implementacion");
     }
 
     if (presetArea) {
       setNewAuditArea(presetArea);
     }
     if (presetProcess) {
-      setNewAuditSubArea("");
       setNewAuditProcess(presetProcess);
       setNewAuditTemplateId("");
     }
@@ -2001,347 +1998,9 @@ export default function AuditoriasProcesosCompact({ contexto }) {
     return allQuestions.filter((question) => isQuestionVisible(question, allQuestions));
   }, [auditDraft]);
 
-  const auditScoring = useMemo(() => buildAuditScoring(activeAuditQuestions), [activeAuditQuestions]);
-
-  const detectedProblems = useMemo(() => buildDetectedProblems(activeAuditQuestions), [activeAuditQuestions]);
-
-  const detectedProblemsById = useMemo(() => {
-    return new Set(detectedProblems.map((problem) => String(problem.id || "").trim()).filter(Boolean));
-  }, [detectedProblems]);
-
-  const proposalCoverage = useMemo(() => {
-    const proposals = Array.isArray(auditDraft?.proposals) ? auditDraft.proposals : [];
-    const linked = proposals.filter((proposal) => detectedProblemsById.has(String(proposal.problemId || "").trim()));
-    return {
-      totalProblems: detectedProblems.length,
-      linkedProposals: linked.length,
-      withoutProposal: Math.max(0, detectedProblems.length - linked.length),
-    };
-  }, [auditDraft?.proposals, detectedProblems.length, detectedProblemsById]);
-
-  const isAuditClosed = auditDraft?.status === "closed";
-  const lifecycleStatus = normalizeLifecycleStatus(auditDraft?.lifecycleStatus || "pending");
-  const canWorkProblemsStep = isAuditClosed && ["in_review", "proposal_sent", "accepted", "in_implementation", "in_validation", "closed"].includes(lifecycleStatus);
-  const canWorkProposalsStep = isAuditClosed && ["proposal_sent", "accepted", "in_implementation", "in_validation", "closed"].includes(lifecycleStatus);
-  const canWorkFollowUpStep = isAuditClosed && ["in_implementation", "in_validation", "closed"].includes(lifecycleStatus);
-
-  async function handleAdvancePostCloseStep(nextLifecycleStatus) {
-    if (!canManageAudits || !auditDraft) return;
-    try {
-      await updateProcessAudit(auditDraft.id, {
-        lifecycleStatus: normalizeLifecycleStatus(nextLifecycleStatus),
-      });
-      pushAppToast("Paso actualizado.", "success");
-    } catch (error) {
-      pushAppToast(error?.message || "No se pudo avanzar el paso.", "danger");
-    }
-  }
-
-  async function handleExportAuditPdf(audit = auditDraft) {
-    if (!audit || isExportingPdf) return;
-    try {
-      setIsExportingPdf(true);
-      const [{ jsPDF }, autoTableModule] = await Promise.all([import("jspdf"), import("jspdf-autotable")]);
-      const autoTable = autoTableModule.default || autoTableModule.autoTable;
-      const pdf = new jsPDF({ orientation: "portrait", unit: "pt", format: "a4" });
-      const brandColor = [3, 33, 33];
-      const pageWidth = pdf.internal.pageSize.getWidth();
-
-      pdf.setFillColor(...brandColor);
-      pdf.rect(0, 0, pageWidth, 54, "F");
-      pdf.setTextColor(255, 255, 255);
-      pdf.setFontSize(15);
-      pdf.text("COPMEC — Auditoría de Proceso", 36, 32);
-      pdf.setFontSize(9);
-      pdf.text(`Exportado: ${new Date().toLocaleString("es-MX")}`, 36, 46);
-
-      pdf.setTextColor(0, 0, 0);
-      pdf.setFontSize(11);
-      pdf.text(`Área: ${audit.area || "-"}  ·  Proceso: ${audit.process || "-"}  ·  Subárea: ${audit.subArea || "-"}`, 36, 74);
-      pdf.setFontSize(9);
-      pdf.text(`Auditor: ${audit.auditorName || "-"}  ·  Inicio: ${formatDateTime(audit.startedAt)}  ·  Cierre: ${audit.closedAt ? formatDateTime(audit.closedAt) : "-"}`, 36, 88);
-      const lcLabel = PROCESS_AUDIT_STATUS_OPTIONS.find((opt) => opt.value === normalizeLifecycleStatus(audit.lifecycleStatus))?.label || "-";
-      pdf.text(`Ciclo: ${lcLabel}  ·  Duración: ${formatDuration(getAuditDurationSeconds(audit))}`, 36, 102);
-
-      const problems = buildDetectedProblems(audit.questions || []);
-      const scoring = buildAuditScoring(audit.questions || []);
-
-      pdf.setFontSize(10);
-      pdf.setFont(undefined, "bold");
-      pdf.text("Semáforo", 36, 120);
-      pdf.setFont(undefined, "normal");
-      pdf.text(`Global: ${scoring.global.scorePercent}% OK  ·  🔴 ${scoring.global.red}  🟡 ${scoring.global.yellow}  🟢 ${scoring.global.green}`, 36, 133);
-
-      let yPos = 148;
-
-      // Preguntas
-      pdf.setFontSize(10);
-      pdf.setFont(undefined, "bold");
-      pdf.text("Preguntas capturadas", 36, yPos);
-      yPos += 6;
-      pdf.setFont(undefined, "normal");
-      const activeQs = (audit.questions || []).filter((q) => q?.isActive !== false);
-      const qBody = activeQs.map((q) => {
-        let answerStr = "";
-        if (q.type === "yesno") answerStr = q.answer === true ? "Sí" : q.answer === false ? "No" : "-";
-        else if (q.type === "multi") answerStr = Array.isArray(q.answer) ? q.answer.join(", ") : "-";
-        else answerStr = q.answer != null ? String(q.answer) : "-";
-        const problem = resolveQuestionHasProblem(q);
-        return [q.text || "-", answerStr, problem ? "Sí" : "No", q.observations || ""];
-      });
-      autoTable(pdf, {
-        startY: yPos,
-        head: [["Pregunta", "Respuesta", "Problema", "Observaciones"]],
-        body: qBody,
-        styles: { fontSize: 7, cellPadding: 3 },
-        headStyles: { fillColor: brandColor, textColor: [255, 255, 255] },
-        columnStyles: { 0: { cellWidth: 200 }, 3: { cellWidth: 120 } },
-        theme: "grid",
-        margin: { left: 36, right: 36 },
-      });
-      yPos = pdf.lastAutoTable.finalY + 14;
-
-      // Problemas detectados
-      if (problems.length) {
-        pdf.setFontSize(10);
-        pdf.setFont(undefined, "bold");
-        pdf.text(`Problemas detectados (${problems.length})`, 36, yPos);
-        yPos += 6;
-        pdf.setFont(undefined, "normal");
-        const probBody = problems.map((p) => [p.problem, p.category, p.impactLevel === "high" ? "Alto" : p.impactLevel === "medium" ? "Medio" : "Bajo", p.observations || ""]);
-        autoTable(pdf, {
-          startY: yPos,
-          head: [["Problema", "Categoría", "Impacto", "Observaciones"]],
-          body: probBody,
-          styles: { fontSize: 7, cellPadding: 3 },
-          headStyles: { fillColor: [150, 0, 0], textColor: [255, 255, 255] },
-          theme: "grid",
-          margin: { left: 36, right: 36 },
-        });
-        yPos = pdf.lastAutoTable.finalY + 14;
-      }
-
-      // Respuestas por persona (sub-respuestas)
-      const subResponses = Array.isArray(audit.subResponses) ? audit.subResponses : [];
-      if (subResponses.length) {
-        pdf.setFontSize(10);
-        pdf.setFont(undefined, "bold");
-        pdf.text(`Respuestas por persona (${subResponses.length})`, 36, yPos);
-        yPos += 8;
-        for (const sr of subResponses) {
-          pdf.setFontSize(9);
-          pdf.setFont(undefined, "bold");
-          const personLabel = `${sr.personName || "Persona"}${sr.personRole ? ` — ${sr.personRole}` : ""}`;
-          pdf.text(personLabel, 36, yPos);
-          yPos += 5;
-          pdf.setFont(undefined, "normal");
-          const srBody = (audit.questions || []).map((q, idx) => {
-            const ans = sr.answers?.[q.id] || {};
-            const answerStr = ans.answer === true ? "Sí" : ans.answer === false ? "No" : ans.answer === null || ans.answer === undefined ? "—" : String(ans.answer);
-            const issue = ans.issueDetected === true ? "Sí" : "No";
-            const impact = ans.impactLevel === "high" ? "Alto" : ans.impactLevel === "medium" ? "Medio" : "Bajo";
-            return [String(idx + 1), q.text, answerStr, issue, impact, ans.observations || ""];
-          });
-          autoTable(pdf, {
-            startY: yPos,
-            head: [["#", "Pregunta", "Respuesta", "Problema", "Impacto", "Observaciones"]],
-            body: srBody,
-            styles: { fontSize: 7, cellPadding: 3 },
-            headStyles: { fillColor: [3, 33, 33], textColor: [255, 255, 255] },
-            theme: "grid",
-            margin: { left: 36, right: 36 },
-          });
-          yPos = pdf.lastAutoTable.finalY + 10;
-        }
-        yPos += 4;
-      }
-
-      // Propuestas
-      const proposals = Array.isArray(audit.proposals) ? audit.proposals : [];
-      if (proposals.length) {
-        pdf.setFontSize(10);
-        pdf.setFont(undefined, "bold");
-        pdf.text(`Propuestas de mejora (${proposals.length})`, 36, yPos);
-        yPos += 6;
-        pdf.setFont(undefined, "normal");
-        const propBody = proposals.map((p) => [
-          p.problem || "-",
-          PROPOSAL_TYPE_OPTIONS.find((o) => o.value === p.type)?.label || p.type || "-",
-          p.rootCause ? String(p.rootCause).replace(/<[^>]+>/g, " ").trim() : "-",
-          p.proposal ? String(p.proposal).replace(/<[^>]+>/g, " ").trim() : "-",
-          p.responsible || "-",
-          EFFORT_OPTIONS.find((o) => o.value === p.effort)?.label || p.effort || "-",
-        ]);
-        autoTable(pdf, {
-          startY: yPos,
-          head: [["Problema", "Tipo", "Causa raíz", "Propuesta", "Responsable", "Esfuerzo"]],
-          body: propBody,
-          styles: { fontSize: 7, cellPadding: 3 },
-          headStyles: { fillColor: [0, 80, 80], textColor: [255, 255, 255] },
-          columnStyles: { 2: { cellWidth: 80 }, 3: { cellWidth: 90 } },
-          theme: "grid",
-          margin: { left: 36, right: 36 },
-        });
-        yPos = pdf.lastAutoTable.finalY + 14;
-      }
-
-      // Plan de implementación
-      const plan = audit.implementationPlan || {};
-      if (plan.processDefinition || plan.instructions || plan.deadline) {
-        pdf.setFontSize(10);
-        pdf.setFont(undefined, "bold");
-        pdf.text("Plan de implementación", 36, yPos);
-        yPos += 6;
-        pdf.setFont(undefined, "normal");
-        const planBody = [
-          ["Fecha límite", plan.deadline || "-"],
-          ["Nuevo proceso", plan.processDefinition ? String(plan.processDefinition).replace(/<[^>]+>/g, " ").trim() : "-"],
-          ["Instrucciones", plan.instructions ? String(plan.instructions).replace(/<[^>]+>/g, " ").trim() : "-"],
-        ];
-        autoTable(pdf, {
-          startY: yPos,
-          body: planBody,
-          styles: { fontSize: 7, cellPadding: 3 },
-          theme: "grid",
-          margin: { left: 36, right: 36 },
-        });
-        yPos = pdf.lastAutoTable.finalY + 14;
-      }
-
-      const safeName = String(audit.subArea || audit.area || "auditoria").replace(/[^a-z0-9]/gi, "_").toLowerCase();
-      pdf.save(`auditoria_${safeName}_${audit.id.slice(-6)}.pdf`);
-      pushAppToast("PDF exportado correctamente.", "success");
-    } catch (error) {
-      pushAppToast(error?.message || "No se pudo exportar el PDF.", "danger");
-    } finally {
-      setIsExportingPdf(false);
-    }
-  }
-
-  // History draft: load when expanding a closed audit
   useEffect(() => {
-    if (!historyExpandedId) { setHistoryDraft(null); setHistoryDirty(false); return; }
-    const audit = closedAudits.find((a) => a.id === historyExpandedId);
-    if (!audit) { setHistoryDraft(null); return; }
-    setHistoryDraft({
-      ...audit,
-      proposals: (audit.proposals || []).map((p) => ({ ...p })),
-      followUp: (audit.followUp || []).map((e) => ({ ...e })),
-      implementationPlan: { ...(audit.implementationPlan || {}) },
-      evidences: [...(audit.evidences || [])],
-    });
-    setHistoryDirty(false);
-    setHistoryRichEditorState({});
-  }, [historyExpandedId, closedAudits]);
+    if (activeTab !== "capture") return;
 
-  async function handleSaveHistoryAudit() {
-    if (!historyDraft || historySaving || !canManageAudits) return;
-    try {
-      setHistorySaving(true);
-      await updateProcessAudit(historyDraft.id, {
-        proposals: historyDraft.proposals || [],
-        followUp: historyDraft.followUp || [],
-        implementationPlan: historyDraft.implementationPlan || {},
-        executiveSummary: historyDraft.executiveSummary || "",
-      });
-      setHistoryDirty(false);
-      pushAppToast("Guardado.", "success");
-    } catch (err) {
-      pushAppToast(err?.message || "No se pudo guardar.", "danger");
-    } finally {
-      setHistorySaving(false);
-    }
-  }
-
-  async function handleHistoryAdvanceStep(nextLifecycleStatus) {
-    if (!historyDraft || !canManageAudits) return;
-    try {
-      await updateProcessAudit(historyDraft.id, {
-        lifecycleStatus: normalizeLifecycleStatus(nextLifecycleStatus),
-        proposals: historyDraft.proposals || [],
-        followUp: historyDraft.followUp || [],
-        implementationPlan: historyDraft.implementationPlan || {},
-        executiveSummary: historyDraft.executiveSummary || "",
-      });
-      if (nextLifecycleStatus === "closed") {
-        setHistoryExpandedId(null);
-        pushAppToast("Ciclo de auditoría cerrado correctamente.", "success");
-      } else {
-        setHistoryDraft((c) => c ? { ...c, lifecycleStatus: nextLifecycleStatus } : c);
-        if (nextLifecycleStatus === "proposal_sent") setHistoryActiveTab("proposals");
-        else if (nextLifecycleStatus === "in_implementation") setHistoryActiveTab("followup");
-        else if (nextLifecycleStatus === "in_validation") setHistoryActiveTab("followup");
-        pushAppToast("Paso actualizado.", "success");
-      }
-    } catch (err) {
-      pushAppToast(err?.message || "No se pudo avanzar el paso.", "danger");
-    }
-  }
-
-  async function uploadFollowUpEvidence(entryId, files) {
-    const normalizedFiles = Array.from(files || []).filter(Boolean);
-    if (!normalizedFiles.length || !historyDraft || !canManageAudits) return;
-    setHistoryFollowUpUploading(true);
-    try {
-      for (const file of normalizedFiles) {
-        const uploaded = await uploadFileToCloudinary(file);
-        const ev = {
-          url: uploaded.url,
-          thumbnailUrl: uploaded.thumbnailUrl || uploaded.url,
-          name: uploaded.originalName || file.name,
-          mimeType: uploaded.fileMimeType || file.type,
-          createdAt: new Date().toISOString(),
-        };
-        setHistoryDraft((c) => ({
-          ...c,
-          followUp: (c.followUp || []).map((entry) =>
-            entry.id === entryId
-              ? { ...entry, evidences: [...(entry.evidences || []), ev] }
-              : entry
-          ),
-        }));
-        setHistoryDirty(true);
-      }
-      pushAppToast("Evidencia de verificación subida.", "success");
-    } catch (err) {
-      pushAppToast(err?.message || "No se pudo subir la evidencia.", "danger");
-    } finally {
-      setHistoryFollowUpUploading(false);
-    }
-  }
-
-  async function uploadClosureEvidence(files) {
-    const normalizedFiles = Array.from(files || []).filter(Boolean);
-    if (!normalizedFiles.length || !historyDraft || !canManageAudits) return;
-    setHistoryFollowUpUploading(true);
-    try {
-      for (const file of normalizedFiles) {
-        const uploaded = await uploadFileToCloudinary(file);
-        const ev = {
-          url: uploaded.url,
-          thumbnailUrl: uploaded.thumbnailUrl || uploaded.url,
-          name: uploaded.originalName || file.name,
-          mimeType: uploaded.fileMimeType || file.type,
-          createdAt: new Date().toISOString(),
-        };
-        setHistoryDraft((c) => ({
-          ...c,
-          implementationPlan: {
-            ...(c.implementationPlan || {}),
-            closureEvidences: [...((c.implementationPlan?.closureEvidences) || []), ev],
-          },
-        }));
-        setHistoryDirty(true);
-      }
-      pushAppToast("Evidencia de cierre subida.", "success");
-    } catch (err) {
-      pushAppToast(err?.message || "No se pudo subir la evidencia.", "danger");
-    } finally {
-      setHistoryFollowUpUploading(false);
-    }
-  }
-
-  useEffect(() => {
     if (!selectedAudit) {
       setAuditDraft(null);
       setSelectedAuditId("");
@@ -2388,7 +2047,7 @@ export default function AuditoriasProcesosCompact({ contexto }) {
       setSubResponseRichState({});
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedAudit?.id, selectedAudit?.updatedAt, selectedAudit?.status, selectedAudit?.evidences?.length]);
+  }, [activeTab, selectedAudit?.id, selectedAudit?.updatedAt, selectedAudit?.status, selectedAudit?.evidences?.length]);
 
   useEffect(() => {
     if (!auditViewerModal.open || !auditViewerModal.audit?.id) return;
@@ -2458,6 +2117,7 @@ export default function AuditoriasProcesosCompact({ contexto }) {
   }, [newAuditTemplateId, templateCandidates]);
 
   useEffect(() => {
+    if (activeTab !== "capture") return undefined;
     if (!auditDraft || !isAuditDirty || !canManageAudits) return undefined;
 
     const timer = setTimeout(async () => {
@@ -2485,7 +2145,7 @@ export default function AuditoriasProcesosCompact({ contexto }) {
     }, 700);
 
     return () => clearTimeout(timer);
-  }, [auditDraft, canManageAudits, isAuditDirty, updateProcessAudit]);
+  }, [activeTab, auditDraft, canManageAudits, isAuditDirty, updateProcessAudit]);
 
   function updateAuditAnswer(questionId, nextAnswer) {
     setAuditDraft((current) => ({
@@ -2690,7 +2350,7 @@ export default function AuditoriasProcesosCompact({ contexto }) {
         setSelectedAuditId("");
         setAuditEditorOpen(false);
       }
-      setActiveTab("history");
+      switchAuditTab("history");
       closeDeleteAuditModal();
       pushAppToast("Auditoría eliminada.", "success");
     } catch (error) {
@@ -2761,7 +2421,7 @@ export default function AuditoriasProcesosCompact({ contexto }) {
       const targetName = newAuditTargetName.trim();
       const createdAuditId = await createProcessAudit({
         area: newAuditArea.trim(),
-        subArea: newAuditSubArea.trim(),
+        subArea: "",
         process: newAuditProcess.trim(),
         templateId: template && !template.isFallback ? template.id : null,
         questions: template
@@ -2782,7 +2442,6 @@ export default function AuditoriasProcesosCompact({ contexto }) {
   async function handleCloseAudit() {
     if (!canManageAudits || !auditDraft) return;
     try {
-      const closedId = auditDraft.id;
       await updateProcessAudit(auditDraft.id, {
         status: "closed",
         lifecycleStatus: "in_review",
@@ -2796,14 +2455,14 @@ export default function AuditoriasProcesosCompact({ contexto }) {
 
       const hasProblems = auditHasDetectedProblems(auditDraft);
       const hasProposals = auditHasPendingProposals(auditDraft);
-      if (hasProblems || hasProposals) {
-        setActiveTab("propuestasProblemas");
+      if (hasProposals) {
+        switchAuditTab("propuestas");
+      } else if (hasProblems) {
+        switchAuditTab("problemas");
       } else {
-        setActiveTab("history");
+        switchAuditTab("history");
       }
 
-      setHistoryExpandedId(closedId);
-      setHistoryActiveTab(hasProposals ? "proposals" : "problems");
       pushAppToast("Auditoría guardada y clasificada según el estado de seguimiento.", "success");
     } catch (error) {
       pushAppToast(error?.message || "No se pudo cerrar la auditoría.", "danger");
@@ -2955,7 +2614,6 @@ export default function AuditoriasProcesosCompact({ contexto }) {
                   value={newAuditArea}
                   onChange={(event) => {
                     setNewAuditArea(event.target.value);
-                    setNewAuditSubArea("");
                     setNewAuditProcess("");
                     setNewAuditTemplateId("");
                   }}
@@ -2963,18 +2621,6 @@ export default function AuditoriasProcesosCompact({ contexto }) {
                   <option value="">Selecciona</option>
                   {areaOptions.map((area) => <option key={area} value={area}>{area}</option>)}
                 </select>
-              </label>
-              <label className="app-modal-field">
-                <span>Subárea (opcional)</span>
-                <input
-                  list="audit-subarea-options"
-                  value={newAuditSubArea}
-                  onChange={(event) => setNewAuditSubArea(event.target.value)}
-                  placeholder="Ej. TURNO MAÑANA"
-                />
-                <datalist id="audit-subarea-options">
-                  {subAreaOptionsForSelectedArea.map((subArea) => <option key={subArea} value={subArea} />)}
-                </datalist>
               </label>
               <label className="app-modal-field">
                 <span>Proceso</span>
@@ -3088,10 +2734,6 @@ export default function AuditoriasProcesosCompact({ contexto }) {
                     <strong>{auditDraft.area}</strong>
                   </article>
                   <article className="surface-card audit-mini-stat">
-                    <p>Subárea</p>
-                    <strong>{auditDraft.subArea || "-"}</strong>
-                  </article>
-                  <article className="surface-card audit-mini-stat">
                     <p>Proceso</p>
                     <strong>{auditDraft.process}</strong>
                   </article>
@@ -3121,14 +2763,14 @@ export default function AuditoriasProcesosCompact({ contexto }) {
                   </label>
                   <label className="app-modal-field" style={{ maxWidth: "220px" }}>
                     <span>Fecha re-auditar</span>
-                    <input
-                      type="date"
+                    <SpanishDateInput
                       value={auditDraft.reAuditAt || ""}
                       onChange={(event) => {
                         setAuditDraft((current) => ({ ...current, reAuditAt: event.target.value }));
                         setIsAuditDirty(true);
                       }}
                       disabled={!canManageAudits}
+                      placeholder="Seleccionar fecha"
                     />
                   </label>
                 </div>
@@ -3235,7 +2877,7 @@ export default function AuditoriasProcesosCompact({ contexto }) {
                                 <label className="app-modal-field"><span>Escala ({question.minValue ?? 1}–{question.maxValue ?? 5})</span><input type="range" min={question.minValue ?? 1} max={question.maxValue ?? 5} step={1} value={subAns.answer ?? question.minValue ?? 1} onChange={(e) => updateSubResponseAnswer(activeSubResponseId, question.id, "answer", Number(e.target.value))} disabled={!canManageAudits} /><strong>{subAns.answer ?? "Sin valor"}</strong></label>
                               ) : null}
                               {question.type === "date" ? (
-                                <label className="app-modal-field"><span>Fecha</span><input type="date" value={String(subAns.answer || "")} onChange={(e) => updateSubResponseAnswer(activeSubResponseId, question.id, "answer", e.target.value)} disabled={!canManageAudits} /></label>
+                                <label className="app-modal-field"><span>Fecha</span><SpanishDateInput value={String(subAns.answer || "")} onChange={(e) => updateSubResponseAnswer(activeSubResponseId, question.id, "answer", e.target.value)} disabled={!canManageAudits} placeholder="Seleccionar fecha" /></label>
                               ) : null}
                               {question.type === "select" ? (
                                 <label className="app-modal-field"><span>Selección</span><select value={String(subAns.answer || "")} onChange={(e) => updateSubResponseAnswer(activeSubResponseId, question.id, "answer", e.target.value)} disabled={!canManageAudits}><option value="">Selecciona</option>{(question.options || []).map((opt) => <option key={opt} value={opt}>{opt}</option>)}</select></label>
@@ -3334,11 +2976,11 @@ export default function AuditoriasProcesosCompact({ contexto }) {
                       {question.type === "date" ? (
                         <label className="app-modal-field">
                           <span>Fecha</span>
-                          <input
-                            type="date"
+                          <SpanishDateInput
                             value={String(question.answer || "")}
                             onChange={(event) => updateAuditAnswer(question.id, event.target.value)}
                             disabled={!canManageAudits}
+                            placeholder="Seleccionar fecha"
                           />
                         </label>
                       ) : null}
@@ -3484,6 +3126,7 @@ export default function AuditoriasProcesosCompact({ contexto }) {
               <h3>Problemas de auditoría</h3>
               <p>Auditorías abiertas con problemas detectados que aún no tienen propuesta asociada.</p>
             </div>
+            <span className="chip danger">Total: {openProblemAudits.length}</span>
           </div>
           <div className="saved-board-list permissions-preset-list audit-history-overview-grid">
             {openProblemAudits.map((audit) => {
@@ -3494,7 +3137,7 @@ export default function AuditoriasProcesosCompact({ contexto }) {
                   <div className="card-header-row">
                     <div>
                       <strong>{audit.area} · {audit.process}</strong>
-                      <p className="subtle-line">{audit.subArea || "-"} · {audit.auditorName || currentUser?.name || "Sin auditor"}</p>
+                      <p className="subtle-line">{audit.auditorName || currentUser?.name || "Sin auditor"}</p>
                     </div>
                     <div className="audit-inline-actions">
                       <span className="chip danger">Problemas: {problemsCount}</span>
@@ -3505,9 +3148,14 @@ export default function AuditoriasProcesosCompact({ contexto }) {
                     <p className="subtle-line">{audit.notes ? audit.notes.slice(0, 120) + (audit.notes.length > 120 ? "..." : "") : "Sin notas adicionales."}</p>
                   </div>
                   <div className="audit-inline-actions audit-history-closed-actions" style={{ justifyContent: "space-between", gap: "0.6rem" }}>
-                    <button type="button" className="primary-button" onClick={() => { setSelectedAuditId(audit.id); setActiveTab("capture"); }}>
-                      Ver auditoría
-                    </button>
+                    <div style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap" }}>
+                      <button type="button" className="secondary-button" onClick={() => { setSelectedAuditId(audit.id); switchAuditTab("capture"); }}>
+                        Ver auditoría
+                      </button>
+                      <button type="button" className="primary-button" onClick={() => openProposalForm(audit.id)}>
+                        Dar propuesta
+                      </button>
+                    </div>
                     <span className="subtle-line">Actualizado: {formatDateTime(audit.updatedAt)}</span>
                   </div>
                 </article>
@@ -3518,97 +3166,47 @@ export default function AuditoriasProcesosCompact({ contexto }) {
         </article>
       ) : null}
 
-      {activeTab === "propuestasProblemas" ? (
+      {activeTab === "propuestas" ? (
         <article className="surface-card table-card full-width audit-surface-compact">
           <div className="card-header-row">
             <div>
-              <h3>Propuestas / Problemas</h3>
-              <p>Auditorías abiertas con propuestas pendientes o problemas detectados.</p>
+              <h3>Propuestas de mejora</h3>
+              <p>Auditorías abiertas con propuestas pendientes de revisión o autorización.</p>
             </div>
+            <span className="chip warning">Total: {openProposalAudits.length}</span>
           </div>
-          <div className="tab-strip">
-            <button type="button" className={proposalsProblemTab === "problemas" ? "tab active" : "tab"} onClick={() => setProposalsProblemTab("problemas")}>Problemas ({openProblemAudits.length})</button>
-            <button type="button" className={proposalsProblemTab === "propuestas" ? "tab active" : "tab"} onClick={() => setProposalsProblemTab("propuestas")}>Propuestas ({openProposalAudits.length})</button>
-          </div>
-
-          {proposalsProblemTab === "problemas" ? (
-            <div className="saved-board-list permissions-preset-list audit-history-overview-grid">
-              {openProblemAudits.map((audit) => {
-                const problemsCount = buildDetectedProblems(audit.questions || []).length;
-                const proposalsCount = (audit.proposals || []).length;
-                return (
-                  <article key={audit.id} className="surface-card audit-history-card audit-history-closed-card">
-                    <div className="card-header-row">
-                      <div>
-                        <strong>{audit.area} · {audit.process}</strong>
-                        <p className="subtle-line">{audit.subArea || "-"} · {audit.auditorName || currentUser?.name || "Sin auditor"}</p>
-                      </div>
-                      <div className="audit-inline-actions">
-                        <span className="chip danger">Problemas: {problemsCount}</span>
-                        <span className="chip warning">Propuestas: {proposalsCount}</span>
-                      </div>
+          <div className="saved-board-list permissions-preset-list audit-history-overview-grid">
+            {openProposalAudits.map((audit) => {
+              const proposalsCount = (audit.proposals || []).filter((proposal) => proposal && proposal.status !== "accepted" && proposal.status !== "closed").length;
+              const problemsCount = buildDetectedProblems(audit.questions || []).length;
+              return (
+                <article key={audit.id} className="surface-card audit-history-card audit-history-closed-card">
+                  <div className="card-header-row">
+                    <div>
+                      <strong>{audit.area} · {audit.process}</strong>
+                      <p className="subtle-line">{audit.auditorName || currentUser?.name || "Sin auditor"}</p>
                     </div>
-                    <div className="audit-history-closed-note">
-                      <p className="subtle-line">{audit.notes ? audit.notes.slice(0, 120) + (audit.notes.length > 120 ? "..." : "") : "Sin notas adicionales."}</p>
+                    <div className="audit-inline-actions">
+                      <span className="chip warning">Propuestas: {proposalsCount}</span>
+                      <span className="chip danger">Problemas: {problemsCount}</span>
                     </div>
-                    <div className="audit-inline-actions audit-history-closed-actions" style={{ justifyContent: "space-between", gap: "0.6rem" }}>
-                      <button type="button" className="primary-button" onClick={() => openProposalForm(audit.id)}>
-                        Dar propuesta
+                  </div>
+                  <div className="audit-history-closed-note">
+                    <p className="subtle-line">{audit.notes ? audit.notes.slice(0, 120) + (audit.notes.length > 120 ? "..." : "") : "Sin notas adicionales."}</p>
+                  </div>
+                  <div className="audit-inline-actions audit-history-closed-actions" style={{ justifyContent: "space-between", gap: "0.6rem" }}>
+                    <div style={{ display: "flex", gap: "0.4rem", flex: 1 }}>
+                      <button type="button" className="primary-button" onClick={() => openProposalDetails(audit.id)}>
+                        {canAuthorizeProposal() ? "Revisar propuestas" : "Ver detalles"}
                       </button>
-                      <span className="subtle-line">Actualizado: {formatDateTime(audit.updatedAt)}</span>
                     </div>
-                  </article>
-                );
-              })}
-              {!openProblemAudits.length ? <p className="subtle-line">No hay problemas abiertos en auditorías activas.</p> : null}
-            </div>
-          ) : (
-            <div className="saved-board-list permissions-preset-list audit-history-overview-grid">
-              {openProposalAudits.map((audit) => {
-                const proposalsCount = (audit.proposals || []).filter((proposal) => proposal && proposal.status !== "accepted" && proposal.status !== "closed").length;
-                const problemsCount = buildDetectedProblems(audit.questions || []).length;
-                return (
-                  <article key={audit.id} className="surface-card audit-history-card audit-history-closed-card">
-                    <div className="card-header-row">
-                      <div>
-                        <strong>{audit.area} · {audit.process}</strong>
-                        <p className="subtle-line">{audit.subArea || "-"} · {audit.auditorName || currentUser?.name || "Sin auditor"}</p>
-                      </div>
-                      <div className="audit-inline-actions">
-                        <span className="chip warning">Propuestas: {proposalsCount}</span>
-                        <span className="chip danger">Problemas: {problemsCount}</span>
-                      </div>
-                    </div>
-                    <div className="audit-history-closed-note">
-                      <p className="subtle-line">{audit.notes ? audit.notes.slice(0, 120) + (audit.notes.length > 120 ? "..." : "") : "Sin notas adicionales."}</p>
-                    </div>
-                    <div className="audit-inline-actions audit-history-closed-actions" style={{ justifyContent: "space-between", gap: "0.6rem" }}>
-                      <div style={{ display: "flex", gap: "0.4rem", flex: 1 }}>
-                        {canAuthorizeProposal() ? (
-                          <>
-                            <button type="button" className="icon-button" title="Ver propuestas en detalle" onClick={() => openProposalDetails(audit.id)}>
-                              👁️
-                            </button>
-                          </>
-                        ) : (
-                          <button type="button" className="primary-button" onClick={() => openProposalDetails(audit.id)}>
-                            Ver detalles
-                          </button>
-                        )}
-                        {canAuthorizeProposal() && (
-                          <button type="button" className="secondary-button" onClick={() => openProposalDetails(audit.id)}>
-                            Revisar propuestas
-                          </button>
-                        )}
-                      </div>
-                      <span className="subtle-line">Actualizado: {formatDateTime(audit.updatedAt)}</span>
-                    </div>
-                  </article>
-                );
-              })}
-              {!openProposalAudits.length ? <p className="subtle-line">No hay propuestas pendientes en auditorías activas.</p> : null}
-            </div>
-          )}
+                    <span className="subtle-line">Actualizado: {formatDateTime(audit.updatedAt)}</span>
+                  </div>
+                </article>
+              );
+            })}
+            {!openProposalAudits.length ? <p className="subtle-line">No hay propuestas pendientes en auditorías activas.</p> : null}
+          </div>
         </article>
       ) : null}
 
@@ -3633,7 +3231,7 @@ export default function AuditoriasProcesosCompact({ contexto }) {
                   <div className="card-header-row">
                     <div>
                       <strong>{audit.area} · {audit.process}</strong>
-                      <p className="subtle-line">{audit.subArea || "-"} · {audit.auditorName || currentUser?.name || "Sin auditor"}</p>
+                      <p className="subtle-line">{audit.auditorName || currentUser?.name || "Sin auditor"}</p>
                     </div>
                     <div className="audit-inline-actions">
                       <span className="chip success">{lifecycleLabel}</span>
@@ -3713,161 +3311,266 @@ export default function AuditoriasProcesosCompact({ contexto }) {
           .sort((a, b) => b.value - a.value)
           .slice(0, 6);
 
+        const cycleKpis = [
+          { key: "problemas", label: "Problemas sin propuesta", value: auditNavMetrics.problemCount, tone: "danger", tab: "problemas" },
+          { key: "propuestas", label: "Propuestas pendientes", value: auditNavMetrics.pendingProposalCount, tone: "warning", tab: "propuestas" },
+          { key: "autorizar", label: "Por autorizar / rechazar", value: auditNavMetrics.authorizationCount, tone: "warning", tab: "seguimiento" },
+          { key: "seguimiento", label: "En seguimiento", value: auditNavMetrics.implementationCount, tone: "success", tab: "implementacion" },
+          { key: "rechazadas", label: "Propuestas rechazadas", value: auditNavMetrics.rejectedCount, tone: "neutral", tab: "history" },
+          { key: "aceptadas", label: "Propuestas aceptadas", value: auditNavMetrics.acceptedCount, tone: "success", tab: "implementacion" },
+        ];
+
+        const opsVolume = [
+          { label: "Total auditorías", value: dashboardStats.total },
+          { label: "Cerradas", value: dashboardStats.closed },
+          { label: "Abiertas", value: dashboardStats.open },
+          { label: "Tasa de cierre", value: `${closeRate}%` },
+        ];
+        const opsProposals = [
+          { label: "Propuestas", value: extendedDashboardStats.totalProposals },
+          { label: "Propuestas / auditoría", value: proposalsPerAudit.toFixed(1) },
+          { label: "En seguimiento", value: activeCycleAudits.length },
+        ];
+        const opsQuality = [
+          { label: "Verificación conforme", value: `${followUpOkRate}%` },
+          { label: "Ciclos vencidos", value: overdueCycles },
+          { label: "Duración promedio", value: formatDuration(dashboardStats.avgDuration) },
+        ];
+
         return (
-          <>
-            <article className="surface-card table-card full-width audit-surface-compact">
-              <div className="card-header-row">
-                <div>
-                  <h3>Dashboard · Mejora Continua</h3>
-                  <p>Métricas reales de auditorías, propuestas, cumplimiento y ejecución de ciclo.</p>
+          <div className="audit-mc-dashboard full-width">
+            <header className="audit-dash-hero surface-card">
+              <div className="audit-dash-hero-top">
+              <div>
+                <h3>Dashboard · Mejora Continua</h3>
+                <p>Indicadores del ciclo completo con acceso directo a cada etapa.</p>
+              </div>
+              <div className="audit-dash-hero-actions">
+                {auditNavMetrics.attentionCount > 0 ? (
+                  <span className="chip danger">Atención: {auditNavMetrics.attentionCount}</span>
+                ) : (
+                  <span className="chip success">Sin pendientes críticos</span>
+                )}
+                {currentUser?.role === "Lead" ? (
+                  <button type="button" className="icon-button danger" onClick={() => setResetStatsModal({ open: true, submitting: false })} title="Reiniciar contadores">
+                    <RotateCcw size={15} /> Reiniciar
+                  </button>
+                ) : null}
+                <BarChart3 size={18} />
+              </div>
+              </div>
+              <div className="audit-cycle-kpi-grid audit-cycle-kpi-grid--hero">
+                {cycleKpis.map((kpi) => (
+                  <button
+                    key={kpi.key}
+                    type="button"
+                    className={`audit-cycle-kpi-card audit-cycle-kpi-card--${kpi.tone}`}
+                    onClick={() => switchAuditTab(kpi.tab)}
+                    title={`Ir a ${kpi.label}`}
+                  >
+                    <strong>{kpi.value}</strong>
+                    <span>{kpi.label}</span>
+                  </button>
+                ))}
+              </div>
+            </header>
+
+            <section className="audit-dash-panel surface-card">
+              <div className="audit-dash-panel-head">
+                <h4>Resumen operativo</h4>
+                <p>Volumen, propuestas y calidad del ciclo.</p>
+              </div>
+              <div className="audit-dash-ops-groups">
+                <div className="audit-dash-ops-group">
+                  <span className="audit-dash-ops-label">Volumen</span>
+                  <div className="audit-dash-ops-tiles">
+                    {opsVolume.map((item) => (
+                      <article key={item.label} className="audit-dash-ops-tile audit-dash-ops-tile--volume">
+                        <strong>{item.value}</strong>
+                        <p>{item.label}</p>
+                      </article>
+                    ))}
+                  </div>
                 </div>
-                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                  {currentUser?.role === "Lead" && (
-                    <button type="button" className="icon-button danger" onClick={() => setResetStatsModal({ open: true, submitting: false })} title="Reiniciar contadores"><RotateCcw size={15} /> Reiniciar</button>
-                  )}
-                  <BarChart3 size={18} />
+                <div className="audit-dash-ops-group">
+                  <span className="audit-dash-ops-label">Propuestas</span>
+                  <div className="audit-dash-ops-tiles">
+                    {opsProposals.map((item) => (
+                      <article key={item.label} className="audit-dash-ops-tile audit-dash-ops-tile--proposals">
+                        <strong>{item.value}</strong>
+                        <p>{item.label}</p>
+                      </article>
+                    ))}
+                  </div>
+                </div>
+                <div className="audit-dash-ops-group">
+                  <span className="audit-dash-ops-label">Calidad</span>
+                  <div className="audit-dash-ops-tiles">
+                    {opsQuality.map((item) => (
+                      <article key={item.label} className="audit-dash-ops-tile audit-dash-ops-tile--quality">
+                        <strong>{item.value}</strong>
+                        <p>{item.label}</p>
+                      </article>
+                    ))}
+                  </div>
                 </div>
               </div>
-              <div className="inventory-stat-grid inventory-stat-grid-collapsed">
-                <article className="surface-card audit-mini-stat"><strong>{dashboardStats.total}</strong><p>Total auditorías</p></article>
-                <article className="surface-card audit-mini-stat"><strong>{dashboardStats.closed}</strong><p>Cerradas</p></article>
-                <article className="surface-card audit-mini-stat"><strong>{dashboardStats.open}</strong><p>Abiertas</p></article>
-                <article className="surface-card audit-mini-stat"><strong>{closeRate}%</strong><p>Tasa de cierre</p></article>
-                <article className="surface-card audit-mini-stat"><strong>{extendedDashboardStats.totalProposals}</strong><p>Propuestas</p></article>
-                <article className="surface-card audit-mini-stat"><strong>{proposalsPerAudit.toFixed(1)}</strong><p>Propuestas/auditoría</p></article>
-                <article className="surface-card audit-mini-stat"><strong>{followUpOkRate}%</strong><p>Verificación conforme</p></article>
-                <article className="surface-card audit-mini-stat"><strong>{overdueCycles}</strong><p>Ciclos vencidos</p></article>
-                <article className="surface-card audit-mini-stat"><strong>{formatDuration(dashboardStats.avgDuration)}</strong><p>Duración prom.</p></article>
-                <article className="surface-card audit-mini-stat"><strong>{activeCycleAudits.length}</strong><p>En seguimiento</p></article>
+            </section>
+
+            <section className="audit-dash-visual-row">
+              <article className="audit-dash-panel audit-dash-panel--donut surface-card">
+                <div className="audit-dash-panel-head">
+                  <h4>Severidad global</h4>
+                  <p>Distribución de auditorías por nivel.</p>
+                </div>
+                <div className="audit-dash-donut-wrap">
+                  <AuditDonutChart segments={[
+                    { label: "Crítica", value: dashboardStats.severity.red, color: "#ef4444" },
+                    { label: "Riesgo", value: dashboardStats.severity.yellow, color: "#f59e0b" },
+                    { label: "Controlada", value: dashboardStats.severity.green, color: "#22c55e" },
+                  ]} />
+                  <ul className="audit-dash-legend">
+                    <li><span className="audit-dash-legend-dot audit-dash-legend-dot--danger" /> Crítica: {dashboardStats.severity.red}</li>
+                    <li><span className="audit-dash-legend-dot audit-dash-legend-dot--warning" /> Riesgo: {dashboardStats.severity.yellow}</li>
+                    <li><span className="audit-dash-legend-dot audit-dash-legend-dot--success" /> Controlada: {dashboardStats.severity.green}</li>
+                  </ul>
+                </div>
+              </article>
+
+              <article className="audit-dash-panel audit-dash-panel--trend surface-card">
+                <div className="audit-dash-panel-head">
+                  <h4>Tendencia mensual</h4>
+                  <p>Últimos 6 meses</p>
+                </div>
+                <div className="audit-chart-wrap">
+                  <AuditMiniLineChart data={extendedDashboardStats.byMonth} />
+                </div>
+              </article>
+            </section>
+
+            <section className="audit-dash-bars-stack">
+              <article className="audit-dash-panel surface-card">
+                <div className="audit-dash-panel-head">
+                  <h4>Auditorías por área</h4>
+                  <p>Conteo por área operativa.</p>
+                </div>
+                <div className="audit-chart-wrap audit-chart-wrap--bars">
+                  <AuditHBarChart compact data={dashboardStats.byArea.slice(0, 6)} />
+                </div>
+              </article>
+
+              <article className="audit-dash-panel surface-card">
+                <div className="audit-dash-panel-head">
+                  <h4>Cumplimiento promedio</h4>
+                  <p>Porcentaje de respuestas OK por área.</p>
+                </div>
+                <div className="audit-chart-wrap audit-chart-wrap--bars">
+                  <AuditHBarChart compact data={extendedDashboardStats.areaCompliance.slice(0, 6)} maxValue={100} />
+                  {!extendedDashboardStats.areaCompliance.length ? <p className="subtle-line">Sin datos de respuestas.</p> : null}
+                </div>
+              </article>
+            </section>
+
+            <section className="audit-dash-panel surface-card audit-dash-panel--pipeline">
+              <div className="audit-dash-panel-head">
+                <h4>Pipeline por etapa</h4>
+                <p>Avance del ciclo de mejora continua.</p>
               </div>
-            </article>
-
-            <div style={{ display: "grid", gridTemplateColumns: "minmax(220px,1fr) minmax(300px,2fr)", gap: "1rem" }}>
-              <article className="surface-card audit-surface-compact" style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-                <strong style={{ fontSize: "14px" }}>Severidad global</strong>
-                <AuditDonutChart segments={[
-                  { label: "Crítica", value: dashboardStats.severity.red, color: "#ef4444" },
-                  { label: "Riesgo", value: dashboardStats.severity.yellow, color: "#f59e0b" },
-                  { label: "Controlada", value: dashboardStats.severity.green, color: "#22c55e" },
-                ]} />
-                <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", justifyContent: "center", fontSize: "12px" }}>
-                  <span className="chip danger">Crítica: {dashboardStats.severity.red}</span>
-                  <span className="chip warning">Riesgo: {dashboardStats.severity.yellow}</span>
-                  <span className="chip success">Controlada: {dashboardStats.severity.green}</span>
-                </div>
-              </article>
-
-              <article className="surface-card audit-surface-compact" style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <strong style={{ fontSize: "14px" }}>Tendencia mensual</strong>
-                  <span style={{ fontSize: "11px", color: "#94a3b8" }}>Últimos 6 meses</span>
-                </div>
-                <AuditMiniLineChart data={extendedDashboardStats.byMonth} />
-              </article>
-            </div>
-
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
-              <article className="surface-card audit-surface-compact" style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-                <strong style={{ fontSize: "14px" }}>Auditorías por área</strong>
-                <AuditHBarChart data={dashboardStats.byArea.slice(0, 8)} />
-                {!dashboardStats.byArea.length ? <p className="subtle-line">Sin datos.</p> : null}
-              </article>
-
-              <article className="surface-card audit-surface-compact" style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <strong style={{ fontSize: "14px" }}>Cumplimiento promedio</strong>
-                  <span style={{ fontSize: "11px", color: "#94a3b8" }}>% respuestas OK</span>
-                </div>
-                <AuditHBarChart data={extendedDashboardStats.areaCompliance.slice(0, 8)} maxValue={100} />
-                {!extendedDashboardStats.areaCompliance.length ? <p className="subtle-line">Sin datos de respuestas.</p> : null}
-              </article>
-            </div>
-
-            <article className="surface-card table-card full-width audit-surface-compact">
-              <strong style={{ fontSize: "14px" }}>Pipeline por etapa de ciclo</strong>
               {!extendedDashboardStats.lifecycleDist.length ? (
                 <p className="subtle-line">Sin auditorías registradas.</p>
               ) : (
-                <div style={{ display: "flex", flexWrap: "wrap", gap: "0.65rem", marginTop: "0.5rem" }}>
+                <div className="audit-dash-pipeline">
                   {extendedDashboardStats.lifecycleDist.map((item, index) => {
                     const pct = dashboardStats.total > 0 ? Math.round((item.count / dashboardStats.total) * 100) : 0;
                     const color = AUDIT_CHART_PALETTE[index % AUDIT_CHART_PALETTE.length];
                     return (
-                      <article key={item.status} className="surface-card" style={{ minWidth: "150px", flex: "1 1 170px" }}>
-                        <div className="card-header-row">
-                          <span style={{ fontSize: "12px", color: "#64748b" }}>{item.label}</span>
-                          <span className="chip primary">{item.count}</span>
+                      <article key={item.status} className="audit-dash-pipeline-step">
+                        <div className="audit-dash-pipeline-step-head">
+                          <span>{item.label}</span>
+                          <strong>{item.count}</strong>
                         </div>
-                        <div style={{ background: "#f1f5f9", borderRadius: "6px", height: "6px", overflow: "hidden", margin: "0.2rem 0" }}>
-                          <div style={{ background: color, width: `${pct}%`, height: "100%", borderRadius: "6px" }} />
+                        <div className="audit-dash-pipeline-bar">
+                          <div style={{ width: `${pct}%`, background: color }} />
                         </div>
-                        <p className="subtle-line" style={{ margin: 0, fontSize: "11px" }}>{pct}% del total</p>
+                        <small>{pct}% del total</small>
+                        {index < extendedDashboardStats.lifecycleDist.length - 1 ? (
+                          <span className="audit-dash-pipeline-arrow" aria-hidden="true">→</span>
+                        ) : null}
                       </article>
                     );
                   })}
                 </div>
               )}
-            </article>
+            </section>
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
-              <article className="surface-card table-card audit-surface-compact">
-                <div className="card-header-row">
-                  <strong style={{ fontSize: "14px" }}>Procesos con mayor riesgo</strong>
+            <section className="audit-dash-insights-row">
+              <article className="audit-dash-panel audit-dash-panel--risk surface-card">
+                <div className="audit-dash-panel-head">
+                  <h4>Procesos con mayor riesgo</h4>
+                  <p>Ranking por índice de criticidad.</p>
                 </div>
                 {!riskyProcesses.length ? (
                   <p className="subtle-line">Sin datos de riesgo.</p>
                 ) : (
-                  <div style={{ display: "grid", gap: "0.5rem", marginTop: "0.45rem" }}>
-                    {riskyProcesses.map((item) => (
-                      <article key={item.label} className="surface-card" style={{ padding: "0.55rem 0.65rem" }}>
-                        <div className="card-header-row">
-                          <strong style={{ fontSize: "12px" }}>{item.label}</strong>
-                          <span className="chip warning">Índice: {item.value}</span>
+                  <ol className="audit-dash-risk-list">
+                    {riskyProcesses.map((item, index) => (
+                      <li key={item.label} className="audit-dash-risk-item">
+                        <span className="audit-dash-risk-rank">{index + 1}</span>
+                        <div className="audit-dash-risk-body">
+                          <strong>{item.label}</strong>
+                          <p>Críticas {item.red} · Riesgo {item.yellow} · {item.total} auditoría(s)</p>
                         </div>
-                        <p className="subtle-line" style={{ margin: "0.2rem 0 0" }}>Críticas: {item.red} · Riesgo: {item.yellow} · Auditorías: {item.total}</p>
+                        <span className="chip warning">{item.value}</span>
+                      </li>
+                    ))}
+                  </ol>
+                )}
+              </article>
+
+              <article className="audit-dash-panel audit-dash-panel--leaders surface-card">
+                <div className="audit-dash-panel-head">
+                  <h4>Responsables destacados</h4>
+                  <p>Quienes concentran más propuestas.</p>
+                </div>
+                {!topResponsibles.length ? (
+                  <p className="subtle-line">Sin responsables asignados todavía.</p>
+                ) : (
+                  <div className="audit-dash-leader-board">
+                    {topResponsibles.map((person, index) => (
+                      <article
+                        key={person.name}
+                        className={`audit-dash-leader-card ${index === 0 ? "audit-dash-leader-card--gold" : index === 1 ? "audit-dash-leader-card--silver" : ""}`}
+                      >
+                        <span className="audit-dash-leader-rank">#{index + 1}</span>
+                        <div>
+                          <strong>{person.name}</strong>
+                          <p>{person.count} propuesta(s)</p>
+                        </div>
                       </article>
                     ))}
                   </div>
                 )}
               </article>
-
-              <article className="surface-card table-card audit-surface-compact">
-                <div className="card-header-row">
-                  <strong style={{ fontSize: "14px" }}>Responsables con más propuestas</strong>
-                </div>
-                {!topResponsibles.length ? (
-                  <p className="subtle-line">Sin responsables asignados todavía.</p>
-                ) : (
-                  <div style={{ display: "grid", gap: "0.4rem", marginTop: "0.45rem" }}>
-                    {topResponsibles.map((person, index) => (
-                      <div key={person.name} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0.45rem 0.55rem", borderRadius: "12px", background: "#f8fafc" }}>
-                        <span style={{ fontSize: "13px", color: "#1e293b" }}>{index + 1}. {person.name}</span>
-                        <span className="chip primary">{person.count}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </article>
-            </div>
+            </section>
 
             {dashboardStats.criticalAreas.length > 0 ? (
-              <article className="surface-card table-card full-width audit-surface-compact">
-                <div className="card-header-row">
-                  <strong style={{ fontSize: "14px" }}>Áreas críticas activas</strong>
+              <section className="audit-dash-alert surface-card">
+                <div className="audit-dash-panel-head">
+                  <h4>Áreas críticas activas</h4>
                   <span className="chip warning">{dashboardStats.criticalAreas.length}</span>
                 </div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem", marginTop: "0.25rem" }}>
+                <div className="audit-dash-alert-tags">
                   {dashboardStats.criticalAreas.map((row) => (
-                    <span key={row.label} className="chip danger" style={{ fontSize: "13px" }}>{row.label}: {row.value}</span>
+                    <span key={row.label} className="chip danger">{row.label}: {row.value}</span>
                   ))}
                 </div>
-              </article>
+              </section>
             ) : (
-              <article className="surface-card table-card full-width audit-surface-compact">
-                <p style={{ color: "#22c55e", fontWeight: 600, fontSize: "14px", margin: 0 }}>Sin áreas críticas activas.</p>
-              </article>
+              <section className="audit-dash-alert audit-dash-alert--ok surface-card">
+                <p>Sin áreas críticas activas en este momento.</p>
+              </section>
             )}
-          </>
+          </div>
         );
       })() : null}
 
@@ -3921,9 +3624,6 @@ export default function AuditoriasProcesosCompact({ contexto }) {
           proposalsByArea.get(area).push(prop);
         });
 
-        const areas = Array.from(proposalsByArea.keys()).sort();
-        const activeArea = followingAreaTab || areas[0] || "";
-
         return (
           <>
             <article className="surface-card table-card full-width audit-surface-compact">
@@ -3957,7 +3657,6 @@ export default function AuditoriasProcesosCompact({ contexto }) {
                       <div className="card-header-row">
                         <div>
                           <strong style={{ fontSize: "13px" }}>{proposal.auditInfo.process}</strong>
-                          <p className="subtle-line" style={{ fontSize: "12px" }}>{proposal.auditInfo.subArea || "-"}</p>
                         </div>
                         <span className="chip warning">{String(proposal.status || "Pendiente").replace("proposal_sent", "Propuesta enviada")}</span>
                       </div>
@@ -4060,7 +3759,6 @@ export default function AuditoriasProcesosCompact({ contexto }) {
                       <div className="card-header-row">
                         <div>
                           <strong style={{ fontSize: "13px" }}>{proposal.auditInfo.process}</strong>
-                          <p className="subtle-line" style={{ fontSize: "12px" }}>{proposal.auditInfo.subArea || "-"}</p>
                         </div>
                         <span className="chip success">{proposal.status === "in_implementation" ? "En implementación" : "Aceptada"}</span>
                       </div>
@@ -4121,7 +3819,6 @@ export default function AuditoriasProcesosCompact({ contexto }) {
             ) : null}
             <div className="modal-form-grid">
             <p><strong>{auditViewerDraft.area}</strong> · {auditViewerDraft.process}</p>
-            <p className="subtle-line">Subárea: {auditViewerDraft.subArea || "-"}</p>
             <p className="subtle-line">Auditor: {auditViewerDraft.auditorName || "Sin auditor"}</p>
             <p className="subtle-line">Inicio: {formatDateTime(auditViewerDraft.startedAt)}</p>
             <p className="subtle-line">Duración: {formatDuration(getAuditDurationSeconds(auditViewerDraft))}</p>
@@ -4451,7 +4148,6 @@ export default function AuditoriasProcesosCompact({ contexto }) {
               <div className="surface-card audit-surface-compact">
                 <strong>Auditoría</strong>
                 <p className="subtle-line">{audit?.area} · {audit?.process}</p>
-                {audit?.subArea && <p className="subtle-line">{audit?.subArea}</p>}
               </div>
 
               {problems.length > 0 && (
@@ -4560,7 +4256,7 @@ export default function AuditoriasProcesosCompact({ contexto }) {
             <div style={{ display: "flex", flexDirection: "column", gap: "1rem", maxHeight: "70vh", overflowY: "auto" }}>
               <div className="surface-card audit-surface-compact">
                 <strong>{audit?.area} · {audit?.process}</strong>
-                <p className="subtle-line">{audit?.subArea || "-"} · {audit?.auditorName || currentUser?.name || "Sin auditor"}</p>
+                <p className="subtle-line">{audit?.auditorName || currentUser?.name || "Sin auditor"}</p>
               </div>
 
               {audit?.conclusion && (

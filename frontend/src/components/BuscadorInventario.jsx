@@ -100,11 +100,11 @@ function InventoryLookupInput({ inventoryItems, value, onChange, placeholder, di
     }
 
     updateDropdownPosition();
-    globalThis.addEventListener("resize", updateDropdownPosition);
-    globalThis.addEventListener("scroll", updateDropdownPosition, true);
+    globalThis.addEventListener("resize", updateDropdownPosition, { passive: true });
+    globalThis.addEventListener("scroll", updateDropdownPosition, { capture: true, passive: true });
     return () => {
       globalThis.removeEventListener("resize", updateDropdownPosition);
-      globalThis.removeEventListener("scroll", updateDropdownPosition, true);
+      globalThis.removeEventListener("scroll", updateDropdownPosition, { capture: true });
     };
   }, [filteredItems.length, isOpen]);
 

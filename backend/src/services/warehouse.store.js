@@ -7,6 +7,15 @@ import { publicLoginDirectoryEnabled } from "../config/env.js";
 import { INTERNAL_STORAGE_ONLY, isInternalStorageUrl } from "../config/storage.js";
 import { hashPassword, isStrongPassword, isTemporaryPassword, verifyPassword } from "../utils/passwords.js";
 import { sendIncidenciaAssignedEmail } from "./email-notifications.service.js";
+import {
+  buildTransportNotification,
+  resolveTransportRecipientUserIds,
+  sendTransportPushToUsers,
+  trimTransportNotifications,
+  markTransportNotificationsRead as markTransportNotificationsReadInList,
+  getTransportNotificationsForUser as getTransportNotificationsForUserFromList,
+} from "./transport.notifications.js";
+import { repairWarehouseBoardTimes } from "./boardHistoryTimeRepair.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -699,12 +708,28 @@ function isWithinPauseControlWorkHours(nowMs, workHours, workWeek = EMPTY_OBJECT
   return nowTotal >= startTotal && nowTotal < endTotal;
 }
 
+function normalizePermissionDelegation(value) {
+  const source = value && typeof value === "object" ? value : EMPTY_OBJECT;
+  const byRoleSource = source.byRole && typeof source.byRole === "object" ? source.byRole : EMPTY_OBJECT;
+  const roles = ["Senior (Sr)", "Semi-Senior (Ssr)", "Junior (Jr)"];
+  const byRole = roles.reduce((accumulator, role) => {
+    const entry = byRoleSource[role] && typeof byRoleSource[role] === "object" ? byRoleSource[role] : EMPTY_OBJECT;
+    accumulator[role] = {
+      enabled: Boolean(entry.enabled),
+      canGrantManagePermissions: Boolean(entry.canGrantManagePermissions),
+    };
+    return accumulator;
+  }, {});
+  return { byRole };
+}
+
 function normalizeSystemOperationalSettings(value) {
   const source = value && typeof value === "object" ? value : EMPTY_OBJECT;
   return {
     timeZone: resolveOperationalTimeZone(source.timeZone),
     naveWeekSchedules: normalizeSystemNaveWeekSchedules(source.naveWeekSchedules),
     pauseControl: normalizeSystemPauseControl(source.pauseControl),
+    permissionDelegation: normalizePermissionDelegation(source.permissionDelegation),
   };
 }
 
@@ -845,6 +870,45 @@ function normalizeBoardWeeklyCycle(cycle, referenceDate = new Date()) {
   };
 }
 
+function normalizeBoardTimeFieldLabel(field) {
+  return String(field?.label || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
+function formatBoardRowClockTime(isoValue) {
+  if (!isoValue) return "";
+  const parsed = new Date(isoValue);
+  if (Number.isNaN(parsed.getTime())) return String(isoValue || "").trim();
+  return new Intl.DateTimeFormat("es-MX", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).format(parsed);
+}
+
+function freezeBoardRowTimeFields(row, fields = []) {
+  const cloned = cloneBoardRowSnapshot(row);
+  const nextValues = { ...(cloned.values || {}) };
+  (Array.isArray(fields) ? fields : []).forEach((field) => {
+    if (field?.type !== "time") return;
+    const label = normalizeBoardTimeFieldLabel(field);
+    const isEndField = label.includes("fin") || label.includes("final") || label.includes("end");
+    const isStartField = label.includes("inicio") || label.includes("start");
+    if (isEndField && cloned.endTime) {
+      nextValues[field.id] = formatBoardRowClockTime(cloned.endTime);
+    }
+    if (isStartField && cloned.startTime) {
+      nextValues[field.id] = formatBoardRowClockTime(cloned.startTime);
+    }
+  });
+  cloned.values = nextValues;
+  return cloned;
+}
+
 function cloneBoardRowSnapshot(row) {
   const responsibleIds = normalizeBoardResponsibleIds(row?.responsibleIds, row?.responsibleId);
   return {
@@ -886,7 +950,9 @@ function normalizeBoardHistorySnapshot(snapshot, permissions, fallbackUsers = []
       ? snapshot.fields.map((field) => ({ ...field, colorRules: field.colorRules || [] }))
       : [],
     permissions: normalizeBoardPermissions(snapshot?.permissions, permissions, snapshot),
-    rows: Array.isArray(snapshot?.rows) ? snapshot.rows.map((row) => cloneBoardRowSnapshot(row)) : [],
+    rows: Array.isArray(snapshot?.rows)
+      ? snapshot.rows.map((row) => freezeBoardRowTimeFields(row, snapshot?.fields || []))
+      : [],
   };
 }
 
@@ -910,7 +976,8 @@ function buildBoardHistorySnapshot(board, weekKey, permissions, archivedAt = new
     settings: { ...(board.settings ?? EMPTY_OBJECT) },
     fields: (board.fields || []).map((field) => ({ ...field, colorRules: field.colorRules || [] })),
     permissions: board.permissions,
-    rows: (board.rows || []).map((row) => cloneBoardRowSnapshot(row)),
+    // Guardar todas las filas visibles (incluye terminadas/pausadas) sin recortar columnas.
+    rows: (board.rows || []).map((row) => freezeBoardRowTimeFields(row, board.fields || [])),
   }, permissions);
 }
 
@@ -1423,13 +1490,14 @@ function normalizePermissions(permissions) {
   const normalized = {
     pages: Object.fromEntries(Object.keys(PAGE_PERMISSIONS).map((key) => [key, normalizePermissionEntry(permissions?.pages?.[key], defaults.pages[key].roles)])),
     actions: Object.fromEntries(Object.keys(ACTION_PERMISSIONS).map((key) => [key, normalizePermissionEntry(permissions?.actions?.[key], defaults.actions[key].roles)])),
-    userOverrides: Object.fromEntries(Object.entries(permissions?.userOverrides ?? EMPTY_OBJECT).map(([userId, override]) => [
-      userId,
-      {
+    userOverrides: Object.fromEntries(Object.entries(permissions?.userOverrides ?? EMPTY_OBJECT).map(([userId, override]) => {
+      const delegation = normalizeDelegationOverrideBlock(override?.delegation);
+      return [userId, {
         pages: Object.fromEntries(Object.keys(PAGE_PERMISSIONS).map((key) => [key, typeof override?.pages?.[key] === "boolean" ? override.pages[key] : null])),
         actions: Object.fromEntries(Object.keys(ACTION_PERMISSIONS).map((key) => [key, typeof override?.actions?.[key] === "boolean" ? override.actions[key] : null])),
-      },
-    ])),
+        ...(delegation ? { delegation } : {}),
+      }];
+    })),
   };
 
   // Hard-lock default visibility: only LEAD has AI access unless explicit user override is set.
@@ -1826,7 +1894,7 @@ function normalizeState(state, previousState = null) {
     misplacedBoards.filter((candidate) => !rawControlBoards.some((board) => board?.id === candidate.id)),
   );
 
-  return {
+  const normalized = {
     ...state,
     system: {
       masterBootstrapEnabled: state.system?.masterBootstrapEnabled ?? !users.some((user) => normalizeRole(user.role) === ROLE_LEAD),
@@ -1917,7 +1985,24 @@ function normalizeState(state, previousState = null) {
     documentacion: normalizeDocumentacionState(state.documentacion),
     incidencias: Array.isArray(state.incidencias) ? state.incidencias : [],
     incidenciaNotifications: Array.isArray(state.incidenciaNotifications) ? state.incidenciaNotifications : [],
+    transportNotifications: Array.isArray(state.transportNotifications) ? state.transportNotifications : [],
+    notificationReadByUser: normalizeNotificationReadByUser(state.notificationReadByUser),
   };
+  return repairWarehouseBoardTimes(normalized).state;
+}
+
+function normalizeNotificationReadByUser(raw) {
+  if (!raw || typeof raw !== "object") return {};
+  const normalized = {};
+  Object.entries(raw).forEach(([userId, ids]) => {
+    const safeUserId = String(userId || "").trim();
+    if (!safeUserId) return;
+    const list = Array.isArray(ids)
+      ? ids.map((entry) => String(entry || "").trim()).filter(Boolean)
+      : [];
+    if (list.length) normalized[safeUserId] = Array.from(new Set(list)).slice(-500);
+  });
+  return normalized;
 }
 
 function resolveTransportArea(stateTransport, areaId) {
@@ -2216,11 +2301,13 @@ export function assignTransportRoute(auth, recordId, driverId = "") {
     ? transport.activeRecords[activeIndex]
     : transport.historyRecords[historyIndex];
   const sourceActionIds = getTransportActionIdsByArea(sourceRecord?.areaId);
-  if (!sourceActionIds.manageActionId || !canUserDoWarehouseAction(currentUser, sourceActionIds.manageActionId, baseState.permissions)) {
+  const canAssignByArea = sourceActionIds.manageActionId
+    && canUserDoWarehouseAction(currentUser, sourceActionIds.manageActionId, baseState.permissions);
+  const canAssignByAssignments = canUserDoWarehouseAction(currentUser, "manageTransportAssignments", baseState.permissions);
+  if (!canAssignByArea && !canAssignByAssignments) {
     return { ok: false, reason: "forbidden" };
   }
 
-  // Verificar que el driver existe y está activo
   const driver = findWarehouseUserById(targetDriverId);
   if (!driver?.isActive) return { ok: false, reason: "invalid_driver" };
 
@@ -2444,6 +2531,11 @@ export function createDocumentacionRecord(auth, payload = {}) {
   const currentUser = findWarehouseUserById(auth?.userId);
   if (!currentUser?.isActive) return { ok: false, reason: "auth_required" };
 
+  const permissionsSnapshot = getRawWarehouseState()?.permissions;
+  if (!canUserDoWarehouseAction(currentUser, "manageTransportDocumentacion", permissionsSnapshot)) {
+    return { ok: false, reason: "forbidden" };
+  }
+
   const ubicacion = String(payload?.ubicacion || "").trim();
   if (!["SONATA", "CEDIS"].includes(ubicacion)) return { ok: false, reason: "invalid_ubicacion" };
 
@@ -2499,6 +2591,11 @@ export function updateDocumentacionRecord(auth, recordId, payload = {}) {
   const currentUser = findWarehouseUserById(auth?.userId);
   if (!currentUser?.isActive) return { ok: false, reason: "auth_required" };
 
+  const permissionsSnapshot = getRawWarehouseState()?.permissions;
+  if (!canUserDoWarehouseAction(currentUser, "manageTransportDocumentacion", permissionsSnapshot)) {
+    return { ok: false, reason: "forbidden" };
+  }
+
   const targetId = String(recordId || "").trim();
   if (!targetId) return { ok: false, reason: "record_not_found" };
 
@@ -2552,6 +2649,12 @@ export function updateDocumentacionRecord(auth, recordId, payload = {}) {
 export function assignDocumentacionRoute(auth, recordId, driverId = "") {
   const currentUser = findWarehouseUserById(auth?.userId);
   if (!currentUser?.isActive) return { ok: false, reason: "auth_required" };
+
+  const permissionsSnapshot = getRawWarehouseState()?.permissions;
+  const canAssignSelf = canUserDoWarehouseAction(currentUser, "viewTransportMyRoutes", permissionsSnapshot)
+    || canUserDoWarehouseAction(currentUser, "manageTransportDocumentacion", permissionsSnapshot)
+    || canUserDoWarehouseAction(currentUser, "manageTransportAssignments", permissionsSnapshot);
+  if (!canAssignSelf) return { ok: false, reason: "forbidden" };
 
   const targetId = String(recordId || "").trim();
   const targetDriverId = String(driverId || "").trim();
@@ -3390,6 +3493,105 @@ export function sanitizeUserRecord(user) {
   };
 }
 
+// ─── Transport notifications (persistencia server-side + Web Push) ──────────────
+export function getTransportNotificationRecipients({ excludeUserId = "", restrictToUserIds = null } = {}) {
+  const state = getRawWarehouseState();
+  return resolveTransportRecipientUserIds(
+    state.users || [],
+    state.permissions || {},
+    canUserDoWarehouseAction,
+    { excludeUserId, restrictToUserIds },
+  );
+}
+
+export function publishTransportNotification(notification) {
+  if (!notification) return null;
+  const state = getRawWarehouseState();
+  const entry = buildTransportNotification(notification);
+  const updatedList = trimTransportNotifications([entry, ...(Array.isArray(state.transportNotifications) ? state.transportNotifications : [])]);
+  const nextState = { ...state, transportNotifications: updatedList };
+  replaceWarehouseState(nextState);
+
+  Promise.resolve().then(() => {
+    try {
+      sendTransportPushToUsers(state.users || [], entry.targetUserIds, {
+        title: entry.title,
+        body: entry.message,
+        type: entry.type,
+        meta: entry.meta,
+        targetPage: entry.targetPage,
+        recordId: entry.recordId,
+        notificationId: entry.id,
+        url: "/transport",
+        tag: `transport-${entry.type}-${entry.recordId || entry.id}`,
+      });
+    } catch (err) {
+      console.warn("[transport_push] error enviando push:", err?.message || err);
+    }
+  });
+
+  return entry;
+}
+
+export function listTransportNotificationsForUser(auth, options = {}) {
+  const userId = String(auth?.userId || "").trim();
+  if (!userId) return { ok: false, reason: "auth_required" };
+  const state = getRawWarehouseState();
+  const limit = Number.isFinite(options.limit) ? options.limit : 100;
+  const notifications = getTransportNotificationsForUserFromList(state.transportNotifications || [], userId, { limit });
+  return { ok: true, notifications };
+}
+
+export function markTransportNotificationsAsRead(auth, notificationIds) {
+  const userId = String(auth?.userId || "").trim();
+  if (!userId) return { ok: false, reason: "auth_required" };
+  const state = getRawWarehouseState();
+  const updatedList = markTransportNotificationsReadInList(state.transportNotifications || [], userId, notificationIds);
+  const nextState = { ...state, transportNotifications: updatedList };
+  replaceWarehouseState(nextState);
+  return { ok: true };
+}
+
+/** Lecturas de la campanita (inbox app) — sincroniza entre dispositivos con la misma sesión/usuario. */
+export function markInboxNotificationsAsRead(auth, notificationIds = []) {
+  const userId = String(auth?.userId || "").trim();
+  if (!userId) return { ok: false, reason: "auth_required" };
+
+  const ids = Array.from(new Set(
+    (Array.isArray(notificationIds) ? notificationIds : [notificationIds])
+      .map((entry) => String(entry || "").trim())
+      .filter(Boolean),
+  ));
+  if (!ids.length) return { ok: true, readIds: [] };
+
+  const state = getRawWarehouseState();
+  const readByUser = normalizeNotificationReadByUser(state.notificationReadByUser);
+  const userReadSet = new Set(readByUser[userId] || []);
+  ids.forEach((id) => userReadSet.add(id));
+
+  const serverTransportIds = ids.filter((id) => (
+    Array.isArray(state.transportNotifications)
+      ? state.transportNotifications.some((entry) => String(entry?.id || "") === id)
+      : false
+  ));
+
+  let transportNotifications = state.transportNotifications || [];
+  if (serverTransportIds.length) {
+    transportNotifications = markTransportNotificationsReadInList(transportNotifications, userId, serverTransportIds);
+  }
+
+  const nextState = {
+    ...state,
+    notificationReadByUser: {
+      ...readByUser,
+      [userId]: Array.from(userReadSet).slice(-500),
+    },
+    transportNotifications,
+  };
+  replaceWarehouseState(nextState);
+  return { ok: true, readIds: Array.from(userReadSet) };
+}
+
 function sanitizeState(state) {
   return {
     ...state,
@@ -3672,6 +3874,11 @@ function sanitizeWarehouseUserDraft(payload = {}, fallbackManagerId = null) {
     temporaryPasswordIssuedAt: payload.temporaryPasswordIssuedAt || null,
     photo,
     photoThumbnailUrl,
+    telefono: String(payload.telefono || "").trim(),
+    telefono_visible: Boolean(payload.telefono_visible),
+    birthday: String(payload.birthday || "").trim(),
+    correoElectronico: String(payload.correoElectronico ?? payload.correo ?? "").trim(),
+    fechaIngreso: String(payload.fechaIngreso || "").trim(),
     ...(String(payload.password || "").trim() ? { password: String(payload.password || "").trim() } : {}),
   };
 }
@@ -3681,6 +3888,48 @@ function buildEffectivePermissionSelection(user, permissionsModel) {
     pages: Object.fromEntries(Object.keys(PAGE_PERMISSIONS).map((pageId) => [pageId, canUserAccessWarehousePage(user, pageId, permissionsModel)])),
     actions: Object.fromEntries(Object.keys(ACTION_PERMISSIONS).map((actionId) => [actionId, canUserDoWarehouseAction(user, actionId, permissionsModel)])),
   };
+}
+
+function normalizeDelegationOverrideBlock(delegation) {
+  if (!delegation || typeof delegation !== "object") return null;
+  const pages = Object.fromEntries(
+    Object.entries(delegation.pages || {}).filter(([, value]) => typeof value === "boolean"),
+  );
+  const actions = Object.fromEntries(
+    Object.entries(delegation.actions || {}).filter(([, value]) => typeof value === "boolean"),
+  );
+  const enabled = Boolean(delegation.enabled);
+  if (!enabled && !Object.keys(pages).length && !Object.keys(actions).length) return null;
+  return { enabled, pages, actions };
+}
+
+function buildActorDelegableMask(actor, permissionsModel) {
+  const effective = buildEffectivePermissionSelection(actor, permissionsModel);
+  const isMeta = actor?.role === ROLE_LEAD
+    || canUserDoWarehouseAction(actor, "managePermissions", permissionsModel);
+  if (isMeta) return effective;
+  const delegation = permissionsModel?.userOverrides?.[actor.id]?.delegation;
+  if (!delegation?.enabled) {
+    return {
+      pages: Object.fromEntries(Object.keys(PAGE_PERMISSIONS).map((pageId) => [pageId, false])),
+      actions: Object.fromEntries(Object.keys(ACTION_PERMISSIONS).map((actionId) => [actionId, false])),
+    };
+  }
+  return {
+    pages: Object.fromEntries(Object.keys(PAGE_PERMISSIONS).map((pageId) => [
+      pageId,
+      Boolean(effective.pages[pageId] && delegation.pages?.[pageId]),
+    ])),
+    actions: Object.fromEntries(Object.keys(ACTION_PERMISSIONS).map((actionId) => [
+      actionId,
+      Boolean(effective.actions[actionId] && delegation.actions?.[actionId]),
+    ])),
+  };
+}
+
+function canActorConfigureDelegation(actor, permissionsModel) {
+  return actor?.role === ROLE_LEAD
+    || canUserDoWarehouseAction(actor, "managePermissions", permissionsModel);
 }
 
 function buildUserOverridesForDraft(user, requestedOverrides, permissionsModel, delegationSelection = null) {
@@ -3713,7 +3962,13 @@ function buildUserOverridesForDraft(user, requestedOverrides, permissionsModel, 
       .filter(([actionId, value]) => value !== baseSelection.actions[actionId])),
   };
 
-  return Object.keys(nextOverride.pages).length > 0 || Object.keys(nextOverride.actions).length > 0 ? nextOverride : null;
+  const delegation = normalizeDelegationOverrideBlock(requestedOverrides?.delegation);
+  if (delegation) nextOverride.delegation = delegation;
+
+  const hasPages = Object.keys(nextOverride.pages).length > 0;
+  const hasActions = Object.keys(nextOverride.actions).length > 0;
+  const hasDelegation = Boolean(nextOverride.delegation);
+  return hasPages || hasActions || hasDelegation ? nextOverride : null;
 }
 
 export function createWarehouseUser(auth, payload = {}) {
@@ -3750,10 +4005,13 @@ export function createWarehouseUser(auth, payload = {}) {
     ...currentState.permissions,
     userOverrides: currentOverrides,
   });
-  const actorSelection = buildEffectivePermissionSelection(currentUser, basePermissions);
+  const actorDelegable = buildActorDelegableMask(currentUser, basePermissions);
   const allowedSelection = {
-    pages: Object.fromEntries(Object.keys(PAGE_PERMISSIONS).map((pageId) => [pageId, actorSelection.pages[pageId] ? payload.permissionOverrides?.pages?.[pageId] : false])),
-    actions: Object.fromEntries(Object.keys(ACTION_PERMISSIONS).map((actionId) => [actionId, actorSelection.actions[actionId] ? payload.permissionOverrides?.actions?.[actionId] : false])),
+    pages: Object.fromEntries(Object.keys(PAGE_PERMISSIONS).map((pageId) => [pageId, actorDelegable.pages[pageId] ? payload.permissionOverrides?.pages?.[pageId] : false])),
+    actions: Object.fromEntries(Object.keys(ACTION_PERMISSIONS).map((actionId) => [actionId, actorDelegable.actions[actionId] ? payload.permissionOverrides?.actions?.[actionId] : false])),
+    ...(canActorConfigureDelegation(currentUser, basePermissions)
+      ? { delegation: payload.permissionOverrides?.delegation }
+      : {}),
   };
   const directOverride = canUserDoWarehouseAction(currentUser, "createUsers", currentState.permissions)
     ? buildUserOverridesForDraft(nextUser, allowedSelection, basePermissions)
@@ -3798,17 +4056,19 @@ export function updateWarehouseUser(auth, userId, payload = {}) {
     ...currentState.permissions,
     userOverrides: remainingOverrides,
   });
-  const actorSelection = buildEffectivePermissionSelection(currentUser, normalizePermissions({
+  const permissionsWithOverrides = normalizePermissions({
     ...currentState.permissions,
     userOverrides: currentOverrides,
-  }));
-  const currentTargetSelection = buildEffectivePermissionSelection(existingUser, normalizePermissions({
-    ...currentState.permissions,
-    userOverrides: currentOverrides,
-  }));
+  });
+  const actorDelegable = buildActorDelegableMask(currentUser, permissionsWithOverrides);
+  const currentTargetSelection = buildEffectivePermissionSelection(existingUser, permissionsWithOverrides);
+  const existingTargetOverride = currentOverrides[userId];
   const allowedSelection = {
-    pages: Object.fromEntries(Object.keys(PAGE_PERMISSIONS).map((pageId) => [pageId, actorSelection.pages[pageId] ? payload.permissionOverrides?.pages?.[pageId] : currentTargetSelection.pages[pageId]])),
-    actions: Object.fromEntries(Object.keys(ACTION_PERMISSIONS).map((actionId) => [actionId, actorSelection.actions[actionId] ? payload.permissionOverrides?.actions?.[actionId] : currentTargetSelection.actions[actionId]])),
+    pages: Object.fromEntries(Object.keys(PAGE_PERMISSIONS).map((pageId) => [pageId, actorDelegable.pages[pageId] ? payload.permissionOverrides?.pages?.[pageId] : currentTargetSelection.pages[pageId]])),
+    actions: Object.fromEntries(Object.keys(ACTION_PERMISSIONS).map((actionId) => [actionId, actorDelegable.actions[actionId] ? payload.permissionOverrides?.actions?.[actionId] : currentTargetSelection.actions[actionId]])),
+    delegation: canActorConfigureDelegation(currentUser, permissionsWithOverrides)
+      ? payload.permissionOverrides?.delegation
+      : existingTargetOverride?.delegation,
   };
   const directOverride = canUserDoWarehouseAction(currentUser, "editUsers", currentState.permissions)
     ? buildUserOverridesForDraft(nextUser, allowedSelection, basePermissions, currentTargetSelection)
@@ -3906,11 +4166,16 @@ export function updateWarehouseSelfProfile(auth, payload = {}) {
     telefono: String(payload.telefono || "").trim(),
     telefono_visible: Boolean(payload.telefono_visible),
     birthday: String(payload.birthday || "").trim(),
+    correoElectronico: String(payload.correoElectronico ?? payload.correo ?? "").trim(),
+    fechaIngreso: String(payload.fechaIngreso || "").trim(),
     photo: String(payload.photo || "").trim(),
     photoThumbnailUrl: String(payload.photoThumbnailUrl || payload.photoThumbnail || "").trim(),
   };
   if (!trimmedPatch.name || !trimmedPatch.email || !trimmedPatch.area || !trimmedPatch.jobTitle) {
     return { ok: false, reason: "invalid_payload" };
+  }
+  if (trimmedPatch.correoElectronico && !trimmedPatch.correoElectronico.includes("@")) {
+    return { ok: false, reason: "invalid_email" };
   }
   if ((getRawWarehouseState().users || []).some((user) => user.id !== currentUser.id && normalizeKey(user.email) === normalizeKey(trimmedPatch.email))) {
     return { ok: false, reason: "duplicate_email" };
@@ -3923,6 +4188,8 @@ export function updateWarehouseSelfProfile(auth, payload = {}) {
     trimmedPatch.telefono !== String(currentUser.telefono || "").trim(),
     trimmedPatch.telefono_visible !== Boolean(currentUser.telefono_visible),
     trimmedPatch.birthday !== String(currentUser.birthday || "").trim(),
+    trimmedPatch.correoElectronico !== String(currentUser.correoElectronico || "").trim(),
+    trimmedPatch.fechaIngreso !== String(currentUser.fechaIngreso || "").trim(),
   ].some(Boolean);
 
   if (profileFieldsChanged && !canBypassSelfProfileEditLimit(currentUser) && Number(currentUser.selfIdentityEditCount ?? 0) >= 1) {
@@ -5253,7 +5520,7 @@ export function createWarehouseInventoryMovement(auth, payload) {
   };
 }
 
-export function addWarehouseArea(auth, areaName, parentArea = "") {
+export function addWarehouseArea(auth, areaName, _parentArea = "") {
   const currentUser = findWarehouseUserById(auth?.userId);
   if (!currentUser?.isActive) return { ok: false, reason: "auth_required" };
 
@@ -5262,10 +5529,7 @@ export function addWarehouseArea(auth, areaName, parentArea = "") {
     return { ok: false, reason: "forbidden" };
   }
 
-  const normalizedParentArea = String(parentArea || "").trim();
-  const nextArea = normalizedParentArea
-    ? buildAreaWithSubArea(normalizedParentArea, areaName)
-    : normalizeAreaOption(areaName);
+  const nextArea = normalizeAreaOption(areaName);
   if (!nextArea) return { ok: false, reason: "invalid_payload" };
   const nextCatalog = buildAreaCatalogEntries(currentState.users, (currentState.areaCatalog || []).concat(nextArea));
   if ((currentState.areaCatalog || []).includes(nextArea)) {
@@ -7792,9 +8056,13 @@ function normalizeOperationalTemplate(template = {}, fallbackId = null) {
   return {
     id: String(template?.id || fallbackId || makeId("oit")).trim(),
     name: String(template?.name || "Checklist").trim(),
+    area: String(template?.area || "").trim().toUpperCase(),
+    isBuiltIn: Boolean(template?.isBuiltIn),
     version: Number(template?.version || 1) || 1,
     siteOptions: Array.isArray(template?.siteOptions) ? template.siteOptions : [],
     sections: Array.isArray(template?.sections) ? template.sections : [],
+    incidenceRules: template?.incidenceRules && typeof template.incidenceRules === "object" ? template.incidenceRules : undefined,
+    metadataFields: Array.isArray(template?.metadataFields) ? template.metadataFields : undefined,
     createdAt: template?.createdAt || new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
@@ -7826,4 +8094,29 @@ export function upsertOperationalInspectionTemplate(auth, payload = {}) {
   };
 
   return { ok: true, state: replaceWarehouseState(nextState), templateId: normalized.id };
+}
+
+export function deleteOperationalInspectionTemplate(auth, templateId) {
+  const currentUser = findWarehouseUserById(auth?.userId);
+  if (!currentUser?.isActive) return { ok: false, reason: "auth_required" };
+
+  const currentState = getRawWarehouseState();
+  if (!canUserDoWarehouseAction(currentUser, "manageProcessAuditTemplates", currentState.permissions)) {
+    return { ok: false, reason: "forbidden" };
+  }
+
+  const normalizedId = String(templateId || "").trim();
+  if (!normalizedId) return { ok: false, reason: "invalid_payload" };
+
+  const currentTemplates = Array.isArray(currentState.operationalInspectionTemplates) ? currentState.operationalInspectionTemplates : [];
+  const existing = currentTemplates.find((entry) => entry.id === normalizedId);
+  if (!existing) return { ok: false, reason: "not_found" };
+  if (existing.isBuiltIn) return { ok: false, reason: "forbidden_builtin" };
+
+  const nextState = {
+    ...currentState,
+    operationalInspectionTemplates: currentTemplates.filter((entry) => entry.id !== normalizedId),
+  };
+
+  return { ok: true, state: replaceWarehouseState(nextState), templateId: normalizedId };
 }
