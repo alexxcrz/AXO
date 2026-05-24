@@ -1,0 +1,4066 @@
+{
+  "revision": 3,
+  "system": {
+    "masterBootstrapEnabled": true,
+    "masterUsername": "Maestro",
+    "operational": {
+      "timeZone": "America/Mexico_City",
+      "naveWeekSchedules": {},
+      "pauseControl": {
+        "reasons": [
+          {
+            "id": "material",
+            "label": "Falta de material",
+            "enabled": true,
+            "affectsTimer": false,
+            "authorizedMinutes": 10,
+            "dailyUsageLimit": 0
+          },
+          {
+            "id": "operativa",
+            "label": "Detención operativa",
+            "enabled": true,
+            "affectsTimer": true,
+            "authorizedMinutes": 0,
+            "dailyUsageLimit": 0
+          },
+          {
+            "id": "calidad",
+            "label": "Ajuste de calidad",
+            "enabled": true,
+            "affectsTimer": false,
+            "authorizedMinutes": 5,
+            "dailyUsageLimit": 0
+          }
+        ],
+        "areaPauseControls": {}
+      }
+    }
+  },
+  "currentUserId": null,
+  "users": [],
+  "weeks": [
+    {
+      "id": "week-active",
+      "name": "Semana 18 may 2026 - 24 may 2026",
+      "startDate": "2026-05-18T06:00:00.000Z",
+      "endDate": "2026-05-24T06:00:00.000Z",
+      "isActive": true
+    },
+    {
+      "id": "week-prev",
+      "name": "Semana 11 may 2026 - 17 may 2026",
+      "startDate": "2026-05-11T06:00:00.000Z",
+      "endDate": "2026-05-17T06:00:00.000Z",
+      "isActive": false
+    },
+    {
+      "id": "week-old",
+      "name": "Semana 04 may 2026 - 10 may 2026",
+      "startDate": "2026-05-04T06:00:00.000Z",
+      "endDate": "2026-05-10T06:00:00.000Z",
+      "isActive": false
+    }
+  ],
+  "catalog": [
+    {
+      "id": "cat-piso",
+      "name": "Piso producción",
+      "timeLimitMinutes": 50,
+      "isMandatory": true,
+      "frequency": "daily",
+      "scheduledDays": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "scheduledDaysBySite": {},
+      "cleaningSites": [],
+      "category": "Limpieza",
+      "area": "Limpieza",
+      "operationalChecklistConfig": null,
+      "isDeleted": false
+    },
+    {
+      "id": "cat-banos",
+      "name": "Lavado de baños",
+      "timeLimitMinutes": 40,
+      "isMandatory": true,
+      "frequency": "daily",
+      "scheduledDays": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "scheduledDaysBySite": {},
+      "cleaningSites": [],
+      "category": "Limpieza",
+      "area": "Limpieza",
+      "operationalChecklistConfig": null,
+      "isDeleted": false
+    },
+    {
+      "id": "cat-inspeccion",
+      "name": "Inspección nave",
+      "timeLimitMinutes": 75,
+      "isMandatory": true,
+      "frequency": "threeTimesWeek",
+      "scheduledDays": [
+        0,
+        2,
+        4
+      ],
+      "scheduledDaysBySite": {},
+      "cleaningSites": [],
+      "category": "Seguridad",
+      "area": "Seguridad",
+      "operationalChecklistConfig": null,
+      "isDeleted": false
+    },
+    {
+      "id": "cat-oficinas",
+      "name": "Limpieza oficinas",
+      "timeLimitMinutes": 50,
+      "isMandatory": true,
+      "frequency": "weekdays",
+      "scheduledDays": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "scheduledDaysBySite": {},
+      "cleaningSites": [],
+      "category": "Limpieza",
+      "area": "Limpieza",
+      "operationalChecklistConfig": null,
+      "isDeleted": false
+    },
+    {
+      "id": "cat-comedor",
+      "name": "Comedor",
+      "timeLimitMinutes": 50,
+      "isMandatory": true,
+      "frequency": "daily",
+      "scheduledDays": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "scheduledDaysBySite": {},
+      "cleaningSites": [],
+      "category": "Servicios",
+      "area": "Limpieza",
+      "operationalChecklistConfig": null,
+      "isDeleted": false
+    },
+    {
+      "id": "cat-vidrios",
+      "name": "Limpieza vidrios",
+      "timeLimitMinutes": 50,
+      "isMandatory": false,
+      "frequency": "twiceWeek",
+      "scheduledDays": [
+        0,
+        3
+      ],
+      "scheduledDaysBySite": {},
+      "cleaningSites": [],
+      "category": "Limpieza",
+      "area": "Limpieza",
+      "operationalChecklistConfig": null,
+      "isDeleted": false
+    },
+    {
+      "id": "cat-rampas",
+      "name": "Revisión de rampas",
+      "timeLimitMinutes": 35,
+      "isMandatory": false,
+      "frequency": "weekly",
+      "scheduledDays": [
+        0
+      ],
+      "scheduledDaysBySite": {},
+      "cleaningSites": [],
+      "category": "Seguridad",
+      "area": "Seguridad",
+      "operationalChecklistConfig": null,
+      "isDeleted": false
+    },
+    {
+      "id": "cat-limpieza-general",
+      "name": "Checklist Limpieza General",
+      "timeLimitMinutes": 60,
+      "isMandatory": true,
+      "frequency": "daily",
+      "scheduledDays": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "scheduledDaysBySite": {},
+      "cleaningSites": [],
+      "category": "Limpieza",
+      "area": "Limpieza",
+      "operationalChecklistConfig": null,
+      "isDeleted": false
+    }
+  ],
+  "inventoryItems": [
+    {
+      "id": "inv-1",
+      "code": "ALM-001",
+      "name": "Tarima estándar",
+      "presentation": "Tarima",
+      "piecesPerBox": 1,
+      "boxesPerPallet": 1,
+      "domain": "base",
+      "stockUnits": 36,
+      "minStockUnits": 10,
+      "storageLocation": "Almacén central",
+      "cleaningSite": "",
+      "unitLabel": "pzas",
+      "stockTrackingMode": "",
+      "transferTargets": [],
+      "activityCatalogIds": [],
+      "activityConsumptions": [],
+      "consumptionPerStart": 0,
+      "customFields": {}
+    },
+    {
+      "id": "inv-2",
+      "code": "ALM-002",
+      "name": "Caja master",
+      "presentation": "Paquete",
+      "piecesPerBox": 20,
+      "boxesPerPallet": 48,
+      "domain": "base",
+      "stockUnits": 240,
+      "minStockUnits": 80,
+      "storageLocation": "Racks A-2",
+      "cleaningSite": "",
+      "unitLabel": "pzas",
+      "stockTrackingMode": "",
+      "transferTargets": [],
+      "activityCatalogIds": [],
+      "activityConsumptions": [],
+      "consumptionPerStart": 0,
+      "customFields": {}
+    },
+    {
+      "id": "inv-3",
+      "code": "ALM-003",
+      "name": "Playo transparente",
+      "presentation": "Rollo",
+      "piecesPerBox": 6,
+      "boxesPerPallet": 40,
+      "domain": "base",
+      "stockUnits": 120,
+      "minStockUnits": 36,
+      "storageLocation": "Racks B-1",
+      "cleaningSite": "",
+      "unitLabel": "rollos",
+      "stockTrackingMode": "",
+      "transferTargets": [],
+      "activityCatalogIds": [],
+      "activityConsumptions": [],
+      "consumptionPerStart": 0,
+      "customFields": {}
+    },
+    {
+      "id": "inv-4",
+      "code": "LIMP-001",
+      "name": "Detergente neutro multiusos",
+      "presentation": "Bidón 20 L · dilución 1:40",
+      "piecesPerBox": 0,
+      "boxesPerPallet": 0,
+      "domain": "cleaning",
+      "stockUnits": 12,
+      "minStockUnits": 4,
+      "storageLocation": "Cuarto de limpieza · anaquel 1",
+      "cleaningSite": "C3",
+      "unitLabel": "bidones",
+      "stockTrackingMode": "",
+      "transferTargets": [],
+      "activityCatalogIds": [
+        "cat-piso",
+        "cat-oficinas"
+      ],
+      "activityConsumptions": [
+        {
+          "catalogActivityId": "cat-piso",
+          "quantity": 1
+        },
+        {
+          "catalogActivityId": "cat-oficinas",
+          "quantity": 1
+        }
+      ],
+      "consumptionPerStart": 0,
+      "customFields": {}
+    },
+    {
+      "id": "inv-5",
+      "code": "LIMP-002",
+      "name": "Papel higiénico jumbo",
+      "presentation": "Rollo jumbo 400 m",
+      "piecesPerBox": 0,
+      "boxesPerPallet": 0,
+      "domain": "cleaning",
+      "stockUnits": 96,
+      "minStockUnits": 24,
+      "storageLocation": "Cuarto de limpieza · rack baños",
+      "cleaningSite": "C3",
+      "unitLabel": "rollos",
+      "stockTrackingMode": "",
+      "transferTargets": [],
+      "activityCatalogIds": [
+        "cat-banos"
+      ],
+      "activityConsumptions": [
+        {
+          "catalogActivityId": "cat-banos",
+          "quantity": 2
+        }
+      ],
+      "consumptionPerStart": 0,
+      "customFields": {}
+    },
+    {
+      "id": "inv-6",
+      "code": "PED-001",
+      "name": "Esquinero de cartón 2 x 2 x 48",
+      "presentation": "",
+      "piecesPerBox": 0,
+      "boxesPerPallet": 0,
+      "domain": "orders",
+      "stockUnits": 150,
+      "minStockUnits": 70,
+      "storageLocation": "Nave 1 · rack empaque",
+      "cleaningSite": "",
+      "unitLabel": "pzas",
+      "stockTrackingMode": "source",
+      "transferTargets": [],
+      "activityCatalogIds": [],
+      "activityConsumptions": [],
+      "consumptionPerStart": 0,
+      "customFields": {}
+    },
+    {
+      "id": "inv-7",
+      "code": "PED-002",
+      "name": "Etiqueta térmica 4 x 6",
+      "presentation": "",
+      "piecesPerBox": 0,
+      "boxesPerPallet": 0,
+      "domain": "orders",
+      "stockUnits": 28,
+      "minStockUnits": 10,
+      "storageLocation": "Mesa de surtido · gaveta 2",
+      "cleaningSite": "",
+      "unitLabel": "rollos",
+      "stockTrackingMode": "source",
+      "transferTargets": [],
+      "activityCatalogIds": [],
+      "activityConsumptions": [],
+      "consumptionPerStart": 0,
+      "customFields": {}
+    }
+  ],
+  "inventoryColumns": [
+    {
+      "id": "invcol-base-lote",
+      "domain": "base",
+      "label": "Lote",
+      "key": "lote",
+      "createdAt": "1970-01-01T00:00:00.000Z",
+      "isSystem": true
+    },
+    {
+      "id": "invcol-base-caducidad",
+      "domain": "base",
+      "label": "Caducidad",
+      "key": "caducidad",
+      "createdAt": "1970-01-01T00:00:00.000Z",
+      "isSystem": true
+    }
+  ],
+  "inventoryMovements": [],
+  "activities": [],
+  "pauseLogs": [],
+  "controlRows": [],
+  "boardTemplates": [],
+  "boardWeeklyCycle": {
+    "activeWeekKey": "2026-05-18",
+    "activeWeekStartDate": "2026-05-18T06:00:00.000Z",
+    "activeWeekEndDate": "2026-05-24T06:00:00.000Z",
+    "updatedAt": "2026-05-22T16:13:03.130Z"
+  },
+  "boardWeekHistory": [],
+  "permissions": {
+    "pages": {
+      "index": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "customBoards": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "admin": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "dashboard": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "history": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "processAudits": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "inventory": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "transport": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "users": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "biblioteca": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "incidencias": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "systemSettings": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      }
+    },
+    "actions": {
+      "exportDashboardData": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "manageDashboardState": {
+        "roles": [
+          "Lead"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "accessNavEsto": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "accessNavTransporte": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "accessNavLimpieza": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "accessNavRegulatorio": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "accessNavCalidad": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "accessNavInventario": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "accessNavRecepcion": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "accessNavOperaciones": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "accessNavMantenimiento": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "accessNavMayoreo": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "accessNavRetail": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "accessNavFullfilment": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "accessNavMejoraContinua": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "accessNavProduccion": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "accessNavRecursos": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "accessNavEquipo": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeEstoDashboard": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeEstoBoardBuilder": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeEstoMyBoards": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeEstoHistory": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeLimpiezaDashboard": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeLimpiezaBoardBuilder": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeLimpiezaMyBoards": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeLimpiezaHistory": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeRegulatorioDashboard": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeRegulatorioBoardBuilder": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeRegulatorioMyBoards": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeRegulatorioHistory": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeCalidadDashboard": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeCalidadBoardBuilder": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeCalidadMyBoards": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeCalidadHistory": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeInventarioDashboard": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeInventarioBoardBuilder": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeInventarioMyBoards": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeInventarioHistory": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeRecepcionDashboard": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeRecepcionBoardBuilder": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeRecepcionMyBoards": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeRecepcionHistory": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeOperacionesDashboard": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeOperacionesBoardBuilder": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeOperacionesMyBoards": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeOperacionesHistory": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeMantenimientoIncidencias": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeMantenimientoDashboard": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeMantenimientoBoardBuilder": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeMantenimientoMyBoards": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeMantenimientoHistory": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeMayoreoDashboard": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeMayoreoBoardBuilder": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeMayoreoMyBoards": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeMayoreoHistory": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeRetailDashboard": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeRetailBoardBuilder": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeRetailMyBoards": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeRetailHistory": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeFullfilmentDashboard": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeFullfilmentBoardBuilder": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeFullfilmentMyBoards": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeFullfilmentHistory": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeTransporteRegistrosEnvios": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeTransporteControl": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeTransporteIncidencias": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeTransporteConsolidados": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeTransporteDashboard": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeTransporteLogistica": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "createWeek": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "deleteWeek": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "createCatalog": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "editCatalog": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "deleteCatalog": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "manageWeeks": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "managePermissions": {
+        "roles": [
+          "Lead"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "createUsers": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "editUsers": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "deleteUsers": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "resetPasswords": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "manageInventory": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "deleteInventory": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "importInventory": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "viewBaseInventory": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "manageCleaningInventory": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "deleteCleaningInventory": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "importCleaningInventory": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "viewCleaningInventory": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "manageOrderInventory": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "deleteOrderInventory": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "importOrderInventory": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "viewOrderInventory": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "viewTransportRetail": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "manageTransportRetail": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "viewTransportPedidos": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "manageTransportPedidos": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "viewTransportInventario": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "manageTransportInventario": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "viewTransportDocumentacion": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "manageTransportDocumentacion": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "viewTransportAssignments": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "manageTransportAssignments": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "viewTransportPostponed": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "manageTransportPostponed": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "viewTransportMyRoutes": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "viewTransportLogistics": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "manageTransportLogistics": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "viewTransportConsolidated": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "deleteTransportRecord": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "createBoard": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "editBoard": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "deleteBoard": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "saveTemplate": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "editTemplate": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "deleteTemplate": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "createBoardFromTemplate": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "createBoardRow": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "editFinishedBoardRow": {
+        "roles": [
+          "Lead"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "boardWorkflow": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "duplicateBoard": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "duplicateBoardWithRows": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "exportBoardExcel": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "previewBoardPdf": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "exportBoardPdf": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "uploadBiblioteca": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "editBibliotecaName": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "deleteBiblioteca": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "createIncidencia": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "editIncidencia": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "deleteIncidencia": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "viewProcessAudits": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "manageProcessAudits": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "manageProcessAuditTemplates": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "manageSystemSettings": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "useCopmecAI": {
+        "roles": [
+          "Lead"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeEstoDashboard__exportDashboardData": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeEstoDashboard__manageDashboardState": {
+        "roles": [
+          "Lead"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeEstoBoardBuilder__createCatalog": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeEstoBoardBuilder__editCatalog": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeEstoBoardBuilder__deleteCatalog": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeEstoBoardBuilder__createBoard": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeEstoBoardBuilder__editBoard": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeEstoBoardBuilder__saveTemplate": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeEstoBoardBuilder__editTemplate": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeEstoBoardBuilder__deleteTemplate": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeEstoBoardBuilder__duplicateBoard": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeEstoBoardBuilder__duplicateBoardWithRows": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeEstoBoardBuilder__deleteBoard": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeEstoBoardBuilder__deleteWeekActivity": {
+        "roles": [],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeEstoMyBoards__createBoardRow": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeEstoMyBoards__deleteBoardRow": {
+        "roles": [],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeEstoMyBoards__editFinishedBoardRow": {
+        "roles": [
+          "Lead"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeEstoMyBoards__viewHistoricalBoardScopes": {
+        "roles": [],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeEstoMyBoards__boardWorkflow": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeEstoMyBoards__exportBoardExcel": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeEstoMyBoards__previewBoardPdf": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeEstoMyBoards__exportBoardPdf": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeEstoHistory__editHistoryRecords": {
+        "roles": [],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeLimpiezaDashboard__exportDashboardData": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeLimpiezaDashboard__manageDashboardState": {
+        "roles": [
+          "Lead"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeLimpiezaBoardBuilder__createCatalog": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeLimpiezaBoardBuilder__editCatalog": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeLimpiezaBoardBuilder__deleteCatalog": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeLimpiezaBoardBuilder__createBoard": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeLimpiezaBoardBuilder__editBoard": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeLimpiezaBoardBuilder__saveTemplate": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeLimpiezaBoardBuilder__editTemplate": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeLimpiezaBoardBuilder__deleteTemplate": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeLimpiezaBoardBuilder__duplicateBoard": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeLimpiezaBoardBuilder__duplicateBoardWithRows": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeLimpiezaBoardBuilder__deleteBoard": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeLimpiezaBoardBuilder__deleteWeekActivity": {
+        "roles": [],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeLimpiezaMyBoards__createBoardRow": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeLimpiezaMyBoards__deleteBoardRow": {
+        "roles": [],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeLimpiezaMyBoards__editFinishedBoardRow": {
+        "roles": [
+          "Lead"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeLimpiezaMyBoards__viewHistoricalBoardScopes": {
+        "roles": [],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeLimpiezaMyBoards__boardWorkflow": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeLimpiezaMyBoards__exportBoardExcel": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeLimpiezaMyBoards__previewBoardPdf": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeLimpiezaMyBoards__exportBoardPdf": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeLimpiezaHistory__editHistoryRecords": {
+        "roles": [],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeRegulatorioDashboard__exportDashboardData": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeRegulatorioDashboard__manageDashboardState": {
+        "roles": [
+          "Lead"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeRegulatorioBoardBuilder__createCatalog": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeRegulatorioBoardBuilder__editCatalog": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeRegulatorioBoardBuilder__deleteCatalog": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeRegulatorioBoardBuilder__createBoard": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeRegulatorioBoardBuilder__editBoard": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeRegulatorioBoardBuilder__saveTemplate": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeRegulatorioBoardBuilder__editTemplate": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeRegulatorioBoardBuilder__deleteTemplate": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeRegulatorioBoardBuilder__duplicateBoard": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeRegulatorioBoardBuilder__duplicateBoardWithRows": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeRegulatorioBoardBuilder__deleteBoard": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeRegulatorioBoardBuilder__deleteWeekActivity": {
+        "roles": [],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeRegulatorioMyBoards__createBoardRow": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeRegulatorioMyBoards__deleteBoardRow": {
+        "roles": [],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeRegulatorioMyBoards__editFinishedBoardRow": {
+        "roles": [
+          "Lead"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeRegulatorioMyBoards__viewHistoricalBoardScopes": {
+        "roles": [],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeRegulatorioMyBoards__boardWorkflow": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeRegulatorioMyBoards__exportBoardExcel": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeRegulatorioMyBoards__previewBoardPdf": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeRegulatorioMyBoards__exportBoardPdf": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeRegulatorioHistory__editHistoryRecords": {
+        "roles": [],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeCalidadDashboard__exportDashboardData": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeCalidadDashboard__manageDashboardState": {
+        "roles": [
+          "Lead"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeCalidadBoardBuilder__createCatalog": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeCalidadBoardBuilder__editCatalog": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeCalidadBoardBuilder__deleteCatalog": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeCalidadBoardBuilder__createBoard": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeCalidadBoardBuilder__editBoard": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeCalidadBoardBuilder__saveTemplate": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeCalidadBoardBuilder__editTemplate": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeCalidadBoardBuilder__deleteTemplate": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeCalidadBoardBuilder__duplicateBoard": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeCalidadBoardBuilder__duplicateBoardWithRows": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeCalidadBoardBuilder__deleteBoard": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeCalidadBoardBuilder__deleteWeekActivity": {
+        "roles": [],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeCalidadMyBoards__createBoardRow": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeCalidadMyBoards__deleteBoardRow": {
+        "roles": [],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeCalidadMyBoards__editFinishedBoardRow": {
+        "roles": [
+          "Lead"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeCalidadMyBoards__viewHistoricalBoardScopes": {
+        "roles": [],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeCalidadMyBoards__boardWorkflow": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeCalidadMyBoards__exportBoardExcel": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeCalidadMyBoards__previewBoardPdf": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeCalidadMyBoards__exportBoardPdf": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeCalidadHistory__editHistoryRecords": {
+        "roles": [],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeInventarioDashboard__exportDashboardData": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeInventarioDashboard__manageDashboardState": {
+        "roles": [
+          "Lead"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeInventarioBoardBuilder__createCatalog": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeInventarioBoardBuilder__editCatalog": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeInventarioBoardBuilder__deleteCatalog": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeInventarioBoardBuilder__createBoard": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeInventarioBoardBuilder__editBoard": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeInventarioBoardBuilder__saveTemplate": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeInventarioBoardBuilder__editTemplate": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeInventarioBoardBuilder__deleteTemplate": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeInventarioBoardBuilder__duplicateBoard": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeInventarioBoardBuilder__duplicateBoardWithRows": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeInventarioBoardBuilder__deleteBoard": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeInventarioBoardBuilder__deleteWeekActivity": {
+        "roles": [],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeInventarioMyBoards__createBoardRow": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeInventarioMyBoards__deleteBoardRow": {
+        "roles": [],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeInventarioMyBoards__editFinishedBoardRow": {
+        "roles": [
+          "Lead"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeInventarioMyBoards__viewHistoricalBoardScopes": {
+        "roles": [],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeInventarioMyBoards__boardWorkflow": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeInventarioMyBoards__exportBoardExcel": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeInventarioMyBoards__previewBoardPdf": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeInventarioMyBoards__exportBoardPdf": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeInventarioHistory__editHistoryRecords": {
+        "roles": [],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeRecepcionDashboard__exportDashboardData": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeRecepcionDashboard__manageDashboardState": {
+        "roles": [
+          "Lead"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeRecepcionBoardBuilder__createCatalog": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeRecepcionBoardBuilder__editCatalog": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeRecepcionBoardBuilder__deleteCatalog": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeRecepcionBoardBuilder__createBoard": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeRecepcionBoardBuilder__editBoard": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeRecepcionBoardBuilder__saveTemplate": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeRecepcionBoardBuilder__editTemplate": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeRecepcionBoardBuilder__deleteTemplate": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeRecepcionBoardBuilder__duplicateBoard": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeRecepcionBoardBuilder__duplicateBoardWithRows": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeRecepcionBoardBuilder__deleteBoard": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeRecepcionBoardBuilder__deleteWeekActivity": {
+        "roles": [],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeRecepcionMyBoards__createBoardRow": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeRecepcionMyBoards__deleteBoardRow": {
+        "roles": [],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeRecepcionMyBoards__editFinishedBoardRow": {
+        "roles": [
+          "Lead"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeRecepcionMyBoards__viewHistoricalBoardScopes": {
+        "roles": [],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeRecepcionMyBoards__boardWorkflow": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeRecepcionMyBoards__exportBoardExcel": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeRecepcionMyBoards__previewBoardPdf": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeRecepcionMyBoards__exportBoardPdf": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeRecepcionHistory__editHistoryRecords": {
+        "roles": [],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeOperacionesDashboard__exportDashboardData": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeOperacionesDashboard__manageDashboardState": {
+        "roles": [
+          "Lead"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeOperacionesBoardBuilder__createCatalog": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeOperacionesBoardBuilder__editCatalog": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeOperacionesBoardBuilder__deleteCatalog": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeOperacionesBoardBuilder__createBoard": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeOperacionesBoardBuilder__editBoard": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeOperacionesBoardBuilder__saveTemplate": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeOperacionesBoardBuilder__editTemplate": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeOperacionesBoardBuilder__deleteTemplate": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeOperacionesBoardBuilder__duplicateBoard": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeOperacionesBoardBuilder__duplicateBoardWithRows": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeOperacionesBoardBuilder__deleteBoard": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeOperacionesBoardBuilder__deleteWeekActivity": {
+        "roles": [],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeOperacionesMyBoards__createBoardRow": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeOperacionesMyBoards__deleteBoardRow": {
+        "roles": [],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeOperacionesMyBoards__editFinishedBoardRow": {
+        "roles": [
+          "Lead"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeOperacionesMyBoards__viewHistoricalBoardScopes": {
+        "roles": [],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeOperacionesMyBoards__boardWorkflow": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeOperacionesMyBoards__exportBoardExcel": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeOperacionesMyBoards__previewBoardPdf": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeOperacionesMyBoards__exportBoardPdf": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeOperacionesHistory__editHistoryRecords": {
+        "roles": [],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeMayoreoDashboard__exportDashboardData": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeMayoreoDashboard__manageDashboardState": {
+        "roles": [
+          "Lead"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeMayoreoBoardBuilder__createCatalog": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeMayoreoBoardBuilder__editCatalog": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeMayoreoBoardBuilder__deleteCatalog": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeMayoreoBoardBuilder__createBoard": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeMayoreoBoardBuilder__editBoard": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeMayoreoBoardBuilder__saveTemplate": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeMayoreoBoardBuilder__editTemplate": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeMayoreoBoardBuilder__deleteTemplate": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeMayoreoBoardBuilder__duplicateBoard": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeMayoreoBoardBuilder__duplicateBoardWithRows": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeMayoreoBoardBuilder__deleteBoard": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeMayoreoBoardBuilder__deleteWeekActivity": {
+        "roles": [],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeMayoreoMyBoards__createBoardRow": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeMayoreoMyBoards__deleteBoardRow": {
+        "roles": [],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeMayoreoMyBoards__editFinishedBoardRow": {
+        "roles": [
+          "Lead"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeMayoreoMyBoards__viewHistoricalBoardScopes": {
+        "roles": [],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeMayoreoMyBoards__boardWorkflow": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeMayoreoMyBoards__exportBoardExcel": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeMayoreoMyBoards__previewBoardPdf": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeMayoreoMyBoards__exportBoardPdf": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeMayoreoHistory__editHistoryRecords": {
+        "roles": [],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeRetailDashboard__exportDashboardData": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeRetailDashboard__manageDashboardState": {
+        "roles": [
+          "Lead"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeRetailBoardBuilder__createCatalog": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeRetailBoardBuilder__editCatalog": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeRetailBoardBuilder__deleteCatalog": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeRetailBoardBuilder__createBoard": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeRetailBoardBuilder__editBoard": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeRetailBoardBuilder__saveTemplate": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeRetailBoardBuilder__editTemplate": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeRetailBoardBuilder__deleteTemplate": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeRetailBoardBuilder__duplicateBoard": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeRetailBoardBuilder__duplicateBoardWithRows": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeRetailBoardBuilder__deleteBoard": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeRetailBoardBuilder__deleteWeekActivity": {
+        "roles": [],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeRetailMyBoards__createBoardRow": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeRetailMyBoards__deleteBoardRow": {
+        "roles": [],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeRetailMyBoards__editFinishedBoardRow": {
+        "roles": [
+          "Lead"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeRetailMyBoards__viewHistoricalBoardScopes": {
+        "roles": [],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeRetailMyBoards__boardWorkflow": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeRetailMyBoards__exportBoardExcel": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeRetailMyBoards__previewBoardPdf": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeRetailMyBoards__exportBoardPdf": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeRetailHistory__editHistoryRecords": {
+        "roles": [],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeFullfilmentDashboard__exportDashboardData": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeFullfilmentDashboard__manageDashboardState": {
+        "roles": [
+          "Lead"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeFullfilmentBoardBuilder__createCatalog": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeFullfilmentBoardBuilder__editCatalog": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeFullfilmentBoardBuilder__deleteCatalog": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeFullfilmentBoardBuilder__createBoard": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeFullfilmentBoardBuilder__editBoard": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeFullfilmentBoardBuilder__saveTemplate": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeFullfilmentBoardBuilder__editTemplate": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeFullfilmentBoardBuilder__deleteTemplate": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeFullfilmentBoardBuilder__duplicateBoard": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeFullfilmentBoardBuilder__duplicateBoardWithRows": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeFullfilmentBoardBuilder__deleteBoard": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeFullfilmentBoardBuilder__deleteWeekActivity": {
+        "roles": [],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeFullfilmentMyBoards__createBoardRow": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeFullfilmentMyBoards__deleteBoardRow": {
+        "roles": [],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeFullfilmentMyBoards__editFinishedBoardRow": {
+        "roles": [
+          "Lead"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeFullfilmentMyBoards__viewHistoricalBoardScopes": {
+        "roles": [],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeFullfilmentMyBoards__boardWorkflow": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeFullfilmentMyBoards__exportBoardExcel": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeFullfilmentMyBoards__previewBoardPdf": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeFullfilmentMyBoards__exportBoardPdf": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeFullfilmentHistory__editHistoryRecords": {
+        "roles": [],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeMantenimientoIncidencias__createIncidencia": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeMantenimientoIncidencias__editIncidencia": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeMantenimientoIncidencias__deleteIncidencia": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeMantenimientoDashboard__exportDashboardData": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeMantenimientoDashboard__manageDashboardState": {
+        "roles": [
+          "Lead"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeMantenimientoBoardBuilder__createCatalog": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeMantenimientoBoardBuilder__editCatalog": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeMantenimientoBoardBuilder__deleteCatalog": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeMantenimientoBoardBuilder__createBoard": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeMantenimientoBoardBuilder__editBoard": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeMantenimientoBoardBuilder__saveTemplate": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeMantenimientoBoardBuilder__editTemplate": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeMantenimientoBoardBuilder__deleteTemplate": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeMantenimientoBoardBuilder__duplicateBoard": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeMantenimientoBoardBuilder__duplicateBoardWithRows": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeMantenimientoBoardBuilder__deleteBoard": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeMantenimientoBoardBuilder__deleteWeekActivity": {
+        "roles": [],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeMantenimientoMyBoards__createBoardRow": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeMantenimientoMyBoards__deleteBoardRow": {
+        "roles": [],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeMantenimientoMyBoards__editFinishedBoardRow": {
+        "roles": [
+          "Lead"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeMantenimientoMyBoards__viewHistoricalBoardScopes": {
+        "roles": [],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeMantenimientoMyBoards__boardWorkflow": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeMantenimientoMyBoards__exportBoardExcel": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeMantenimientoMyBoards__previewBoardPdf": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeMantenimientoMyBoards__exportBoardPdf": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeMantenimientoHistory__editHistoryRecords": {
+        "roles": [],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeTransporteRegistrosEnvios__viewTransportRetail": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeTransporteRegistrosEnvios__manageTransportRetail": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeTransporteRegistrosEnvios__viewTransportPedidos": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeTransporteRegistrosEnvios__manageTransportPedidos": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeTransporteRegistrosEnvios__viewTransportInventario": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeTransporteRegistrosEnvios__manageTransportInventario": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeTransporteControl__viewTransportDocumentacion": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeTransporteControl__manageTransportDocumentacion": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeTransporteControl__viewTransportAssignments": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeTransporteControl__manageTransportAssignments": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeTransporteControl__viewTransportPostponed": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeTransporteControl__manageTransportPostponed": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeTransporteControl__viewTransportMyRoutes": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeTransporteConsolidados__viewTransportConsolidated": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeTransporteLogistica__viewTransportLogistics": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      },
+      "scopeTransporteLogistica__manageTransportLogistics": {
+        "roles": [
+          "Lead",
+          "Senior (Sr)",
+          "Semi-Senior (Ssr)",
+          "Junior (Jr)"
+        ],
+        "userIds": [],
+        "departments": []
+      }
+    },
+    "userOverrides": {}
+  },
+  "auditLog": [],
+  "controlBoards": [],
+  "processAuditTemplates": [],
+  "processAudits": [],
+  "transport": {
+    "config": [
+      {
+        "id": "foraneas",
+        "groupId": "retail",
+        "groupLabel": "Area retail",
+        "label": "Entregas foraneas",
+        "destinations": [
+          "SUPER NATURISTA",
+          "LA COMER",
+          "SANBORNS",
+          "GOMAFA (COSTCO)",
+          "SAN PABLO",
+          "H.E.B.",
+          "CUBBO",
+          "WALMART",
+          "MELI"
+        ]
+      },
+      {
+        "id": "locales",
+        "groupId": "retail",
+        "groupLabel": "Area retail",
+        "label": "Entregas locales",
+        "destinations": [
+          "COPPEL",
+          "MEDINA",
+          "FARMACIAS DEL AHORRO",
+          "EL CARMEN"
+        ]
+      },
+      {
+        "id": "pedidos",
+        "groupId": "pedidos",
+        "groupLabel": "Area de pedidos",
+        "label": "Area de pedidos",
+        "destinations": [
+          "DHL",
+          "FEDEX",
+          "ESTAFETA",
+          "MERCADO LIBRE",
+          "UPS",
+          "IMILE",
+          "MIEMBROS",
+          "OTROS"
+        ]
+      },
+      {
+        "id": "inventarioTraslados",
+        "groupId": "inventario",
+        "groupLabel": "Inventario",
+        "label": "Inventario - traslados entre naves",
+        "destinations": [
+          "CEDIS",
+          "NAVE 1 (16 DE SEPTIEMBRE)",
+          "NAVE GUADALUPE"
+        ]
+      }
+    ],
+    "activeDateKey": "2026-05-22",
+    "activeRecords": [],
+    "historyRecords": [],
+    "customerAddresses": [],
+    "transportExpenses": [],
+    "transportUnits": [],
+    "transportUnitServiceLogs": []
+  },
+  "updatedAt": "2026-05-22T16:23:44.448Z",
+  "inventoryDestinations": [],
+  "bibliotecaFiles": [],
+  "bibliotecaNotifications": [],
+  "customRoles": [],
+  "documentacion": {
+    "records": [
+      {
+        "id": "doc-1d168c185c72",
+        "ubicacion": "CEDIS",
+        "area": "X",
+        "dirigidoA": "Y",
+        "notas": "",
+        "document": null,
+        "evidence": {
+          "url": "https://test.com/x.pdf",
+          "thumbnailUrl": "https://test.com/x.pdf",
+          "name": "x.pdf",
+          "type": "application/pdf"
+        },
+        "status": "Pendiente",
+        "assignedTo": null,
+        "assignedToName": null,
+        "assignedByName": null,
+        "assignedAt": null,
+        "deliveredAt": null,
+        "returnReason": null,
+        "canceledReason": null,
+        "shipmentCode": "DT0000001",
+        "dateKey": "2026-05-22",
+        "createdById": "usr-lead-nu7wt83h",
+        "createdByName": "Alejandro Cruz Martinez",
+        "createdAt": "2026-05-22T16:13:03.148Z",
+        "updatedAt": "2026-05-22T16:13:03.148Z"
+      }
+    ],
+    "customAreas": []
+  },
+  "incidencias": [],
+  "incidenciaNotifications": [],
+  "transportNotifications": [
+    {
+      "id": "tn-mph4pzjs-zm7zeq",
+      "type": "transport_record_created",
+      "title": "Smoke test - nuevo env�o",
+      "message": "Env�o SH-TEST hacia CDMX",
+      "meta": "smoke-test",
+      "tone": "warning",
+      "targetPage": "transport",
+      "alertMode": "sound-vibration",
+      "recordId": "smoke-record-1",
+      "targetUserIds": [],
+      "highlightUserIds": [],
+      "readByUserIds": [],
+      "createdAt": "2026-05-22T16:23:44.440Z"
+    }
+  ]
+}
