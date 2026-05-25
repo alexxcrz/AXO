@@ -191,6 +191,7 @@ const ACTION_PERMISSIONS = {
   viewTransportLogistics: [ROLE_LEAD, ROLE_SR, ROLE_SSR, ROLE_JR],
   manageTransportLogistics: [ROLE_LEAD, ROLE_SR, ROLE_SSR, ROLE_JR],
   viewTransportConsolidated: [ROLE_LEAD, ROLE_SR, ROLE_SSR, ROLE_JR],
+  viewTransportIncidencias: [ROLE_LEAD, ROLE_SR, ROLE_SSR, ROLE_JR],
   deleteTransportRecord: [ROLE_LEAD, ROLE_SR, ROLE_SSR, ROLE_JR],
   createBoard:             [ROLE_LEAD, ROLE_SR],
   editBoard:               [ROLE_LEAD, ROLE_SR],
@@ -266,9 +267,9 @@ const AREA_TAB_SCOPED_ACTION_CONFIG = [
   ["scopeMantenimientoBoardBuilder", ["createCatalog", "editCatalog", "deleteCatalog", "createBoard", "editBoard", "saveTemplate", "editTemplate", "deleteTemplate", "duplicateBoard", "duplicateBoardWithRows", "deleteBoard", "deleteWeekActivity"]],
   ["scopeMantenimientoMyBoards", ["createBoardRow", "deleteBoardRow", "editFinishedBoardRow", "viewHistoricalBoardScopes", "boardWorkflow", "exportBoardExcel", "previewBoardPdf", "exportBoardPdf"]],
   ["scopeMantenimientoHistory", ["editHistoryRecords"]],
-  ["scopeTransporteRegistrosEnvios", ["viewTransportRetail", "manageTransportRetail", "viewTransportPedidos", "manageTransportPedidos", "viewTransportInventario", "manageTransportInventario"]],
-  ["scopeTransporteControl", ["viewTransportDocumentacion", "manageTransportDocumentacion", "viewTransportAssignments", "manageTransportAssignments", "viewTransportPostponed", "manageTransportPostponed", "viewTransportMyRoutes"]],
-  ["scopeTransporteIncidencias", []],
+  ["scopeTransporteRegistrosEnvios", ["viewTransportRetail", "manageTransportRetail", "viewTransportPedidos", "manageTransportPedidos", "viewTransportInventario", "manageTransportInventario", "viewTransportDocumentacion", "manageTransportDocumentacion"]],
+  ["scopeTransporteControl", ["viewTransportAssignments", "manageTransportAssignments", "viewTransportPostponed", "manageTransportPostponed", "viewTransportMyRoutes"]],
+  ["scopeTransporteIncidencias", ["viewTransportIncidencias", "createIncidencia", "editIncidencia", "deleteIncidencia"]],
   ["scopeTransporteConsolidados", ["viewTransportConsolidated"]],
   ["scopeTransporteDashboard", []],
   ["scopeTransporteLogistica", ["viewTransportLogistics", "manageTransportLogistics"]],
@@ -3833,6 +3834,26 @@ export function canManageWarehouseTemplate(user, template) {
   return template.createdById === user.id;
 }
 
+const TRANSPORT_DOCUMENTACION_LEGACY_SCOPED_ACTIONS = {
+  viewTransportDocumentacion: "scopeTransporteControl__viewTransportDocumentacion",
+  manageTransportDocumentacion: "scopeTransporteControl__manageTransportDocumentacion",
+};
+
+const SCOPED_ALIASES_BY_BASE_ACTION = AREA_TAB_SCOPED_ACTION_CONFIG.reduce((map, [scopeId, baseActionIds]) => {
+  (baseActionIds || []).forEach((baseActionId) => {
+    const scopedActionId = `${scopeId}__${baseActionId}`;
+    if (!map.has(baseActionId)) map.set(baseActionId, []);
+    map.get(baseActionId).push(scopedActionId);
+  });
+  return map;
+}, new Map());
+
+function canUserDoWarehouseActionEntry(user, actionId, normalizedPermissions) {
+  const userOverride = normalizedPermissions.userOverrides?.[user.id]?.actions?.[actionId];
+  if (typeof userOverride === "boolean") return userOverride;
+  return userMatchesPermissionEntry(user, normalizedPermissions.actions?.[actionId]);
+}
+
 export function canUserDoWarehouseAction(user, actionId, permissions = null) {
   if (!user || !actionId) return false;
   const normalizedRole = normalizeRole(user.role);
@@ -3840,9 +3861,19 @@ export function canUserDoWarehouseAction(user, actionId, permissions = null) {
 
   const resolvedPermissions = permissions || getRawWarehouseState().permissions;
   const normalizedPermissions = normalizePermissions(resolvedPermissions);
-  const userOverride = normalizedPermissions.userOverrides?.[user.id]?.actions?.[actionId];
-  if (typeof userOverride === "boolean") return userOverride;
-  return userMatchesPermissionEntry(user, normalizedPermissions.actions?.[actionId]);
+  if (canUserDoWarehouseActionEntry(user, actionId, normalizedPermissions)) return true;
+
+  const legacyScopedActionId = TRANSPORT_DOCUMENTACION_LEGACY_SCOPED_ACTIONS[actionId];
+  if (legacyScopedActionId && canUserDoWarehouseActionEntry(user, legacyScopedActionId, normalizedPermissions)) {
+    return true;
+  }
+
+  const scopedAliases = SCOPED_ALIASES_BY_BASE_ACTION.get(actionId) || [];
+  if (scopedAliases.some((scopedActionId) => canUserDoWarehouseActionEntry(user, scopedActionId, normalizedPermissions))) {
+    return true;
+  }
+
+  return false;
 }
 
 export function canUserAccessWarehousePage(user, pageId, permissions = null) {

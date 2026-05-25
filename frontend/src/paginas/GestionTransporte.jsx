@@ -912,10 +912,15 @@ export default function GestionTransporte({ contexto }) {
   const canManageLogisticsTab = hasActionPermission("manageTransportLogistics", false);
   const canSeeConsolidatedTab = hasTransportOnlyAccess
     && hasActionPermission("viewTransportConsolidated", false);
-  const canManageIncidencias = hasActionPermission("createIncidencia", false)
-    || hasActionPermission("editIncidencia", false)
-    || hasActionPermission("deleteIncidencia", false);
-  const canSeeTransportIncidenciasTab = canManageIncidencias;
+  const canCreateTransportIncidencia = hasActionPermission("createIncidencia", false);
+  const canEditTransportIncidencia = hasActionPermission("editIncidencia", false);
+  const canDeleteTransportIncidencia = hasActionPermission("deleteIncidencia", false);
+  const canManageIncidencias = canCreateTransportIncidencia || canEditTransportIncidencia || canDeleteTransportIncidencia;
+  const canSeeTransportIncidenciasTab = hasTransportOnlyAccess && (
+    hasActionPermission("viewTransportIncidencias", false)
+    || hasActionPermission("scopeTransporteIncidencias", false)
+    || canManageIncidencias
+  );
   const canManageDocumentacionTab = hasActionPermission("manageTransportDocumentacion", false);
   const canDeleteTransportRecord = hasAnyTransportManageAccess
     && hasActionPermission("deleteTransportRecord", hasAnyTransportManageAccess);
@@ -964,14 +969,14 @@ export default function GestionTransporte({ contexto }) {
     const hasIncidenciasTab = transportAdminTabOptions.some((tab) => tab.id === "incidencias-transporte");
     const hasConsolidadoTab = transportAdminTabOptions.some((tab) => tab.id === "consolidado");
     const hasLogisticaTab = transportAdminTabOptions.some((tab) => tab.id === "logistica");
-    if (shippingTabOptions.length) sections.push({ id: "registros-envios", label: "Registros de envíos" });
+    if (shippingTabOptions.length || canSeeDocumentacionTab) sections.push({ id: "registros-envios", label: "Registros de envíos" });
     if (hasControlTransporteTabs) sections.push({ id: "control-transporte", label: "Control transporte" });
     if (hasIncidenciasTab) sections.push({ id: "incidencias-transporte", label: "Incidencias transporte" });
     if (hasConsolidadoTab) sections.push({ id: "consolidados", label: "Consolidados" });
     if (transportDashboardTabOptions.length) sections.push({ id: "dashboard-transporte", label: "Dashboard" });
     if (hasLogisticaTab) sections.push({ id: "direcciones-gastos", label: "Direcciones y gastos" });
     return sections;
-  }, [shippingTabOptions, transportAdminTabOptions, transportDashboardTabOptions]);
+  }, [shippingTabOptions, canSeeDocumentacionTab, transportAdminTabOptions, transportDashboardTabOptions]);
 
   const firstAreaId = areaConfig[0]?.id || "";
   const [selectedAreaId, setSelectedAreaId] = useState(firstAreaId);
@@ -4321,7 +4326,7 @@ export default function GestionTransporte({ contexto }) {
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: "0.45rem" }}>
                   <span className="chip">{filteredTransportIncidencias.length} incidencias</span>
-                  {canManageIncidencias ? (
+                  {canCreateTransportIncidencia ? (
                     <button
                       type="button"
                       className="primary-button"
@@ -4390,14 +4395,18 @@ export default function GestionTransporte({ contexto }) {
                         <td>{item.status || "-"}</td>
                         <td style={{ maxWidth: "260px", whiteSpace: "normal" }}>{item.description || "-"}</td>
                         <td>
-                          {canManageIncidencias ? (
+                          {canEditTransportIncidencia || canDeleteTransportIncidencia ? (
                             <div style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap" }}>
-                              <button type="button" className="icon-button" onClick={() => openTransportIncidenciaEditModal(item)}>
-                                Editar
-                              </button>
-                              <button type="button" className="icon-button danger" onClick={() => setIncidenciaDeleteId(item.id)}>
-                                Eliminar
-                              </button>
+                              {canEditTransportIncidencia ? (
+                                <button type="button" className="icon-button" onClick={() => openTransportIncidenciaEditModal(item)}>
+                                  Editar
+                                </button>
+                              ) : null}
+                              {canDeleteTransportIncidencia ? (
+                                <button type="button" className="icon-button danger" onClick={() => setIncidenciaDeleteId(item.id)}>
+                                  Eliminar
+                                </button>
+                              ) : null}
                             </div>
                           ) : (
                             <span className="subtle-line">Solo lectura</span>

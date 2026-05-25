@@ -123,20 +123,31 @@ const TRANSPORT_SECTION_ACTIONS = {
     "manageTransportPedidos",
     "viewTransportInventario",
     "manageTransportInventario",
-  ],
-  "control-transporte": [
     "viewTransportDocumentacion",
     "manageTransportDocumentacion",
+  ],
+  "control-transporte": [
     "viewTransportAssignments",
     "manageTransportAssignments",
     "viewTransportPostponed",
     "manageTransportPostponed",
     "viewTransportMyRoutes",
   ],
-  "incidencias-transporte": [],
+  "incidencias-transporte": [
+    "viewTransportIncidencias",
+    "createIncidencia",
+    "editIncidencia",
+    "deleteIncidencia",
+  ],
   "consolidados": ["viewTransportConsolidated"],
   "dashboard-transporte": [],
   "direcciones-gastos": ["viewTransportLogistics", "manageTransportLogistics"],
+};
+
+/** Permisos scoped que quedaron en Control transporte antes de mover Documentación a Registros de envíos. */
+const TRANSPORT_DOCUMENTACION_LEGACY_SCOPED_ACTIONS = {
+  viewTransportDocumentacion: "scopeTransporteControl__viewTransportDocumentacion",
+  manageTransportDocumentacion: "scopeTransporteControl__manageTransportDocumentacion",
 };
 
 const AREA_TAB_BASE_ACTIONS = {
@@ -167,5 +178,6 @@ export {
   NAV_UTILITY_ACTION_BY_GROUP,
   AREA_TAB_PERMISSION_ACTIONS,
   TRANSPORT_SECTION_ACTIONS,
+  TRANSPORT_DOCUMENTACION_LEGACY_SCOPED_ACTIONS,
   AREA_TAB_BASE_ACTIONS,
 };

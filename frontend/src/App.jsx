@@ -530,6 +530,7 @@ import {
   NAV_UTILITY_ACTION_BY_GROUP,
   AREA_TAB_PERMISSION_ACTIONS,
   TRANSPORT_SECTION_ACTIONS,
+  TRANSPORT_DOCUMENTACION_LEGACY_SCOPED_ACTIONS,
   AREA_TAB_BASE_ACTIONS,
   normalizeAreaSectionId,
   findAreaSectionByLabel,
@@ -2992,8 +2993,12 @@ function App() { // NOSONAR
       const scopedActionId = activeAreaScopePermission.scopedActionIdByBase?.[actionId];
       if (!scopedActionId) return;
       // Permitir si tiene permiso base O permiso scoped específico para esta área
+      const legacyScopedActionId = TRANSPORT_DOCUMENTACION_LEGACY_SCOPED_ACTIONS[actionId];
       const hasScopedPermission = Boolean(baseActionPermissions[scopedActionId]);
-      next[actionId] = Boolean(baseActionPermissions[actionId] || hasScopedPermission);
+      const hasLegacyScopedPermission = legacyScopedActionId
+        ? Boolean(baseActionPermissions[legacyScopedActionId])
+        : false;
+      next[actionId] = Boolean(baseActionPermissions[actionId] || hasScopedPermission || hasLegacyScopedPermission);
     });
     return next;
   }, [activeAreaScopePermission, baseActionPermissions]);
