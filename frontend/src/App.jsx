@@ -3014,6 +3014,8 @@ function App() { // NOSONAR
     }
     if (actionPermissions.viewOrderInventory || actionPermissions.manageOrderInventory || actionPermissions.deleteOrderInventory || actionPermissions.importOrderInventory) {
       visibleDomains.push(INVENTORY_DOMAIN_ORDERS);
+    }
+    if (actionPermissions.viewMaintenanceInventory || actionPermissions.manageMaintenanceInventory || actionPermissions.deleteMaintenanceInventory || actionPermissions.importMaintenanceInventory) {
       visibleDomains.push(INVENTORY_DOMAIN_MAINTENANCE);
     }
     return visibleDomains;
@@ -3546,13 +3548,13 @@ function App() { // NOSONAR
             ]
           : section.id === "mejora-continua"
             ? [
-              { pageId: PAGE_PROCESS_AUDITS, label: "Dashboard", shortLabel: "Dashboard", auditPreset: { tab: "dashboard" }, requiredActionId: "", order: 5 },
-              { pageId: PAGE_PROCESS_AUDITS, label: "Auditoría", shortLabel: "Auditoría", auditPreset: { tab: "auditoria" }, requiredActionId: "", order: 10 },
-              { pageId: PAGE_PROCESS_AUDITS, label: "Problemas", shortLabel: "Problemas", auditPreset: { tab: "problemas" }, notificationCount: processAuditProblemCount, requiredActionId: "", order: 20 },
-              { pageId: PAGE_PROCESS_AUDITS, label: "Propuestas", shortLabel: "Propuestas", auditPreset: { tab: "propuestas" }, notificationCount: processAuditPendingProposalsCount, requiredActionId: "", order: 25 },
-              { pageId: PAGE_PROCESS_AUDITS, label: "Autorizar / Rechazar", shortLabel: "Autorizar", auditPreset: { tab: "seguimiento" }, notificationCount: processAuditAuthorizationCount, requiredActionId: "", order: 30 },
-              { pageId: PAGE_PROCESS_AUDITS, label: "Seguimiento", shortLabel: "Seguimiento", auditPreset: { tab: "implementacion" }, notificationCount: processAuditImplementationCount, requiredActionId: "", order: 40 },
-              { pageId: PAGE_PROCESS_AUDITS, label: "Historial", shortLabel: "Hist.", auditPreset: { tab: "history" }, notificationCount: processAuditRejectedCount, requiredActionId: "", order: 50 },
+              { pageId: "auditDashboard", label: "Dashboard", shortLabel: "Dashboard", auditPreset: { tab: "dashboard" }, requiredActionId: "auditDashboard", requiredKind: "pages", order: 5 },
+              { pageId: PAGE_PROCESS_AUDITS, label: "Auditoría", shortLabel: "Auditoría", auditPreset: { tab: "auditoria" }, requiredActionId: "accessAuditTabCaptura", order: 10 },
+              { pageId: PAGE_PROCESS_AUDITS, label: "Problemas", shortLabel: "Problemas", auditPreset: { tab: "problemas" }, notificationCount: processAuditProblemCount, requiredActionId: "accessAuditTabPropuestas", order: 20 },
+              { pageId: PAGE_PROCESS_AUDITS, label: "Propuestas", shortLabel: "Propuestas", auditPreset: { tab: "propuestas" }, notificationCount: processAuditPendingProposalsCount, requiredActionId: "accessAuditTabPropuestas", order: 25 },
+              { pageId: PAGE_PROCESS_AUDITS, label: "Autorizar / Rechazar", shortLabel: "Autorizar", auditPreset: { tab: "seguimiento" }, notificationCount: processAuditAuthorizationCount, requiredActionId: "accessAuditTabAutorizar", order: 30 },
+              { pageId: PAGE_PROCESS_AUDITS, label: "Seguimiento", shortLabel: "Seguimiento", auditPreset: { tab: "implementacion" }, notificationCount: processAuditImplementationCount, requiredActionId: "accessAuditTabSeguimiento", order: 40 },
+              { pageId: PAGE_PROCESS_AUDITS, label: "Historial", shortLabel: "Hist.", auditPreset: { tab: "history" }, notificationCount: processAuditRejectedCount, requiredActionId: "accessAuditTabHistorial", order: 50 },
             ]
             : [
             { pageId: PAGE_DASHBOARD, label: "Dashboard", shortLabel: "Dash", requiredActionId: AREA_TAB_PERMISSION_ACTIONS[section.id]?.dashboard || "" },
@@ -3577,7 +3579,14 @@ function App() { // NOSONAR
 
     return [...staticSections, ...dynamicSections]
       .map((section) => {
-        const items = (section.items || []).filter((item) => canAccessPage(currentUser, item.pageId, normalizedPermissions) && (!item.requiredActionId || canDoAction(currentUser, item.requiredActionId, normalizedPermissions)));
+        const items = (section.items || []).filter((item) => {
+          if (!canAccessPage(currentUser, item.pageId, normalizedPermissions)) return false;
+          if (!item.requiredActionId) return true;
+          if (item.requiredKind === "pages") {
+            return canAccessPage(currentUser, item.requiredActionId, normalizedPermissions);
+          }
+          return canDoAction(currentUser, item.requiredActionId, normalizedPermissions);
+        });
         const sectionNotificationCount = section.id === "mejora-continua"
           ? processAuditAttentionCount
           : items.reduce((sum, item) => sum + (Number(item.notificationCount) || 0), 0);
@@ -4368,7 +4377,7 @@ function App() { // NOSONAR
       if (current.mode === "create") {
         return {
           ...nextDraft,
-          permissionOverrides: buildPermissionSelectionFromModalDraft(nextDraft, normalizedPermissions, { limitToGrantable: true }),
+          permissionOverrides: buildEmptyPermissionSelection(),
         };
       }
       return {
@@ -4382,6 +4391,13 @@ function App() { // NOSONAR
     return {
       pages: Object.fromEntries(permissionPages.map((item) => [item.id, true])),
       actions: Object.fromEntries(ACTION_DEFINITIONS.map((item) => [item.id, true])),
+    };
+  }
+
+  function buildEmptyPermissionSelection() {
+    return {
+      pages: Object.fromEntries(permissionPages.map((item) => [item.id, false])),
+      actions: Object.fromEntries(ACTION_DEFINITIONS.map((item) => [item.id, false])),
     };
   }
 
@@ -4406,7 +4422,7 @@ function App() { // NOSONAR
     });
     setUserModal({
       ...nextModal,
-      permissionOverrides: buildPermissionSelectionFromModalDraft(nextModal, normalizedPermissions, { limitToGrantable: true }),
+      permissionOverrides: buildEmptyPermissionSelection(),
     });
   }
 
@@ -4486,17 +4502,6 @@ function App() { // NOSONAR
       });
       pushAppToast(message, "danger");
       return;
-    }
-    if (userModal.mode === "create" && supportsManagedPermissionOverrides(userModal.role) && canAssignPlayerPermissions) {
-      const pageValues = Object.values(userModal.permissionOverrides.pages || {});
-      const actionValues = Object.values(userModal.permissionOverrides.actions || {});
-      const hasAtLeastOnePermission = pageValues.concat(actionValues).some(Boolean);
-      if (!hasAtLeastOnePermission) {
-        const message = "Asigna al menos un permiso antes de crear el player.";
-        setUserModalMessage({ tone: "danger", text: message });
-        pushAppToast(message, "danger");
-        return;
-      }
     }
     if (userModal.mode === "create") {
       if (!isTemporaryPassword(trimmedPassword)) {

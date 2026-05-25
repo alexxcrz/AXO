@@ -607,20 +607,30 @@ export function getInventoryDefaultTransferDestination(item, movements = []) {
 
 export function getInventoryDeleteActionId(domain) {
   if (domain === INVENTORY_DOMAIN_CLEANING) return "deleteCleaningInventory";
-  if (domain === INVENTORY_DOMAIN_ORDERS || domain === INVENTORY_DOMAIN_MAINTENANCE) return "deleteOrderInventory";
+  if (domain === INVENTORY_DOMAIN_MAINTENANCE) return "deleteMaintenanceInventory";
+  if (domain === INVENTORY_DOMAIN_ORDERS) return "deleteOrderInventory";
   return "deleteInventory";
 }
 
 export function getInventoryManageActionId(domain) {
   if (domain === INVENTORY_DOMAIN_CLEANING) return "manageCleaningInventory";
-  if (domain === INVENTORY_DOMAIN_ORDERS || domain === INVENTORY_DOMAIN_MAINTENANCE) return "manageOrderInventory";
+  if (domain === INVENTORY_DOMAIN_MAINTENANCE) return "manageMaintenanceInventory";
+  if (domain === INVENTORY_DOMAIN_ORDERS) return "manageOrderInventory";
   return "manageInventory";
 }
 
 export function getInventoryImportActionId(domain) {
   if (domain === INVENTORY_DOMAIN_CLEANING) return "importCleaningInventory";
-  if (domain === INVENTORY_DOMAIN_ORDERS || domain === INVENTORY_DOMAIN_MAINTENANCE) return "importOrderInventory";
+  if (domain === INVENTORY_DOMAIN_MAINTENANCE) return "importMaintenanceInventory";
+  if (domain === INVENTORY_DOMAIN_ORDERS) return "importOrderInventory";
   return "importInventory";
+}
+
+export function getInventoryViewActionId(domain) {
+  if (domain === INVENTORY_DOMAIN_CLEANING) return "viewCleaningInventory";
+  if (domain === INVENTORY_DOMAIN_MAINTENANCE) return "viewMaintenanceInventory";
+  if (domain === INVENTORY_DOMAIN_ORDERS) return "viewOrderInventory";
+  return "viewBaseInventory";
 }
 
 export function createInventoryModalState(mode = "create", item = {}, fallbackDomain = INVENTORY_DOMAIN_BASE) {
@@ -3817,10 +3827,34 @@ export function userMatchesPermissionEntry(user, entry) {
   return false;
 }
 
+const INVENTORY_PAGE_ACCESS_ACTION_IDS = [
+  "viewBaseInventory",
+  "manageInventory",
+  "deleteInventory",
+  "importInventory",
+  "viewCleaningInventory",
+  "manageCleaningInventory",
+  "deleteCleaningInventory",
+  "importCleaningInventory",
+  "viewOrderInventory",
+  "manageOrderInventory",
+  "deleteOrderInventory",
+  "importOrderInventory",
+  "viewMaintenanceInventory",
+  "manageMaintenanceInventory",
+  "deleteMaintenanceInventory",
+  "importMaintenanceInventory",
+];
+
 export function canAccessPage(user, pageId, permissions) {
   const override = permissions?.userOverrides?.[user?.id]?.pages?.[pageId];
   if (typeof override === "boolean") return override;
-  return userMatchesPermissionEntry(user, permissions?.pages?.[pageId]);
+  const roleDefault = userMatchesPermissionEntry(user, permissions?.pages?.[pageId]);
+  if (roleDefault) return true;
+  if (pageId === PAGE_INVENTORY) {
+    return INVENTORY_PAGE_ACCESS_ACTION_IDS.some((actionId) => canDoAction(user, actionId, permissions));
+  }
+  return false;
 }
 
 export function canDoAction(user, actionId, permissions) {

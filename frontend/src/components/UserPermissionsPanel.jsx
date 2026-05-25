@@ -13,13 +13,14 @@ function subtabPaletteIndex(id, index) {
   return hash;
 }
 
-const SECTION_LABEL_OVERRIDES = {
-  "players-admin": "PLAYERS (ESTA P\u00c1GINA)",
-};
-
 function resolveLabel(item) {
-  if (item?.id && SECTION_LABEL_OVERRIDES[item.id]) return SECTION_LABEL_OVERRIDES[item.id];
   return getActionLabelEsMX(item.id, item.label);
+}
+
+function isTabPermissionEnabled(tab, permissionOverrides) {
+  return tab.kind === "pages"
+    ? Boolean(permissionOverrides.pages?.[tab.id])
+    : Boolean(permissionOverrides.actions?.[tab.id]);
 }
 
 function sectionPanelId(sectionId) {
@@ -34,10 +35,14 @@ function countEnabledTabs(section, permissionOverrides) {
   )).length;
 }
 
-function PermissionToggleChip({ label, enabled, delegable, onToggle, title }) {
+function PermissionToggleChip({ label, enabled, delegable, onToggle, title, switchOnly = false }) {
+  const hasLabel = Boolean(String(label || "").trim());
   return (
-    <label className={`perm-toggle-chip ${enabled ? "is-on" : ""} ${!delegable ? "is-locked" : ""}`} title={title}>
-      <span className="perm-toggle-chip-label">{label}</span>
+    <label
+      className={`perm-toggle-chip ${switchOnly || !hasLabel ? "perm-toggle-chip--switch-only" : ""} ${enabled ? "is-on" : ""} ${!delegable ? "is-locked" : ""}`}
+      title={title}
+    >
+      {hasLabel && !switchOnly ? <span className="perm-toggle-chip-label">{label}</span> : null}
       <button
         type="button"
         disabled={!delegable}
@@ -76,6 +81,7 @@ function PermissionTabPanel({
           <strong>{resolveLabel(tab)}</strong>
         </div>
         <PermissionToggleChip
+          switchOnly
           label={enabled ? T.active : T.inactive}
           enabled={enabled}
           delegable={delegable}
@@ -166,10 +172,12 @@ function PermissionSectionDetail({
           </p>
         </div>
         <PermissionToggleChip
+          switchOnly
           label={navEnabled ? T.navActive : T.navBlocked}
           enabled={navEnabled}
           delegable={navDelegable}
           onToggle={() => onTogglePermission(section.navVisibilityKind, section.navVisibilityActionId)}
+          title={navDelegable ? T.navActive : T.notDelegable}
         />
       </div>
 
@@ -240,28 +248,63 @@ function PermissionExplorer({
             const navOn = section.navVisibilityKind === "pages"
               ? Boolean(permissionOverrides.pages?.[section.navVisibilityActionId])
               : Boolean(permissionOverrides.actions?.[section.navVisibilityActionId]);
+            const navDelegable = canGrantManagedPermission(section.navVisibilityKind, section.navVisibilityActionId);
             const enabledTabs = countEnabledTabs(section, permissionOverrides);
             const sectionIndex = menuPermissionSections.findIndex((item) => item.id === section.id);
             const tone = SUBTAB_PALETTE[sectionIndex % SUBTAB_PALETTE.length];
 
             return (
-              <button
+              <div
                 key={section.id}
-                type="button"
-                role="tab"
-                aria-selected={isActive}
-                className={`perm-explorer-nav-item perm-explorer-nav-item--${tone} ${isActive ? "active" : ""} ${navOn ? "has-access" : ""}`}
-                onClick={() => onToggleSection(panelId)}
+                className={`perm-explorer-nav-row perm-explorer-nav-row--${tone} ${isActive ? "active" : ""} ${navOn ? "has-access" : ""}`}
               >
-                <span className="perm-explorer-nav-label">{resolveLabel(section)}</span>
-                <span className="perm-explorer-nav-meta">
-                  <span className={`perm-explorer-dot ${navOn ? "on" : ""}`} aria-hidden />
-                  {enabledTabs}/{section.itemPermissions.length}
-                </span>
-              </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={isActive}
+                  className={`perm-explorer-nav-item perm-explorer-nav-item--${tone}`}
+                  onClick={() => onToggleSection(panelId)}
+                >
+                  <span className="perm-explorer-nav-label">{resolveLabel(section)}</span>
+                  <span className="perm-explorer-nav-meta">
+                    <span className={`perm-explorer-dot ${navOn ? "on" : ""}`} aria-hidden />
+                    {enabledTabs}/{section.itemPermissions.length}
+                  </span>
+                </button>
+                <PermissionToggleChip
+                  switchOnly
+                  label=""
+                  enabled={navOn}
+                  delegable={navDelegable}
+                  onToggle={() => onTogglePermission(section.navVisibilityKind, section.navVisibilityActionId)}
+                  title={navDelegable ? T.navActive : T.notDelegable}
+                />
+              </div>
             );
           })}
         </div>
+        {activeSection ? (
+          <div className="perm-explorer-tab-quick" aria-label={T.explorerTabsTitle}>
+            <p className="perm-explorer-tab-quick-title">{T.explorerTabsTitle}</p>
+            {activeSection.itemPermissions.map((tab) => {
+              const tabOn = isTabPermissionEnabled(tab, permissionOverrides);
+              const tabDelegable = canGrantManagedPermission(tab.kind, tab.id);
+              return (
+                <div key={tab.id} className="perm-explorer-tab-quick-row">
+                  <span className="perm-explorer-tab-quick-label" title={resolveLabel(tab)}>{resolveLabel(tab)}</span>
+                  <PermissionToggleChip
+                    switchOnly
+                    label={tabOn ? T.active : T.inactive}
+                    enabled={tabOn}
+                    delegable={tabDelegable}
+                    onToggle={() => onTogglePermission(tab.kind, tab.id)}
+                    title={tabDelegable ? T.enableTab : T.notDelegable}
+                  />
+                </div>
+              );
+            })}
+          </div>
+        ) : null}
         {!filteredSections.length ? (
           <p className="perm-explorer-empty">{T.noSectionMatch}</p>
         ) : null}
@@ -320,14 +363,6 @@ export function UserPermissionsPanel({
 
   return (
     <section className="user-modal-permissions perm-panel-v2">
-      <div className="perm-panel-intro">
-        <div>
-          <h4>{T.menuTitle}</h4>
-          <p>{T.menuIntro}</p>
-        </div>
-        <span className="chip primary">{T.sectionsCount(menuPermissionSections.length)}</span>
-      </div>
-
       <PermissionExplorer
         menuPermissionSections={menuPermissionSections}
         activePageId={userModal?.permissionPageId || ""}

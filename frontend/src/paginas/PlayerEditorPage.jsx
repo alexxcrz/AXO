@@ -99,76 +99,90 @@ export default function PlayerEditorPage({ editor }) {
               </select>
             </label>
 
-            <label className="app-modal-field">
-              <span>{T.area}</span>
-              <div className="area-selector-row">
-                <select value={userModal.area} onChange={(event) => setUserModal((current) => ({ ...current, area: event.target.value }))}>
-                  <option value="">{T.selectArea}</option>
-                  {(currentUser?.role === ROLE_LEAD ? rootAreaOptions : Array.from(new Set(userAreaOptions.map((a) => getAreaRoot(a) || a))).filter(Boolean)).map((area) => (
-                    <option key={area} value={area}>{area}</option>
-                  ))}
-                </select>
-                {currentUser?.role === ROLE_LEAD ? (
-                  <button type="button" className="icon-button area-add-button" onClick={() => handleAddAreaOption()} aria-label={T.addAreaAria}>
-                    <Plus size={16} />
-                  </button>
-                ) : null}
-                {currentUser?.role === ROLE_LEAD && userModal.area ? (
-                  <button
-                    type="button"
-                    className="icon-button danger"
-                    onClick={() => openDeleteAreaModal(userModal.area, T.areaLabel(userModal.area))}
-                    aria-label={T.deleteAreaAria}
-                  >
-                    <Trash2 size={16} />
-                  </button>
-                ) : null}
-              </div>
-            </label>
-            <label className="app-modal-field">
-              <span>{T.reference}</span>
-              <select value={userModal.managerId} onChange={(event) => setUserModal((current) => ({ ...current, managerId: event.target.value }))}>
-                <option value="">{T.select}</option>
-                {activeAssignableUsers.map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}
-              </select>
-            </label>
-            <fieldset className="app-modal-field user-status-switch-field">
-              <legend>{T.initialStatus}</legend>
-              <div className="user-status-switch-row">
-                <button
-                  type="button"
-                  className={`switch-button ${userModal.isActive === "true" ? "on" : ""}`}
-                  onClick={() => setUserModal((current) => ({ ...current, isActive: current.isActive === "true" ? "false" : "true" }))}
-                  aria-pressed={userModal.isActive === "true"}
-                  aria-label={T.changeStatusAria}
-                >
-                  <span className="switch-thumb" />
-                </button>
-                <strong>{userModal.isActive === "true" ? T.active : T.inactive}</strong>
-              </div>
-            </fieldset>
-
-            {isCreate ? (
-              <label className="app-modal-field players-editor-field-password">
-                <span>{T.tempPassword}</span>
-                <div className="password-visibility-field">
-                  <input
-                    type={showUserModalPassword ? "text" : "password"}
-                    value={userModal.password}
-                    onChange={(event) => setUserModal((current) => ({ ...current, password: event.target.value }))}
-                    placeholder={T.minPassword}
-                  />
-                  <button
-                    type="button"
-                    className="password-visibility-toggle"
-                    aria-label={showUserModalPassword ? T.hidePassword : T.showPassword}
-                    onClick={() => setShowUserModalPassword((current) => !current)}
-                  >
-                    {showUserModalPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                  </button>
+            <div className={`players-editor-form-row-meta ${isCreate ? "has-password" : ""}`}>
+              <label className="app-modal-field">
+                <span>{T.area}</span>
+                <div className="area-selector-row">
+                  <select value={userModal.area} onChange={(event) => setUserModal((current) => ({ ...current, area: event.target.value }))}>
+                    <option value="">{T.selectArea}</option>
+                    {(currentUser?.role === ROLE_LEAD ? rootAreaOptions : Array.from(new Set(userAreaOptions.map((a) => getAreaRoot(a) || a))).filter(Boolean)).map((area) => (
+                      <option key={area} value={area}>{area}</option>
+                    ))}
+                  </select>
+                  {currentUser?.role === ROLE_LEAD ? (
+                    <button type="button" className="icon-button area-add-button" onClick={() => handleAddAreaOption()} aria-label={T.addAreaAria}>
+                      <Plus size={16} />
+                    </button>
+                  ) : null}
+                  {currentUser?.role === ROLE_LEAD && userModal.area ? (
+                    <button
+                      type="button"
+                      className="icon-button danger"
+                      onClick={() => openDeleteAreaModal(userModal.area, T.areaLabel(userModal.area))}
+                      aria-label={T.deleteAreaAria}
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  ) : null}
                 </div>
               </label>
-            ) : null}
+              <label className="app-modal-field">
+                <span>{T.reference}</span>
+                <select value={userModal.managerId} onChange={(event) => setUserModal((current) => ({ ...current, managerId: event.target.value }))}>
+                  <option value="">{T.select}</option>
+                  {activeAssignableUsers.map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}
+                </select>
+              </label>
+              {isCreate ? (
+                <div className="players-editor-password-status-pair">
+                  <label className="app-modal-field">
+                    <span>{T.tempPassword}</span>
+                    <div className="password-visibility-field">
+                      <input
+                        type={showUserModalPassword ? "text" : "password"}
+                        value={userModal.password}
+                        onChange={(event) => setUserModal((current) => ({ ...current, password: event.target.value }))}
+                        placeholder={T.minPassword}
+                        autoComplete="new-password"
+                      />
+                      <button
+                        type="button"
+                        className="password-visibility-toggle"
+                        aria-label={showUserModalPassword ? T.hidePassword : T.showPassword}
+                        onClick={() => setShowUserModalPassword((current) => !current)}
+                      >
+                        {showUserModalPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                      </button>
+                    </div>
+                  </label>
+                  <div className="app-modal-field players-editor-status-switch-only">
+                    <span>{T.initialStatus}</span>
+                    <button
+                      type="button"
+                      className={`switch-button ${userModal.isActive === "true" ? "on" : ""}`}
+                      onClick={() => setUserModal((current) => ({ ...current, isActive: current.isActive === "true" ? "false" : "true" }))}
+                      aria-pressed={userModal.isActive === "true"}
+                      aria-label={`${T.changeStatusAria} (${userModal.isActive === "true" ? T.active : T.inactive})`}
+                    >
+                      <span className="switch-thumb" />
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="app-modal-field players-editor-status-switch-only players-editor-status-switch-only--solo">
+                  <span>{T.initialStatus}</span>
+                  <button
+                    type="button"
+                    className={`switch-button ${userModal.isActive === "true" ? "on" : ""}`}
+                    onClick={() => setUserModal((current) => ({ ...current, isActive: current.isActive === "true" ? "false" : "true" }))}
+                    aria-pressed={userModal.isActive === "true"}
+                    aria-label={`${T.changeStatusAria} (${userModal.isActive === "true" ? T.active : T.inactive})`}
+                  >
+                    <span className="switch-thumb" />
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
 
           {!isCreate && canResetOtherPasswords && userModal.id && userModal.id !== currentUser?.id ? (

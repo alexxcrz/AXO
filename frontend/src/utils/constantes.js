@@ -739,6 +739,15 @@ export const ACTION_DEFINITIONS = [
   { id: "deleteOrderInventory",    label: "Eliminar insumos para pedidos",            category: "Inventario",          defaultRoles: [ROLE_LEAD, ROLE_SR] },
   { id: "importOrderInventory",    label: "Importar insumos para pedidos",            category: "Inventario",          defaultRoles: [ROLE_LEAD, ROLE_SR] },
   { id: "viewOrderInventory",      label: "Ver pestaña Insumos para pedidos",         category: "Inventario",          defaultRoles: [ROLE_LEAD, ROLE_SR, ROLE_SSR, ROLE_JR] },
+  { id: "manageMaintenanceInventory", label: "Crear y editar insumos de mantenimiento", category: "Inventario",          defaultRoles: [ROLE_LEAD, ROLE_SR] },
+  { id: "deleteMaintenanceInventory", label: "Eliminar insumos de mantenimiento",       category: "Inventario",          defaultRoles: [ROLE_LEAD, ROLE_SR] },
+  { id: "importMaintenanceInventory", label: "Importar insumos de mantenimiento",       category: "Inventario",          defaultRoles: [ROLE_LEAD, ROLE_SR] },
+  { id: "viewMaintenanceInventory",   label: "Ver pestaña Insumos de mantenimiento",    category: "Inventario",          defaultRoles: [ROLE_LEAD, ROLE_SR, ROLE_SSR, ROLE_JR] },
+  { id: "accessAuditTabCaptura",      label: "Ver pestaña Captura / Checklist (auditoría)", category: "Auditorías",       defaultRoles: [ROLE_LEAD, ROLE_SR, ROLE_SSR] },
+  { id: "accessAuditTabPropuestas",   label: "Ver pestaña Propuestas / Problemas (auditoría)", category: "Auditorías",    defaultRoles: [ROLE_LEAD, ROLE_SR, ROLE_SSR] },
+  { id: "accessAuditTabAutorizar",    label: "Ver pestaña Autorizar / Rechazar (auditoría)", category: "Auditorías",      defaultRoles: [ROLE_LEAD, ROLE_SR, ROLE_SSR] },
+  { id: "accessAuditTabSeguimiento",  label: "Ver pestaña Seguimiento / Implementación (auditoría)", category: "Auditorías", defaultRoles: [ROLE_LEAD, ROLE_SR, ROLE_SSR] },
+  { id: "accessAuditTabHistorial",    label: "Ver pestaña Historial de auditorías (auditoría)", category: "Auditorías",   defaultRoles: [ROLE_LEAD, ROLE_SR, ROLE_SSR] },
   { id: "viewTransportRetail",      label: "Ver pestaña Retail (foráneas y locales)",   category: "Transporte",          defaultRoles: [ROLE_LEAD, ROLE_SR, ROLE_SSR, ROLE_JR] },
   { id: "manageTransportRetail",    label: "Crear y editar envíos en Retail",            category: "Transporte",          defaultRoles: [ROLE_LEAD, ROLE_SR, ROLE_SSR, ROLE_JR] },
   { id: "viewTransportPedidos",     label: "Ver pestaña Pedidos",                         category: "Transporte",          defaultRoles: [ROLE_LEAD, ROLE_SR, ROLE_SSR, ROLE_JR] },
@@ -834,6 +843,11 @@ const AREA_TAB_SCOPED_ACTION_CONFIG = Object.freeze([
   { scopeId: "scopeTransporteConsolidados", scopeLabel: "TRANSPORTE / Consolidados", baseActionIds: ["viewTransportConsolidated"] },
   { scopeId: "scopeTransporteDashboard", scopeLabel: "TRANSPORTE / Dashboard", baseActionIds: [] },
   { scopeId: "scopeTransporteLogistica", scopeLabel: "TRANSPORTE / Direcciones y gastos", baseActionIds: ["viewTransportLogistics", "manageTransportLogistics"] },
+  { scopeId: "scopeMantenimientoIncidencias", scopeLabel: "MANTENIMIENTO / Incidencias", baseActionIds: ["createIncidencia", "editIncidencia", "deleteIncidencia"] },
+  { scopeId: "scopeMantenimientoDashboard", scopeLabel: "MANTENIMIENTO / Dashboard", baseActionIds: ["exportDashboardData", "manageDashboardState"] },
+  { scopeId: "scopeMantenimientoBoardBuilder", scopeLabel: "MANTENIMIENTO / Creador de tableros", baseActionIds: ["createCatalog", "editCatalog", "deleteCatalog", "createBoard", "editBoard", "saveTemplate", "editTemplate", "deleteTemplate", "duplicateBoard", "duplicateBoardWithRows", "deleteBoard", "deleteWeekActivity"] },
+  { scopeId: "scopeMantenimientoMyBoards", scopeLabel: "MANTENIMIENTO / Mis tableros", baseActionIds: ["createBoardRow", "deleteBoardRow", "editFinishedBoardRow", "viewHistoricalBoardScopes", "boardWorkflow", "exportBoardExcel", "previewBoardPdf", "exportBoardPdf"] },
+  { scopeId: "scopeMantenimientoHistory", scopeLabel: "MANTENIMIENTO / Historial", baseActionIds: ["editHistoryRecords"] },
 ]);
 
 const ACTION_DEFINITIONS_BY_ID = new Map(ACTION_DEFINITIONS.map((item) => [item.id, item]));
@@ -892,7 +906,9 @@ export const PAGE_ACTION_GROUPS = {
   [PAGE_ADMIN]: [],
   [PAGE_HISTORY]: ["editHistoryRecords"],
   [PAGE_PROCESS_AUDITS]: ["viewProcessAudits", "manageProcessAudits", "manageProcessAuditTemplates"],
-  [PAGE_INVENTORY]: ["viewBaseInventory", "manageInventory", "deleteInventory", "importInventory", "viewCleaningInventory", "manageCleaningInventory", "deleteCleaningInventory", "importCleaningInventory", "viewOrderInventory", "manageOrderInventory", "deleteOrderInventory", "importOrderInventory"],
+  [PAGE_INVENTORY]: ["viewBaseInventory", "manageInventory", "deleteInventory", "importInventory", "viewCleaningInventory", "manageCleaningInventory", "deleteCleaningInventory", "importCleaningInventory", "viewOrderInventory", "manageOrderInventory", "deleteOrderInventory", "importOrderInventory", "viewMaintenanceInventory", "manageMaintenanceInventory", "deleteMaintenanceInventory", "importMaintenanceInventory"],
+  auditDashboard: ["exportDashboardData", "manageDashboardState"],
+  auditHistory: ["viewProcessAudits"],
   [PAGE_TRANSPORT]: [
     "viewTransportRetail",
     "manageTransportRetail",

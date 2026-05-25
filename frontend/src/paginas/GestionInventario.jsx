@@ -144,7 +144,8 @@ export default function GestionInventario({ contexto }) {
   const canViewBaseInventory = Boolean(actionPermissions.viewBaseInventory || actionPermissions.manageInventory || actionPermissions.deleteInventory || actionPermissions.importInventory);
   const canViewCleaningInventory = Boolean(actionPermissions.viewCleaningInventory || actionPermissions.manageCleaningInventory || actionPermissions.deleteCleaningInventory || actionPermissions.importCleaningInventory);
   const canViewOrderInventory = Boolean(actionPermissions.viewOrderInventory || actionPermissions.manageOrderInventory || actionPermissions.deleteOrderInventory || actionPermissions.importOrderInventory);
-  const hasInventoryTabAccess = canViewBaseInventory || canViewCleaningInventory || canViewOrderInventory;
+  const canViewMaintenanceInventory = Boolean(actionPermissions.viewMaintenanceInventory || actionPermissions.manageMaintenanceInventory || actionPermissions.deleteMaintenanceInventory || actionPermissions.importMaintenanceInventory);
+  const hasInventoryTabAccess = canViewBaseInventory || canViewCleaningInventory || canViewOrderInventory || canViewMaintenanceInventory;
 
   const getTransferredUnits = (item) => (item?.transferTargets || []).reduce((sum, target) => sum + Number(target?.availableUnits || 0), 0);
   const getAvailableTransferUnits = (item) => Math.max(0, Number(item?.stockUnits || 0));
@@ -286,7 +287,9 @@ export default function GestionInventario({ contexto }) {
               {(actionPermissions.viewOrderInventory || actionPermissions.manageOrderInventory || actionPermissions.deleteOrderInventory || actionPermissions.importOrderInventory) ? (
                 <>
                   <button type="button" className={inventoryTab === INVENTORY_DOMAIN_ORDERS ? "tab active" : "tab"} onClick={() => setInventoryTab(INVENTORY_DOMAIN_ORDERS)}>Insumos para pedidos</button>
+                  {canViewMaintenanceInventory ? (
                   <button type="button" className={inventoryTab === INVENTORY_DOMAIN_MAINTENANCE ? "tab active" : "tab"} onClick={() => setInventoryTab(INVENTORY_DOMAIN_MAINTENANCE)}>Insumos de mantenimiento</button>
+                  ) : null}
                 </>
               ) : null}
             </div>

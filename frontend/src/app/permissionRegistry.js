@@ -1,6 +1,6 @@
 /**
- * Registro central de permisos: secci�n ? �rea ? subpesta�a ? acci�n.
- * Fuente �nica para el modal de usuario y la matriz en Players.
+ * Registro central de permisos: sección → área → subpestaña → acción.
+ * Fuente única para el modal de usuario y la matriz en Players.
  */
 import {
   PAGE_DASHBOARD,
@@ -16,6 +16,7 @@ import {
   PAGE_SYSTEM_SETTINGS,
   PAGE_USERS,
   ACTION_DEFINITIONS,
+  PAGE_ACTION_GROUPS,
   getScopedAreaActionPermissionId,
 } from "../utils/constantes";
 import {
@@ -27,21 +28,21 @@ import {
   AREA_TAB_BASE_ACTIONS,
 } from "./areaNavigationConfig";
 
-/** Subpesta�as internas de Auditor�a de procesos (UI, no pageId). */
+/** Pestañas internas de Auditoría de procesos (visibilidad por pestaña). */
 export const PROCESS_AUDIT_SUB_TABS = [
-  { id: "audit-tab-captura", label: "Captura / Checklist", actionIds: ["viewProcessAudits", "manageProcessAudits"] },
-  { id: "audit-tab-propuestas", label: "Propuestas / Problemas", actionIds: ["viewProcessAudits", "manageProcessAudits"] },
-  { id: "audit-tab-autorizar", label: "Autorizar / Rechazar", actionIds: ["manageProcessAudits"] },
-  { id: "audit-tab-seguimiento", label: "Seguimiento / Implementaci�n", actionIds: ["viewProcessAudits", "manageProcessAudits"] },
-  { id: "audit-tab-historial", label: "Historial de auditor�as", actionIds: ["viewProcessAudits"] },
+  { id: "accessAuditTabCaptura", label: "Captura / Checklist", actionIds: ["viewProcessAudits", "manageProcessAudits"] },
+  { id: "accessAuditTabPropuestas", label: "Propuestas / Problemas", actionIds: ["viewProcessAudits", "manageProcessAudits"] },
+  { id: "accessAuditTabAutorizar", label: "Autorizar / Rechazar", actionIds: ["manageProcessAudits"] },
+  { id: "accessAuditTabSeguimiento", label: "Seguimiento / Implementación", actionIds: ["viewProcessAudits", "manageProcessAudits"] },
+  { id: "accessAuditTabHistorial", label: "Historial de auditorías", actionIds: ["viewProcessAudits"] },
 ];
 
-/** Acciones de la p�gina Players (administraci�n de equipo). */
+/** Acciones de la página Players (administración de equipo). */
 export const PLAYERS_ADMIN_ACTIONS = [
   { id: "createUsers", label: "Crear players" },
   { id: "editUsers", label: "Editar players" },
   { id: "deleteUsers", label: "Eliminar players" },
-  { id: "resetPasswords", label: "Restablecer contrase\u00f1as" },
+  { id: "resetPasswords", label: "Restablecer contraseñas" },
   { id: "managePermissions", label: "Gestionar permisos y roles" },
 ];
 
@@ -51,7 +52,12 @@ const UTILITY_PAGE_EXCLUDE = new Set([
   PAGE_BOARD,
   PAGE_HISTORY,
   PAGE_TRANSPORT,
+  PAGE_INCIDENCIAS,
+  PAGE_USERS,
+  PAGE_SYSTEM_SETTINGS,
 ]);
+
+const ADMIN_PAGE_IDS = new Set([PAGE_SYSTEM_SETTINGS, PAGE_USERS, PAGE_HISTORY]);
 
 function buildScopedActionPermissions(scopeActionId, baseActionIds, actionLabelById) {
   return baseActionIds
@@ -64,10 +70,19 @@ function buildScopedActionPermissions(scopeActionId, baseActionIds, actionLabelB
     .filter((item) => item.id && item.label);
 }
 
+function buildPageActionPermissions(pageId, actionLabelById) {
+  const actionIds = PAGE_ACTION_GROUPS[pageId] || [];
+  return actionIds.map((actionId) => ({
+    id: actionId,
+    label: actionLabelById.get(actionId) || actionId,
+    kind: "actions",
+  }));
+}
+
 function buildAreaItemPermissions(section) {
   if (section.id === "transporte") {
     return [
-      { tabKey: "registros-envios", label: "Registros de env�os", scopeKey: "registros-envios", actionsKey: "registros-envios" },
+      { tabKey: "registros-envios", label: "Registros de envíos", scopeKey: "registros-envios", actionsKey: "registros-envios" },
       { tabKey: "control-transporte", label: "Control transporte", scopeKey: "control-transporte", actionsKey: "control-transporte" },
       { tabKey: "incidencias-transporte", label: "Incidencias transporte", scopeKey: "incidencias-transporte", actionsKey: "incidencias-transporte" },
       { tabKey: "consolidados", label: "Consolidados", scopeKey: "consolidados", actionsKey: "consolidados" },
@@ -99,8 +114,160 @@ function buildAreaItemPermissions(section) {
   ].filter((item) => item.scopeActionId);
 }
 
+function buildMejoraContinuaItemPermissions(permissionPages, actionLabelById) {
+  const pages = permissionPages.filter((item) => item.group === "Mejora continua");
+  const items = [];
+
+  pages.forEach((item) => {
+    if (item.id === PAGE_PROCESS_AUDITS) {
+      PROCESS_AUDIT_SUB_TABS.forEach((sub) => {
+        items.push({
+          id: sub.id,
+          tabKey: sub.id,
+          label: sub.label,
+          kind: "actions",
+          actionPermissions: sub.actionIds.map((aid) => ({
+            id: aid,
+            label: actionLabelById.get(aid) || aid,
+            kind: "actions",
+          })),
+        });
+      });
+      items.push({
+        id: "manageProcessAuditTemplates",
+        tabKey: "audit-plantillas",
+        label: actionLabelById.get("manageProcessAuditTemplates") || "Plantillas de auditoría",
+        kind: "actions",
+      });
+      return;
+    }
+    items.push({
+      id: item.id,
+      tabKey: item.id,
+      label: item.label,
+      kind: "pages",
+      actionPermissions: buildPageActionPermissions(item.id, actionLabelById),
+    });
+  });
+
+  return items;
+}
+
+function buildAdminItemPermissions(permissionPages, actionLabelById) {
+  const pages = permissionPages.filter((item) => ADMIN_PAGE_IDS.has(item.id));
+  return pages.map((item) => {
+    if (item.id === PAGE_USERS) {
+      return {
+        id: PAGE_USERS,
+        tabKey: PAGE_USERS,
+        label: item.label,
+        kind: "pages",
+        actionPermissions: PLAYERS_ADMIN_ACTIONS.map((action) => ({
+          id: action.id,
+          label: actionLabelById.get(action.id) || action.label,
+          kind: "actions",
+        })),
+      };
+    }
+    return {
+      id: item.id,
+      tabKey: item.id,
+      label: item.label,
+      kind: "pages",
+      actionPermissions: buildPageActionPermissions(item.id, actionLabelById),
+    };
+  });
+}
+
+const INVENTORY_TAB_PERMISSIONS = [
+  {
+    id: "viewBaseInventory",
+    tabKey: "inventario-productos",
+    label: "Productos",
+    kind: "actions",
+    actionPermissions: [
+      { id: "manageInventory", labelKey: "manageInventory", fallback: "Gestionar" },
+      { id: "deleteInventory", labelKey: "deleteInventory", fallback: "Eliminar" },
+      { id: "importInventory", labelKey: "importInventory", fallback: "Importar" },
+    ],
+  },
+  {
+    id: "viewCleaningInventory",
+    tabKey: "inventario-limpieza",
+    label: "Insumos de limpieza",
+    kind: "actions",
+    actionPermissions: [
+      { id: "manageCleaningInventory", labelKey: "manageCleaningInventory", fallback: "Gestionar" },
+      { id: "deleteCleaningInventory", labelKey: "deleteCleaningInventory", fallback: "Eliminar" },
+      { id: "importCleaningInventory", labelKey: "importCleaningInventory", fallback: "Importar" },
+    ],
+  },
+  {
+    id: "viewOrderInventory",
+    tabKey: "inventario-pedidos",
+    label: "Insumos para pedidos",
+    kind: "actions",
+    actionPermissions: [
+      { id: "manageOrderInventory", labelKey: "manageOrderInventory", fallback: "Gestionar" },
+      { id: "deleteOrderInventory", labelKey: "deleteOrderInventory", fallback: "Eliminar" },
+      { id: "importOrderInventory", labelKey: "importOrderInventory", fallback: "Importar" },
+    ],
+  },
+  {
+    id: "viewMaintenanceInventory",
+    tabKey: "inventario-mantenimiento",
+    label: "Insumos de mantenimiento",
+    kind: "actions",
+    actionPermissions: [
+      { id: "manageMaintenanceInventory", labelKey: "manageMaintenanceInventory", fallback: "Gestionar" },
+      { id: "deleteMaintenanceInventory", labelKey: "deleteMaintenanceInventory", fallback: "Eliminar" },
+      { id: "importMaintenanceInventory", labelKey: "importMaintenanceInventory", fallback: "Importar" },
+    ],
+  },
+];
+
+function buildProduccionItemPermissions(permissionPages, actionLabelById) {
+  const pageItemPermissions = permissionPages
+    .filter((item) => item.group === "Producción")
+    .filter((item) => !UTILITY_PAGE_EXCLUDE.has(item.id))
+    .filter((item) => item.id !== PAGE_INVENTORY)
+    .map((item) => ({
+      id: item.id,
+      tabKey: item.id,
+      label: item.label,
+      kind: "pages",
+      actionPermissions: buildPageActionPermissions(item.id, actionLabelById),
+    }));
+
+  const inventoryTabPermissions = INVENTORY_TAB_PERMISSIONS.map((tab) => ({
+    id: tab.id,
+    tabKey: tab.tabKey,
+    label: tab.label,
+    kind: tab.kind,
+    actionPermissions: tab.actionPermissions.map((action) => ({
+      id: action.id,
+      label: actionLabelById.get(action.labelKey) || action.fallback,
+      kind: "actions",
+    })),
+  }));
+
+  return [...pageItemPermissions, ...inventoryTabPermissions];
+}
+
+function buildRecursosItemPermissions(permissionPages, actionLabelById) {
+  const biblioteca = permissionPages.find((item) => item.id === PAGE_BIBLIOTECA);
+  if (!biblioteca) return [];
+  return [{
+    id: PAGE_BIBLIOTECA,
+    tabKey: PAGE_BIBLIOTECA,
+    label: biblioteca.label,
+    kind: "pages",
+    actionPermissions: buildPageActionPermissions(PAGE_BIBLIOTECA, actionLabelById),
+  }];
+}
+
 /**
- * �rbol de men� lateral para asignaci�n de permisos (modal de usuario).
+ * Árbol de menú lateral para asignación de permisos (modal de usuario).
  */
 export function buildMenuPermissionSections({ permissionPages = [] }) {
   const actionLabelById = new Map(ACTION_DEFINITIONS.map((item) => [item.id, item.label]));
@@ -113,7 +280,7 @@ export function buildMenuPermissionSections({ permissionPages = [] }) {
     itemPermissions: [
       {
         id: PAGE_DASHBOARD,
-        label: "Dashboard principal (todas las �reas)",
+        label: "Dashboard principal (todas las áreas)",
         kind: "pages",
         actionPermissions: [
           { id: "exportDashboardData", label: actionLabelById.get("exportDashboardData") || "Exportar dashboard", kind: "actions" },
@@ -147,72 +314,28 @@ export function buildMenuPermissionSections({ permissionPages = [] }) {
   }).filter((section) => section.itemPermissions.length > 0);
 
   const utilitySections = Object.entries(NAV_UTILITY_ACTION_BY_GROUP).map(([groupLabel, actionId]) => {
-    const pageItemPermissions = permissionPages
-      .filter((item) => item.group === groupLabel)
-      .filter((item) => !UTILITY_PAGE_EXCLUDE.has(item.id))
-      .map((item) => {
-        if (item.id === PAGE_PROCESS_AUDITS) {
-          return {
-            id: item.id,
-            label: item.label,
-            kind: "pages",
-            subTabs: PROCESS_AUDIT_SUB_TABS.map((sub) => ({
-              id: sub.id,
-              label: sub.label,
-              kind: "subtab",
-              actionPermissions: sub.actionIds.map((aid) => ({
-                id: aid,
-                label: actionLabelById.get(aid) || aid,
-                kind: "actions",
-              })),
-            })),
-            actionPermissions: [
-              { id: "viewProcessAudits", label: actionLabelById.get("viewProcessAudits") || "Ver auditor�as", kind: "actions" },
-              { id: "manageProcessAudits", label: actionLabelById.get("manageProcessAudits") || "Gestionar auditor�as", kind: "actions" },
-              { id: "manageProcessAuditTemplates", label: actionLabelById.get("manageProcessAuditTemplates") || "Plantillas", kind: "actions" },
-            ],
-          };
-        }
-        return { id: item.id, label: item.label, kind: "pages" };
-      });
+    let itemPermissions = [];
 
-    const inventoryTabPermissions = groupLabel === "Producci�n" ? [
-      {
-        id: "viewBaseInventory",
-        label: actionLabelById.get("viewBaseInventory") || "Pesta�a Productos",
-        kind: "actions",
-        tabKey: "inventario-productos",
-        actionPermissions: [
-          { id: "manageInventory", label: actionLabelById.get("manageInventory") || "Gestionar", kind: "actions" },
-          { id: "deleteInventory", label: actionLabelById.get("deleteInventory") || "Eliminar", kind: "actions" },
-          { id: "importInventory", label: actionLabelById.get("importInventory") || "Importar", kind: "actions" },
-        ],
-      },
-      {
-        id: "viewCleaningInventory",
-        label: actionLabelById.get("viewCleaningInventory") || "Pesta�a Insumos limpieza",
-        kind: "actions",
-        tabKey: "inventario-limpieza",
-        actionPermissions: [
-          { id: "manageCleaningInventory", label: actionLabelById.get("manageCleaningInventory") || "Gestionar", kind: "actions" },
-          { id: "deleteCleaningInventory", label: actionLabelById.get("deleteCleaningInventory") || "Eliminar", kind: "actions" },
-          { id: "importCleaningInventory", label: actionLabelById.get("importCleaningInventory") || "Importar", kind: "actions" },
-        ],
-      },
-      {
-        id: "viewOrderInventory",
-        label: actionLabelById.get("viewOrderInventory") || "Pesta�a Insumos pedidos",
-        kind: "actions",
-        tabKey: "inventario-pedidos",
-        actionPermissions: [
-          { id: "manageOrderInventory", label: actionLabelById.get("manageOrderInventory") || "Gestionar", kind: "actions" },
-          { id: "deleteOrderInventory", label: actionLabelById.get("deleteOrderInventory") || "Eliminar", kind: "actions" },
-          { id: "importOrderInventory", label: actionLabelById.get("importOrderInventory") || "Importar", kind: "actions" },
-        ],
-      },
-    ] : [];
-
-    const itemPermissions = [...pageItemPermissions, ...inventoryTabPermissions];
+    if (groupLabel === "Mejora continua") {
+      itemPermissions = buildMejoraContinuaItemPermissions(permissionPages, actionLabelById);
+    } else if (groupLabel === "Producción") {
+      itemPermissions = buildProduccionItemPermissions(permissionPages, actionLabelById);
+    } else if (groupLabel === "Recursos") {
+      itemPermissions = buildRecursosItemPermissions(permissionPages, actionLabelById);
+    } else if (groupLabel === "Admin") {
+      itemPermissions = buildAdminItemPermissions(permissionPages, actionLabelById);
+    } else {
+      itemPermissions = permissionPages
+        .filter((item) => item.group === groupLabel)
+        .filter((item) => !UTILITY_PAGE_EXCLUDE.has(item.id))
+        .map((item) => ({
+          id: item.id,
+          tabKey: item.id,
+          label: item.label,
+          kind: "pages",
+          actionPermissions: buildPageActionPermissions(item.id, actionLabelById),
+        }));
+    }
 
     return {
       id: `utility-${groupLabel.toLowerCase().replace(/\s+/g, "-")}`,
@@ -223,22 +346,10 @@ export function buildMenuPermissionSections({ permissionPages = [] }) {
     };
   }).filter((section) => section.itemPermissions.length > 0);
 
-  const playersAdminSection = {
-    id: "players-admin",
-    label: "PLAYERS (ESTA P\u00c1GINA)",
-    navVisibilityActionId: PAGE_USERS,
-    navVisibilityKind: "pages",
-    itemPermissions: PLAYERS_ADMIN_ACTIONS.map((item) => ({
-      id: item.id,
-      label: item.label,
-      kind: "actions",
-    })),
-  };
-
-  return [mainDashboardSection, ...areaSections, ...utilitySections, playersAdminSection];
+  return [mainDashboardSection, ...areaSections, ...utilitySections];
 }
 
-/** Lista plana para matriz / b�squeda en Players. */
+/** Lista plana para matriz / búsqueda en Players. */
 export function flattenPermissionRegistry(menuPermissionSections = []) {
   const rows = [];
   menuPermissionSections.forEach((section) => {
@@ -248,7 +359,7 @@ export function flattenPermissionRegistry(menuPermissionSections = []) {
       sectionLabel: section.label,
       navKind: section.navVisibilityKind,
       navId: section.navVisibilityActionId,
-      label: `Secci�n lateral: ${section.label}`,
+      label: `Sección lateral: ${section.label}`,
       permissionId: section.navVisibilityActionId,
       kind: section.navVisibilityKind,
     });
@@ -272,7 +383,7 @@ export function flattenPermissionRegistry(menuPermissionSections = []) {
           sectionLabel: section.label,
           tabKey: item.tabKey || item.id,
           subTabKey: sub.id,
-          label: `${item.label} ? ${sub.label}`,
+          label: `${item.label} → ${sub.label}`,
           permissionId: sub.id,
           kind: "subtab",
         });

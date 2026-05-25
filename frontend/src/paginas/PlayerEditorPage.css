@@ -1,14 +1,15 @@
 .players-editor-page-root {
   width: 100%;
   min-width: 0;
+  min-height: calc(100dvh - 5.5rem);
 }
 
 .players-editor-fullpage {
   display: flex;
   flex-direction: column;
   width: 100%;
-  min-height: calc(100dvh - 8.5rem);
-  max-height: calc(100dvh - 8.5rem);
+  min-height: calc(100dvh - 5.5rem);
+  max-height: calc(100dvh - 5.5rem);
   min-width: 0;
   border-radius: 16px;
   background: color-mix(in srgb, var(--sicfla-surface-elevated, #fff) 96%, transparent);
@@ -55,16 +56,32 @@
 .players-editor-permissions-pane {
   flex: 1;
   min-height: 0;
-  overflow-y: auto;
-  overflow-x: hidden;
-  padding: 0 1.25rem 1.25rem;
-  -webkit-overflow-scrolling: touch;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  padding: 0.75rem 1.25rem 1.25rem;
 }
 
 .players-editor-permissions-pane .perm-panel-v2 {
-  margin-top: 0.75rem;
-  padding-top: 0.75rem;
+  margin-top: 0;
+  padding-top: 0;
   border-top: none;
+  flex: 1;
+  min-height: 0;
+}
+
+.players-editor-permissions-pane .perm-delegation-block {
+  flex-shrink: 0;
+  margin-top: 0.75rem;
+  max-height: 45%;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.players-editor-permissions-pane .perm-delegation-block .perm-explorer {
+  flex: 1;
+  min-height: 200px;
 }
 
 /* 4 columnas en pantallas anchas; baja a 3/2/1 sin apretar el contenido */
@@ -89,21 +106,96 @@
 
 .players-editor-form-pane .app-modal-field > input,
 .players-editor-form-pane .app-modal-field > select,
+.players-editor-form-pane .area-selector-row > select,
 .players-editor-form-pane .password-visibility-field > input {
+  width: 100%;
   min-height: 2.35rem;
   padding: 0.4rem 0.55rem;
   font-size: 0.78rem;
   font-weight: 600;
   text-align: left;
+  border-radius: 0.75rem;
+  border: 1px solid color-mix(in srgb, var(--sicfla-primary, #0f4c5c) 22%, var(--sicfla-border, #cbd5e1));
+  background: var(--sicfla-surface-elevated, #fff);
+  color: var(--sicfla-text, #0f172a);
+  box-shadow: none;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
-.players-editor-form-pane .app-modal-field > select {
+.players-editor-form-pane .app-modal-field > select,
+.players-editor-form-pane .area-selector-row > select {
   padding-right: 1.6rem;
   text-align-last: left;
+  cursor: pointer;
 }
 
-.players-editor-form-pane .app-modal-field > input::placeholder {
+.players-editor-form-pane .app-modal-field > input::placeholder,
+.players-editor-form-pane .password-visibility-field > input::placeholder {
   text-align: left;
+  color: var(--sicfla-text-muted, #94a3b8);
+  font-weight: 500;
+}
+
+.players-editor-form-pane .app-modal-field > input:hover,
+.players-editor-form-pane .app-modal-field > select:hover,
+.players-editor-form-pane .area-selector-row > select:hover {
+  border-color: color-mix(in srgb, var(--sicfla-primary, #0f4c5c) 38%, var(--sicfla-border, #cbd5e1));
+}
+
+.players-editor-form-pane .app-modal-field > input:focus,
+.players-editor-form-pane .app-modal-field > select:focus,
+.players-editor-form-pane .area-selector-row > select:focus {
+  border-color: color-mix(in srgb, var(--sicfla-primary, #0f4c5c) 55%, var(--sicfla-border, #cbd5e1));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--sicfla-primary, #0f4c5c) 14%, transparent);
+}
+
+.players-editor-form-row-meta {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.55rem 0.7rem;
+  align-items: start;
+}
+
+.players-editor-form-row-meta.has-password {
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr) minmax(0, 1.35fr);
+}
+
+.players-editor-password-status-pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.7rem;
+  align-items: end;
+  min-width: 0;
+}
+
+.players-editor-password-status-pair > .app-modal-field:first-child {
+  min-width: 0;
+}
+
+.players-editor-status-switch-only {
+  display: grid;
+  gap: 0.26rem;
+  justify-items: end;
+  align-content: end;
+  padding-bottom: 0.05rem;
+}
+
+.players-editor-status-switch-only > span {
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1.25;
+  text-align: right;
+  color: var(--sicfla-text, #0f172a);
+}
+
+.players-editor-status-switch-only .switch-button {
+  flex-shrink: 0;
+}
+
+.players-editor-status-switch-only--solo {
+  justify-self: end;
 }
 
 .players-editor-form-pane .area-selector-row {
@@ -121,27 +213,39 @@
   flex-shrink: 0;
 }
 
-.players-editor-form-pane .user-status-switch-field {
-  align-content: end;
-}
-
-.players-editor-form-pane .user-status-switch-row {
-  min-height: 2.35rem;
-}
-
-.players-editor-form-pane .user-status-switch-row strong {
-  font-size: 0.78rem;
-}
 
 .players-editor-form-pane .password-visibility-field {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 0.35rem;
-  align-items: center;
+  position: relative;
+  display: block;
+  min-width: 0;
 }
 
-.players-editor-form-pane .players-editor-field-password {
-  grid-column: span 2;
+.players-editor-form-pane .password-visibility-field > input {
+  padding-right: 2.35rem;
+}
+
+.players-editor-form-pane .password-visibility-field:focus-within > input {
+  border-color: color-mix(in srgb, var(--sicfla-primary, #0f4c5c) 55%, var(--sicfla-border, #cbd5e1));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--sicfla-primary, #0f4c5c) 14%, transparent);
+}
+
+.players-editor-form-pane .password-visibility-toggle {
+  position: absolute;
+  top: 50%;
+  right: 0.5rem;
+  transform: translateY(-50%);
+  border: 0;
+  background: transparent;
+  color: var(--sicfla-text-muted, #64748b);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0.15rem;
+}
+
+.players-editor-form-pane .password-visibility-toggle:hover {
+  color: var(--sicfla-primary, #0f4c5c);
 }
 
 .players-editor-grid-spacer {
@@ -153,11 +257,25 @@
   .players-editor-form-pane .players-editor-form-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
+
+  .players-editor-form-row-meta.has-password {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .players-editor-password-status-pair {
+    grid-column: 1 / -1;
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
 }
 
 @media (max-width: 900px) {
   .players-editor-form-pane .players-editor-form-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .players-editor-form-row-meta,
+  .players-editor-form-row-meta.has-password {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -190,7 +308,7 @@
   justify-content: flex-end;
   align-items: center;
   gap: 0.65rem;
-  padding: 0.85rem 1.25rem;
+  padding: 0.85rem 6.25rem 0.85rem 1.25rem;
   border-top: 1px solid color-mix(in srgb, var(--sicfla-primary, #0f4c5c) 14%, var(--sicfla-border, #e2e8f0));
   background: color-mix(in srgb, var(--sicfla-surface, #f8fafc) 96%, var(--sicfla-primary, #0f4c5c) 4%);
 }
@@ -201,7 +319,11 @@
   }
 
   .players-editor-fullpage {
-    min-height: calc(100dvh - 7rem);
-    max-height: calc(100dvh - 7rem);
+    min-height: calc(100dvh - 4.5rem);
+    max-height: calc(100dvh - 4.5rem);
+  }
+
+  .players-editor-footer {
+    padding-right: 5rem;
   }
 }
