@@ -912,6 +912,7 @@ export default function GestionTransporte({ contexto }) {
   const canManageLogisticsTab = hasActionPermission("manageTransportLogistics", false);
   const canSeeConsolidatedTab = hasTransportOnlyAccess
     && hasActionPermission("viewTransportConsolidated", false);
+  const canSeeTransportDashboardTab = hasActionPermission("scopeTransporteDashboard", false);
   const canCreateTransportIncidencia = hasActionPermission("createIncidencia", false);
   const canEditTransportIncidencia = hasActionPermission("editIncidencia", false);
   const canDeleteTransportIncidencia = hasActionPermission("deleteIncidencia", false);
@@ -954,9 +955,9 @@ export default function GestionTransporte({ contexto }) {
   ]);
 
   const transportDashboardTabOptions = useMemo(() => {
-    if (!canSeeConsolidatedTab) return [];
+    if (!canSeeTransportDashboardTab) return [];
     return [{ id: "dashboard-transporte", label: "Dashboard", shortLabel: "Dashboard", icon: "📈", accent: "#355f88", soft: "rgba(15, 118, 110, 0.12)" }];
-  }, [canSeeConsolidatedTab]);
+  }, [canSeeTransportDashboardTab]);
 
   const mainTabOptions = useMemo(
     () => ([...shippingTabOptions, ...transportAdminTabOptions, ...transportDashboardTabOptions]),

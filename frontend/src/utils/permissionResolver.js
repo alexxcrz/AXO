@@ -5,7 +5,10 @@ import {
   AREA_TAB_SCOPED_ACTION_CONFIG,
   getScopedAreaActionPermissionId,
 } from "./constantes.js";
-import { TRANSPORT_DOCUMENTACION_LEGACY_SCOPED_ACTIONS } from "../app/areaNavigationConfig.js";
+import {
+  AREA_TAB_PERMISSION_ACTIONS,
+  TRANSPORT_DOCUMENTACION_LEGACY_SCOPED_ACTIONS,
+} from "../app/areaNavigationConfig.js";
 
 const SCOPED_ALIASES_BY_BASE_ACTION = AREA_TAB_SCOPED_ACTION_CONFIG.reduce((map, { scopeId, baseActionIds }) => {
   (baseActionIds || []).forEach((baseActionId) => {
@@ -76,6 +79,23 @@ export function userHasAnyAreaDashboardScope(user, permissions) {
   return AREA_DASHBOARD_SCOPE_IDS.some((scopeId) => hasScopeTabGrant(user, scopeId, permissions));
 }
 
+export function userHasAnyTransportAreaScope(user, permissions) {
+  if (!user) return false;
+  if (normalizeRoleIsLead(user)) return true;
+  const transportScopes = Object.values(AREA_TAB_PERMISSION_ACTIONS.transporte || {});
+  return transportScopes.some((scopeId) => hasScopeTabGrant(user, scopeId, permissions));
+}
+
+export function canAccessAreaDashboardPage(user, areaSectionId, permissions) {
+  if (!user || !areaSectionId || areaSectionId === "all") return false;
+  if (normalizeRoleIsLead(user)) return true;
+  if (areaSectionId === "transporte") {
+    return hasScopeTabGrant(user, "scopeTransporteDashboard", permissions);
+  }
+  const scopeId = AREA_TAB_PERMISSION_ACTIONS[areaSectionId]?.dashboard || "";
+  return scopeId ? hasScopeTabGrant(user, scopeId, permissions) : false;
+}
+
 function normalizeRoleIsLead(user) {
   return String(user?.role || "").trim() === ROLE_LEAD;
 }
@@ -123,12 +143,16 @@ export function resolveCanAccessPage(user, pageId, permissions) {
   if (!user || !pageId) return false;
   if (normalizeRoleIsLead(user)) return true;
 
-  const override = readPermissionEntryOverride(user, "pages", pageId, permissions);
-  if (typeof override === "boolean") return override;
-
   if (pageId === PAGE_DASHBOARD && userHasAnyAreaDashboardScope(user, permissions)) {
     return true;
   }
+
+  if (pageId === PAGE_TRANSPORT && userHasAnyTransportAreaScope(user, permissions)) {
+    return true;
+  }
+
+  const override = readPermissionEntryOverride(user, "pages", pageId, permissions);
+  if (typeof override === "boolean") return override;
 
   return userMatchesPermissionEntry(user, permissions?.pages?.[pageId]);
 }

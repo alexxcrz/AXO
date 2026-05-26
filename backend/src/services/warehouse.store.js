@@ -3907,6 +3907,19 @@ function userHasAnyAreaDashboardScope(user, normalizedPermissions) {
   return AREA_DASHBOARD_SCOPE_IDS.some((scopeId) => hasScopeTabGrant(user, scopeId, normalizedPermissions));
 }
 
+const TRANSPORT_AREA_SCOPE_IDS = [
+  "scopeTransporteRegistrosEnvios",
+  "scopeTransporteControl",
+  "scopeTransporteIncidencias",
+  "scopeTransporteConsolidados",
+  "scopeTransporteDashboard",
+  "scopeTransporteLogistica",
+];
+
+function userHasAnyTransportAreaScope(user, normalizedPermissions) {
+  return TRANSPORT_AREA_SCOPE_IDS.some((scopeId) => hasScopeTabGrant(user, scopeId, normalizedPermissions));
+}
+
 export function canUserDoWarehouseAction(user, actionId, permissions = null) {
   if (!user || !actionId) return false;
   const normalizedRole = normalizeRole(user.role);
@@ -3930,11 +3943,14 @@ export function canUserAccessWarehousePage(user, pageId, permissions = null) {
 
   const resolvedPermissions = permissions || getRawWarehouseState().permissions;
   const normalizedPermissions = normalizePermissions(resolvedPermissions);
-  const userOverride = normalizedPermissions.userOverrides?.[user.id]?.pages?.[pageId];
-  if (typeof userOverride === "boolean") return userOverride;
   if (pageId === "dashboard" && userHasAnyAreaDashboardScope(user, normalizedPermissions)) {
     return true;
   }
+  if (pageId === "transport" && userHasAnyTransportAreaScope(user, normalizedPermissions)) {
+    return true;
+  }
+  const userOverride = normalizedPermissions.userOverrides?.[user.id]?.pages?.[pageId];
+  if (typeof userOverride === "boolean") return userOverride;
   return userMatchesPermissionEntry(user, normalizedPermissions.pages?.[pageId]);
 }
 

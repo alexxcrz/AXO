@@ -453,6 +453,7 @@ import {
 
   canAccessPage,
   canAccessAreaNavItem,
+  canAccessAreaDashboardPage,
   resolveFirstAccessiblePage,
   normalizeStoredActivePage,
 
@@ -3003,11 +3004,13 @@ function App() { // NOSONAR
       setPage(normalizedPage);
       return;
     }
-    if (!allowedPages.includes(page) && page !== PAGE_NOT_FOUND) {
+    const canStayOnPage = allowedPages.includes(page)
+      || (page === PAGE_DASHBOARD && canAccessAreaDashboardPage(currentUser, selectedAreaSectionId, normalizedPermissions));
+    if (!canStayOnPage && page !== PAGE_NOT_FOUND) {
       setPage(resolveFirstAccessiblePage(currentUser, normalizedPermissions));
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allowedPagesKey, currentUser?.role, page]);
+  }, [allowedPagesKey, currentUser?.role, page, selectedAreaSectionId]);
 
   useEffect(() => {
     if (adminTab === "permissions" || adminTab === "reports") {

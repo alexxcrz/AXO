@@ -12,9 +12,10 @@ import {
   resolveCanDoAction,
   resolveCanAccessPage,
   canAccessAreaNavItem,
+  canAccessAreaDashboardPage,
 } from "./permissionResolver.js";
 
-export { canAccessAreaNavItem };
+export { canAccessAreaNavItem, canAccessAreaDashboardPage };
 
 // Convierte milisegundos a formato hh:mm:ss
 export function formatElapsedMs(ms) {
