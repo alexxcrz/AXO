@@ -3869,10 +3869,42 @@ const SCOPED_ALIASES_BY_BASE_ACTION = AREA_TAB_SCOPED_ACTION_CONFIG.reduce((map,
   return map;
 }, new Map());
 
+const SCOPED_CHILDREN_BY_SCOPE = Object.fromEntries(
+  AREA_TAB_SCOPED_ACTION_CONFIG.map(([scopeId, baseActionIds]) => [
+    scopeId,
+    (baseActionIds || []).map((baseActionId) => `${scopeId}__${baseActionId}`),
+  ]),
+);
+
+const AREA_DASHBOARD_SCOPE_IDS = AREA_TAB_SCOPED_ACTION_CONFIG
+  .map(([scopeId]) => scopeId)
+  .filter((scopeId) => /Dashboard$/i.test(scopeId));
+
+const SCOPE_TAB_ACTION_IDS = new Set(AREA_TAB_SCOPED_ACTION_CONFIG.map(([scopeId]) => scopeId));
+
 function canUserDoWarehouseActionEntry(user, actionId, normalizedPermissions) {
   const userOverride = normalizedPermissions.userOverrides?.[user.id]?.actions?.[actionId];
   if (typeof userOverride === "boolean") return userOverride;
   return userMatchesPermissionEntry(user, normalizedPermissions.actions?.[actionId]);
+}
+
+function hasScopedAliasGrant(user, baseActionId, normalizedPermissions) {
+  const scopedAliases = SCOPED_ALIASES_BY_BASE_ACTION.get(baseActionId) || [];
+  if (scopedAliases.some((scopedActionId) => canUserDoWarehouseActionEntry(user, scopedActionId, normalizedPermissions))) {
+    return true;
+  }
+  const legacyScopedActionId = TRANSPORT_DOCUMENTACION_LEGACY_SCOPED_ACTIONS[baseActionId];
+  return Boolean(legacyScopedActionId && canUserDoWarehouseActionEntry(user, legacyScopedActionId, normalizedPermissions));
+}
+
+function hasScopeTabGrant(user, scopeActionId, normalizedPermissions) {
+  if (canUserDoWarehouseActionEntry(user, scopeActionId, normalizedPermissions)) return true;
+  const scopedChildren = SCOPED_CHILDREN_BY_SCOPE[scopeActionId] || [];
+  return scopedChildren.some((scopedActionId) => canUserDoWarehouseActionEntry(user, scopedActionId, normalizedPermissions));
+}
+
+function userHasAnyAreaDashboardScope(user, normalizedPermissions) {
+  return AREA_DASHBOARD_SCOPE_IDS.some((scopeId) => hasScopeTabGrant(user, scopeId, normalizedPermissions));
 }
 
 export function canUserDoWarehouseAction(user, actionId, permissions = null) {
@@ -3882,19 +3914,13 @@ export function canUserDoWarehouseAction(user, actionId, permissions = null) {
 
   const resolvedPermissions = permissions || getRawWarehouseState().permissions;
   const normalizedPermissions = normalizePermissions(resolvedPermissions);
+
+  if (SCOPE_TAB_ACTION_IDS.has(actionId)) {
+    return hasScopeTabGrant(user, actionId, normalizedPermissions);
+  }
+
   if (canUserDoWarehouseActionEntry(user, actionId, normalizedPermissions)) return true;
-
-  const legacyScopedActionId = TRANSPORT_DOCUMENTACION_LEGACY_SCOPED_ACTIONS[actionId];
-  if (legacyScopedActionId && canUserDoWarehouseActionEntry(user, legacyScopedActionId, normalizedPermissions)) {
-    return true;
-  }
-
-  const scopedAliases = SCOPED_ALIASES_BY_BASE_ACTION.get(actionId) || [];
-  if (scopedAliases.some((scopedActionId) => canUserDoWarehouseActionEntry(user, scopedActionId, normalizedPermissions))) {
-    return true;
-  }
-
-  return false;
+  return hasScopedAliasGrant(user, actionId, normalizedPermissions);
 }
 
 export function canUserAccessWarehousePage(user, pageId, permissions = null) {
@@ -3906,6 +3932,9 @@ export function canUserAccessWarehousePage(user, pageId, permissions = null) {
   const normalizedPermissions = normalizePermissions(resolvedPermissions);
   const userOverride = normalizedPermissions.userOverrides?.[user.id]?.pages?.[pageId];
   if (typeof userOverride === "boolean") return userOverride;
+  if (pageId === "dashboard" && userHasAnyAreaDashboardScope(user, normalizedPermissions)) {
+    return true;
+  }
   return userMatchesPermissionEntry(user, normalizedPermissions.pages?.[pageId]);
 }
 

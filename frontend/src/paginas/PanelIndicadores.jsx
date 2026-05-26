@@ -330,22 +330,10 @@ export default function PanelIndicadores({ contexto }) {
     );
   }, [departmentOptions]);
 
-  const dashboardBuilderConfig = useMemo(() => {
-    try {
-      const raw = localStorage.getItem("copmec-dashboard-config");
-      return raw ? JSON.parse(raw) : null;
-    } catch {
-      return null;
-    }
-  }, []);
-
-  const visibleDashboardSections = useMemo(() => {
-    const components = Array.isArray(dashboardBuilderConfig?.components) ? dashboardBuilderConfig.components : null;
-    if (!components) {
-      return new Set(["executive", "players", "alerts", "merma", "trends", "inventory", "causes"]);
-    }
-    return new Set(components.filter((component) => component.enabled).map((component) => component.type));
-  }, [dashboardBuilderConfig]);
+  const visibleDashboardSections = useMemo(
+    () => new Set(["executive", "players", "alerts", "merma", "trends", "inventory", "causes"]),
+    [],
+  );
 
   const [pauseModalOpen, setPauseModalOpen] = useState(false);
   const [pauseModalData, setPauseModalData] = useState(null);
@@ -546,39 +534,6 @@ export default function PanelIndicadores({ contexto }) {
   const [confirmResetOpen, setConfirmResetOpen] = useState(false);
   const [isResetSubmitting, setIsResetSubmitting] = useState(false);
   const [leaderboardBoardFilter, setLeaderboardBoardFilter] = useState("all");
-
-  useEffect(() => {
-    if (!dashboardBuilderConfig?.components) return;
-
-    const playersComponent = dashboardBuilderConfig.components.find((component) => component.type === "players");
-    if (playersComponent?.settings?.chartType) {
-      setPeopleChartType(playersComponent.settings.chartType);
-    }
-
-    const mermaComponent = dashboardBuilderConfig.components.find((component) => component.type === "merma");
-    if (mermaComponent?.settings?.chartType) {
-      setMermaChartType(mermaComponent.settings.chartType);
-    }
-
-    const trendsComponent = dashboardBuilderConfig.components.find((component) => component.type === "trends");
-    if (trendsComponent?.settings?.chartType) {
-      setTrendChartType(trendsComponent.settings.chartType);
-    }
-
-    const inventoryComponent = dashboardBuilderConfig.components.find((component) => component.type === "inventory");
-    if (inventoryComponent?.settings?.chartType) {
-      setInventoryChartType(inventoryComponent.settings.chartType);
-    }
-    if (inventoryComponent?.settings?.metric) {
-      setInventoryMetric(inventoryComponent.settings.metric);
-    }
-    if (inventoryComponent?.settings?.view) {
-      setInventoryView(inventoryComponent.settings.view);
-      if (inventoryComponent.settings.view === "all") {
-        setLeaderboardBoardFilter("all");
-      }
-    }
-  }, [dashboardBuilderConfig]);
 
   const isWeeklyDashboardPeriod = dashboardFilters?.periodType === "week";
   const effectiveTrendChartType = isWeeklyDashboardPeriod ? "line" : trendChartType;

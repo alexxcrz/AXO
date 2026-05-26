@@ -51,7 +51,6 @@ import MisTableros from "./paginas/MisTableros";
 import ConfiguracionSistema from "./paginas/ConfiguracionSistema";
 import PaginaNoEncontrada from "./paginas/PaginaNoEncontrada";
 import PanelIndicadores from "./paginas/PanelIndicadores";
-import DashboardBuilder from "./paginas/DashboardBuilder";
 import TablerosCreados from "./paginas/TablerosCreados";
 import BibliotecaPage from "./paginas/BibliotecaPage";
 
@@ -134,7 +133,7 @@ import {
 
   ENABLE_LEGACY_WHOLE_STATE_SYNC,
 
-  PAGE_BOARD, PAGE_CUSTOM_BOARDS, PAGE_ADMIN, PAGE_DASHBOARD, PAGE_DASHBOARD_BUILDER, PAGE_HISTORY, PAGE_PROCESS_AUDITS,
+  PAGE_BOARD, PAGE_CUSTOM_BOARDS, PAGE_ADMIN, PAGE_DASHBOARD, PAGE_HISTORY, PAGE_PROCESS_AUDITS,
 
   PAGE_INVENTORY, PAGE_USERS, PAGE_BIBLIOTECA, PAGE_INCIDENCIAS, PAGE_NOT_FOUND,
   PAGE_TRANSPORT,
@@ -453,6 +452,9 @@ import {
   canViewUserByAreaScope,
 
   canAccessPage,
+  canAccessAreaNavItem,
+  resolveFirstAccessiblePage,
+  normalizeStoredActivePage,
 
   canDoAction,
 
@@ -539,6 +541,7 @@ import {
 } from "./app/areaNavigationConfig.js";
 import {
   buildMenuPermissionSections,
+  filterAssignableMenuPermissionSections,
   flattenPermissionRegistry,
   getPermissionRegistryStats,
 } from "./app/permissionRegistry.js";
@@ -570,7 +573,7 @@ function App() { // NOSONAR
     if (urlArea === "all") return PAGE_DASHBOARD;
     try {
       const saved = localStorage.getItem(ACTIVE_PAGE_KEY);
-      return saved && PAGE_ROUTE_ALIASES[saved] ? PAGE_ROUTE_ALIASES[saved] : PAGE_DASHBOARD;
+      return normalizeStoredActivePage(saved);
     } catch {
       return PAGE_DASHBOARD;
     }
@@ -2995,9 +2998,13 @@ function App() { // NOSONAR
 
   useEffect(() => {
     if (!currentUser) return;
+    const normalizedPage = normalizeStoredActivePage(page);
+    if (normalizedPage !== page) {
+      setPage(normalizedPage);
+      return;
+    }
     if (!allowedPages.includes(page) && page !== PAGE_NOT_FOUND) {
-      const fallbackPage = allowedPages[0] || PAGE_DASHBOARD;
-      setPage(fallbackPage);
+      setPage(resolveFirstAccessiblePage(currentUser, normalizedPermissions));
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allowedPagesKey, currentUser?.role, page]);
@@ -3621,7 +3628,6 @@ function App() { // NOSONAR
   const utilityNavItems = useMemo(
     () => allowedNavItems.filter((item) => {
       if ([PAGE_CUSTOM_BOARDS, PAGE_BOARD, PAGE_TRANSPORT, PAGE_INCIDENCIAS].includes(item.id)) return false;
-      if (item.id === PAGE_DASHBOARD_BUILDER) return false;
       if (item.group === "Mejora continua") return false;
       const requiredActionId = NAV_UTILITY_ACTION_BY_GROUP[item.group] || "";
       if (!requiredActionId) return true;
@@ -3684,14 +3690,9 @@ function App() { // NOSONAR
 
     return [...staticSections, ...dynamicSections]
       .map((section) => {
-        const items = (section.items || []).filter((item) => {
-          if (!canAccessPage(currentUser, item.pageId, normalizedPermissions)) return false;
-          if (!item.requiredActionId) return true;
-          if (item.requiredKind === "pages") {
-            return canAccessPage(currentUser, item.requiredActionId, normalizedPermissions);
-          }
-          return canDoAction(currentUser, item.requiredActionId, normalizedPermissions);
-        });
+        const items = (section.items || []).filter((item) => (
+          canAccessAreaNavItem(currentUser, item, normalizedPermissions)
+        ));
         const sectionNotificationCount = section.id === "mejora-continua"
           ? processAuditAttentionCount
           : items.reduce((sum, item) => sum + (Number(item.notificationCount) || 0), 0);
@@ -3739,16 +3740,6 @@ function App() { // NOSONAR
   const menuPermissionSections = useMemo(
     () => buildMenuPermissionSections({ permissionPages }),
     [permissionPages],
-  );
-
-  const permissionRegistryFlat = useMemo(
-    () => flattenPermissionRegistry(menuPermissionSections),
-    [menuPermissionSections],
-  );
-
-  const permissionRegistryStats = useMemo(
-    () => getPermissionRegistryStats(menuPermissionSections),
-    [menuPermissionSections],
   );
 
   const userModalRoleOptions = useMemo(() => {
@@ -4364,6 +4355,24 @@ function App() { // NOSONAR
   function canGrantManagedPermission(kind, key) {
     return canGrantKeyInScope(editorDelegableScope, kind, key);
   }
+
+  const assignableMenuPermissionSections = useMemo(
+    () => filterAssignableMenuPermissionSections(
+      menuPermissionSections,
+      (kind, key) => canGrantKeyInScope(editorDelegableScope, kind, key),
+    ),
+    [menuPermissionSections, editorDelegableScope],
+  );
+
+  const permissionRegistryFlat = useMemo(
+    () => flattenPermissionRegistry(assignableMenuPermissionSections),
+    [assignableMenuPermissionSections],
+  );
+
+  const permissionRegistryStats = useMemo(
+    () => getPermissionRegistryStats(assignableMenuPermissionSections),
+    [assignableMenuPermissionSections],
+  );
 
   function canGrantDelegationKey(kind, key) {
     if (!canConfigureDelegationSection) return false;
@@ -6350,7 +6359,7 @@ function App() { // NOSONAR
       setLoginDirectory(buildLoginDirectoryFromState(normalizedState));
       setPasswordForm({ password: "", confirmPassword: "", message: "" });
       const nextUser = normalizedState.users.find((user) => user.id === authResult.userId) || authResult.user;
-      setPage(nextUser?.role === ROLE_JR ? PAGE_CUSTOM_BOARDS : PAGE_DASHBOARD);
+      setPage(resolveFirstAccessiblePage(nextUser, normalizePermissions(normalizedState.permissions)));
       setSyncStatus("Sincronizado");
     } catch (error) {
       if (isSessionRequiredError(error)) {
@@ -7481,7 +7490,7 @@ function App() { // NOSONAR
     updateUserModalRole,
     closeUserModal,
     submitUserModal,
-    menuPermissionSections,
+    menuPermissionSections: assignableMenuPermissionSections,
     expandedPermissionTabs,
     expandedDelegationTabs,
     canGrantManagedPermission,
@@ -7972,7 +7981,7 @@ function App() { // NOSONAR
     userSearch,
     userStats,
     usersViewTab,
-    menuPermissionSections,
+    menuPermissionSections: assignableMenuPermissionSections,
     permissionRegistryFlat,
     permissionRegistryStats,
     playerEditor,
@@ -8137,7 +8146,6 @@ function App() { // NOSONAR
           {page === PAGE_BOARD || page === PAGE_ADMIN ? <TablerosCreados contexto={paginasContexto} /> : null}
           {page === PAGE_CUSTOM_BOARDS ? <MisTableros contexto={paginasContexto} /> : null}
           {page === PAGE_DASHBOARD ? <PanelIndicadores contexto={paginasContexto} /> : null}
-          {page === PAGE_DASHBOARD_BUILDER ? <DashboardBuilder contexto={paginasContexto} /> : null}
           {page === PAGE_HISTORY ? <HistorialSemanas contexto={paginasContexto} /> : null}
           {page === PAGE_PROCESS_AUDITS ? <AuditoriasProcesos contexto={paginasContexto} /> : null}
           {page === PAGE_INVENTORY ? <GestionInventario contexto={paginasContexto} /> : null}

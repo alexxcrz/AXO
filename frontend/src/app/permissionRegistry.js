@@ -4,8 +4,8 @@
  */
 import {
   PAGE_DASHBOARD,
-  PAGE_DASHBOARD_BUILDER,
   PAGE_CUSTOM_BOARDS,
+  PERMISSION_ASSIGNMENT_EXCLUDED_IDS,
   PAGE_BOARD,
   PAGE_HISTORY,
   PAGE_PROCESS_AUDITS,
@@ -347,6 +347,52 @@ export function buildMenuPermissionSections({ permissionPages = [] }) {
   }).filter((section) => section.itemPermissions.length > 0);
 
   return [mainDashboardSection, ...areaSections, ...utilitySections];
+}
+
+function isAssignablePermissionId(kind, permissionId, canGrantFn) {
+  if (!permissionId || PERMISSION_ASSIGNMENT_EXCLUDED_IDS.has(permissionId)) return false;
+  return canGrantFn(kind, permissionId);
+}
+
+function filterActionPermissionList(actions, canGrantFn) {
+  return (actions || []).filter((action) => isAssignablePermissionId("actions", action.id, canGrantFn));
+}
+
+function filterSubTabs(subTabs, canGrantFn) {
+  return (subTabs || [])
+    .map((sub) => ({
+      ...sub,
+      actionPermissions: filterActionPermissionList(sub.actionPermissions, canGrantFn),
+    }))
+    .filter((sub) => sub.actionPermissions.length > 0);
+}
+
+function filterTabPermission(tab, canGrantFn) {
+  const actionPermissions = filterActionPermissionList(tab.actionPermissions, canGrantFn);
+  const subTabs = filterSubTabs(tab.subTabs, canGrantFn);
+  const tabDelegable = isAssignablePermissionId(tab.kind || "actions", tab.id, canGrantFn);
+  if (!tabDelegable && !actionPermissions.length && !subTabs.length) return null;
+  return { ...tab, actionPermissions, subTabs };
+}
+
+/**
+ * Oculta permisos no delegables o reservados al Lead principal (no se muestran bloqueados).
+ */
+export function filterAssignableMenuPermissionSections(menuPermissionSections = [], canGrantFn = () => false) {
+  return (menuPermissionSections || [])
+    .map((section) => {
+      const navDelegable = isAssignablePermissionId(
+        section.navVisibilityKind || "actions",
+        section.navVisibilityActionId,
+        canGrantFn,
+      );
+      const itemPermissions = (section.itemPermissions || [])
+        .map((tab) => filterTabPermission(tab, canGrantFn))
+        .filter(Boolean);
+      if (!navDelegable && !itemPermissions.length) return null;
+      return { ...section, itemPermissions };
+    })
+    .filter(Boolean);
 }
 
 /** Lista plana para matriz / búsqueda en Players. */

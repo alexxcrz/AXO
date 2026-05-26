@@ -22,6 +22,7 @@ export const PAGE_BOARD = "index";
 export const PAGE_CUSTOM_BOARDS = "customBoards";
 export const PAGE_ADMIN = "admin";
 export const PAGE_DASHBOARD = "dashboard";
+/** @deprecated Ruta legada; redirige a dashboard. La página ya no existe. */
 export const PAGE_DASHBOARD_BUILDER = "dashboardBuilder";
 export const PAGE_HISTORY = "history";
 export const PAGE_PROCESS_AUDITS = "processAudits";
@@ -35,7 +36,6 @@ export const PAGE_NOT_FOUND = "404";
 
 export const PAGE_ROUTE_SLUGS = {
   [PAGE_DASHBOARD]: "dashboard",
-  [PAGE_DASHBOARD_BUILDER]: "dashboard-builder",
   [PAGE_CUSTOM_BOARDS]: "tableros",
   [PAGE_BOARD]: "creador-de-tableros",
   [PAGE_ADMIN]: "creador-de-tableros",
@@ -52,9 +52,9 @@ export const PAGE_ROUTE_SLUGS = {
 
 export const PAGE_ROUTE_ALIASES = {
   dashboard: PAGE_DASHBOARD,
-  "dashboard-builder": PAGE_DASHBOARD_BUILDER,
+  "dashboard-builder": PAGE_DASHBOARD,
+  [PAGE_DASHBOARD_BUILDER]: PAGE_DASHBOARD,
   [PAGE_DASHBOARD]: PAGE_DASHBOARD,
-  [PAGE_DASHBOARD_BUILDER]: PAGE_DASHBOARD_BUILDER,
   "mis-tableros": PAGE_CUSTOM_BOARDS,
   "tableros": PAGE_CUSTOM_BOARDS,
   [PAGE_CUSTOM_BOARDS]: PAGE_CUSTOM_BOARDS,
@@ -629,9 +629,15 @@ export const BOARD_OPERATIONAL_CONTEXT_OPTIONS = [
   { value: BOARD_OPERATIONAL_CONTEXT_CUSTOM, label: "Estación, nave u opciones manuales" },
 ];
 
+/** Acciones/páginas reservadas al Lead principal: no aparecen al asignar permisos a otros. */
+export const PERMISSION_ASSIGNMENT_EXCLUDED_IDS = new Set([
+  "managePermissions",
+  "useCopmecAI",
+  PAGE_DASHBOARD_BUILDER,
+]);
+
 export const NAV_ITEMS = [
   { id: PAGE_DASHBOARD,      label: "Dashboard",           icon: BarChart3,       group: "General",    roles: [ROLE_LEAD, ROLE_SR, ROLE_SSR] },
-  { id: PAGE_DASHBOARD_BUILDER, label: "Dashboard Builder", icon: LayoutDashboard, group: "General",    roles: [ROLE_LEAD, ROLE_SR, ROLE_SSR, ROLE_JR] },
   { id: PAGE_CUSTOM_BOARDS,  label: "Mis tableros",        icon: LayoutDashboard, group: "General",    roles: [ROLE_LEAD, ROLE_SR, ROLE_SSR, ROLE_JR] },
   { id: PAGE_BOARD,          label: "Creador de tableros", icon: ClipboardList,   group: "Producción", roles: [ROLE_LEAD, ROLE_SR, ROLE_SSR] },
   { id: PAGE_HISTORY,        label: "Historial",           icon: CalendarDays,    group: "Admin",      roles: [ROLE_LEAD, ROLE_SR] },
@@ -797,7 +803,7 @@ export const ACTION_DEFINITIONS = [
   { id: "useCopmecAI",             label: "Usar COPMEC AI (Cerebro Operativo)",        category: "COPMEC AI",           defaultRoles: [ROLE_LEAD] },
 ];
 
-const AREA_TAB_SCOPED_ACTION_CONFIG = Object.freeze([
+export const AREA_TAB_SCOPED_ACTION_CONFIG = Object.freeze([
   { scopeId: "scopeEstoDashboard", scopeLabel: "ESTO / Dashboard", baseActionIds: ["exportDashboardData", "manageDashboardState"] },
   { scopeId: "scopeEstoBoardBuilder", scopeLabel: "ESTO / Creador de tableros", baseActionIds: ["createCatalog", "editCatalog", "deleteCatalog", "createBoard", "editBoard", "saveTemplate", "editTemplate", "deleteTemplate", "duplicateBoard", "duplicateBoardWithRows", "deleteBoard", "deleteWeekActivity"] },
   { scopeId: "scopeEstoMyBoards", scopeLabel: "ESTO / Mis tableros", baseActionIds: ["createBoardRow", "deleteBoardRow", "editFinishedBoardRow", "viewHistoricalBoardScopes", "boardWorkflow", "exportBoardExcel", "previewBoardPdf", "exportBoardPdf"] },
