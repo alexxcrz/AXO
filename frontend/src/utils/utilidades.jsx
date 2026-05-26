@@ -13,9 +13,10 @@ import {
   resolveCanAccessPage,
   canAccessAreaNavItem,
   canAccessAreaDashboardPage,
+  canAccessGlobalDashboardPage,
 } from "./permissionResolver.js";
 
-export { canAccessAreaNavItem, canAccessAreaDashboardPage };
+export { canAccessAreaNavItem, canAccessAreaDashboardPage, canAccessGlobalDashboardPage };
 
 // Convierte milisegundos a formato hh:mm:ss
 export function formatElapsedMs(ms) {
@@ -3865,6 +3866,9 @@ const INVENTORY_PAGE_ACCESS_ACTION_IDS = [
 ];
 
 export function canAccessPage(user, pageId, permissions) {
+  if (pageId === PAGE_DASHBOARD) {
+    return canAccessGlobalDashboardPage(user, permissions);
+  }
   if (resolveCanAccessPage(user, pageId, permissions)) return true;
   if (pageId === PAGE_INVENTORY) {
     return INVENTORY_PAGE_ACCESS_ACTION_IDS.some((actionId) => resolveCanDoAction(user, actionId, permissions));

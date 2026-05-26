@@ -96,6 +96,15 @@ export function canAccessAreaDashboardPage(user, areaSectionId, permissions) {
   return scopeId ? hasScopeTabGrant(user, scopeId, permissions) : false;
 }
 
+/** Dashboard corporativo (todas las áreas). No incluye dashboards scoped por área. */
+export function canAccessGlobalDashboardPage(user, permissions) {
+  if (!user) return false;
+  if (normalizeRoleIsLead(user)) return true;
+  const override = readPermissionEntryOverride(user, "pages", PAGE_DASHBOARD, permissions);
+  if (typeof override === "boolean") return override;
+  return userMatchesPermissionEntry(user, permissions?.pages?.[PAGE_DASHBOARD]);
+}
+
 function normalizeRoleIsLead(user) {
   return String(user?.role || "").trim() === ROLE_LEAD;
 }
@@ -142,10 +151,6 @@ export function canAccessAreaNavItem(user, item, permissions) {
 export function resolveCanAccessPage(user, pageId, permissions) {
   if (!user || !pageId) return false;
   if (normalizeRoleIsLead(user)) return true;
-
-  if (pageId === PAGE_DASHBOARD && userHasAnyAreaDashboardScope(user, permissions)) {
-    return true;
-  }
 
   if (pageId === PAGE_TRANSPORT && userHasAnyTransportAreaScope(user, permissions)) {
     return true;

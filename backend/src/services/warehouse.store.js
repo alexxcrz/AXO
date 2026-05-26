@@ -3943,9 +3943,6 @@ export function canUserAccessWarehousePage(user, pageId, permissions = null) {
 
   const resolvedPermissions = permissions || getRawWarehouseState().permissions;
   const normalizedPermissions = normalizePermissions(resolvedPermissions);
-  if (pageId === "dashboard" && userHasAnyAreaDashboardScope(user, normalizedPermissions)) {
-    return true;
-  }
   if (pageId === "transport" && userHasAnyTransportAreaScope(user, normalizedPermissions)) {
     return true;
   }
