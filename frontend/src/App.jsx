@@ -776,6 +776,8 @@ function App() { // NOSONAR
   const starterByRowIdRef = useRef({});
   const routeLastUrlRef = useRef(`${globalThis.location.pathname}${globalThis.location.search}${globalThis.location.hash || ""}`);
   const routeSyncFromPopRef = useRef(false);
+  const warehouseRefreshTimerRef = useRef(null);
+  const warehouseRefreshQueuedRef = useRef(false);
   const BOARD_CELL_DRAFT_TTL_MS = 4500;
 
   useEffect(() => {
@@ -848,6 +850,46 @@ function App() { // NOSONAR
     setLoginDirectory(buildLoginDirectoryFromState(mergedState));
     setSyncStatus("Sincronizado");
     return mergedState;
+  }
+
+  function revalidateSessionAfterRemoteState(mergedState) {
+    const nextSessionUser = mergedState.users.find((user) => user.id === sessionUserId) || null;
+    const shouldRevalidateSession = Boolean(
+      sessionUserId
+      && sessionUserId !== BOOTSTRAP_MASTER_ID
+      && (!nextSessionUser || Number(nextSessionUser.sessionVersion || 0) !== Number(sessionSnapshotRef.current.sessionVersion || 0)),
+    );
+    if (!shouldRevalidateSession) return;
+    requestJson("/auth/session").catch((error) => {
+      if (error?.status === 401) {
+        invalidateClientSession("Tu sesión se cerró porque tu acceso cambió. Si te restablecieron la contraseña, entra con la clave temporal.");
+      }
+    });
+  }
+
+  function scheduleWarehouseStateRefresh() {
+    if (warehouseRefreshTimerRef.current) {
+      warehouseRefreshQueuedRef.current = true;
+      return;
+    }
+    warehouseRefreshTimerRef.current = globalThis.setTimeout(async () => {
+      warehouseRefreshTimerRef.current = null;
+      try {
+        const remoteState = await requestJson("/warehouse/state");
+        const mergedState = applyRemoteStatePreservingBoardDrafts(remoteState);
+        revalidateSessionAfterRemoteState(mergedState);
+      } catch (error) {
+        if (isSessionRequiredError(error)) {
+          invalidateClientSession("Tu sesión terminó. Vuelve a iniciar sesión.");
+        } else {
+          setSyncStatus((current) => (current === "Modo local" ? current : "Reconectando"));
+        }
+      }
+      if (warehouseRefreshQueuedRef.current) {
+        warehouseRefreshQueuedRef.current = false;
+        scheduleWarehouseStateRefresh();
+      }
+    }, 450);
   }
 
   function armGlobalCaptureShield(nextMs = 1600, notify = false) {
@@ -1459,24 +1501,18 @@ function App() { // NOSONAR
     events.onmessage = (event) => {
       try {
         const payload = JSON.parse(event.data);
-        if (payload.type !== "state" || !payload.state) return;
-        const mergedState = mergeRemoteStateWithBoardDrafts(payload.state);
-        const nextSessionUser = mergedState.users.find((user) => user.id === sessionUserId) || null;
-        const shouldRevalidateSession = Boolean(
-          sessionUserId
-          && sessionUserId !== BOOTSTRAP_MASTER_ID
-          && (!nextSessionUser || Number(nextSessionUser.sessionVersion || 0) !== Number(sessionSnapshotRef.current.sessionVersion || 0)),
-        );
-        skipNextSyncRef.current = true;
-        setState(mergedState);
-        setLoginDirectory(buildLoginDirectoryFromState(mergedState));
-        setSyncStatus("Sincronizado");
-        if (shouldRevalidateSession) {
-          requestJson("/auth/session").catch((error) => {
-            if (error?.status === 401) {
-              invalidateClientSession("Tu sesión se cerró porque tu acceso cambió. Si te restablecieron la contraseña, entra con la clave temporal.");
-            }
-          });
+        if (payload.type === "updated") {
+          scheduleWarehouseStateRefresh();
+          return;
+        }
+        // Compatibilidad con servidores que aún envían el estado completo por SSE.
+        if (payload.type === "state" && payload.state) {
+          const mergedState = mergeRemoteStateWithBoardDrafts(payload.state);
+          skipNextSyncRef.current = true;
+          setState(mergedState);
+          setLoginDirectory(buildLoginDirectoryFromState(mergedState));
+          setSyncStatus("Sincronizado");
+          revalidateSessionAfterRemoteState(mergedState);
         }
       } catch {
         setSyncStatus("Sincronizado");
@@ -1492,6 +1528,11 @@ function App() { // NOSONAR
     return () => {
       active = false;
       events.close();
+      if (warehouseRefreshTimerRef.current) {
+        globalThis.clearTimeout(warehouseRefreshTimerRef.current);
+        warehouseRefreshTimerRef.current = null;
+      }
+      warehouseRefreshQueuedRef.current = false;
     };
   }, [sessionUserId]);
 
@@ -1503,19 +1544,12 @@ function App() { // NOSONAR
     const socket = socketRef.current;
     if (!socket) return;
 
-    let ignoreResponse = false;
-    const handleWarehouseUpdate = async () => {
-      if (ignoreResponse) return;
-      try {
-        const remoteState = await requestJson("/warehouse/state");
-        if (ignoreResponse) return;
-        applyRemoteStatePreservingBoardDrafts(remoteState);
-      } catch (_) { /* SSE ya cubre este caso; ignorar silenciosamente */ }
+    const handleWarehouseUpdate = () => {
+      scheduleWarehouseStateRefresh();
     };
 
     socket.on("warehouse_updated", handleWarehouseUpdate);
     return () => {
-      ignoreResponse = true;
       socket.off("warehouse_updated", handleWarehouseUpdate);
     };
   // socketConnectCount cambia cada vez que el socket se reconecta, lo que

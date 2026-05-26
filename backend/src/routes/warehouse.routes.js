@@ -1960,12 +1960,13 @@ warehouseRouter.get("/events", (req, res) => {
     }
   };
 
-  const sendState = (state) => {
-    safeWrite(`data: ${JSON.stringify({ type: "state", state })}\n\n`);
+  const sendUpdateSignal = (state) => {
+    const revision = Number(state?.revision || 0);
+    safeWrite(`data: ${JSON.stringify({ type: "updated", revision, ts: Date.now() })}\n\n`);
   };
 
-  sendState(getWarehouseState());
-  const unsubscribe = subscribeWarehouseState(sendState);
+  // El cliente ya hidrata con GET /warehouse/state; no enviar el JSON completo por SSE.
+  const unsubscribe = subscribeWarehouseState(sendUpdateSignal);
 
   const heartbeat = setInterval(() => {
     safeWrite(`: heartbeat ${Date.now()}\n\n`);

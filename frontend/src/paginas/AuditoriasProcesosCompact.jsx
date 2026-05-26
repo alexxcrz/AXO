@@ -1562,6 +1562,9 @@ export default function AuditoriasProcesosCompact({ contexto }) {
   const [auditDraft, setAuditDraft] = useState(null);
   const [auditQuestionsDraft, setAuditQuestionsDraft] = useState(null);
   const [isAuditDirty, setIsAuditDirty] = useState(false);
+  const [auditAutosaveStatus, setAuditAutosaveStatus] = useState("idle");
+  const autosaveRetryCountRef = useRef(0);
+  const autosaveErrorToastAtRef = useRef(0);
   const [uploadingEvidence, setUploadingEvidence] = useState(false);
   const [cameraModalOpen, setCameraModalOpen] = useState(false);
   const [pendingEvidences, setPendingEvidences] = useState([]);
@@ -2010,6 +2013,17 @@ export default function AuditoriasProcesosCompact({ contexto }) {
     setSelectedAuditId(selectedAudit.id);
     setAuditDraft((current) => {
       if (current?.id === selectedAudit.id) {
+        if (isAuditDirty) {
+          return {
+            ...current,
+            status: selectedAudit.status,
+            lifecycleStatus: selectedAudit.lifecycleStatus || current.lifecycleStatus || "pending",
+            closedAt: selectedAudit.closedAt,
+            updatedAt: selectedAudit.updatedAt,
+            evidences: [...(selectedAudit.evidences || [])],
+            proposals: Array.isArray(selectedAudit.proposals) ? selectedAudit.proposals : (current.proposals || []),
+          };
+        }
         return {
           ...current,
           status: selectedAudit.status,
@@ -2047,7 +2061,7 @@ export default function AuditoriasProcesosCompact({ contexto }) {
       setSubResponseRichState({});
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, selectedAudit?.id, selectedAudit?.updatedAt, selectedAudit?.status, selectedAudit?.evidences?.length]);
+  }, [activeTab, isAuditDirty, selectedAudit?.id, selectedAudit?.updatedAt, selectedAudit?.status, selectedAudit?.evidences?.length]);
 
   useEffect(() => {
     if (!auditViewerModal.open || !auditViewerModal.audit?.id) return;
@@ -2120,32 +2134,50 @@ export default function AuditoriasProcesosCompact({ contexto }) {
     if (activeTab !== "capture") return undefined;
     if (!auditDraft || !isAuditDirty || !canManageAudits) return undefined;
 
+    setAuditAutosaveStatus("saving");
+    const auditId = auditDraft.id;
+    const savePayload = {
+      area: auditDraft.area,
+      subArea: auditDraft.subArea || "",
+      process: auditDraft.process,
+      notes: auditDraft.notes || "",
+      status: auditDraft.status,
+      lifecycleStatus: auditDraft.lifecycleStatus || "pending",
+      reAuditAt: auditDraft.reAuditAt || "",
+      executiveSummary: auditDraft.executiveSummary || "",
+      proposals: auditDraft.proposals || [],
+      followUp: auditDraft.followUp || [],
+      implementationPlan: auditDraft.implementationPlan || {},
+      boardLinks: auditDraft.boardLinks || [],
+      questions: normalizeQuestionsForSave(auditDraft.questions || []),
+      subResponses: auditDraft.subResponses || [],
+    };
+
     const timer = setTimeout(async () => {
       try {
-        await updateProcessAudit(auditDraft.id, {
-          area: auditDraft.area,
-          subArea: auditDraft.subArea || "",
-          process: auditDraft.process,
-          notes: auditDraft.notes || "",
-          status: auditDraft.status,
-          lifecycleStatus: auditDraft.lifecycleStatus || "pending",
-          reAuditAt: auditDraft.reAuditAt || "",
-          executiveSummary: auditDraft.executiveSummary || "",
-          proposals: auditDraft.proposals || [],
-          followUp: auditDraft.followUp || [],
-          implementationPlan: auditDraft.implementationPlan || {},
-          boardLinks: auditDraft.boardLinks || [],
-          questions: normalizeQuestionsForSave(auditDraft.questions || []),
-          subResponses: auditDraft.subResponses || [],
-        });
+        await updateProcessAudit(auditId, savePayload);
         setIsAuditDirty(false);
-      } catch {
-        // La auditoría se mantiene editable localmente si falla el autosave.
+        setAuditAutosaveStatus("saved");
+        autosaveRetryCountRef.current = 0;
+      } catch (error) {
+        setAuditAutosaveStatus("error");
+        const now = Date.now();
+        if (now - autosaveErrorToastAtRef.current > 12_000) {
+          autosaveErrorToastAtRef.current = now;
+          pushAppToast({
+            type: "error",
+            label: error?.message || "No se pudo guardar la auditoría. Se reintentará automáticamente.",
+          });
+        }
+        if (autosaveRetryCountRef.current < 2) {
+          autosaveRetryCountRef.current += 1;
+          globalThis.setTimeout(() => setIsAuditDirty(true), 2000);
+        }
       }
     }, 700);
 
     return () => clearTimeout(timer);
-  }, [activeTab, auditDraft, canManageAudits, isAuditDirty, updateProcessAudit]);
+  }, [activeTab, auditDraft, canManageAudits, isAuditDirty, pushAppToast, updateProcessAudit]);
 
   function updateAuditAnswer(questionId, nextAnswer) {
     setAuditDraft((current) => ({
@@ -2220,6 +2252,7 @@ export default function AuditoriasProcesosCompact({ contexto }) {
 
   async function persistAuditChanges(targetAudit, successMessage) {
     if (!targetAudit || !canManageAudits) return false;
+    setAuditAutosaveStatus("saving");
     await updateProcessAudit(targetAudit.id, {
       area: targetAudit.area,
       subArea: targetAudit.subArea || "",
@@ -2236,6 +2269,8 @@ export default function AuditoriasProcesosCompact({ contexto }) {
       questions: normalizeQuestionsForSave(targetAudit.questions || []),
       subResponses: targetAudit.subResponses || [],
     });
+    setAuditAutosaveStatus("saved");
+    autosaveRetryCountRef.current = 0;
     if (successMessage) pushAppToast(successMessage, "success");
     return true;
   }
@@ -2247,6 +2282,7 @@ export default function AuditoriasProcesosCompact({ contexto }) {
       setIsAuditDirty(false);
       setAuditRichEditorState((current) => ({ ...current, [fieldKey]: false }));
     } catch (error) {
+      setAuditAutosaveStatus("error");
       pushAppToast(error?.message || "No se pudo guardar la respuesta.", "danger");
     }
   }
@@ -2257,8 +2293,12 @@ export default function AuditoriasProcesosCompact({ contexto }) {
     try {
       await persistAuditChanges(auditDraft, null);
       setIsAuditDirty(false);
-    } catch {
-      // autosave reintentará
+    } catch (error) {
+      setAuditAutosaveStatus("error");
+      pushAppToast({
+        type: "error",
+        label: error?.message || "No se pudo guardar la respuesta de la persona auditada.",
+      });
     }
   }
 
@@ -2683,6 +2723,11 @@ export default function AuditoriasProcesosCompact({ contexto }) {
               </div>
               {auditDraft ? (
                 <div className="audit-topbar-actions">
+                  {auditAutosaveStatus === "saving" ? <span className="chip">Guardando…</span> : null}
+                  {auditAutosaveStatus === "saved" && !isAuditDirty ? <span className="chip success">Guardado</span> : null}
+                  {auditAutosaveStatus === "error" || (isAuditDirty && auditAutosaveStatus !== "saving") ? (
+                    <span className="chip danger">Sin guardar</span>
+                  ) : null}
                   <span className={auditDraft.status === "closed" ? "chip success" : "chip warning"}>{auditDraft.status === "closed" ? "Cerrada" : "Abierta"}</span>
                   <button
                     type="button"
