@@ -1134,12 +1134,22 @@ export function isSessionRequiredError(error) {
   return error?.status === 401 || (error?.status === 400 && message.includes("sesi"));
 }
 
+const warehouseSyncHooks = {
+  onApplied: null,
+};
+
+export function setWarehouseSyncHooks(hooks = {}) {
+  if (typeof hooks.onApplied === "function") warehouseSyncHooks.onApplied = hooks.onApplied;
+  else if (hooks.onApplied === null) warehouseSyncHooks.onApplied = null;
+}
+
 export function applyRemoteWarehouseState(remoteState, setState, setLoginDirectory, skipNextSyncRef, setSyncStatus) {
   skipNextSyncRef.current = true;
   const normalizedState = normalizeWarehouseState(remoteState);
   setState(normalizedState);
   setLoginDirectory(buildLoginDirectoryFromState(normalizedState));
   setSyncStatus("Sincronizado");
+  warehouseSyncHooks.onApplied?.(normalizedState);
   return normalizedState;
 }
 

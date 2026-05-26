@@ -29,6 +29,7 @@ import {
   resetWarehouseDashboardData,
   duplicateWarehouseBoard,
   getWarehouseState,
+  getWarehouseStateMeta,
   getRawWarehouseState,
   importWarehouseInventoryItems,
   patchWarehouseBoardRow,
@@ -142,6 +143,10 @@ function dispatchTransportAlert({
 
 warehouseRouter.get("/state", (_req, res) => {
   res.json(getWarehouseState());
+});
+
+warehouseRouter.get("/meta", (_req, res) => {
+  res.json(getWarehouseStateMeta());
 });
 
 warehouseRouter.get("/analytics/operational", requireAuth, (req, res) => {

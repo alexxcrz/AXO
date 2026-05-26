@@ -299,6 +299,8 @@ import {
 
   applyRemoteWarehouseState,
 
+  setWarehouseSyncHooks,
+
   createWarehouseEventSource,
 
   buildLoginDirectoryFromState,
@@ -778,6 +780,10 @@ function App() { // NOSONAR
   const routeSyncFromPopRef = useRef(false);
   const warehouseRefreshTimerRef = useRef(null);
   const warehouseRefreshQueuedRef = useRef(false);
+  const warehouseRevisionRef = useRef(0);
+  const suppressWarehouseRefreshUntilRef = useRef(0);
+  const sseHealthyRef = useRef(false);
+  const syncStatusRef = useRef("Sincronizado");
   const BOARD_CELL_DRAFT_TTL_MS = 4500;
 
   useEffect(() => {
@@ -843,12 +849,32 @@ function App() { // NOSONAR
     };
   }
 
+  function trackWarehouseRevision(remoteState) {
+    const revision = Number(remoteState?.revision || 0);
+    if (revision > 0) warehouseRevisionRef.current = revision;
+  }
+
+  function shouldSkipWarehouseRefresh(incomingRevision) {
+    if (Date.now() < suppressWarehouseRefreshUntilRef.current) return true;
+    const revision = Number(incomingRevision || 0);
+    if (revision > 0 && revision <= warehouseRevisionRef.current) return true;
+    return false;
+  }
+
   function applyRemoteStatePreservingBoardDrafts(remoteState) {
+    const normalizedState = normalizeWarehouseState(remoteState);
+    const revision = Number(normalizedState.revision || 0);
+    if (revision > 0 && revision === warehouseRevisionRef.current) {
+      setSyncStatus("Sincronizado");
+      return mergeRemoteStateWithBoardDrafts(remoteState);
+    }
     skipNextSyncRef.current = true;
     const mergedState = mergeRemoteStateWithBoardDrafts(remoteState);
+    trackWarehouseRevision(mergedState);
     setState(mergedState);
     setLoginDirectory(buildLoginDirectoryFromState(mergedState));
     setSyncStatus("Sincronizado");
+    syncStatusRef.current = "Sincronizado";
     return mergedState;
   }
 
@@ -867,29 +893,46 @@ function App() { // NOSONAR
     });
   }
 
-  function scheduleWarehouseStateRefresh() {
+  function scheduleWarehouseStateRefresh(incomingRevision) {
+    if (shouldSkipWarehouseRefresh(incomingRevision)) return;
     if (warehouseRefreshTimerRef.current) {
       warehouseRefreshQueuedRef.current = true;
       return;
     }
     warehouseRefreshTimerRef.current = globalThis.setTimeout(async () => {
       warehouseRefreshTimerRef.current = null;
+      const queuedRevision = incomingRevision;
       try {
+        if (shouldSkipWarehouseRefresh(queuedRevision)) return;
+        const meta = await requestJson("/warehouse/meta");
+        const remoteRevision = Number(meta?.revision || 0);
+        if (remoteRevision > 0 && remoteRevision <= warehouseRevisionRef.current) {
+          setSyncStatus("Sincronizado");
+          syncStatusRef.current = "Sincronizado";
+          sseHealthyRef.current = true;
+          return;
+        }
         const remoteState = await requestJson("/warehouse/state");
         const mergedState = applyRemoteStatePreservingBoardDrafts(remoteState);
         revalidateSessionAfterRemoteState(mergedState);
+        sseHealthyRef.current = true;
       } catch (error) {
+        sseHealthyRef.current = false;
         if (isSessionRequiredError(error)) {
           invalidateClientSession("Tu sesión terminó. Vuelve a iniciar sesión.");
         } else {
-          setSyncStatus((current) => (current === "Modo local" ? current : "Reconectando"));
+          setSyncStatus((current) => {
+            const next = current === "Modo local" ? current : "Reconectando";
+            syncStatusRef.current = next;
+            return next;
+          });
         }
       }
       if (warehouseRefreshQueuedRef.current) {
         warehouseRefreshQueuedRef.current = false;
         scheduleWarehouseStateRefresh();
       }
-    }, 450);
+    }, 800);
   }
 
   function armGlobalCaptureShield(nextMs = 1600, notify = false) {
@@ -1465,9 +1508,20 @@ function App() { // NOSONAR
   }, []);
 
   useEffect(() => {
+    setWarehouseSyncHooks({
+      onApplied: (normalizedState) => {
+        trackWarehouseRevision(normalizedState);
+        suppressWarehouseRefreshUntilRef.current = Date.now() + 3000;
+      },
+    });
+    return () => setWarehouseSyncHooks({ onApplied: null });
+  }, []);
+
+  useEffect(() => {
     if (!sessionUserId || sessionUserId === BOOTSTRAP_MASTER_ID) {
       if (!sessionUserId) {
         setSyncStatus("Modo local");
+        syncStatusRef.current = "Modo local";
       }
       isHydratedRef.current = true;
       return undefined;
@@ -1482,9 +1536,12 @@ function App() { // NOSONAR
         if (!active) return;
         const normalizedState = normalizeWarehouseState(remoteState);
         skipNextSyncRef.current = true;
+        trackWarehouseRevision(normalizedState);
         setState(normalizedState);
         setLoginDirectory(buildLoginDirectoryFromState(normalizedState));
         setSyncStatus("Sincronizado");
+        syncStatusRef.current = "Sincronizado";
+        sseHealthyRef.current = true;
       } catch (error) {
         if (!active) return;
         if (isSessionRequiredError(error)) {
@@ -1502,7 +1559,8 @@ function App() { // NOSONAR
       try {
         const payload = JSON.parse(event.data);
         if (payload.type === "updated") {
-          scheduleWarehouseStateRefresh();
+          sseHealthyRef.current = true;
+          scheduleWarehouseStateRefresh(payload.revision);
           return;
         }
         // Compatibilidad con servidores que aún envían el estado completo por SSE.
@@ -1520,8 +1578,13 @@ function App() { // NOSONAR
     };
 
     events.onerror = () => {
+      sseHealthyRef.current = false;
       if (active) {
-        setSyncStatus((current) => (current === "Modo local" ? current : "Reconectando"));
+        setSyncStatus((current) => {
+          const next = current === "Modo local" ? current : "Reconectando";
+          syncStatusRef.current = next;
+          return next;
+        });
       }
     };
 
@@ -1544,8 +1607,8 @@ function App() { // NOSONAR
     const socket = socketRef.current;
     if (!socket) return;
 
-    const handleWarehouseUpdate = () => {
-      scheduleWarehouseStateRefresh();
+    const handleWarehouseUpdate = (payload) => {
+      scheduleWarehouseStateRefresh(payload?.revision);
     };
 
     socket.on("warehouse_updated", handleWarehouseUpdate);
@@ -2022,21 +2085,24 @@ function App() { // NOSONAR
     };
   }, [sessionUserId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Polling de respaldo (cada 20 s) cuando el SSE está caído ─────────────────
+  // ── Polling de respaldo solo si SSE no está sano (cada 90 s) ─────────────────
   useEffect(() => {
     if (!sessionUserId || sessionUserId === BOOTSTRAP_MASTER_ID) return;
 
     let ignoreResponse = false;
     const poll = async () => {
-      if (ignoreResponse) return;
+      if (ignoreResponse || sseHealthyRef.current) return;
       try {
+        const meta = await requestJson("/warehouse/meta");
+        if (ignoreResponse) return;
+        if (Number(meta?.revision || 0) <= warehouseRevisionRef.current) return;
         const remoteState = await requestJson("/warehouse/state");
         if (ignoreResponse) return;
         applyRemoteStatePreservingBoardDrafts(remoteState);
       } catch (_) { /* Ignorar */ }
     };
 
-    const intervalId = globalThis.setInterval(poll, 20_000);
+    const intervalId = globalThis.setInterval(poll, 90_000);
     return () => {
       ignoreResponse = true;
       globalThis.clearInterval(intervalId);

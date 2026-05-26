@@ -1565,6 +1565,7 @@ export default function AuditoriasProcesosCompact({ contexto }) {
   const [auditAutosaveStatus, setAuditAutosaveStatus] = useState("idle");
   const autosaveRetryCountRef = useRef(0);
   const autosaveErrorToastAtRef = useRef(0);
+  const auditDraftRef = useRef(null);
   const [uploadingEvidence, setUploadingEvidence] = useState(false);
   const [cameraModalOpen, setCameraModalOpen] = useState(false);
   const [pendingEvidences, setPendingEvidences] = useState([]);
@@ -2131,31 +2132,37 @@ export default function AuditoriasProcesosCompact({ contexto }) {
   }, [newAuditTemplateId, templateCandidates]);
 
   useEffect(() => {
-    if (activeTab !== "capture") return undefined;
-    if (!auditDraft || !isAuditDirty || !canManageAudits) return undefined;
+    auditDraftRef.current = auditDraft;
+  }, [auditDraft]);
 
-    setAuditAutosaveStatus("saving");
-    const auditId = auditDraft.id;
-    const savePayload = {
-      area: auditDraft.area,
-      subArea: auditDraft.subArea || "",
-      process: auditDraft.process,
-      notes: auditDraft.notes || "",
-      status: auditDraft.status,
-      lifecycleStatus: auditDraft.lifecycleStatus || "pending",
-      reAuditAt: auditDraft.reAuditAt || "",
-      executiveSummary: auditDraft.executiveSummary || "",
-      proposals: auditDraft.proposals || [],
-      followUp: auditDraft.followUp || [],
-      implementationPlan: auditDraft.implementationPlan || {},
-      boardLinks: auditDraft.boardLinks || [],
-      questions: normalizeQuestionsForSave(auditDraft.questions || []),
-      subResponses: auditDraft.subResponses || [],
-    };
+  useEffect(() => {
+    if (activeTab !== "capture") return undefined;
+    if (!isAuditDirty || !canManageAudits) return undefined;
 
     const timer = setTimeout(async () => {
+      const draft = auditDraftRef.current;
+      if (!draft?.id || !canManageAudits) return;
+
+      const savePayload = {
+        area: draft.area,
+        subArea: draft.subArea || "",
+        process: draft.process,
+        notes: draft.notes || "",
+        status: draft.status,
+        lifecycleStatus: draft.lifecycleStatus || "pending",
+        reAuditAt: draft.reAuditAt || "",
+        executiveSummary: draft.executiveSummary || "",
+        proposals: draft.proposals || [],
+        followUp: draft.followUp || [],
+        implementationPlan: draft.implementationPlan || {},
+        boardLinks: draft.boardLinks || [],
+        questions: normalizeQuestionsForSave(draft.questions || []),
+        subResponses: draft.subResponses || [],
+      };
+
+      setAuditAutosaveStatus("saving");
       try {
-        await updateProcessAudit(auditId, savePayload);
+        await updateProcessAudit(draft.id, savePayload);
         setIsAuditDirty(false);
         setAuditAutosaveStatus("saved");
         autosaveRetryCountRef.current = 0;
@@ -2171,13 +2178,13 @@ export default function AuditoriasProcesosCompact({ contexto }) {
         }
         if (autosaveRetryCountRef.current < 2) {
           autosaveRetryCountRef.current += 1;
-          globalThis.setTimeout(() => setIsAuditDirty(true), 2000);
+          globalThis.setTimeout(() => setIsAuditDirty(true), 3000);
         }
       }
-    }, 700);
+    }, 900);
 
     return () => clearTimeout(timer);
-  }, [activeTab, auditDraft, canManageAudits, isAuditDirty, pushAppToast, updateProcessAudit]);
+  }, [activeTab, auditDraft?.id, canManageAudits, isAuditDirty, pushAppToast, updateProcessAudit]);
 
   function updateAuditAnswer(questionId, nextAnswer) {
     setAuditDraft((current) => ({

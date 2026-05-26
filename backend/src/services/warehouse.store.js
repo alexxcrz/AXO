@@ -28,6 +28,19 @@ const latestBackupFilePath = path.join(dataDirectory, "warehouse-state.previous.
 const MAX_WAREHOUSE_STATE_BACKUPS = 24;
 const OPERATIONAL_TIMEZONE = String(process.env.WAREHOUSE_OPERATIONAL_TIMEZONE || "America/Mexico_City").trim() || "America/Mexico_City";
 const warehouseEvents = new EventEmitter();
+let warehouseBroadcastTimer = null;
+let warehouseBroadcastPendingState = null;
+
+function scheduleWarehouseStateBroadcast(sanitizedState) {
+  warehouseBroadcastPendingState = sanitizedState;
+  if (warehouseBroadcastTimer) return;
+  warehouseBroadcastTimer = setTimeout(() => {
+    warehouseBroadcastTimer = null;
+    const payload = warehouseBroadcastPendingState;
+    warehouseBroadcastPendingState = null;
+    if (payload) warehouseEvents.emit("state", payload);
+  }, 500);
+}
 export const BOOTSTRAP_MASTER_ID = "bootstrap-master";
 const EMPTY_OBJECT = Object.freeze({});
 const DEFAULT_CLEANING_SITE = "C3";
@@ -3644,7 +3657,7 @@ export function getRawWarehouseState() {
     updatedAt: new Date().toISOString(),
   }, currentState);
   writeStore(persistedState);
-  warehouseEvents.emit("state", sanitizeState(persistedState));
+  scheduleWarehouseStateBroadcast(sanitizeState(persistedState));
   return persistedState;
 }
 
@@ -3658,8 +3671,16 @@ export function replaceWarehouseState(nextState) {
 
   writeStore(mergedState);
   const sanitizedState = sanitizeState(mergedState);
-  warehouseEvents.emit("state", sanitizedState);
+  scheduleWarehouseStateBroadcast(sanitizedState);
   return sanitizedState;
+}
+
+export function getWarehouseStateMeta() {
+  const state = getRawWarehouseState();
+  return {
+    revision: Number(state.revision || 0),
+    updatedAt: String(state.updatedAt || ""),
+  };
 }
 
 export function restoreWarehouseStateForDemo(auth, snapshot = {}) {

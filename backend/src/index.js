@@ -30,9 +30,12 @@ initSocket(server);
 // This lets clients know they should refresh their state, used as fallback when SSE drops.
 const { subscribeWarehouseState, getRawWarehouseState } = await import("./services/warehouse.store.js");
 const { getIO } = await import("./config/socket.js");
-subscribeWarehouseState(() => {
+subscribeWarehouseState((state) => {
   try {
-    getIO().volatile.emit("warehouse_updated", { ts: Date.now() });
+    getIO().volatile.emit("warehouse_updated", {
+      ts: Date.now(),
+      revision: Number(state?.revision || 0),
+    });
   } catch (emitErr) {
     // Socket.IO might not be fully ready (e.g. in tests); skip silently.
     console.debug("[warehouse_bridge] socket not ready:", emitErr?.message);
