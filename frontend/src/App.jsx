@@ -3012,6 +3012,24 @@ function App() { // NOSONAR
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allowedPagesKey, currentUser?.role, page, selectedAreaSectionId]);
 
+  function resolveDefaultAreaSectionIdForUser(user) {
+    const userAreaRoot = normalizeAreaOption(getAreaRoot(getUserArea(user)));
+    if (!userAreaRoot) return "all";
+    const matchedStatic = APP_AREA_SECTIONS.find((section) => (section.scopes || []).some((scope) => (
+      normalizeAreaOption(scope) === userAreaRoot
+    ))) || null;
+    return matchedStatic?.id || "all";
+  }
+
+  // Si el usuario NO tiene dashboard corporativo, evita arrancar en "ALL".
+  useEffect(() => {
+    if (!currentUser) return;
+    if (selectedAreaSectionId !== "all") return;
+    if (canAccessPage(currentUser, PAGE_DASHBOARD, normalizedPermissions)) return;
+    setSelectedAreaSectionId(resolveDefaultAreaSectionIdForUser(currentUser));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser?.id, selectedAreaSectionId, normalizedPermissions]);
+
   useEffect(() => {
     if (adminTab === "permissions" || adminTab === "reports") {
       setAdminTab("catalog");
@@ -6362,7 +6380,14 @@ function App() { // NOSONAR
       setLoginDirectory(buildLoginDirectoryFromState(normalizedState));
       setPasswordForm({ password: "", confirmPassword: "", message: "" });
       const nextUser = normalizedState.users.find((user) => user.id === authResult.userId) || authResult.user;
-      setPage(resolveFirstAccessiblePage(nextUser, normalizePermissions(normalizedState.permissions)));
+      const nextPermissions = normalizePermissions(normalizedState.permissions);
+      // Si no tiene dashboard corporativo, entra directo a su área.
+      if (!canAccessPage(nextUser, PAGE_DASHBOARD, nextPermissions)) {
+        setSelectedAreaSectionId(resolveDefaultAreaSectionIdForUser(nextUser));
+      } else {
+        setSelectedAreaSectionId("all");
+      }
+      setPage(resolveFirstAccessiblePage(nextUser, nextPermissions));
       setSyncStatus("Sincronizado");
     } catch (error) {
       if (isSessionRequiredError(error)) {

@@ -102,7 +102,8 @@ export function canAccessGlobalDashboardPage(user, permissions) {
   if (normalizeRoleIsLead(user)) return true;
   const override = readPermissionEntryOverride(user, "pages", PAGE_DASHBOARD, permissions);
   if (typeof override === "boolean") return override;
-  return userMatchesPermissionEntry(user, permissions?.pages?.[PAGE_DASHBOARD]);
+  // Dashboard corporativo solo por asignación explícita (evita fallback por rol).
+  return false;
 }
 
 function normalizeRoleIsLead(user) {
