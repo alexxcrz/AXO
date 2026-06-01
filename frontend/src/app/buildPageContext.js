@@ -495,5 +495,9 @@ export function buildPaginasContexto(d) {
     visibleUsers: d.visibleUsers,
     weeklyAreaCoverageRows: d.weeklyAreaCoverageRows,
     Zap: d.Zap,
+    navRetailTab: d.navRetailTab,
+    setNavRetailTab: d.setNavRetailTab,
+    retailState: d.retailState,
+    canRetailAction: d.canRetailAction,
   };
 }

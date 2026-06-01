@@ -4,6 +4,28 @@ import { auditSecurityEvent } from "../services/security-events.service.js";
 import { buildOperationalAnalyticsFromLocalState } from "../services/warehouse.analytics.local.js";
 import { getRoadNewsForMexico } from "../services/transport-news.service.js";
 import {
+  approveRetailPurchaseOrderClosing,
+  closeRetailPallet,
+  setRetailOrderBoxes,
+  createRetailIncident,
+  updateRetailIncident,
+  deleteRetailIncident,
+  deleteRetailClient,
+  deleteRetailProduct,
+  updateRetailProductLot,
+  deleteRetailProductLot,
+  createRetailPreassembledBox,
+  createRetailPurchaseOrder,
+  logRetailLabelPrint,
+  markRetailPurchaseOrderPicked,
+  pickRetailPurchaseOrderLine,
+  updateRetailClosingChecklist,
+  upsertRetailClient,
+  upsertRetailFootprint,
+  upsertRetailProduct,
+  upsertRetailSupplier,
+} from "../services/retail.mutations.js";
+import {
   addWarehouseArea,
   createWarehouseCatalogItem,
   createWarehouseBoard,
@@ -1991,4 +2013,96 @@ warehouseRouter.get("/events", (req, res) => {
   req.on("close", closeStream);
   res.on("close", closeStream);
   res.on("error", closeStream);
+});
+
+function respondRetailMutation(res, result) {
+  if (!result?.ok) {
+    const status = result?.reason === "forbidden"
+      ? 403
+      : result?.reason === "auth_required"
+        ? 401
+        : 400;
+    return res.status(status).json({ ok: false, reason: result.reason || "error" });
+  }
+  return res.json({ ok: true, data: result.data || null, state: result.state });
+}
+
+warehouseRouter.post("/retail/clients", requireAuth, (req, res) => {
+  respondRetailMutation(res, upsertRetailClient(req.auth, req.body || {}));
+});
+
+warehouseRouter.post("/retail/clients/delete", requireAuth, (req, res) => {
+  respondRetailMutation(res, deleteRetailClient(req.auth, req.body || {}));
+});
+
+warehouseRouter.post("/retail/suppliers", requireAuth, (req, res) => {
+  respondRetailMutation(res, upsertRetailSupplier(req.auth, req.body || {}));
+});
+
+warehouseRouter.post("/retail/footprints", requireAuth, (req, res) => {
+  respondRetailMutation(res, upsertRetailFootprint(req.auth, req.body || {}));
+});
+
+warehouseRouter.post("/retail/products", requireAuth, (req, res) => {
+  respondRetailMutation(res, upsertRetailProduct(req.auth, req.body || {}));
+});
+
+warehouseRouter.post("/retail/products/delete", requireAuth, (req, res) => {
+  respondRetailMutation(res, deleteRetailProduct(req.auth, req.body || {}));
+});
+
+warehouseRouter.post("/retail/products/lot/update", requireAuth, (req, res) => {
+  respondRetailMutation(res, updateRetailProductLot(req.auth, req.body || {}));
+});
+
+warehouseRouter.post("/retail/products/lot/delete", requireAuth, (req, res) => {
+  respondRetailMutation(res, deleteRetailProductLot(req.auth, req.body || {}));
+});
+
+warehouseRouter.post("/retail/preassembled-boxes", requireAuth, (req, res) => {
+  respondRetailMutation(res, createRetailPreassembledBox(req.auth, req.body || {}));
+});
+
+warehouseRouter.post("/retail/purchase-orders", requireAuth, (req, res) => {
+  respondRetailMutation(res, createRetailPurchaseOrder(req.auth, req.body || {}));
+});
+
+warehouseRouter.post("/retail/purchase-orders/pick-line", requireAuth, (req, res) => {
+  respondRetailMutation(res, pickRetailPurchaseOrderLine(req.auth, req.body || {}));
+});
+
+warehouseRouter.post("/retail/purchase-orders/mark-picked", requireAuth, (req, res) => {
+  respondRetailMutation(res, markRetailPurchaseOrderPicked(req.auth, req.body || {}));
+});
+
+warehouseRouter.post("/retail/purchase-orders/checklist", requireAuth, (req, res) => {
+  respondRetailMutation(res, updateRetailClosingChecklist(req.auth, req.body || {}));
+});
+
+warehouseRouter.post("/retail/purchase-orders/approve-closing", requireAuth, (req, res) => {
+  respondRetailMutation(res, approveRetailPurchaseOrderClosing(req.auth, req.body || {}));
+});
+
+warehouseRouter.post("/retail/purchase-orders/close-pallet", requireAuth, (req, res) => {
+  respondRetailMutation(res, closeRetailPallet(req.auth, req.body || {}));
+});
+
+warehouseRouter.post("/retail/labels/print-log", requireAuth, (req, res) => {
+  respondRetailMutation(res, logRetailLabelPrint(req.auth, req.body || {}));
+});
+
+warehouseRouter.post("/retail/purchase-orders/boxes", requireAuth, (req, res) => {
+  respondRetailMutation(res, setRetailOrderBoxes(req.auth, req.body || {}));
+});
+
+warehouseRouter.post("/retail/incidents", requireAuth, (req, res) => {
+  respondRetailMutation(res, createRetailIncident(req.auth, req.body || {}));
+});
+
+warehouseRouter.post("/retail/incidents/update", requireAuth, (req, res) => {
+  respondRetailMutation(res, updateRetailIncident(req.auth, req.body || {}));
+});
+
+warehouseRouter.post("/retail/incidents/delete", requireAuth, (req, res) => {
+  respondRetailMutation(res, deleteRetailIncident(req.auth, req.body || {}));
 });

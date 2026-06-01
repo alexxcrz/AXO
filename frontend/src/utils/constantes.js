@@ -2,6 +2,11 @@ import {
   BarChart3, LayoutDashboard, ClipboardList, CalendarDays, Package,
   Users, PieChart, BookOpen, OctagonAlert, ClipboardCheck, Archive, Truck,
 } from "lucide-react";
+import {
+  RETAIL_BASE_ACTION_DEFINITIONS,
+  RETAIL_SCOPED_ACTION_CONFIG,
+  RETAIL_TAB_SCOPE_DEFINITIONS,
+} from "../retail/retailModuleConfig.js";
 
 export const STORAGE_KEY = "sicfla.almacen.state.v1";
 export const SIDEBAR_COLLAPSED_KEY = "sicfla.almacen.sidebarCollapsed.v1";
@@ -28,11 +33,14 @@ export const PAGE_HISTORY = "history";
 export const PAGE_PROCESS_AUDITS = "processAudits";
 export const PAGE_INVENTORY = "inventory";
 export const PAGE_TRANSPORT = "transport";
+export const PAGE_RETAIL = "retail";
 export const PAGE_USERS = "users";
 export const PAGE_BIBLIOTECA = "biblioteca";
 export const PAGE_INCIDENCIAS = "incidencias";
 export const PAGE_SYSTEM_SETTINGS = "systemSettings";
 export const PAGE_NOT_FOUND = "404";
+/** Vista vacia de un area lateral sin pestanas (p. ej. RETAIL). */
+export const PAGE_AREA_SHELL = "areaShell";
 
 export const PAGE_ROUTE_SLUGS = {
   [PAGE_DASHBOARD]: "dashboard",
@@ -43,11 +51,13 @@ export const PAGE_ROUTE_SLUGS = {
   [PAGE_PROCESS_AUDITS]: "auditorias-procesos",
   [PAGE_INVENTORY]: "inventario",
   [PAGE_TRANSPORT]: "transporte",
+  [PAGE_RETAIL]: "retail",
   [PAGE_USERS]: "administrador",
   [PAGE_BIBLIOTECA]: "biblioteca",
   [PAGE_INCIDENCIAS]: "incidencias",
   [PAGE_SYSTEM_SETTINGS]: "configuracion-sistema",
   [PAGE_NOT_FOUND]: "404",
+  [PAGE_AREA_SHELL]: "area",
 };
 
 export const PAGE_ROUTE_ALIASES = {
@@ -70,6 +80,8 @@ export const PAGE_ROUTE_ALIASES = {
   inventario: PAGE_INVENTORY,
   [PAGE_INVENTORY]: PAGE_INVENTORY,
   transporte: PAGE_TRANSPORT,
+  retail: PAGE_RETAIL,
+  [PAGE_RETAIL]: PAGE_RETAIL,
   [PAGE_TRANSPORT]: PAGE_TRANSPORT,
   administrador: PAGE_USERS,
   [PAGE_USERS]: PAGE_USERS,
@@ -79,6 +91,8 @@ export const PAGE_ROUTE_ALIASES = {
   [PAGE_INCIDENCIAS]: PAGE_INCIDENCIAS,
   "configuracion-sistema": PAGE_SYSTEM_SETTINGS,
   [PAGE_SYSTEM_SETTINGS]: PAGE_SYSTEM_SETTINGS,
+  area: PAGE_AREA_SHELL,
+  [PAGE_AREA_SHELL]: PAGE_AREA_SHELL,
   [PAGE_NOT_FOUND]: PAGE_NOT_FOUND,
 };
 
@@ -708,10 +722,8 @@ export const ACTION_DEFINITIONS = [
   { id: "scopeMayoreoBoardBuilder",   label: "Operar Creador de tableros en área MAYOREO / ECOMMERCE / PEDIDOS DETAL", category: "Navegación por área", defaultRoles: [ROLE_LEAD, ROLE_SR, ROLE_SSR, ROLE_JR] },
   { id: "scopeMayoreoMyBoards",       label: "Operar Mis tableros en área MAYOREO / ECOMMERCE / PEDIDOS DETAL", category: "Navegación por área", defaultRoles: [ROLE_LEAD, ROLE_SR, ROLE_SSR, ROLE_JR] },
   { id: "scopeMayoreoHistory",        label: "Operar Historial en área MAYOREO / ECOMMERCE / PEDIDOS DETAL", category: "Navegación por área", defaultRoles: [ROLE_LEAD, ROLE_SR, ROLE_SSR, ROLE_JR] },
-  { id: "scopeRetailDashboard",       label: "Operar Dashboard en área RETAIL",                      category: "Navegación por área", defaultRoles: [ROLE_LEAD, ROLE_SR, ROLE_SSR, ROLE_JR] },
-  { id: "scopeRetailBoardBuilder",    label: "Operar Creador de tableros en área RETAIL",           category: "Navegación por área", defaultRoles: [ROLE_LEAD, ROLE_SR, ROLE_SSR, ROLE_JR] },
-  { id: "scopeRetailMyBoards",        label: "Operar Mis tableros en área RETAIL",                  category: "Navegación por área", defaultRoles: [ROLE_LEAD, ROLE_SR, ROLE_SSR, ROLE_JR] },
-  { id: "scopeRetailHistory",         label: "Operar Historial en área RETAIL",                     category: "Navegación por área", defaultRoles: [ROLE_LEAD, ROLE_SR, ROLE_SSR, ROLE_JR] },
+  ...RETAIL_TAB_SCOPE_DEFINITIONS,
+  ...RETAIL_BASE_ACTION_DEFINITIONS,
   { id: "scopeFullfilmentDashboard",  label: "Operar Dashboard en área FULLFILMENT",                 category: "Navegación por área", defaultRoles: [ROLE_LEAD, ROLE_SR, ROLE_SSR, ROLE_JR] },
   { id: "scopeFullfilmentBoardBuilder", label: "Operar Creador de tableros en área FULLFILMENT",    category: "Navegación por área", defaultRoles: [ROLE_LEAD, ROLE_SR, ROLE_SSR, ROLE_JR] },
   { id: "scopeFullfilmentMyBoards",   label: "Operar Mis tableros en área FULLFILMENT",             category: "Navegación por área", defaultRoles: [ROLE_LEAD, ROLE_SR, ROLE_SSR, ROLE_JR] },
@@ -836,10 +848,7 @@ export const AREA_TAB_SCOPED_ACTION_CONFIG = Object.freeze([
   { scopeId: "scopeMayoreoBoardBuilder", scopeLabel: "MAYOREO / ECOMMERCE / PEDIDOS DETAL / Creador de tableros", baseActionIds: ["createCatalog", "editCatalog", "deleteCatalog", "createBoard", "editBoard", "saveTemplate", "editTemplate", "deleteTemplate", "duplicateBoard", "duplicateBoardWithRows", "deleteBoard", "deleteWeekActivity"] },
   { scopeId: "scopeMayoreoMyBoards", scopeLabel: "MAYOREO / ECOMMERCE / PEDIDOS DETAL / Mis tableros", baseActionIds: ["createBoardRow", "deleteBoardRow", "editFinishedBoardRow", "viewHistoricalBoardScopes", "boardWorkflow", "exportBoardExcel", "previewBoardPdf", "exportBoardPdf"] },
   { scopeId: "scopeMayoreoHistory", scopeLabel: "MAYOREO / ECOMMERCE / PEDIDOS DETAL / Historial", baseActionIds: ["editHistoryRecords"] },
-  { scopeId: "scopeRetailDashboard", scopeLabel: "RETAIL / Dashboard", baseActionIds: ["exportDashboardData", "manageDashboardState"] },
-  { scopeId: "scopeRetailBoardBuilder", scopeLabel: "RETAIL / Creador de tableros", baseActionIds: ["createCatalog", "editCatalog", "deleteCatalog", "createBoard", "editBoard", "saveTemplate", "editTemplate", "deleteTemplate", "duplicateBoard", "duplicateBoardWithRows", "deleteBoard", "deleteWeekActivity"] },
-  { scopeId: "scopeRetailMyBoards", scopeLabel: "RETAIL / Mis tableros", baseActionIds: ["createBoardRow", "deleteBoardRow", "editFinishedBoardRow", "viewHistoricalBoardScopes", "boardWorkflow", "exportBoardExcel", "previewBoardPdf", "exportBoardPdf"] },
-  { scopeId: "scopeRetailHistory", scopeLabel: "RETAIL / Historial", baseActionIds: ["editHistoryRecords"] },
+  ...RETAIL_SCOPED_ACTION_CONFIG,
   { scopeId: "scopeFullfilmentDashboard", scopeLabel: "FULLFILMENT / Dashboard", baseActionIds: ["exportDashboardData", "manageDashboardState"] },
   { scopeId: "scopeFullfilmentBoardBuilder", scopeLabel: "FULLFILMENT / Creador de tableros", baseActionIds: ["createCatalog", "editCatalog", "deleteCatalog", "createBoard", "editBoard", "saveTemplate", "editTemplate", "deleteTemplate", "duplicateBoard", "duplicateBoardWithRows", "deleteBoard", "deleteWeekActivity"] },
   { scopeId: "scopeFullfilmentMyBoards", scopeLabel: "FULLFILMENT / Mis tableros", baseActionIds: ["createBoardRow", "deleteBoardRow", "editFinishedBoardRow", "viewHistoricalBoardScopes", "boardWorkflow", "exportBoardExcel", "previewBoardPdf", "exportBoardPdf"] },

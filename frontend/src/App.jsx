@@ -50,6 +50,7 @@ import AuditoriasProcesosCompact from "./paginas/AuditoriasProcesosCompact";
 import MisTableros from "./paginas/MisTableros";
 import ConfiguracionSistema from "./paginas/ConfiguracionSistema";
 import PaginaNoEncontrada from "./paginas/PaginaNoEncontrada";
+import GestionRetail from "./paginas/GestionRetail";
 import PanelIndicadores from "./paginas/PanelIndicadores";
 import TablerosCreados from "./paginas/TablerosCreados";
 import BibliotecaPage from "./paginas/BibliotecaPage";
@@ -135,8 +136,8 @@ import {
 
   PAGE_BOARD, PAGE_CUSTOM_BOARDS, PAGE_ADMIN, PAGE_DASHBOARD, PAGE_HISTORY, PAGE_PROCESS_AUDITS,
 
-  PAGE_INVENTORY, PAGE_USERS, PAGE_BIBLIOTECA, PAGE_INCIDENCIAS, PAGE_NOT_FOUND,
-  PAGE_TRANSPORT,
+  PAGE_INVENTORY, PAGE_USERS, PAGE_BIBLIOTECA, PAGE_INCIDENCIAS, PAGE_NOT_FOUND, PAGE_AREA_SHELL,
+  PAGE_TRANSPORT, PAGE_RETAIL,
   PAGE_SYSTEM_SETTINGS,
 
   PAGE_ROUTE_SLUGS, PAGE_ROUTE_ALIASES, EMPTY_LOGIN_DIRECTORY,
@@ -454,6 +455,8 @@ import {
   canAccessPage,
   canAccessAreaNavItem,
   canAccessAreaDashboardPage,
+  canAccessAreaShellPage,
+  userHasAnyRetailAreaScope,
   resolveFirstAccessiblePage,
   normalizeStoredActivePage,
 
@@ -530,6 +533,7 @@ import {
   syncNotificationPrefsToServiceWorker,
 } from "./utils/pushBridge.js";
 import {
+  AREA_SECTIONS_WITHOUT_TABS,
   APP_AREA_SECTIONS,
   NAV_AREA_ACTION_BY_SECTION,
   NAV_UTILITY_ACTION_BY_GROUP,
@@ -582,6 +586,7 @@ function App() { // NOSONAR
   const [selectedAreaSectionId, setSelectedAreaSectionId] = useState(() => String(INITIAL_ROUTE_STATE.area || "all").trim() || "all");
   const [navTransportSection, setNavTransportSection] = useState(() => String(INITIAL_ROUTE_STATE.transportSection || "registros-envios").trim() || "registros-envios");
   const [navTransportTab, setNavTransportTab] = useState("");
+  const [navRetailTab, setNavRetailTab] = useState("dashboard");
   const [navAuditTab, setNavAuditTab] = useState("");
   const [auditShortcutPreset, setAuditShortcutPreset] = useState(null);
   const [dashboardSectionsOpen, setDashboardSectionsOpen] = useState(() => {
@@ -3005,9 +3010,11 @@ function App() { // NOSONAR
       return;
     }
     const canStayOnPage = allowedPages.includes(page)
-      || (page === PAGE_DASHBOARD && canAccessAreaDashboardPage(currentUser, selectedAreaSectionId, normalizedPermissions));
+      || (page === PAGE_DASHBOARD && canAccessAreaDashboardPage(currentUser, selectedAreaSectionId, normalizedPermissions))
+      || (page === PAGE_AREA_SHELL && canAccessAreaShellPage(currentUser, selectedAreaSectionId, normalizedPermissions))
+      || (page === PAGE_RETAIL && userHasAnyRetailAreaScope(currentUser, normalizedPermissions));
     if (!canStayOnPage && page !== PAGE_NOT_FOUND) {
-      setPage(resolveFirstAccessiblePage(currentUser, normalizedPermissions));
+      setPage(resolveLandingPageForUser(currentUser, normalizedPermissions, selectedAreaSectionId));
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allowedPagesKey, currentUser?.role, page, selectedAreaSectionId]);
@@ -3021,12 +3028,29 @@ function App() { // NOSONAR
     return matchedStatic?.id || "all";
   }
 
+  function resolveLandingPageForUser(user, permissions, areaSectionId) {
+    if (areaSectionId === "retail" && userHasAnyRetailAreaScope(user, permissions)) {
+      return PAGE_RETAIL;
+    }
+    if (AREA_SECTIONS_WITHOUT_TABS.has(areaSectionId) && canAccessAreaShellPage(user, areaSectionId, permissions)) {
+      return PAGE_AREA_SHELL;
+    }
+    return resolveFirstAccessiblePage(user, permissions);
+  }
+
   // Si el usuario NO tiene dashboard corporativo, evita arrancar en "ALL".
   useEffect(() => {
     if (!currentUser) return;
     if (selectedAreaSectionId !== "all") return;
     if (canAccessPage(currentUser, PAGE_DASHBOARD, normalizedPermissions)) return;
-    setSelectedAreaSectionId(resolveDefaultAreaSectionIdForUser(currentUser));
+    const nextAreaSectionId = resolveDefaultAreaSectionIdForUser(currentUser);
+    setSelectedAreaSectionId(nextAreaSectionId);
+    if (nextAreaSectionId === "retail") {
+      setPage(PAGE_RETAIL);
+      setNavRetailTab("dashboard");
+    } else if (AREA_SECTIONS_WITHOUT_TABS.has(nextAreaSectionId)) {
+      setPage(resolveLandingPageForUser(currentUser, normalizedPermissions, nextAreaSectionId));
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser?.id, selectedAreaSectionId, normalizedPermissions]);
 
@@ -3670,6 +3694,17 @@ function App() { // NOSONAR
             { pageId: PAGE_TRANSPORT, label: "Dashboard", shortLabel: "Dashboard", transportSection: "dashboard-transporte", transportTab: "dashboard-transporte", requiredActionId: AREA_TAB_PERMISSION_ACTIONS.transporte["dashboard-transporte"] },
             { pageId: PAGE_TRANSPORT, label: "Direcciones y gastos", shortLabel: "Dir./Gts.", transportSection: "direcciones-gastos", transportTab: "logistica", requiredActionId: AREA_TAB_PERMISSION_ACTIONS.transporte["direcciones-gastos"] },
           ]
+          : section.id === "retail"
+            ? [
+              { pageId: PAGE_RETAIL, label: "Dashboard", shortLabel: "Dash", retailTab: "dashboard", requiredActionId: AREA_TAB_PERMISSION_ACTIONS.retail.dashboard },
+              { pageId: PAGE_RETAIL, label: "Ordenes de compra", shortLabel: "OC", retailTab: "ordenes-compra", requiredActionId: AREA_TAB_PERMISSION_ACTIONS.retail["ordenes-compra"] },
+              { pageId: PAGE_RETAIL, label: "Surtido", shortLabel: "Surtido", retailTab: "surtido", requiredActionId: AREA_TAB_PERMISSION_ACTIONS.retail.surtido },
+              { pageId: PAGE_RETAIL, label: "Cerrado", shortLabel: "Cerrado", retailTab: "cerrado", requiredActionId: AREA_TAB_PERMISSION_ACTIONS.retail.cerrado },
+              { pageId: PAGE_RETAIL, label: "Clientes y huellas", shortLabel: "Clientes", retailTab: "clientes", requiredActionId: AREA_TAB_PERMISSION_ACTIONS.retail.clientes },
+              { pageId: PAGE_RETAIL, label: "Inventario retail", shortLabel: "Inventario", retailTab: "inventario", requiredActionId: AREA_TAB_PERMISSION_ACTIONS.retail.inventario },
+              { pageId: PAGE_RETAIL, label: "Prearmado", shortLabel: "Prearmado", retailTab: "prearmado", requiredActionId: AREA_TAB_PERMISSION_ACTIONS.retail.prearmado },
+              { pageId: PAGE_RETAIL, label: "Incidencias", shortLabel: "Incid.", retailTab: "incidencias", requiredActionId: AREA_TAB_PERMISSION_ACTIONS.retail.incidencias },
+            ]
           : section.id === "mantenimiento"
             ? [
               { pageId: PAGE_INCIDENCIAS, label: "Incidencias", shortLabel: "Incidencias", requiredActionId: AREA_TAB_PERMISSION_ACTIONS.mantenimiento.incidencias },
@@ -3724,12 +3759,23 @@ function App() { // NOSONAR
         };
       })
       .filter((section) => {
-        if (!section.items.length) return false;
         const requiredActionId = NAV_AREA_ACTION_BY_SECTION[section.id] || "";
-        if (!requiredActionId) return true;
-        return canDoAction(currentUser, requiredActionId, normalizedPermissions);
+        const canSeeSection = requiredActionId
+          ? canDoAction(currentUser, requiredActionId, normalizedPermissions)
+          : true;
+        if (!canSeeSection) return false;
+        if (AREA_SECTIONS_WITHOUT_TABS.has(section.id)) return true;
+        return section.items.length > 0;
       });
   }, [currentUser, normalizedPermissions, dynamicAreaSectionRoots, processAuditAttentionCount, processAuditProblemCount, processAuditPendingProposalsCount, processAuditAuthorizationCount, processAuditImplementationCount, processAuditRejectedCount]);
+
+  useEffect(() => {
+    if (!currentUser) return;
+    if (!AREA_SECTIONS_WITHOUT_TABS.has(selectedAreaSectionId)) return;
+    if (!canAccessAreaShellPage(currentUser, selectedAreaSectionId, normalizedPermissions)) return;
+    if (page !== PAGE_AREA_SHELL) setPage(PAGE_AREA_SHELL);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser?.id, selectedAreaSectionId, page, normalizedPermissions]);
 
   const selectedAreaSection = useMemo(
     () => areaNavSections.find((section) => section.id === selectedAreaSectionId) || null,
@@ -6382,12 +6428,14 @@ function App() { // NOSONAR
       const nextUser = normalizedState.users.find((user) => user.id === authResult.userId) || authResult.user;
       const nextPermissions = normalizePermissions(normalizedState.permissions);
       // Si no tiene dashboard corporativo, entra directo a su área.
-      if (!canAccessPage(nextUser, PAGE_DASHBOARD, nextPermissions)) {
-        setSelectedAreaSectionId(resolveDefaultAreaSectionIdForUser(nextUser));
-      } else {
-        setSelectedAreaSectionId("all");
+      const nextAreaSectionId = !canAccessPage(nextUser, PAGE_DASHBOARD, nextPermissions)
+        ? resolveDefaultAreaSectionIdForUser(nextUser)
+        : "all";
+      setSelectedAreaSectionId(nextAreaSectionId);
+      if (nextAreaSectionId === "retail") {
+        setNavRetailTab("dashboard");
       }
-      setPage(resolveFirstAccessiblePage(nextUser, nextPermissions));
+      setPage(resolveLandingPageForUser(nextUser, nextPermissions, nextAreaSectionId));
       setSyncStatus("Sincronizado");
     } catch (error) {
       if (isSessionRequiredError(error)) {
@@ -7504,6 +7552,8 @@ function App() { // NOSONAR
   const pageTitle = NAV_ITEMS.find((item) => item.id === page)?.label || {
     [PAGE_ADMIN]: "Creador de tableros",
     [PAGE_NOT_FOUND]: "Página no encontrada",
+    [PAGE_AREA_SHELL]: selectedAreaSection?.label || "Area",
+    [PAGE_RETAIL]: selectedAreaSection?.label || "RETAIL",
   }[page];
   const headerEyebrow = getHeaderEyebrowText(page);
   const shouldShowUserPermissionNote = !supportsManagedPermissionOverrides(userModal.role);
@@ -7859,6 +7909,10 @@ function App() { // NOSONAR
     NAV_ITEMS,
     navTransportSection,
     navTransportTab,
+    navRetailTab,
+    setNavRetailTab,
+    retailState: state.retail || {},
+    canRetailAction: (actionId) => canDoAction(currentUser, actionId, normalizedPermissions),
     normalizedPermissions,
     now,
     OctagonAlert,
@@ -8099,11 +8153,12 @@ function App() { // NOSONAR
         currentUser={currentUser}
         page={page}
         navAuditTab={navAuditTab}
-        onPageChange={(nextPage, nextAreaSectionId = "all", transportSection, transportTab, auditPreset) => {
+        onPageChange={(nextPage, nextAreaSectionId = "all", transportSection, transportTab, auditPreset, retailTab) => {
           setSelectedAreaSectionId(nextAreaSectionId || "all");
           setPage(nextPage);
           if (transportSection) setNavTransportSection(transportSection);
           setNavTransportTab(transportTab || "");
+          if (retailTab) setNavRetailTab(retailTab);
           setAuditShortcutPreset(auditPreset || null);
           setNavAuditTab(auditPreset?.tab || "");
         }}
@@ -8117,6 +8172,7 @@ function App() { // NOSONAR
         selectedAreaSectionId={selectedAreaSectionId}
         navTransportSection={navTransportSection}
         navTransportTab={navTransportTab}
+        navRetailTab={navRetailTab}
         canUseAI={!!actionPermissions.useCopmecAI}
         onOpenAI={() => setAiOpen((v) => !v)}
       />
@@ -8178,6 +8234,7 @@ function App() { // NOSONAR
           {page === PAGE_PROCESS_AUDITS ? <AuditoriasProcesos contexto={paginasContexto} /> : null}
           {page === PAGE_INVENTORY ? <GestionInventario contexto={paginasContexto} /> : null}
           {page === PAGE_TRANSPORT ? <GestionTransporte contexto={paginasContexto} /> : null}
+          {page === PAGE_RETAIL ? <GestionRetail contexto={paginasContexto} /> : null}
           {page === PAGE_USERS ? <GestionUsuarios contexto={paginasContexto} /> : null}
           {page === PAGE_BIBLIOTECA ? (
             <BibliotecaPage

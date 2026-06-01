@@ -1,3 +1,6 @@
+/** Areas laterales visibles en menu pero sin pestanas internas. */
+const AREA_SECTIONS_WITHOUT_TABS = new Set([]);
+
 const APP_AREA_SECTIONS = [
   { id: "esto", label: "ESTO", scopes: ["ESTO"] },
   { id: "transporte", label: "TRANSPORTE", scopes: ["TRANSPORTE"] },
@@ -95,9 +98,15 @@ const AREA_TAB_PERMISSION_ACTIONS = {
   },
   "retail": {
     dashboard: "scopeRetailDashboard",
-    board: "scopeRetailBoardBuilder",
-    customBoards: "scopeRetailMyBoards",
-    history: "scopeRetailHistory",
+    "ordenes-compra": "scopeRetailOrdenesCompra",
+    "surtido": "scopeRetailSurtido",
+    "cerrado": "scopeRetailCerrado",
+    "huellas": "scopeRetailHuellas",
+    "clientes": "scopeRetailClientes",
+    "inventario": "scopeRetailInventario",
+    "prearmado": "scopeRetailPrearmado",
+    "incidencias": "scopeRetailIncidencias",
+    "reportes": "scopeRetailReportes",
   },
   "fullfilment": {
     dashboard: "scopeFullfilmentDashboard",
@@ -113,6 +122,57 @@ const AREA_TAB_PERMISSION_ACTIONS = {
     "dashboard-transporte": "scopeTransporteDashboard",
     "direcciones-gastos": "scopeTransporteLogistica",
   },
+};
+
+const RETAIL_SECTION_ACTIONS = {
+  dashboard: [
+    "viewRetailReports",
+    "exportRetailReports",
+    "exportDashboardData",
+    "manageDashboardState",
+  ],
+  "ordenes-compra": [
+    "viewRetailPurchaseOrders",
+    "manageRetailPurchaseOrders",
+    "cancelRetailPurchaseOrders",
+  ],
+  "surtido": [
+    "viewRetailPicking",
+    "manageRetailPicking",
+  ],
+  "cerrado": [
+    "viewRetailClosing",
+    "manageRetailClosing",
+    "approveRetailClosing",
+    "printRetailLabels",
+    "reprintRetailLabels",
+  ],
+  "huellas": [
+    "viewRetailFootprints",
+    "manageRetailFootprints",
+    "importRetailFootprints",
+  ],
+  "clientes": [
+    "viewRetailClients",
+    "manageRetailClients",
+  ],
+  "inventario": [
+    "viewRetailCatalog",
+    "manageRetailCatalog",
+    "importRetailCatalog",
+  ],
+  "prearmado": [
+    "viewRetailPreassembly",
+    "manageRetailPreassembly",
+  ],
+  "incidencias": [
+    "viewRetailIncidents",
+    "manageRetailIncidents",
+  ],
+  "reportes": [
+    "viewRetailReports",
+    "exportRetailReports",
+  ],
 };
 
 const TRANSPORT_SECTION_ACTIONS = {
@@ -173,10 +233,12 @@ export function findAreaSectionByLabel(areaValue, sections = []) {
 }
 
 export {
+  AREA_SECTIONS_WITHOUT_TABS,
   APP_AREA_SECTIONS,
   NAV_AREA_ACTION_BY_SECTION,
   NAV_UTILITY_ACTION_BY_GROUP,
   AREA_TAB_PERMISSION_ACTIONS,
+  RETAIL_SECTION_ACTIONS,
   TRANSPORT_SECTION_ACTIONS,
   TRANSPORT_DOCUMENTACION_LEGACY_SCOPED_ACTIONS,
   AREA_TAB_BASE_ACTIONS,

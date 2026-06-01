@@ -1,12 +1,16 @@
 import {
   PAGE_DASHBOARD,
+  PAGE_RETAIL,
   PAGE_TRANSPORT,
   ROLE_LEAD,
   AREA_TAB_SCOPED_ACTION_CONFIG,
   getScopedAreaActionPermissionId,
 } from "./constantes.js";
+import { RETAIL_TAB_SCOPE_IDS } from "../retail/retailModuleConfig.js";
 import {
+  AREA_SECTIONS_WITHOUT_TABS,
   AREA_TAB_PERMISSION_ACTIONS,
+  NAV_AREA_ACTION_BY_SECTION,
   TRANSPORT_DOCUMENTACION_LEGACY_SCOPED_ACTIONS,
 } from "../app/areaNavigationConfig.js";
 
@@ -86,6 +90,12 @@ export function userHasAnyTransportAreaScope(user, permissions) {
   return transportScopes.some((scopeId) => hasScopeTabGrant(user, scopeId, permissions));
 }
 
+export function userHasAnyRetailAreaScope(user, permissions) {
+  if (!user) return false;
+  if (normalizeRoleIsLead(user)) return true;
+  return Object.values(RETAIL_TAB_SCOPE_IDS).some((scopeId) => hasScopeTabGrant(user, scopeId, permissions));
+}
+
 export function canAccessAreaDashboardPage(user, areaSectionId, permissions) {
   if (!user || !areaSectionId || areaSectionId === "all") return false;
   if (normalizeRoleIsLead(user)) return true;
@@ -104,6 +114,14 @@ export function canAccessGlobalDashboardPage(user, permissions) {
   if (typeof override === "boolean") return override;
   // Dashboard corporativo solo por asignación explícita (evita fallback por rol).
   return false;
+}
+
+export function canAccessAreaShellPage(user, areaSectionId, permissions) {
+  if (!user || !areaSectionId) return false;
+  if (!AREA_SECTIONS_WITHOUT_TABS.has(areaSectionId)) return false;
+  if (normalizeRoleIsLead(user)) return true;
+  const navActionId = NAV_AREA_ACTION_BY_SECTION[areaSectionId] || "";
+  return navActionId ? resolveCanDoAction(user, navActionId, permissions) : false;
 }
 
 function normalizeRoleIsLead(user) {
@@ -140,6 +158,10 @@ export function canAccessAreaNavItem(user, item, permissions) {
     return resolveCanDoAction(user, requiredActionId, permissions);
   }
 
+  if (pageId === PAGE_RETAIL && requiredActionId) {
+    return resolveCanDoAction(user, requiredActionId, permissions);
+  }
+
   if (item.requiredKind === "pages" && requiredActionId) {
     return resolveCanAccessPage(user, requiredActionId, permissions);
   }
@@ -154,6 +176,10 @@ export function resolveCanAccessPage(user, pageId, permissions) {
   if (normalizeRoleIsLead(user)) return true;
 
   if (pageId === PAGE_TRANSPORT && userHasAnyTransportAreaScope(user, permissions)) {
+    return true;
+  }
+
+  if (pageId === PAGE_RETAIL && userHasAnyRetailAreaScope(user, permissions)) {
     return true;
   }
 

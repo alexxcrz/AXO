@@ -55,8 +55,20 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
 
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
   const rateLimitedUntilRef = useRef(0);
+  const chatBackendDownUntilRef = useRef(0);
   const lastEstadosFetchAtRef = useRef(0);
   const estadosFetchInFlightRef = useRef(false);
+
+  const pauseChatBackend = (ms = 90000) => {
+    chatBackendDownUntilRef.current = Math.max(chatBackendDownUntilRef.current, Date.now() + ms);
+  };
+  const isChatBackendPaused = () => Date.now() < chatBackendDownUntilRef.current;
+  const isNetworkFetchError = (err) => {
+    if (!err || err.status) return false;
+    const msg = String(err.message || "").toLowerCase();
+    return msg.includes("failed to fetch") || msg.includes("network") || msg.includes("load failed") || msg.includes("aborted");
+  };
+
   const authFetch = async (url, opts = {}) => {
     const method = String(opts?.method || "GET").toUpperCase();
     const fullUrl = url.startsWith('http') ? url : (API_BASE_URL + (url.startsWith('/') ? url : '/' + url));
@@ -65,17 +77,28 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
     const isCriticalChatSync =
       fullUrl.includes("/api/chat/calls/pending") ||
       fullUrl.includes("/api/chat/calls/historial");
+    if (isChatGet && isChatBackendPaused()) {
+      const err = new Error("Backend temporalmente no disponible");
+      err.isBackendPaused = true;
+      throw err;
+    }
     if (isChatGet && !isCriticalChatSync && !isUserProfileFetch && Date.now() < rateLimitedUntilRef.current) {
       const err = new Error("Rate limit de chat activo");
       err.status = 429;
       err.isRateLimited = true;
       throw err;
     }
-    const r = await fetch(fullUrl, {
-      ...opts,
-      credentials: 'include',
-      ...(isCriticalChatSync && method === "GET" ? { cache: "no-store" } : {}),
-    });
+    let r;
+    try {
+      r = await fetch(fullUrl, {
+        ...opts,
+        credentials: 'include',
+        ...(isCriticalChatSync && method === "GET" ? { cache: "no-store" } : {}),
+      });
+    } catch (networkErr) {
+      if (isChatGet) pauseChatBackend(isCriticalChatSync ? 45000 : 90000);
+      throw networkErr;
+    }
     if (!r.ok) {
       if (r.status === 429 && isChatGet && !isCriticalChatSync) {
         const retryAfterHeader = Number.parseInt(r.headers.get("retry-after") || "", 10);
@@ -1116,20 +1139,20 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
     let cancelled = false;
 
     const syncActivos = async () => {
-      if (cargandoChatsActivosRef.current || cancelled) return;
+      if (cargandoChatsActivosRef.current || cancelled || isChatBackendPaused()) return;
       cargandoChatsActivosRef.current = true;
       try {
         const data = await authFetch(`${SERVER_URL}/api/chat/activos`);
         if (!cancelled) setChatsActivos(data || []);
-      } catch (_) {
-        /* noop */
+      } catch (err) {
+        if (isNetworkFetchError(err) || err?.isBackendPaused) pauseChatBackend(120000);
       } finally {
         cargandoChatsActivosRef.current = false;
       }
     };
 
     syncActivos();
-    const interval = setInterval(syncActivos, 30000);
+    const interval = setInterval(syncActivos, 45000);
     return () => {
       cancelled = true;
       clearInterval(interval);
@@ -2591,6 +2614,7 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
 
     const pollSignals = async () => {
       if (Date.now() < callSignalPollPausedUntilRef.current) return;
+      if (isChatBackendPaused()) return;
       if (callSignalPollBusyRef.current) return;
       callSignalPollBusyRef.current = true;
       try {
@@ -2599,19 +2623,20 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
         for (const signal of signals) {
           await handleRestSignal(signal);
         }
-      } catch (_err) {
-        if (import.meta.env.DEV && (_err?.status === 404 || _err?.status === 401)) {
-          // En desarrollo sin backend/proxy activo o sin sesión evita spam de 404/401 en consola.
+      } catch (err) {
+        if (import.meta.env.DEV && (err?.status === 404 || err?.status === 401)) {
           callSignalPollPausedUntilRef.current = Date.now() + (10 * 60 * 1000);
+        } else if (isNetworkFetchError(err) || err?.isBackendPaused) {
+          callSignalPollPausedUntilRef.current = Date.now() + 120000;
+          pauseChatBackend(120000);
         }
-        // silencio en dev sin backend
       } finally {
         callSignalPollBusyRef.current = false;
       }
     };
 
     pollSignals();
-    const pollInterval = socket?.connected ? 2000 : 1000;
+    const pollInterval = isChatBackendPaused() ? 15000 : (socket?.connected ? 3000 : 5000);
     const interval = setInterval(pollSignals, pollInterval);
     return () => clearInterval(interval);
   // eslint-disable-next-line react-hooks/exhaustive-deps

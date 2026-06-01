@@ -20,10 +20,12 @@ import {
   getScopedAreaActionPermissionId,
 } from "../utils/constantes";
 import {
+  AREA_SECTIONS_WITHOUT_TABS,
   APP_AREA_SECTIONS,
   NAV_AREA_ACTION_BY_SECTION,
   NAV_UTILITY_ACTION_BY_GROUP,
   AREA_TAB_PERMISSION_ACTIONS,
+  RETAIL_SECTION_ACTIONS,
   TRANSPORT_SECTION_ACTIONS,
   AREA_TAB_BASE_ACTIONS,
 } from "./areaNavigationConfig";
@@ -80,6 +82,28 @@ function buildPageActionPermissions(pageId, actionLabelById) {
 }
 
 function buildAreaItemPermissions(section) {
+  if (AREA_SECTIONS_WITHOUT_TABS.has(section.id)) {
+    return [];
+  }
+  if (section.id === "retail") {
+    return [
+      { tabKey: "dashboard", label: "Dashboard", scopeKey: "dashboard", actionsKey: "dashboard" },
+      { tabKey: "ordenes-compra", label: "Ordenes de compra", scopeKey: "ordenes-compra", actionsKey: "ordenes-compra" },
+      { tabKey: "surtido", label: "Surtido", scopeKey: "surtido", actionsKey: "surtido" },
+      { tabKey: "cerrado", label: "Cerrado", scopeKey: "cerrado", actionsKey: "cerrado" },
+      { tabKey: "huellas", label: "Huellas logisticas", scopeKey: "huellas", actionsKey: "huellas" },
+      { tabKey: "clientes", label: "Clientes", scopeKey: "clientes", actionsKey: "clientes" },
+      { tabKey: "inventario", label: "Inventario retail", scopeKey: "inventario", actionsKey: "inventario" },
+      { tabKey: "prearmado", label: "Prearmado de cajas", scopeKey: "prearmado", actionsKey: "prearmado" },
+      { tabKey: "incidencias", label: "Incidencias", scopeKey: "incidencias", actionsKey: "incidencias" },
+      { tabKey: "reportes", label: "Reportes", scopeKey: "reportes", actionsKey: "reportes" },
+    ].map(({ tabKey, label, scopeKey, actionsKey }) => ({
+      tabKey,
+      label,
+      scopeActionId: AREA_TAB_PERMISSION_ACTIONS.retail[scopeKey],
+      baseActionIds: RETAIL_SECTION_ACTIONS[actionsKey] || [],
+    }));
+  }
   if (section.id === "transporte") {
     return [
       { tabKey: "registros-envios", label: "Registros de envíos", scopeKey: "registros-envios", actionsKey: "registros-envios" },
@@ -311,7 +335,7 @@ export function buildMenuPermissionSections({ permissionPages = [] }) {
       navVisibilityKind: "actions",
       itemPermissions,
     };
-  }).filter((section) => section.itemPermissions.length > 0);
+  }).filter((section) => section.itemPermissions.length > 0 || AREA_SECTIONS_WITHOUT_TABS.has(section.id));
 
   const utilitySections = Object.entries(NAV_UTILITY_ACTION_BY_GROUP).map(([groupLabel, actionId]) => {
     let itemPermissions = [];

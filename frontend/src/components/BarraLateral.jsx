@@ -38,7 +38,8 @@ import {
 } from "lucide-react";
 import { CopmecBrand } from "./ComponentesDashboard";
 import logoIA from "../assets/AXOIA.png";
-import { PAGE_DASHBOARD, PAGE_PROCESS_AUDITS, PAGE_ROUTE_SLUGS, PAGE_TRANSPORT } from "../utils/constantes";
+import { PAGE_AREA_SHELL, PAGE_DASHBOARD, PAGE_PROCESS_AUDITS, PAGE_ROUTE_SLUGS, PAGE_TRANSPORT, PAGE_RETAIL } from "../utils/constantes";
+import { AREA_SECTIONS_WITHOUT_TABS } from "../app/areaNavigationConfig.js";
 import { formatNavNotificationCount } from "../utils/processAuditMetrics.js";
 
 // No hay atajos dentro de Mejora continua. Auditoría e Historial son entradas separadas en NAV_ITEMS.
@@ -188,7 +189,7 @@ function SidebarIcon({ icon: Icon, className = "" }) {
   );
 }
 
-export const Sidebar = React.memo(function Sidebar({ currentUser, page, onPageChange, isOpen, isCollapsed, onClose, onOpenProfile, onToggleCollapsed, areaSections, utilityNavItems, selectedAreaSectionId, navTransportSection, navTransportTab, navAuditTab, canUseAI, onOpenAI }) {
+export const Sidebar = React.memo(function Sidebar({ currentUser, page, onPageChange, isOpen, isCollapsed, onClose, onOpenProfile, onToggleCollapsed, areaSections, utilityNavItems, selectedAreaSectionId, navTransportSection, navTransportTab, navRetailTab = "ordenes-compra", navAuditTab, canUseAI, onOpenAI }) {
   const avatarUrl = getUserAvatarUrl(currentUser);
   const globalDashboardItem = (Array.isArray(utilityNavItems) ? utilityNavItems : []).find((item) => item.id === PAGE_DASHBOARD) || null;
   const sortedAreaSections = (Array.isArray(areaSections) ? areaSections : [])
@@ -340,7 +341,15 @@ export const Sidebar = React.memo(function Sidebar({ currentUser, page, onPageCh
                   <button
                     type="button"
                     className="nav-section-toggle"
-                    onClick={() => toggleAreaSection(section.id)}
+                    onClick={() => {
+                      if (!section.items?.length && AREA_SECTIONS_WITHOUT_TABS.has(section.id)) {
+                        onPageChange(PAGE_AREA_SHELL, section.id, "", "", null, "");
+                        if (sectionCollapsed) toggleAreaSection(section.id);
+                        onClose?.();
+                        return;
+                      }
+                      toggleAreaSection(section.id);
+                    }}
                     aria-expanded={!sectionCollapsed}
                     aria-controls={`nav-section-panel-${section.id}`}
                   >
@@ -360,6 +369,8 @@ export const Sidebar = React.memo(function Sidebar({ currentUser, page, onPageCh
                       const itemActive = page === item.pageId && activeInSection && (
                         !item.transportSection || navTransportSection === item.transportSection
                       ) && (!item.transportTab || navTransportTab === item.transportTab) && (
+                        !item.retailTab || navRetailTab === item.retailTab
+                      ) && (
                         !item.auditPreset?.tab || item.auditPreset.tab === navAuditTab
                       );
                       return (
@@ -371,7 +382,7 @@ export const Sidebar = React.memo(function Sidebar({ currentUser, page, onPageCh
                           aria-label={`${section.label} · ${item.label}`}
                           onClick={(event) => {
                             event.preventDefault();
-                            onPageChange(item.pageId, section.id, item.transportSection, item.transportTab, item.auditPreset);
+                            onPageChange(item.pageId, section.id, item.transportSection, item.transportTab, item.auditPreset, item.retailTab);
                             onClose?.();
                           }}
                         >

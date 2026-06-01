@@ -1825,8 +1825,12 @@ export default function AuditoriasProcesosCompact({ contexto }) {
   };
 
   const closedAudits = useMemo(
-    () => [...sortedAudits.filter((entry) => entry.status === "closed" && !auditHasDetectedProblems(entry) && !auditHasPendingProposals(entry))]
-      .sort((a, b) => (LIFECYCLE_PRIORITY[normalizeLifecycleStatus(a.lifecycleStatus)] ?? 99) - (LIFECYCLE_PRIORITY[normalizeLifecycleStatus(b.lifecycleStatus)] ?? 99)),
+    () => [...sortedAudits.filter((entry) => entry.status === "closed")]
+      .sort((a, b) => {
+        const tb = Date.parse(b.closedAt || b.updatedAt || b.startedAt || 0);
+        const ta = Date.parse(a.closedAt || a.updatedAt || a.startedAt || 0);
+        return (Number.isFinite(tb) ? tb : 0) - (Number.isFinite(ta) ? ta : 0);
+      }),
     [sortedAudits],
   );
 
@@ -2489,9 +2493,12 @@ export default function AuditoriasProcesosCompact({ contexto }) {
   async function handleCloseAudit() {
     if (!canManageAudits || !auditDraft) return;
     try {
+      const hasProblems = auditHasDetectedProblems(auditDraft);
+      const hasProposals = auditHasPendingProposals(auditDraft);
       await updateProcessAudit(auditDraft.id, {
         status: "closed",
-        lifecycleStatus: "in_review",
+        lifecycleStatus: hasProposals ? "proposal_sent" : hasProblems ? "in_review" : "closed",
+        closedAt: new Date().toISOString(),
         notes: auditDraft.notes || "",
         questions: normalizeQuestionsForSave(auditDraft.questions || []),
         subResponses: auditDraft.subResponses || [],
@@ -2499,20 +2506,16 @@ export default function AuditoriasProcesosCompact({ contexto }) {
       setAuditEditorOpen(false);
       setAuditQuestionsDraft(null);
       setSelectedAuditId("");
+      switchAuditTab("history");
 
-      const hasProblems = auditHasDetectedProblems(auditDraft);
-      const hasProposals = auditHasPendingProposals(auditDraft);
-      if (hasProposals) {
-        switchAuditTab("propuestas");
-      } else if (hasProblems) {
-        switchAuditTab("problemas");
-      } else {
-        switchAuditTab("history");
-      }
-
-      pushAppToast("Auditoría guardada y clasificada según el estado de seguimiento.", "success");
+      const detail = hasProposals
+        ? "Quedó en historial con propuestas pendientes de seguimiento."
+        : hasProblems
+          ? "Quedó en historial con problemas detectados."
+          : "Quedó en historial.";
+      pushAppToast({ type: "success", label: `Auditoría cerrada. ${detail}` });
     } catch (error) {
-      pushAppToast(error?.message || "No se pudo cerrar la auditoría.", "danger");
+      pushAppToast({ type: "error", label: error?.message || "No se pudo cerrar la auditoría." });
     }
   }
 
@@ -3267,7 +3270,7 @@ export default function AuditoriasProcesosCompact({ contexto }) {
           <div className="card-header-row">
             <div>
               <h3>Historial de auditorías cerradas</h3>
-              <p>Solo auditorías completamente cerradas, sin acceso adicional a problemas o propuestas.</p>
+              <p>Todas las auditorías que cerraste aparecen aquí, con o sin problemas o propuestas. Usa Ver detalle para consultarlas.</p>
             </div>
           </div>
           <div className="saved-board-list permissions-preset-list audit-history-overview-grid">
