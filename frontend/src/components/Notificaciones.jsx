@@ -6,7 +6,7 @@ function AppToastStack({ toasts, onDismiss, onPin }) {
   const [nowMs, setNowMs] = useState(() => Date.now());
 
   useEffect(() => {
-    const timer = globalThis.setInterval(() => setNowMs(Date.now()), 100);
+    const timer = globalThis.setInterval(() => setNowMs(Date.now()), 1000);
     return () => globalThis.clearInterval(timer);
   }, []);
 

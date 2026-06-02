@@ -1824,8 +1824,10 @@ export default function AuditoriasProcesosCompact({ contexto }) {
     return (audit.proposals || []).filter((proposal) => proposal && !["accepted", "closed", "rejected", "in_implementation", "in_validation"].includes(proposal.status)).length > 0;
   };
 
+  const auditWorkflowFinished = (audit) => normalizeLifecycleStatus(audit?.lifecycleStatus) === "closed";
+
   const closedAudits = useMemo(
-    () => [...sortedAudits.filter((entry) => entry.status === "closed")]
+    () => [...sortedAudits.filter((entry) => auditWorkflowFinished(entry))]
       .sort((a, b) => {
         const tb = Date.parse(b.closedAt || b.updatedAt || b.startedAt || 0);
         const ta = Date.parse(a.closedAt || a.updatedAt || a.startedAt || 0);
@@ -1836,9 +1838,9 @@ export default function AuditoriasProcesosCompact({ contexto }) {
 
   const openProblemAudits = useMemo(() => {
     return sortedAudits.filter((audit) => {
-      if (audit.status === "closed") return false;
       if (!auditHasDetectedProblems(audit)) return false;
-      return !auditHasPendingProposals(audit);
+      if (auditHasPendingProposals(audit)) return false;
+      return !auditWorkflowFinished(audit);
     });
   }, [sortedAudits]);
 
@@ -1848,16 +1850,16 @@ export default function AuditoriasProcesosCompact({ contexto }) {
   };
 
   const openProposalAudits = useMemo(() => {
-    return sortedAudits.filter((audit) => audit.status !== "closed" && auditHasPendingProposals(audit));
+    return sortedAudits.filter((audit) => auditHasPendingProposals(audit) && !auditWorkflowFinished(audit));
   }, [sortedAudits]);
 
   const selectedAudit = useMemo(() => {
-    if (activeTab !== "capture") {
-      if (!selectedAuditId) return null;
-      return openAudits.find((entry) => entry.id === selectedAuditId) || null;
+    if (activeTab === "capture") {
+      return openAudits.find((entry) => entry.id === selectedAuditId) || openAudits[0] || null;
     }
-    return openAudits.find((entry) => entry.id === selectedAuditId) || openAudits[0] || null;
-  }, [activeTab, openAudits, selectedAuditId]);
+    if (!selectedAuditId) return null;
+    return sortedAudits.find((entry) => entry.id === selectedAuditId) || null;
+  }, [activeTab, openAudits, selectedAuditId, sortedAudits]);
 
   const visibleAuditEvidences = useMemo(() => {
     if (!auditDraft) return [];
@@ -2505,15 +2507,23 @@ export default function AuditoriasProcesosCompact({ contexto }) {
       });
       setAuditEditorOpen(false);
       setAuditQuestionsDraft(null);
-      setSelectedAuditId("");
-      switchAuditTab("history");
+      setSelectedAuditId(auditDraft.id);
+
+      if (hasProposals) {
+        switchAuditTab("propuestas");
+      } else if (hasProblems) {
+        switchAuditTab("problemas");
+      } else {
+        setSelectedAuditId("");
+        switchAuditTab("history");
+      }
 
       const detail = hasProposals
-        ? "Quedó en historial con propuestas pendientes de seguimiento."
+        ? "Sigue en Propuestas para autorizar o rechazar."
         : hasProblems
-          ? "Quedó en historial con problemas detectados."
-          : "Quedó en historial.";
-      pushAppToast({ type: "success", label: `Auditoría cerrada. ${detail}` });
+          ? "Sigue en Problemas: crea propuestas de mejora antes del historial."
+          : "Ciclo completado; quedó en Historial.";
+      pushAppToast({ type: "success", label: `Captura cerrada. ${detail}` });
     } catch (error) {
       pushAppToast({ type: "error", label: error?.message || "No se pudo cerrar la auditoría." });
     }
@@ -3179,7 +3189,7 @@ export default function AuditoriasProcesosCompact({ contexto }) {
           <div className="card-header-row">
             <div>
               <h3>Problemas de auditoría</h3>
-              <p>Auditorías abiertas con problemas detectados que aún no tienen propuesta asociada.</p>
+              <p>Auditorías con hallazgos detectados. La captura puede estar cerrada; aquí das seguimiento y creas propuestas.</p>
             </div>
             <span className="chip danger">Total: {openProblemAudits.length}</span>
           </div>
@@ -3195,6 +3205,7 @@ export default function AuditoriasProcesosCompact({ contexto }) {
                       <p className="subtle-line">{audit.auditorName || currentUser?.name || "Sin auditor"}</p>
                     </div>
                     <div className="audit-inline-actions">
+                      {audit.status === "closed" ? <span className="chip">Captura cerrada</span> : null}
                       <span className="chip danger">Problemas: {problemsCount}</span>
                       <span className="chip warning">Propuestas: {proposalsCount}</span>
                     </div>
@@ -3270,7 +3281,7 @@ export default function AuditoriasProcesosCompact({ contexto }) {
           <div className="card-header-row">
             <div>
               <h3>Historial de auditorías cerradas</h3>
-              <p>Todas las auditorías que cerraste aparecen aquí, con o sin problemas o propuestas. Usa Ver detalle para consultarlas.</p>
+              <p>Solo auditorías con ciclo de mejora terminado. Si tiene problemas o propuestas pendientes, aparece en esas pestañas.</p>
             </div>
           </div>
           <div className="saved-board-list permissions-preset-list audit-history-overview-grid">

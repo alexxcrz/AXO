@@ -789,7 +789,11 @@ function App() { // NOSONAR
   const routeSyncFromPopRef = useRef(false);
   const warehouseRefreshTimerRef = useRef(null);
   const warehouseRefreshQueuedRef = useRef(false);
+  const warehouseRefreshInFlightRef = useRef(false);
+  const warehouseRefreshPendingRevisionRef = useRef(null);
+  const warehouseSyncPausedUntilRef = useRef(0);
   const warehouseRevisionRef = useRef(0);
+  const WAREHOUSE_REFRESH_DEBOUNCE_MS = 2000;
   const suppressWarehouseRefreshUntilRef = useRef(0);
   const sseHealthyRef = useRef(false);
   const syncStatusRef = useRef("Sincronizado");
@@ -903,14 +907,30 @@ function App() { // NOSONAR
   }
 
   function scheduleWarehouseStateRefresh(incomingRevision) {
+    const revision = Number(incomingRevision || 0);
+    if (revision > 0) {
+      const pending = Number(warehouseRefreshPendingRevisionRef.current || 0);
+      warehouseRefreshPendingRevisionRef.current = Math.max(pending, revision);
+    }
+    if (Date.now() < warehouseSyncPausedUntilRef.current) return;
     if (shouldSkipWarehouseRefresh(incomingRevision)) return;
+    if (warehouseRefreshInFlightRef.current) {
+      warehouseRefreshQueuedRef.current = true;
+      return;
+    }
     if (warehouseRefreshTimerRef.current) {
       warehouseRefreshQueuedRef.current = true;
       return;
     }
     warehouseRefreshTimerRef.current = globalThis.setTimeout(async () => {
       warehouseRefreshTimerRef.current = null;
-      const queuedRevision = incomingRevision;
+      const queuedRevision = warehouseRefreshPendingRevisionRef.current;
+      warehouseRefreshPendingRevisionRef.current = null;
+      if (warehouseRefreshInFlightRef.current) {
+        warehouseRefreshQueuedRef.current = true;
+        return;
+      }
+      warehouseRefreshInFlightRef.current = true;
       try {
         if (shouldSkipWarehouseRefresh(queuedRevision)) return;
         const meta = await requestJson("/warehouse/meta");
@@ -927,6 +947,9 @@ function App() { // NOSONAR
         sseHealthyRef.current = true;
       } catch (error) {
         sseHealthyRef.current = false;
+        if (!isSessionRequiredError(error)) {
+          warehouseSyncPausedUntilRef.current = Date.now() + 45_000;
+        }
         if (isSessionRequiredError(error)) {
           invalidateClientSession("Tu sesión terminó. Vuelve a iniciar sesión.");
         } else {
@@ -936,12 +959,14 @@ function App() { // NOSONAR
             return next;
           });
         }
+      } finally {
+        warehouseRefreshInFlightRef.current = false;
       }
       if (warehouseRefreshQueuedRef.current) {
         warehouseRefreshQueuedRef.current = false;
         scheduleWarehouseStateRefresh();
       }
-    }, 800);
+    }, WAREHOUSE_REFRESH_DEBOUNCE_MS);
   }
 
   function armGlobalCaptureShield(nextMs = 1600, notify = false) {
@@ -1154,7 +1179,7 @@ function App() { // NOSONAR
   }
 
   useEffect(() => {
-    const timer = globalThis.setInterval(() => setNow(Date.now()), 1000);
+    const timer = globalThis.setInterval(() => setNow(Date.now()), 5000);
     return () => globalThis.clearInterval(timer);
   }, []);
 
@@ -1617,6 +1642,8 @@ function App() { // NOSONAR
     if (!socket) return;
 
     const handleWarehouseUpdate = (payload) => {
+      // Con SSE activo, evitar doble GET /warehouse/state (socket + events).
+      if (sseHealthyRef.current) return;
       scheduleWarehouseStateRefresh(payload?.revision);
     };
 
@@ -1659,6 +1686,11 @@ function App() { // NOSONAR
     const canReceiveTransportBellNotifications = isTransportOperator || isLeadSession;
     const shouldShowTransportDeviceNotification = isTransportOperator && !isLeadSession;
 
+    const queueWarehouseRefresh = (data) => {
+      if (ignoreResponse) return;
+      scheduleWarehouseStateRefresh(data?.revision);
+    };
+
     const handleTransportRecordCreated = async (data) => {
       if (ignoreResponse) return;
       // Mostrar notificación de nuevo envío
@@ -1677,13 +1709,7 @@ function App() { // NOSONAR
           targetRecordId: String(data.record?.id || "").trim(),
         });
       }
-      // Actualizar estado del transporte
-      try {
-        const remoteState = await requestJson("/warehouse/state");
-        if (!ignoreResponse) {
-          applyRemoteStatePreservingBoardDrafts(remoteState);
-        }
-      } catch (_) { /* ignorar */ }
+      queueWarehouseRefresh(data);
     };
 
     const handleTransportRouteAssigned = async (data) => {
@@ -1705,12 +1731,7 @@ function App() { // NOSONAR
         });
       }
       // Actualizar estado
-      try {
-        const remoteState = await requestJson("/warehouse/state");
-        if (!ignoreResponse) {
-          applyRemoteStatePreservingBoardDrafts(remoteState);
-        }
-      } catch (_) { /* ignorar */ }
+      queueWarehouseRefresh(data);
     };
 
     const handleTransportStatusUpdated = async (data) => {
@@ -1732,12 +1753,7 @@ function App() { // NOSONAR
         });
       }
       // Actualizar estado
-      try {
-        const remoteState = await requestJson("/warehouse/state");
-        if (!ignoreResponse) {
-          applyRemoteStatePreservingBoardDrafts(remoteState);
-        }
-      } catch (_) { /* ignorar */ }
+      queueWarehouseRefresh(data);
     };
 
     const handleTransportRecordPostponed = async (data) => {
@@ -1761,22 +1777,12 @@ function App() { // NOSONAR
           targetRecordId: String(data.record?.id || "").trim(),
         });
       }
-      try {
-        const remoteState = await requestJson("/warehouse/state");
-        if (!ignoreResponse) {
-          applyRemoteStatePreservingBoardDrafts(remoteState);
-        }
-      } catch (_) { /* ignorar */ }
+      queueWarehouseRefresh(data);
     };
 
     const handleTransportRecordDeleted = async () => {
       if (ignoreResponse) return;
-      try {
-        const remoteState = await requestJson("/warehouse/state");
-        if (!ignoreResponse) {
-          applyRemoteStatePreservingBoardDrafts(remoteState);
-        }
-      } catch (_) { /* ignorar */ }
+      queueWarehouseRefresh();
     };
 
     const handleDocumentacionRecordCreated = async (data) => {
@@ -1802,12 +1808,7 @@ function App() { // NOSONAR
           targetTransportMainTab: "documentacion",
         });
       }
-      try {
-        const remoteState = await requestJson("/warehouse/state");
-        if (!ignoreResponse) {
-          applyRemoteStatePreservingBoardDrafts(remoteState);
-        }
-      } catch (_) { /* ignorar */ }
+      queueWarehouseRefresh(data);
     };
 
     const handleDocumentacionRecordUpdated = async (data) => {
@@ -1833,12 +1834,7 @@ function App() { // NOSONAR
           targetTransportMainTab: "documentacion",
         });
       }
-      try {
-        const remoteState = await requestJson("/warehouse/state");
-        if (!ignoreResponse) {
-          applyRemoteStatePreservingBoardDrafts(remoteState);
-        }
-      } catch (_) { /* ignorar */ }
+      queueWarehouseRefresh(data);
     };
 
     const handleDocumentacionRouteAssigned = async (data) => {
@@ -1864,12 +1860,7 @@ function App() { // NOSONAR
           targetTransportMainTab: "documentacion",
         });
       }
-      try {
-        const remoteState = await requestJson("/warehouse/state");
-        if (!ignoreResponse) {
-          applyRemoteStatePreservingBoardDrafts(remoteState);
-        }
-      } catch (_) { /* ignorar */ }
+      queueWarehouseRefresh(data);
     };
 
     const handleDocumentacionStatusUpdated = async (data) => {
@@ -1895,12 +1886,7 @@ function App() { // NOSONAR
           targetTransportMainTab: "documentacion",
         });
       }
-      try {
-        const remoteState = await requestJson("/warehouse/state");
-        if (!ignoreResponse) {
-          applyRemoteStatePreservingBoardDrafts(remoteState);
-        }
-      } catch (_) { /* ignorar */ }
+      queueWarehouseRefresh(data);
     };
 
     const handleTransportRoadAlert = async (data) => {
@@ -1926,12 +1912,7 @@ function App() { // NOSONAR
           });
         }
       }
-      try {
-        const remoteState = await requestJson("/warehouse/state");
-        if (!ignoreResponse) {
-          applyRemoteStatePreservingBoardDrafts(remoteState);
-        }
-      } catch (_) { /* ignorar */ }
+      queueWarehouseRefresh(data);
     };
 
     socket.on("transport_record_created", handleTransportRecordCreated);
@@ -2078,13 +2059,9 @@ function App() { // NOSONAR
     if (!sessionUserId || sessionUserId === BOOTSTRAP_MASTER_ID) return;
 
     let ignoreResponse = false;
-    const handleVisibilityChange = async () => {
+    const handleVisibilityChange = () => {
       if (document.hidden || ignoreResponse) return;
-      try {
-        const remoteState = await requestJson("/warehouse/state");
-        if (ignoreResponse) return;
-        applyRemoteStatePreservingBoardDrafts(remoteState);
-      } catch (_) { /* Ignorar; el SSE se encargará */ }
+      scheduleWarehouseStateRefresh();
     };
 
     document.addEventListener("visibilitychange", handleVisibilityChange);
@@ -8105,11 +8082,12 @@ function App() { // NOSONAR
     const socket = io(socketBaseUrl, {
       withCredentials: true,
       path: "/socket.io",
-      transports: ["websocket", "polling"],
+      // Polling primero: más estable en Render (evita ERR_HTTP2_PING_FAILED en WebSocket).
+      transports: ["polling", "websocket"],
       upgrade: true,
       reconnection: true,            // Socket.IO gestiona reconexión (sin race conditions)
-      reconnectionDelay: 3000,       // 3s entre intentos
-      reconnectionDelayMax: 10000,   // máximo 10s de espera
+      reconnectionDelay: 5000,       // 5s entre intentos (menos tormenta al despertar instancia)
+      reconnectionDelayMax: 15000,   // máximo 15s de espera
       reconnectionAttempts: Infinity,
       timeout: 30000,
       forceNew: true,                // nuevo Manager en cada montaje (sin cache)

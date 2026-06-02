@@ -1997,7 +1997,7 @@ warehouseRouter.get("/events", (req, res) => {
 
   const heartbeat = setInterval(() => {
     safeWrite(`: heartbeat ${Date.now()}\n\n`);
-  }, 15000);
+  }, 25000);
 
   const closeStream = () => {
     if (closed) return;

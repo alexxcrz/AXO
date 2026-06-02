@@ -1093,6 +1093,21 @@ function buildDevBackendUrl(path) {
   return `${protocol}//${hostname}:4000/api${path}`;
 }
 
+function isTransientNetworkFetchError(error) {
+  if (!error || error.status) return false;
+  const msg = String(error.message || "").toLowerCase();
+  return msg.includes("failed to fetch")
+    || msg.includes("network")
+    || msg.includes("load failed")
+    || msg.includes("aborted");
+}
+
+function shouldRetryWarehouseGetInProd(path, method) {
+  if (method !== "GET") return false;
+  const normalized = String(path || "");
+  return normalized === "/warehouse/state" || normalized === "/warehouse/meta";
+}
+
 export async function requestJson(path, options = {}) {
   const requestInit = {
     credentials: "include",
@@ -1106,11 +1121,23 @@ export async function requestJson(path, options = {}) {
   const requestMethod = String(requestInit.method || "GET").toUpperCase();
   let response;
 
+  const performFetch = async () => {
+    try {
+      return await fetch(`${API_BASE_URL}${path}`, requestInit);
+    } catch (error) {
+      if (shouldRetryLoginOptionsInDev(path, requestMethod, 0)) {
+        return fetch(buildDevBackendUrl(path), requestInit);
+      }
+      throw error;
+    }
+  };
+
   try {
-    response = await fetch(`${API_BASE_URL}${path}`, requestInit);
+    response = await performFetch();
   } catch (error) {
-    if (shouldRetryLoginOptionsInDev(path, requestMethod, 0)) {
-      response = await fetch(buildDevBackendUrl(path), requestInit);
+    if (shouldRetryWarehouseGetInProd(path, requestMethod) && isTransientNetworkFetchError(error)) {
+      await new Promise((resolve) => globalThis.setTimeout(resolve, 1200));
+      response = await performFetch();
     } else {
       throw error;
     }

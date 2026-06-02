@@ -66,7 +66,11 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
   const isNetworkFetchError = (err) => {
     if (!err || err.status) return false;
     const msg = String(err.message || "").toLowerCase();
-    return msg.includes("failed to fetch") || msg.includes("network") || msg.includes("load failed") || msg.includes("aborted");
+    return msg.includes("failed to fetch")
+      || msg.includes("network")
+      || msg.includes("load failed")
+      || msg.includes("aborted")
+      || msg.includes("reset");
   };
 
   const authFetch = async (url, opts = {}) => {
@@ -1129,13 +1133,13 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
         });
         return changed ? next : prev;
       });
-    }, 900);
+    }, 2500);
     return () => clearInterval(timer);
   }, []);
 
-  // Sincronización de chats activos en segundo plano (chat abierto o cerrado).
-  // Esto mantiene el badge y la lista actualizados incluso si se pierde un evento socket.
+  // Badge de chats no leídos: polling ligero solo con chat cerrado (si está abierto, otro efecto sincroniza).
   useEffect(() => {
+    if (open) return undefined;
     let cancelled = false;
 
     const syncActivos = async () => {
@@ -1152,13 +1156,13 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
     };
 
     syncActivos();
-    const interval = setInterval(syncActivos, 45000);
+    const interval = setInterval(syncActivos, 180000);
     return () => {
       cancelled = true;
       clearInterval(interval);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [SERVER_URL]);
+  }, [SERVER_URL, open]);
 
   // Re-fetch chats y mensajes abiertos cuando el socket se reconecta (connectCount > 1)
   useEffect(() => {
@@ -1227,7 +1231,7 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
 
     // Primer sync inmediato + intervalo moderado para evitar 429
     syncOpenChat();
-    const interval = setInterval(syncOpenChat, 20000);
+    const interval = setInterval(syncOpenChat, 45000);
     return () => clearInterval(interval);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, tipoChat, chatActual, SERVER_URL]);
@@ -1259,7 +1263,7 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
       if (socket.connected) {
         emitirLoginChat();
       }
-    }, 20000);
+    }, 90000);
 
     const refreshEstadosUsuarios = async (force = false) => {
       const now = Date.now();
@@ -1560,7 +1564,7 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
     cargarChatsActivos(true);
     
     // Recargar cada 30 segundos para actualizar contadores (reducido de 5 segundos)
-    const interval = setInterval(() => cargarChatsActivos(false), 30000);
+    const interval = setInterval(() => cargarChatsActivos(false), 60000);
     return () => clearInterval(interval);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
@@ -1601,7 +1605,7 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
     };
 
     cargarHistorial(true);
-    const interval = setInterval(() => cargarHistorial(false), 15000);
+    const interval = setInterval(() => cargarHistorial(false), 45000);
 
     return () => {
       cancelado = true;
@@ -2635,8 +2639,12 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
       }
     };
 
+    if (!open && !callActivo) return undefined;
+
     pollSignals();
-    const pollInterval = isChatBackendPaused() ? 15000 : (socket?.connected ? 3000 : 5000);
+    const pollInterval = isChatBackendPaused()
+      ? 90000
+      : (socket?.connected ? 20000 : 35000);
     const interval = setInterval(pollSignals, pollInterval);
     return () => clearInterval(interval);
   // eslint-disable-next-line react-hooks/exhaustive-deps
