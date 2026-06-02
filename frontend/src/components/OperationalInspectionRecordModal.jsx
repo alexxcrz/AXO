@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Modal } from "./Modal";
+import { isImageMedia, isVideoMedia, MediaLightbox } from "./MediaLightbox.jsx";
 import { normalizeOperationalInspectionTemplate } from "../utils/operationalInspectionTemplate";
 
 function normalizeInspectionRecord(record) {
@@ -60,7 +61,7 @@ export default function OperationalInspectionRecordModal({
   const resolvedRecord = useMemo(() => normalizeInspectionRecord(record), [record]);
   const [activeSite, setActiveSite] = useState("");
 
-  const [selectedMedia, setSelectedMedia] = useState(null);
+  const [mediaLightbox, setMediaLightbox] = useState(null);
 
   useEffect(() => {
     if (activeSite && resolvedRecord.siteKeys.includes(activeSite)) return;
@@ -228,7 +229,11 @@ export default function OperationalInspectionRecordModal({
                             <button
                               key={photo.id}
                               type="button"
-                              onClick={() => setSelectedMedia(photo)}
+                              onClick={() => {
+                                const gallery = photos.filter((item) => isImageMedia(item) || isVideoMedia(item));
+                                const startIndex = gallery.findIndex((item) => item.id === photo.id);
+                                setMediaLightbox({ items: gallery, startIndex: startIndex >= 0 ? startIndex : 0 });
+                              }}
                               style={{ display: "grid", gap: "0.2rem", border: "1px solid rgba(49, 77, 105, 0.14)", borderRadius: "0.6rem", padding: "0.3rem", background: "#ffffff", cursor: "pointer", textAlign: "left" }}
                             >
                               {isImageEvidence(photo) ? (
@@ -261,36 +266,13 @@ export default function OperationalInspectionRecordModal({
         </div>
       </Modal>
 
-      <Modal
-        open={Boolean(selectedMedia)}
-        title={selectedMedia?.name || "Evidencia"}
-        onClose={() => setSelectedMedia(null)}
-        onConfirm={() => setSelectedMedia(null)}
-        confirmLabel="Cerrar"
-        hideCancel
-      >
-        {selectedMedia ? (
-          <div style={{ display: "grid", gap: "0.6rem" }}>
-            {isImageEvidence(selectedMedia) ? (
-              <img src={selectedMedia.url} alt={selectedMedia.name || "Evidencia"} style={{ width: "100%", maxHeight: "70vh", objectFit: "contain", borderRadius: "0.8rem", background: "#f8fafc" }} />
-            ) : isVideoEvidence(selectedMedia) ? (
-              <video src={selectedMedia.url} poster={selectedMedia.thumbnailUrl || undefined} style={{ width: "100%", maxHeight: "70vh", borderRadius: "0.8rem", background: "#000" }} controls autoPlay />
-            ) : (
-              <div style={{ width: "100%", minHeight: "260px", display: "grid", placeItems: "center", borderRadius: "0.8rem", background: "#f8fafc" }}>
-                <span style={{ color: "#475569" }}>Archivo adjunto</span>
-              </div>
-            )}
-            <div style={{ display: "flex", gap: "0.6rem", flexWrap: "wrap" }}>
-              <a href={selectedMedia.url} target="_blank" rel="noreferrer" className="icon-button" style={{ justifySelf: "start" }}>
-                Abrir original
-              </a>
-              <a href={selectedMedia.url} download={selectedMedia.name || "evidencia"} className="icon-button" style={{ justifySelf: "start" }}>
-                Descargar
-              </a>
-            </div>
-          </div>
-        ) : null}
-      </Modal>
+      {mediaLightbox ? (
+        <MediaLightbox
+          items={mediaLightbox.items}
+          startIndex={mediaLightbox.startIndex}
+          onClose={() => setMediaLightbox(null)}
+        />
+      ) : null}
     </>
   );
 }

@@ -13906,7 +13906,7 @@ html[data-ui-theme] body .switch-thumb {
 .audit-lightbox-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 9999;
+  z-index: 55000;
   background: rgba(4, 15, 15, 0.8);
   display: flex;
   align-items: center;

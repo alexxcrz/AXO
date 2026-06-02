@@ -1,16 +1,15 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, Image as ImageIcon, Plus, Upload } from "lucide-react";
-import { createPortal } from "react-dom";
-import { Modal } from "./Modal";
+import { Image as ImageIcon, Plus, Upload } from "lucide-react";
+import { isImageMedia, isVideoMedia, MediaLightbox } from "./MediaLightbox.jsx";
 import { uploadFileToCloudinary } from "../services/upload.service";
 import { normalizeBoardEvidenceValue, normalizeBoardMultiSelectDetailValue } from "../utils/utilidades.jsx";
 
 function isImageEvidence(evidence) {
-  return String(evidence?.mimeType || "").toLowerCase().startsWith("image/");
+  return isImageMedia(evidence);
 }
 
 function isVideoEvidence(evidence) {
-  return String(evidence?.mimeType || "").toLowerCase().startsWith("video/");
+  return isVideoMedia(evidence);
 }
 
 export function BoardMultiSelectDetailCell({ field, value, options, disabled, onChange }) {
@@ -312,13 +311,6 @@ export function BoardEvidenceCell({ value, disabled, onChange, label, readOnly =
     setViewerIndex(index);
   }
 
-  function moveViewer(step) {
-    setViewerIndex((current) => {
-      if (current === null || !viewerItems.length) return current;
-      return (current + step + viewerItems.length) % viewerItems.length;
-    });
-  }
-
   return (
     <>
       {!readOnly ? (
@@ -409,50 +401,13 @@ export function BoardEvidenceCell({ value, disabled, onChange, label, readOnly =
         ) : null}
       </div>
 
-      <Modal
-        open={viewerIndex !== null && Boolean(activeViewerItem)}
-        title={label || "Evidencias"}
-        onClose={() => setViewerIndex(null)}
-        confirmLabel="Cerrar"
-        hideCancel
-        footerActions={viewerItems.length > 1 ? (
-          <div style={{ display: "flex", alignItems: "center", gap: "0.45rem", marginRight: "auto" }}>
-            <button type="button" className="icon-button" onClick={() => moveViewer(-1)}>
-              <ChevronLeft size={16} />
-            </button>
-            <span style={{ fontSize: "0.82rem", color: "#5b6b73" }}>{(viewerIndex || 0) + 1} / {viewerItems.length}</span>
-            <button type="button" className="icon-button" onClick={() => moveViewer(1)}>
-              <ChevronRight size={16} />
-            </button>
-          </div>
-        ) : null}
-      >
-        {activeViewerItem ? (
-          <div style={{ display: "grid", gap: "0.75rem" }}>
-            <div style={{ minHeight: "360px", maxHeight: "65vh", display: "grid", placeItems: "center", background: "#0f1720", borderRadius: "1rem", overflow: "hidden" }}>
-              {isImageEvidence(activeViewerItem) ? (
-                <img src={activeViewerItem.url} alt={activeViewerItem.name || "Evidencia"} style={{ maxWidth: "100%", maxHeight: "65vh", objectFit: "contain" }} />
-              ) : isVideoEvidence(activeViewerItem) ? (
-                <video src={activeViewerItem.url} poster={activeViewerItem.thumbnailUrl || undefined} style={{ maxWidth: "100%", maxHeight: "65vh" }} controls autoPlay />
-              ) : (
-                <a href={activeViewerItem.url} target="_blank" rel="noreferrer" className="icon-button">Abrir archivo</a>
-              )}
-            </div>
-            <div>
-              <strong>{activeViewerItem.name || "Evidencia"}</strong>
-              <p className="subtle-line" style={{ marginTop: "0.2rem" }}>{activeViewerItem.mimeType || "Archivo"}</p>
-              <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.8rem" }}>
-                <a href={activeViewerItem.url} target="_blank" rel="noreferrer" className="icon-button" style={{ textDecoration: "none" }}>
-                  Abrir
-                </a>
-                <a href={activeViewerItem.url} download={activeViewerItem.name || "evidencia"} className="icon-button" style={{ textDecoration: "none" }}>
-                  Descargar
-                </a>
-              </div>
-            </div>
-          </div>
-        ) : null}
-      </Modal>
+      {viewerIndex !== null && activeViewerItem ? (
+        <MediaLightbox
+          items={viewerItems}
+          startIndex={viewerIndex}
+          onClose={() => setViewerIndex(null)}
+        />
+      ) : null}
     </>
   );
 }

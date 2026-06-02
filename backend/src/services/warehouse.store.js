@@ -6456,7 +6456,7 @@ export function updateProcessAudit(auth, auditId, payload = {}) {
       : (Array.isArray(existingAudit.boardLinks) ? existingAudit.boardLinks : []),
     subResponses: payload?.subResponses !== undefined
       ? (Array.isArray(payload.subResponses) ? payload.subResponses.map((sr) => ({
-          id: String(sr?.id || "").trim(),
+          id: String(sr?.id || "").trim() || makeId("sr"),
           personName: String(sr?.personName || "").trim(),
           personRole: String(sr?.personRole || "").trim(),
           notes: String(sr?.notes || "").trim(),

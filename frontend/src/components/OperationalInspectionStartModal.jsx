@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Modal } from "./Modal";
+import { isImageMedia, isVideoMedia, MediaLightbox } from "./MediaLightbox.jsx";
 import { SpanishDateInput } from "./SpanishDateInput";
 import { uploadFileToCloudinary } from "../services/upload.service";
 import {
@@ -63,6 +64,7 @@ export default function OperationalInspectionStartModal({
 
   const [savingEvidenceByCheckId, setSavingEvidenceByCheckId] = useState({});
   const [formError, setFormError] = useState("");
+  const [mediaLightbox, setMediaLightbox] = useState(null);
   const galleryInputRefs = useRef({});
   const cameraInputRefs = useRef({});
   const hasInitializedOpenCycleRef = useRef(false);
@@ -304,6 +306,7 @@ export default function OperationalInspectionStartModal({
   }
 
   return (
+    <>
     <Modal
       open={open}
       title={`Checklist de inicio${activityLabel ? ` · ${activityLabel}` : ""}`}
@@ -471,17 +474,20 @@ export default function OperationalInspectionStartModal({
 
                         {photos.length ? (
                           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))", gap: "0.35rem" }}>
-                            {photos.map((photo) => (
-                              <a
+                            {photos.map((photo, photoIndex) => (
+                              <button
                                 key={photo.id}
-                                href={photo.url}
-                                target="_blank"
-                                rel="noreferrer"
-                                style={{ display: "grid", gap: "0.2rem", border: "1px solid rgba(49, 77, 105, 0.14)", borderRadius: "0.6rem", padding: "0.3rem", textDecoration: "none", color: "inherit" }}
+                                type="button"
+                                onClick={() => {
+                                  const gallery = photos.filter((item) => isImageMedia(item) || isVideoMedia(item));
+                                  const startIndex = gallery.findIndex((item) => item.id === photo.id);
+                                  setMediaLightbox({ items: gallery, startIndex: startIndex >= 0 ? startIndex : photoIndex });
+                                }}
+                                style={{ display: "grid", gap: "0.2rem", border: "1px solid rgba(49, 77, 105, 0.14)", borderRadius: "0.6rem", padding: "0.3rem", background: "#ffffff", cursor: "pointer", textAlign: "left" }}
                               >
                                 <img src={photo.thumbnailUrl || photo.url} alt={photo.name} style={{ width: "100%", height: "80px", objectFit: "cover", borderRadius: "0.45rem" }} />
                                 <small style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{photo.name}</small>
-                              </a>
+                              </button>
                             ))}
                           </div>
                         ) : null}
@@ -505,5 +511,13 @@ export default function OperationalInspectionStartModal({
         {formError ? <p className="validation-text" style={{ margin: 0 }}>{formError}</p> : null}
       </div>
     </Modal>
+    {mediaLightbox ? (
+      <MediaLightbox
+        items={mediaLightbox.items}
+        startIndex={mediaLightbox.startIndex}
+        onClose={() => setMediaLightbox(null)}
+      />
+    ) : null}
+    </>
   );
 }

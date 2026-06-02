@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { uploadFileToCloudinary } from "../services/upload.service";
 import { ExternalLink, FileText, MapPin, Plus, RefreshCw } from "lucide-react";
+import { MediaLightbox } from "../components/MediaLightbox.jsx";
 import { TransportAssignmentsTab, TransportMyRoutesTab, TransportPostponedTab } from "./TransportTabs";
 import DashboardDateRangePicker from "../components/DashboardDateRangePicker";
 import { SpanishDateInput } from "../components/SpanishDateInput";
@@ -1040,6 +1041,7 @@ export default function GestionTransporte({ contexto }) {
   const setLogisticsSuccess = (message) => setLogisticsBanner({ tone: message ? "success" : "", message: String(message || "") });
   const unitPhotoInputRef = useRef(null);
   const [evidenceViewer, setEvidenceViewer] = useState({ open: false, evidence: null, title: "" });
+  const [mediaLightbox, setMediaLightbox] = useState(null);
   const [uploadingEvidence, setUploadingEvidence] = useState(false);
   const fileInputRef = useRef(null);
   const cameraInputRef = useRef(null);
@@ -2832,13 +2834,18 @@ export default function GestionTransporte({ contexto }) {
     });
   }
 
+  function previewEvidenceMedia(evidence, title = "Evidencia") {
+    if (!evidence?.url) return;
+    if (isImageEvidence(evidence) || isVideoEvidence(evidence)) {
+      setMediaLightbox({ items: [evidence], startIndex: 0 });
+      return;
+    }
+    setEvidenceViewer({ open: true, evidence, title });
+  }
+
   function openEvidenceViewer(record) {
     if (!record?.evidence?.url) return;
-    setEvidenceViewer({
-      open: true,
-      evidence: record.evidence,
-      title: record.destination || "Evidencia del envio",
-    });
+    previewEvidenceMedia(record.evidence, record.destination || "Evidencia del envio");
   }
 
   function closeEvidenceViewer() {
@@ -3130,7 +3137,7 @@ export default function GestionTransporte({ contexto }) {
     if (!file?.url) return <span className="subtle-line">—</span>;
     if (isImageEvidence(file)) {
       return (
-        <button type="button" className="transport-evidence-thumb" onClick={() => setDocEvidenceViewer({ open: true, evidence: file, title: "Evidencia" })}>
+        <button type="button" className="transport-evidence-thumb" onClick={() => previewEvidenceMedia(file, "Evidencia")}>
           <img src={file.thumbnailUrl || file.url} alt={file.name || ""} />
         </button>
       );
@@ -3910,7 +3917,7 @@ export default function GestionTransporte({ contexto }) {
                               <td>
                                 {evidenceToShow?.url ? (
                                   isImageEvidence(evidenceToShow) ? (
-                                    <button type="button" className="transport-evidence-thumb" onClick={() => setEvidenceViewer({ open: true, evidence: evidenceToShow, title: "Evidencia checklist" })}>
+                                    <button type="button" className="transport-evidence-thumb" onClick={() => previewEvidenceMedia(evidenceToShow, "Evidencia checklist")}>
                                       <img src={evidenceToShow.thumbnailUrl || evidenceToShow.url} alt={evidenceToShow.name || "Evidencia"} />
                                     </button>
                                   ) : (
@@ -4922,7 +4929,7 @@ export default function GestionTransporte({ contexto }) {
                               <button
                                 type="button"
                                 className="icon-button"
-                                onClick={() => setEvidenceViewer({ open: true, evidence, title: `Evidencia: ${checkItem.label}` })}
+                                onClick={() => previewEvidenceMedia(evidence, `Evidencia: ${checkItem.label}`)}
                               >
                                 Ver evidencia
                               </button>
@@ -5334,15 +5341,9 @@ export default function GestionTransporte({ contexto }) {
         onClose={closeEvidenceViewer}
       >
         <div className="transport-evidence-viewer-body">
-          {isImageEvidence(evidenceViewer.evidence) ? (
-            <img src={evidenceViewer.evidence?.url} alt={evidenceViewer.evidence?.name || evidenceViewer.title || "Evidencia"} className="transport-evidence-viewer-media" />
-          ) : isVideoEvidence(evidenceViewer.evidence) ? (
-            <video src={evidenceViewer.evidence?.url} poster={evidenceViewer.evidence?.thumbnailUrl || undefined} className="transport-evidence-viewer-media" controls autoPlay />
-          ) : (
-            <a href={evidenceViewer.evidence?.url} target="_blank" rel="noreferrer" className="transport-evidence-file-link">
-              {evidenceViewer.evidence?.name || "Abrir archivo"}
-            </a>
-          )}
+          <a href={evidenceViewer.evidence?.url} target="_blank" rel="noreferrer" className="transport-evidence-file-link">
+            {evidenceViewer.evidence?.name || "Abrir archivo"}
+          </a>
         </div>
       </Modal>
 
@@ -5449,7 +5450,7 @@ export default function GestionTransporte({ contexto }) {
                 {uploadingDocEvidence ? "Subiendo..." : "Subir archivo"}
               </button>
               {docModal.evidence?.url ? (
-                <button type="button" className="transport-upload-preview" onClick={() => setDocEvidenceViewer({ open: true, evidence: docModal.evidence, title: "Evidencia" })}>
+                <button type="button" className="transport-upload-preview" onClick={() => previewEvidenceMedia(docModal.evidence, "Evidencia")}>
                   {isImageEvidence(docModal.evidence) ? (
                     <img src={docModal.evidence.thumbnailUrl || docModal.evidence.url} alt={docModal.evidence.name || "Evidencia"} />
                   ) : (
@@ -5476,17 +5477,19 @@ export default function GestionTransporte({ contexto }) {
         onClose={() => setDocEvidenceViewer({ open: false, evidence: null, title: "" })}
       >
         <div className="transport-evidence-viewer-body">
-          {isImageEvidence(docEvidenceViewer.evidence) ? (
-            <img src={docEvidenceViewer.evidence?.url} alt={docEvidenceViewer.evidence?.name || "Evidencia"} className="transport-evidence-viewer-media" />
-          ) : isVideoEvidence(docEvidenceViewer.evidence) ? (
-            <video src={docEvidenceViewer.evidence?.url} poster={docEvidenceViewer.evidence?.thumbnailUrl || undefined} className="transport-evidence-viewer-media" controls autoPlay />
-          ) : (
-            <a href={docEvidenceViewer.evidence?.url} target="_blank" rel="noreferrer" className="transport-evidence-file-link">
-              {docEvidenceViewer.evidence?.name || "Abrir archivo"}
-            </a>
-          )}
+          <a href={docEvidenceViewer.evidence?.url} target="_blank" rel="noreferrer" className="transport-evidence-file-link">
+            {docEvidenceViewer.evidence?.name || "Abrir archivo"}
+          </a>
         </div>
       </Modal>
+
+      {mediaLightbox ? (
+        <MediaLightbox
+          items={mediaLightbox.items}
+          startIndex={mediaLightbox.startIndex}
+          onClose={() => setMediaLightbox(null)}
+        />
+      ) : null}
     </section>
   );
 }

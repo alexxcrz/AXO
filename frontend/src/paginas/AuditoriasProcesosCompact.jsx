@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
 import { BarChart3, Camera, Check, ChevronLeft, ChevronRight, ClipboardList, ExternalLink, Eye, EyeOff, Image as ImageIcon, Plus, RotateCcw, Settings, Trash2, Upload, X } from "lucide-react";
 import { Modal } from "../components/Modal";
+import { MediaLightbox } from "../components/MediaLightbox.jsx";
 import { SpanishDateInput } from "../components/SpanishDateInput";
 import { uploadFileToCloudinary } from "../services/upload.service";
 import { summarizeProcessAuditMetrics } from "../utils/processAuditMetrics.js";
@@ -745,69 +745,6 @@ function prewarmAuditEvidenceMedia(evidences = [], limit = 24) {
   }
 }
 
-function EvidenceLightbox({ evidences, startIndex, onClose }) {
-  const [currentIndex, setCurrentIndex] = useState(startIndex);
-  const total = evidences.length;
-  const current = evidences[currentIndex] || null;
-
-  useEffect(() => {
-    function handleKeyDown(event) {
-      if (event.key === "Escape") onClose();
-      if (event.key === "ArrowRight") setCurrentIndex((index) => (index + 1) % total);
-      if (event.key === "ArrowLeft") setCurrentIndex((index) => (index - 1 + total) % total);
-    }
-    globalThis.addEventListener("keydown", handleKeyDown);
-    return () => globalThis.removeEventListener("keydown", handleKeyDown);
-  }, [onClose, total]);
-
-  useEffect(() => {
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = previousOverflow;
-    };
-  }, []);
-
-  if (!current) return null;
-
-  return createPortal(
-    <div
-      className="audit-lightbox-backdrop"
-      onClick={onClose}
-      onKeyDown={(event) => {
-        if (event.key === "Enter" || event.key === " ") {
-          event.preventDefault();
-          onClose();
-        }
-      }}
-      role="button"
-      tabIndex={0}
-    >
-      <div className="audit-lightbox-shell" onClick={(event) => event.stopPropagation()}>
-        <button type="button" className="audit-lightbox-close" onClick={onClose} aria-label="Cerrar vista previa">
-          <X size={18} />
-        </button>
-        {total > 1 ? (
-          <button type="button" className="audit-lightbox-nav prev" onClick={() => setCurrentIndex((index) => (index - 1 + total) % total)} aria-label="Evidencia anterior">
-            <ChevronLeft size={22} />
-          </button>
-        ) : null}
-        <img src={current.url} alt={current.name || "Evidencia"} className="audit-lightbox-image" />
-        {total > 1 ? (
-          <button type="button" className="audit-lightbox-nav next" onClick={() => setCurrentIndex((index) => (index + 1) % total)} aria-label="Siguiente evidencia">
-            <ChevronRight size={22} />
-          </button>
-        ) : null}
-        <div className="audit-lightbox-caption">
-          <span>{current.name || "Evidencia"}</span>
-          {total > 1 ? <small>{currentIndex + 1} / {total}</small> : null}
-        </div>
-      </div>
-    </div>,
-    document.body,
-  );
-}
-
 function CameraCaptureModal({ open, onClose, onCapture, disabled }) {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
@@ -967,7 +904,7 @@ function AuditEvidenceGrid({ evidences, canEdit, canUpload, uploading, onOpenGal
         ))}
       </div>
 
-      {lightbox ? <EvidenceLightbox evidences={lightbox.evidences} startIndex={lightbox.startIndex} onClose={() => setLightbox(null)} /> : null}
+      {lightbox ? <MediaLightbox items={lightbox.evidences} startIndex={lightbox.startIndex} onClose={() => setLightbox(null)} /> : null}
     </div>
   );
 }
@@ -2263,6 +2200,27 @@ export default function AuditoriasProcesosCompact({ contexto }) {
     setAuditViewerDirty(true);
   }
 
+  async function flushActiveAuditDraft() {
+    const draft = auditDraftRef.current;
+    if (!draft?.id || !canManageAudits) return true;
+    if (!isAuditDirty) return true;
+    try {
+      await persistAuditChanges(draft);
+      setIsAuditDirty(false);
+      return true;
+    } catch (error) {
+      pushAppToast(error?.message || "No se pudo guardar la auditoría actual.", "danger");
+      return false;
+    }
+  }
+
+  async function switchToAudit(auditId) {
+    if (!auditId || auditId === selectedAuditId) return;
+    const saved = await flushActiveAuditDraft();
+    if (!saved) return;
+    setSelectedAuditId(auditId);
+  }
+
   async function persistAuditChanges(targetAudit, successMessage) {
     if (!targetAudit || !canManageAudits) return false;
     setAuditAutosaveStatus("saving");
@@ -2468,6 +2426,9 @@ export default function AuditoriasProcesosCompact({ contexto }) {
       return;
     }
 
+    const savedCurrent = await flushActiveAuditDraft();
+    if (!savedCurrent) return;
+
     const template = resolvedTemplates.find((entry) => entry.id === newAuditTemplateId) || null;
 
     try {
@@ -2494,6 +2455,8 @@ export default function AuditoriasProcesosCompact({ contexto }) {
 
   async function handleCloseAudit() {
     if (!canManageAudits || !auditDraft) return;
+    const saved = await flushActiveAuditDraft();
+    if (!saved) return;
     try {
       const hasProblems = auditHasDetectedProblems(auditDraft);
       const hasProposals = auditHasPendingProposals(auditDraft);
@@ -2785,7 +2748,7 @@ export default function AuditoriasProcesosCompact({ contexto }) {
                       key={audit.id}
                       type="button"
                       className={audit.id === auditDraft.id ? "audit-active-tab active" : "audit-active-tab"}
-                      onClick={() => setSelectedAuditId(audit.id)}
+                      onClick={() => { switchToAudit(audit.id); }}
                     >
                       <span>{audit.area} · {audit.process}</span>
                       <small>{(audit.evidences || []).length} ev.</small>

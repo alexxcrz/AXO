@@ -1,5 +1,4 @@
 import { useState, useMemo, useRef, useEffect } from "react";
-import { createPortal } from "react-dom";
 import {
   OctagonAlert, Plus, Search, Pencil, Trash2, Eye,
   Wrench, Zap, Building2, ShieldAlert, HelpCircle, Package,
@@ -8,6 +7,7 @@ import {
   Star, ArrowRight, Clock, DollarSign, CreditCard, TriangleAlert,
 } from "lucide-react";
 import { Modal } from "../components/Modal";
+import { isImageMedia, MediaLightbox } from "../components/MediaLightbox.jsx";
 import { uploadFileToCloudinary } from "../services/upload.service";
 import "./GestionIncidencias.css";
 
@@ -75,62 +75,13 @@ const EMPTY_COT = {
   archivoNombre: "",
 };
 
-// ── EvidenciaLightbox ─────────────────────────────────────────────────────
-function EvidenciaLightbox({ images, startIndex, onClose }) {
-  const [idx, setIdx] = useState(startIndex);
-  const total = images.length;
-  const current = images[idx];
-
-  useEffect(() => {
-    function onKey(e) {
-      if (e.key === "Escape") onClose();
-      if (e.key === "ArrowRight") setIdx((i) => (i + 1) % total);
-      if (e.key === "ArrowLeft") setIdx((i) => (i - 1 + total) % total);
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose, total]);
-
-  useEffect(() => {
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => { document.body.style.overflow = prev; };
-  }, []);
-
-  return createPortal(
-    <div className="ev-lightbox-backdrop" onClick={onClose}>
-      <div className="ev-lightbox" onClick={(e) => e.stopPropagation()}>
-        <button className="ev-lightbox-close" onClick={onClose} aria-label="Cerrar">
-          <X size={20} />
-        </button>
-        {total > 1 && (
-          <button className="ev-lightbox-nav ev-lightbox-prev" onClick={() => setIdx((i) => (i - 1 + total) % total)} aria-label="Anterior">
-            <ChevronLeft size={24} />
-          </button>
-        )}
-        <img src={current.url} alt={current.name} className="ev-lightbox-img" />
-        {total > 1 && (
-          <button className="ev-lightbox-nav ev-lightbox-next" onClick={() => setIdx((i) => (i + 1) % total)} aria-label="Siguiente">
-            <ChevronRight size={24} />
-          </button>
-        )}
-        <div className="ev-lightbox-caption">
-          <span>{current.name}</span>
-          {total > 1 && <span className="ev-lightbox-counter">{idx + 1} / {total}</span>}
-        </div>
-      </div>
-    </div>,
-    document.body,
-  );
-}
-
 // ── EvidenciaGrid ──────────────────────────────────────────────────────────
 function EvidenciaGrid({ evidencias, canEdit, onDelete, onUpload, uploading, uploadProgress }) {
   const fileRef = useRef(null);
   const [lightbox, setLightbox] = useState(null); // { images, startIndex }
 
   function isImage(ev) {
-    return ev.type?.startsWith("image/") || /\.(png|jpe?g|gif|webp|svg|bmp)$/i.test(ev.name || "");
+    return isImageMedia({ mimeType: ev.type, name: ev.name, url: ev.url });
   }
 
   const imageEvidencias = evidencias.filter(isImage);
@@ -216,13 +167,13 @@ function EvidenciaGrid({ evidencias, canEdit, onDelete, onUpload, uploading, upl
           ))}
         </div>
       )}
-      {lightbox && (
-        <EvidenciaLightbox
-          images={lightbox.images}
+      {lightbox ? (
+        <MediaLightbox
+          items={lightbox.images}
           startIndex={lightbox.startIndex}
           onClose={() => setLightbox(null)}
         />
-      )}
+      ) : null}
     </div>
   );
 }
