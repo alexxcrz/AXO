@@ -1,6 +1,6 @@
 /* eslint-disable */
 import {
-  STORAGE_KEY, SIDEBAR_COLLAPSED_KEY, ACTIVE_PAGE_KEY, DASHBOARD_SECTIONS_KEY, NOTIFICATION_READ_KEY, NOTIFICATION_DELETED_KEY, NOTIFICATION_INBOX_KEY, EMPTY_OBJECT, BOOTSTRAP_MASTER_ID, MASTER_USERNAME, API_BASE_URL, ENABLE_LEGACY_WHOLE_STATE_SYNC, PAGE_BOARD, PAGE_CUSTOM_BOARDS, PAGE_ADMIN, PAGE_DASHBOARD, PAGE_DASHBOARD_BUILDER, PAGE_HISTORY, PAGE_PROCESS_AUDITS, PAGE_INVENTORY, PAGE_TRANSPORT, PAGE_RETAIL, PAGE_USERS, PAGE_BIBLIOTECA, PAGE_INCIDENCIAS, PAGE_NOT_FOUND, PAGE_AREA_SHELL, PAGE_ROUTE_SLUGS, PAGE_ROUTE_ALIASES, EMPTY_LOGIN_DIRECTORY, ROLE_LEAD, ROLE_SR, ROLE_SSR, ROLE_JR, STATUS_PENDING, STATUS_RUNNING, STATUS_PAUSED, STATUS_FINISHED, INVENTORY_DOMAIN_BASE, INVENTORY_DOMAIN_CLEANING, INVENTORY_DOMAIN_ORDERS, INVENTORY_DOMAIN_MAINTENANCE, INVENTORY_DOMAIN_DESTINATIONS, INVENTORY_MOVEMENT_RESTOCK, INVENTORY_MOVEMENT_CONSUME, INVENTORY_MOVEMENT_TRANSFER, CONTROL_STATUS_OPTIONS, USER_ROLES, PERMISSION_SCHEMA_VERSION, ROLE_LEVEL, TEMPORARY_PASSWORD_MIN_LENGTH, PROFILE_SELF_EDIT_LIMIT, DEFAULT_AREA_OPTIONS, DEFAULT_BOARD_SECTION_OPTIONS, INVENTORY_LOOKUP_LOGISTICS_FIELD, BOARD_ACTIVITY_LIST_FIELD, DEFAULT_JOB_TITLE_BY_ROLE, DASHBOARD_CHART_PALETTE, DEFAULT_DASHBOARD_SECTION_STATE, DEFAULT_ADMIN_TAB, ACTIVITY_FREQUENCY_OPTIONS, ACTIVITY_FREQUENCY_LABELS, ACTIVITY_FREQUENCY_DAY_OFFSETS, BOARD_FIELD_TYPES, BOARD_FIELD_TYPE_DETAILS, BOARD_FIELD_WIDTHS, COLOR_RULE_OPERATORS, BOARD_FIELD_WIDTH_STYLES, BOARD_FIELD_MIN_WIDTH_BY_TYPE, DEFAULT_BOARD_AUX_COLUMNS_ORDER, BOARD_AUX_COLUMN_DEFINITIONS, BOARD_AUX_COLUMN_IDS, BOARD_TEMPLATES, FORMULA_OPERATIONS, OPTION_SOURCE_TYPES, INVENTORY_PROPERTIES, INVENTORY_IMPORT_FIELD_ALIASES, INVENTORY_DOMAIN_OPTIONS, INVENTORY_MOVEMENT_OPTIONS, CLEANING_SITE_OPTIONS, DEFAULT_CLEANING_SITE, BOARD_OPERATIONAL_CONTEXT_NONE, BOARD_OPERATIONAL_CONTEXT_CLEANING_SITE, BOARD_OPERATIONAL_CONTEXT_CUSTOM, BOARD_OPERATIONAL_CONTEXT_OPTIONS, NAV_ITEMS, ACTION_DEFINITIONS, BOARD_PERMISSION_ACTION_IDS, BOARD_PERMISSION_ACTIONS, PAGE_ACTION_GROUPS, PERMISSION_PRESETS, RESPONSIBLE_VISUALS, ALL_PAGES, ALL_ACTION_IDS, ROLE_PERMISSION_MATRIX, KPI_STYLES
+  STORAGE_KEY, SIDEBAR_COLLAPSED_KEY, ACTIVE_PAGE_KEY, DASHBOARD_SECTIONS_KEY, NOTIFICATION_READ_KEY, NOTIFICATION_DELETED_KEY, NOTIFICATION_INBOX_KEY, EMPTY_OBJECT, BOOTSTRAP_MASTER_ID, MASTER_USERNAME, API_BASE_URL, ENABLE_LEGACY_WHOLE_STATE_SYNC, PAGE_BOARD, PAGE_CUSTOM_BOARDS, PAGE_ADMIN, PAGE_DASHBOARD, PAGE_DASHBOARD_BUILDER, PAGE_HISTORY, PAGE_PROCESS_AUDITS, PAGE_INVENTORY, PAGE_TRANSPORT, PAGE_RETAIL, PAGE_USERS, PAGE_BIBLIOTECA, PAGE_INCIDENCIAS, PAGE_NOT_FOUND, PAGE_AREA_SHELL, PAGE_ROUTE_SLUGS, PAGE_ROUTE_ALIASES, EMPTY_LOGIN_DIRECTORY, ROLE_LEAD, ROLE_SR, ROLE_SSR, ROLE_JR, STATUS_PENDING, STATUS_RUNNING, STATUS_PAUSED, STATUS_FINISHED, INVENTORY_DOMAIN_BASE, INVENTORY_DOMAIN_CLEANING, INVENTORY_DOMAIN_ORDERS, INVENTORY_DOMAIN_MAINTENANCE, INVENTORY_DOMAIN_DESTINATIONS, INVENTORY_MOVEMENT_RESTOCK, INVENTORY_MOVEMENT_CONSUME, INVENTORY_MOVEMENT_TRANSFER, CONTROL_STATUS_OPTIONS, USER_ROLES, PERMISSION_SCHEMA_VERSION, ROLE_LEVEL, TEMPORARY_PASSWORD_MIN_LENGTH, PROFILE_SELF_EDIT_LIMIT, DEFAULT_AREA_OPTIONS, DEFAULT_BOARD_SECTION_OPTIONS, INVENTORY_LOOKUP_LOGISTICS_FIELD, BOARD_ACTIVITY_LIST_FIELD, BOARD_SLA_MIN_DURATION_RATIO, DEFAULT_JOB_TITLE_BY_ROLE, DASHBOARD_CHART_PALETTE, DEFAULT_DASHBOARD_SECTION_STATE, DEFAULT_ADMIN_TAB, ACTIVITY_FREQUENCY_OPTIONS, ACTIVITY_FREQUENCY_LABELS, ACTIVITY_FREQUENCY_DAY_OFFSETS, BOARD_FIELD_TYPES, BOARD_FIELD_TYPE_DETAILS, BOARD_FIELD_WIDTHS, COLOR_RULE_OPERATORS, BOARD_FIELD_WIDTH_STYLES, BOARD_FIELD_MIN_WIDTH_BY_TYPE, DEFAULT_BOARD_AUX_COLUMNS_ORDER, BOARD_AUX_COLUMN_DEFINITIONS, BOARD_AUX_COLUMN_IDS, BOARD_TEMPLATES, FORMULA_OPERATIONS, OPTION_SOURCE_TYPES, INVENTORY_PROPERTIES, INVENTORY_IMPORT_FIELD_ALIASES, INVENTORY_DOMAIN_OPTIONS, INVENTORY_MOVEMENT_OPTIONS, CLEANING_SITE_OPTIONS, DEFAULT_CLEANING_SITE, BOARD_OPERATIONAL_CONTEXT_NONE, BOARD_OPERATIONAL_CONTEXT_CLEANING_SITE, BOARD_OPERATIONAL_CONTEXT_CUSTOM, BOARD_OPERATIONAL_CONTEXT_OPTIONS, NAV_ITEMS, ACTION_DEFINITIONS, BOARD_PERMISSION_ACTION_IDS, BOARD_PERMISSION_ACTIONS, PAGE_ACTION_GROUPS, PERMISSION_PRESETS, RESPONSIBLE_VISUALS, ALL_PAGES, ALL_ACTION_IDS, ROLE_PERMISSION_MATRIX, KPI_STYLES
 } from "./constantes.js";
 import { getExcelJsModule } from "./utilidadesImportExcel.js";
 import {
@@ -4056,6 +4056,106 @@ export function getActivityLabel(activity, catalogMap) {
 
 export function getTimeLimitMinutes(activity, catalogMap) {
   return catalogMap.get(activity.catalogActivityId)?.timeLimitMinutes || 0;
+}
+
+export function findBoardActivityListField(fields = []) {
+  return (fields || []).find((field) => isBoardActivityListField(field)) || null;
+}
+
+export function resolveBoardRowCleaningSite(board, row) {
+  const fromRow = String(row?.cleaningSite || "").trim();
+  if (fromRow) return fromRow;
+  if (String(board?.settings?.operationalContextType || "").trim() === BOARD_OPERATIONAL_CONTEXT_CLEANING_SITE) {
+    return String(board?.settings?.operationalContextValue || "").trim();
+  }
+  return String(row?.area || "").trim();
+}
+
+export function resolveBoardRowCatalogActivityId(board, row, catalog = []) {
+  const directCatalogActivityId = String(row?.catalogActivityId || row?.values?.catalogActivityId || "").trim();
+  if (directCatalogActivityId) return directCatalogActivityId;
+
+  const activityListField = findBoardActivityListField(getBoardFields(board));
+  const activityName = activityListField ? String(row?.values?.[activityListField.id] || "").trim() : "";
+  if (!activityName) return "";
+
+  return String((catalog || []).find((item) => normalizeKey(item?.name) === normalizeKey(activityName))?.id || "").trim();
+}
+
+export function getBoardRowCatalogItem(board, row, catalogMap) {
+  const catalogList = catalogMap instanceof Map
+    ? Array.from(catalogMap.values())
+    : (Array.isArray(catalogMap) ? catalogMap : []);
+  const map = catalogMap instanceof Map
+    ? catalogMap
+    : new Map(catalogList.map((item) => [item.id, item]));
+  const activityId = resolveBoardRowCatalogActivityId(board, row, catalogList);
+  if (activityId && map.has(activityId)) return map.get(activityId);
+
+  const activityListField = findBoardActivityListField(getBoardFields(board));
+  const activityName = activityListField ? String(row?.values?.[activityListField.id] || "").trim().toLowerCase() : "";
+  if (!activityName) return null;
+  const scopedCategory = String(activityListField?.optionCatalogCategory || "").trim().toLowerCase();
+  return catalogList.find((item) => {
+    if (item?.isDeleted) return false;
+    if (String(item?.name || "").trim().toLowerCase() !== activityName) return false;
+    if (!scopedCategory || scopedCategory === "general") return true;
+    return String(item?.category || "general").trim().toLowerCase() === scopedCategory;
+  }) || null;
+}
+
+export function getBoardRowTimeLimitMinutes(board, row, catalogMap) {
+  return Math.max(0, Number(getBoardRowCatalogItem(board, row, catalogMap)?.timeLimitMinutes || 0));
+}
+
+export function getBoardRowActivityLabel(board, row) {
+  const activityListField = findBoardActivityListField(getBoardFields(board));
+  return activityListField ? String(row?.values?.[activityListField.id] || "").trim() : "";
+}
+
+export function withBoardRowTimingContext(board, row) {
+  const cleaningSite = resolveBoardRowCleaningSite(board, row);
+  if (!cleaningSite || row?.cleaningSite === cleaningSite) return row;
+  return { ...row, cleaningSite };
+}
+
+export function getBoardRowDurationSeconds(board, row, referenceNow, pauseState) {
+  const effectiveNow = row?.status === STATUS_FINISHED && row?.endTime
+    ? new Date(row.endTime).getTime()
+    : referenceNow;
+  return Math.max(0, getElapsedSeconds(withBoardRowTimingContext(board, row), effectiveNow, pauseState));
+}
+
+export function evaluateBoardRowSla(board, row, catalogMap, referenceNow, pauseState, options = {}) {
+  const minDurationRatio = Number(options.minDurationRatio ?? BOARD_SLA_MIN_DURATION_RATIO);
+  const limitMinutes = getBoardRowTimeLimitMinutes(board, row, catalogMap);
+  const durationSeconds = getBoardRowDurationSeconds(board, row, referenceNow, pauseState);
+  const limitSeconds = limitMinutes > 0 ? limitMinutes * 60 : 0;
+  const minDurationSeconds = limitSeconds > 0
+    ? Math.max(60, Math.round(limitSeconds * minDurationRatio))
+    : 0;
+  const hasTiming = Boolean(row?.startTime) || durationSeconds > 0;
+  const isFinished = row?.status === STATUS_FINISHED;
+  const isActive = row?.status === STATUS_RUNNING || row?.status === STATUS_PAUSED;
+  const excessSeconds = limitSeconds > 0 && hasTiming ? Math.max(0, durationSeconds - limitSeconds) : 0;
+  const isDelayed = limitSeconds > 0 && hasTiming && (isFinished || isActive) && durationSeconds > limitSeconds;
+  const isTooFast = limitSeconds > 0 && isFinished && hasTiming && durationSeconds > 0 && durationSeconds < minDurationSeconds;
+
+  return {
+    limitMinutes,
+    durationSeconds,
+    limitSeconds,
+    minDurationSeconds,
+    excessSeconds,
+    isDelayed,
+    isTooFast,
+    activityLabel: getBoardRowActivityLabel(board, row),
+    catalogActivityId: resolveBoardRowCatalogActivityId(
+      board,
+      row,
+      catalogMap instanceof Map ? Array.from(catalogMap.values()) : catalogMap,
+    ),
+  };
 }
 
 /**

@@ -21,8 +21,9 @@ import {
   addDays,
   resolveInventoryPropertySourceFieldId,
   normalizeInventoryDomain,
+  evaluateBoardRowSla,
 } from "../utils/utilidades.jsx";
-import { INVENTORY_DOMAIN_MAINTENANCE } from "../utils/constantes.js";
+import { INVENTORY_DOMAIN_MAINTENANCE, BOARD_SLA_MIN_DURATION_RATIO } from "../utils/constantes.js";
 
 const EDITABLE_INVENTORY_PROPERTIES = new Set(["lot", "expiry", "label"]);
 
@@ -583,6 +584,11 @@ export default function MisTableros({ contexto }) {
     ? renderBoardFieldLabel
     : (label, required = false) => `${label}${required ? " *" : ""}`;
   const boardView = selectedCustomBoardDisplay || selectedCustomBoard;
+  const boardShowMetrics = boardView?.settings?.showMetrics !== false;
+  const catalogMap = useMemo(
+    () => new Map((state?.catalog || []).map((item) => [item.id, item])),
+    [state?.catalog],
+  );
   const isBoardOwner = Boolean(selectedCustomBoard && currentUser && (currentUser.role === "Lead" || selectedCustomBoard.createdById === currentUser.id || selectedCustomBoard.ownerId === currentUser.id));
   const [openAssigneeMenuRowId, setOpenAssigneeMenuRowId] = useState("");
   const [isBoardImporting, setIsBoardImporting] = useState(false);
@@ -1148,11 +1154,24 @@ export default function MisTableros({ contexto }) {
       setBoardRuntimeFeedback({ tone: "danger", message: error?.message || "No se pudo actualizar el responsable de la fila." });
     });
   }
-  const visibleBoardMetrics = {
-    totalRows: visibleRows.length,
-    running: visibleRows.filter((row) => row.status === STATUS_RUNNING).length,
-    completed: visibleRows.filter((row) => row.status === STATUS_FINISHED).length,
-  };
+  const visibleBoardMetrics = useMemo(() => {
+    const delayedRows = [];
+    const tooFastRows = [];
+    visibleRows.forEach((row) => {
+      const sla = evaluateBoardRowSla(boardView, row, catalogMap, realtimeNow, pauseState);
+      if (sla.isDelayed) delayedRows.push({ row, sla });
+      if (sla.isTooFast) tooFastRows.push({ row, sla });
+    });
+    return {
+      totalRows: visibleRows.length,
+      running: visibleRows.filter((row) => row.status === STATUS_RUNNING).length,
+      completed: visibleRows.filter((row) => row.status === STATUS_FINISHED).length,
+      delayedCount: delayedRows.length,
+      tooFastCount: tooFastRows.length,
+      delayedRows,
+      tooFastRows,
+    };
+  }, [boardView, catalogMap, pauseState, realtimeNow, visibleRows, STATUS_FINISHED, STATUS_RUNNING]);
   const effectivePauseDetailsRow = useMemo(() => {
     if (!pauseDetailsRow?.id || !selectedCustomBoard?.rows) return pauseDetailsRow;
     return (selectedCustomBoard.rows || []).find((row) => row.id === pauseDetailsRow.id) || pauseDetailsRow;
@@ -1267,7 +1286,42 @@ export default function MisTableros({ contexto }) {
             <StatTile label="Filas" value={visibleBoardMetrics.totalRows} className="custom-board-stat-tile" />
             <StatTile label="En curso" value={visibleBoardMetrics.running} tone="soft" className="custom-board-stat-tile" />
             <StatTile label="Terminadas" value={visibleBoardMetrics.completed} tone="success" className="custom-board-stat-tile" />
+            {boardShowMetrics ? (
+              <>
+                <StatTile
+                  label="Retrasos"
+                  value={visibleBoardMetrics.delayedCount}
+                  tone={visibleBoardMetrics.delayedCount > 0 ? "danger" : "soft"}
+                  className="custom-board-stat-tile"
+                />
+                <StatTile
+                  label="Muy rápidas"
+                  value={visibleBoardMetrics.tooFastCount}
+                  tone={visibleBoardMetrics.tooFastCount > 0 ? "soft" : "default"}
+                  className="custom-board-stat-tile"
+                />
+              </>
+            ) : null}
           </div>
+          {boardShowMetrics && (visibleBoardMetrics.delayedCount > 0 || visibleBoardMetrics.tooFastCount > 0) ? (
+            <div className="saved-board-list custom-board-sla-summary">
+              {visibleBoardMetrics.delayedRows.map(({ row, sla }) => (
+                <span key={`delay-${row.id}`} className="chip danger">
+                  {sla.activityLabel || "Actividad"} · retraso +{formatDurationClock(sla.excessSeconds)} (límite {sla.limitMinutes} min)
+                </span>
+              ))}
+              {visibleBoardMetrics.tooFastRows.map(({ row, sla }) => (
+                <span key={`fast-${row.id}`} className="chip">
+                  {sla.activityLabel || "Actividad"} · muy rápida ({formatDurationClock(sla.durationSeconds)} / mín. {formatDurationClock(sla.minDurationSeconds)})
+                </span>
+              ))}
+            </div>
+          ) : null}
+          {boardShowMetrics && visibleBoardMetrics.totalRows > 0 && visibleBoardMetrics.delayedCount === 0 && visibleBoardMetrics.tooFastCount === 0 ? (
+            <p className="subtle-line custom-board-sla-empty">
+              Sin retrasos ni actividades sospechosamente rápidas en el día visible. Umbral rápido: menos del {Math.round(BOARD_SLA_MIN_DURATION_RATIO * 100)}% del tiempo límite del catálogo.
+            </p>
+          ) : null}
 
           <article className="surface-card full-width table-card admin-surface-card board-pdf-root" data-board-pdf-root="selected">
             <div className="card-header-row">
@@ -1480,6 +1534,10 @@ export default function MisTableros({ contexto }) {
                       && !isHistoricalCustomBoardView
                       && (isLeadPrincipal || (row.status !== STATUS_FINISHED && canEditBoardRowRecord(currentUser, selectedCustomBoard, row, normalizedPermissions)));
                     const isFinishedRow = row.status === STATUS_FINISHED;
+                    const rowSlaReferenceNow = isFinishedRow && row.endTime ? new Date(row.endTime).getTime() : realtimeNow;
+                    const rowSla = boardShowMetrics
+                      ? evaluateBoardRowSla(boardView, row, catalogMap, rowSlaReferenceNow, pauseState)
+                      : null;
                     const rowFieldEditable = rowCaptureEnabled;
                     const rowAssigneeEditable = !isHistoricalCustomBoardView;
                     const rowDisplayReadOnly = isHistoricalCustomBoardView;
@@ -1590,6 +1648,15 @@ export default function MisTableros({ contexto }) {
                                 <td key={`${row.id}-${column.token}`} style={getEffectiveColumnWidth(column)}>
                                   <div style={{ display: "grid", gap: "0.2rem" }}>
                                     <StatusBadge status={row.status || STATUS_PENDING} />
+                                    {rowSla?.isDelayed ? (
+                                      <span className="chip danger">Retraso +{formatDurationClock(rowSla.excessSeconds)}</span>
+                                    ) : null}
+                                    {rowSla?.isTooFast ? (
+                                      <span className="chip">Muy rápida · {formatDurationClock(rowSla.durationSeconds)}</span>
+                                    ) : null}
+                                    {rowSla && rowSla.limitMinutes > 0 && !rowSla.isDelayed && !rowSla.isTooFast && (row.startTime || rowSla.durationSeconds > 0) ? (
+                                      <small className="subtle-line">SLA {rowSla.limitMinutes} min · {formatDurationClock(rowSla.durationSeconds)}</small>
+                                    ) : null}
                                     {pauseCount > 0 ? <small className="subtle-line">{pauseCount} pausa(s) · {formatDurationClock(totalPauseSeconds)}</small> : null}
                                     {row.status === STATUS_PAUSED && showPauseReason ? <small className="subtle-line">Motivo: {pauseReasonLabel}</small> : null}
                                     {pauseCount > 0 ? (

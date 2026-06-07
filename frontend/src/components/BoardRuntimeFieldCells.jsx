@@ -1,4 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Image as ImageIcon, Plus, Upload } from "lucide-react";
 import { isImageMedia, isVideoMedia, MediaLightbox } from "./MediaLightbox.jsx";
 import { uploadFileToCloudinary } from "../services/upload.service";

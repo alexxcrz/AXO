@@ -6,6 +6,7 @@ import {
   STATUS_FINISHED,
   ROLE_LEAD,
   RESPONSIBLE_VISUALS,
+  BOARD_SLA_MIN_DURATION_RATIO,
 } from "../utils/constantes.js";
 import {
   normalizeAreaOption,
@@ -15,6 +16,9 @@ import {
   getNormalizedBoardVisibility,
   getActivityLabel,
   getTimeLimitMinutes,
+  getBoardRowActivityLabel,
+  getBoardRowTimeLimitMinutes,
+  withBoardRowTimingContext,
   getElapsedSeconds,
   getLivePauseOverflowSeconds,
   getOperationalElapsedSeconds,
@@ -325,18 +329,24 @@ export function useDashboardMetrics({
     const boardRecords = dashboardVisibleControlBoards.flatMap((board) => (board.rows || []).map((row) => {
       const responsibleUser = userMap.get(row.responsibleId);
       const { primaryArea, areaScopes } = resolveBoardAreaScope(board, responsibleUser);
-      const durationSeconds = getElapsedSeconds(row, now, operationalPauseState);
+      const timingRow = withBoardRowTimingContext(board, row);
+      const rowReferenceNow = row.status === STATUS_FINISHED && row.endTime
+        ? new Date(row.endTime).getTime()
+        : now;
+      const durationSeconds = getElapsedSeconds(timingRow, rowReferenceNow, operationalPauseState);
       const totalElapsedSeconds = row.startTime
-        ? Math.max(durationSeconds, getOperationalElapsedSeconds(row.startTime, now, operationalPauseState))
+        ? Math.max(durationSeconds, getOperationalElapsedSeconds(row.startTime, rowReferenceNow, operationalPauseState, timingRow.cleaningSite))
         : durationSeconds;
+      const limitMinutes = getBoardRowTimeLimitMinutes(board, row, catalogMap);
       const pauseSummary = buildBoardRowPauseSummary(row);
+      const rowActivityLabel = getBoardRowActivityLabel(board, row);
       return {
         id: `board-${board.id}-${row.id}`,
         rawId: row.id,
         boardId: board.id,
         source: "board",
         sourceLabel: "Tablero operativo",
-        label: board.name,
+        label: rowActivityLabel || board.name,
         boardName: board.name,
         sourceFields: Array.isArray(board.fields) ? board.fields : [],
         rowValues: row.values && typeof row.values === "object" ? row.values : {},
@@ -350,8 +360,8 @@ export function useDashboardMetrics({
         status: row.status || STATUS_PENDING,
         durationSeconds,
         totalElapsedSeconds,
-        limitMinutes: 0,
-        excessSeconds: 0,
+        limitMinutes,
+        excessSeconds: limitMinutes > 0 ? Math.max(0, durationSeconds - limitMinutes * 60) : 0,
         pauseCount: pauseSummary.count,
         pauseSeconds: pauseSummary.totalSeconds,
         pauseReasons: pauseSummary.reasons,
@@ -363,18 +373,24 @@ export function useDashboardMetrics({
       const responsibleUser = userMap.get(row.responsibleId);
       const { primaryArea, areaScopes } = resolveBoardAreaScope(snapshot, responsibleUser);
       const resolvedSnapshotBoardId = String(snapshot.boardId || snapshot.sourceBoardId || snapshot.id || "").trim();
-      const durationSeconds = getElapsedSeconds(row, now, operationalPauseState);
+      const timingRow = withBoardRowTimingContext(snapshot, row);
+      const rowReferenceNow = row.status === STATUS_FINISHED && row.endTime
+        ? new Date(row.endTime).getTime()
+        : now;
+      const durationSeconds = getElapsedSeconds(timingRow, rowReferenceNow, operationalPauseState);
       const totalElapsedSeconds = row.startTime
-        ? Math.max(durationSeconds, getOperationalElapsedSeconds(row.startTime, now, operationalPauseState))
+        ? Math.max(durationSeconds, getOperationalElapsedSeconds(row.startTime, rowReferenceNow, operationalPauseState, timingRow.cleaningSite))
         : durationSeconds;
+      const limitMinutes = getBoardRowTimeLimitMinutes(snapshot, row, catalogMap);
       const pauseSummary = buildBoardRowPauseSummary(row);
+      const rowActivityLabel = getBoardRowActivityLabel(snapshot, row);
       return {
         id: `board-history-${snapshot.id}-${row.id}`,
         rawId: `${snapshot.id}-${row.id}`,
         boardId: resolvedSnapshotBoardId,
         source: "board",
         sourceLabel: "Histórico de tablero",
-        label: snapshot.boardName,
+        label: rowActivityLabel || snapshot.boardName,
         boardName: snapshot.boardName,
         sourceFields: Array.isArray(snapshot.fields) ? snapshot.fields : [],
         rowValues: row.values && typeof row.values === "object" ? row.values : {},
@@ -388,8 +404,8 @@ export function useDashboardMetrics({
         status: row.status || STATUS_PENDING,
         durationSeconds,
         totalElapsedSeconds,
-        limitMinutes: 0,
-        excessSeconds: 0,
+        limitMinutes,
+        excessSeconds: limitMinutes > 0 ? Math.max(0, durationSeconds - limitMinutes * 60) : 0,
         pauseCount: pauseSummary.count,
         pauseSeconds: pauseSummary.totalSeconds,
         pauseReasons: pauseSummary.reasons,
@@ -518,6 +534,11 @@ export function useDashboardMetrics({
     const slaScoped = filteredDashboardRecords.filter((record) => record.limitMinutes > 0);
     const within = slaScoped.filter((record) => record.durationSeconds <= record.limitMinutes * 60).length;
     const exceeded = slaScoped.filter((record) => record.durationSeconds > record.limitMinutes * 60);
+    const tooFast = slaScoped.filter((record) => (
+      record.status === STATUS_FINISHED
+      && record.durationSeconds > 0
+      && record.durationSeconds < record.limitMinutes * 60 * BOARD_SLA_MIN_DURATION_RATIO
+    ));
     const totalPauseSeconds = dashboardPauseLogs.reduce((sum, log) => sum + (log.pauseDurationSeconds || 0), 0);
     const totalProductionSeconds = filteredDashboardRecords.reduce((sum, r) => sum + (r.durationSeconds || 0), 0);
     const totalElapsedSeconds = filteredDashboardRecords.reduce((sum, r) => sum + (r.totalElapsedSeconds || r.durationSeconds || 0), 0);
@@ -540,6 +561,8 @@ export function useDashboardMetrics({
       withinPercent: slaScoped.length ? (within / slaScoped.length) * 100 : 0,
       outsidePercent: slaScoped.length ? (exceeded.length / slaScoped.length) * 100 : 0,
       exceeded,
+      tooFast,
+      tooFastCount: tooFast.length,
       pauseCount: dashboardPauseLogs.length,
       pauseHours: totalPauseSeconds / 3600,
       productionHours: totalProductionSeconds / 3600,

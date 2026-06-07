@@ -156,6 +156,8 @@ export const DEFAULT_BOARD_SECTION_OPTIONS = [
 export const INVENTORY_LOOKUP_LOGISTICS_FIELD = "inventoryLookupLogistics";
 export const MAINTENANCE_INVENTORY_LOOKUP_FIELD = "maintenanceInventoryLookup";
 export const BOARD_ACTIVITY_LIST_FIELD = "activityList";
+/** Duración mínima esperada como fracción del SLA (p. ej. 0.25 = 25 % del límite). */
+export const BOARD_SLA_MIN_DURATION_RATIO = 0.25;
 export const DEFAULT_JOB_TITLE_BY_ROLE = {
   [ROLE_LEAD]: "Encargado de área",
   [ROLE_SR]: "Supervisor senior",
