@@ -13,6 +13,8 @@ import {
   formatBoardRowAssigneeLabel,
   getLivePauseOverflowSeconds,
   getOperationalDateParts,
+  normalizeOperationalDateKey,
+  catalogItemMatchesBoardCategory,
   getBoardRowResponsibleIds,
   getOperationalElapsedSeconds,
   normalizeAreaOption,
@@ -759,6 +761,36 @@ export default function MisTableros({ contexto }) {
   })();
 
   useEffect(() => {
+    if (isHistoricalCustomBoardView || !showCleaningNaveSelector || !selectedCustomBoard?.id) return undefined;
+    let cancelled = false;
+    (async () => {
+      try {
+        const remoteState = await requestJson("/warehouse/state");
+        if (!cancelled && remoteState) {
+          applyRemoteWarehouseState(remoteState, setState, setLoginDirectory, skipNextSyncRef, setSyncStatus);
+        }
+      } catch {
+        // Ignorar errores de refresco oportunista del tablero de limpieza.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    applyRemoteWarehouseState,
+    cleaningNaveValue,
+    isHistoricalCustomBoardView,
+    requestJson,
+    selectedCustomBoard?.id,
+    setLoginDirectory,
+    setState,
+    setSyncStatus,
+    showCleaningNaveSelector,
+    skipNextSyncRef,
+    targetOperationalDateKey,
+  ]);
+
+  useEffect(() => {
     const timer = globalThis.setInterval(() => {
       const operationalNow = getOperationalDateParts(Date.now(), operationalTimeZone);
       const jsDay = operationalNow.jsDay;
@@ -932,9 +964,17 @@ export default function MisTableros({ contexto }) {
     : null;
   const visibleRows = (boardView?.rows || []).filter((row) => {
     if (!isHistoricalCustomBoardView && showCleaningNaveSelector && boardDateField && targetOperationalDateKey) {
-      const rowDate = String(row?.values?.[boardDateField.id] || "").trim();
+      const rowDate = normalizeOperationalDateKey(row?.values?.[boardDateField.id]);
+      const activityValue = activityListField
+        ? String(row?.values?.[activityListField.id] || "").trim().toLowerCase()
+        : "";
+      const activityAllowedToday = !activityListField
+        || !activityOptionNames
+        || !activityValue
+        || activityOptionNames.has(activityValue);
       // En limpieza, la lista operativa se limita estrictamente al dia seleccionado.
-      if (!rowDate || rowDate !== targetOperationalDateKey) return false;
+      if (rowDate && rowDate !== targetOperationalDateKey) return false;
+      return activityAllowedToday;
     }
     if (!activityListField || !activityOptionNames) return true;
     const activityValue = String(row?.values?.[activityListField.id] || "").trim().toLowerCase();
@@ -955,7 +995,7 @@ export default function MisTableros({ contexto }) {
       if (item?.isDeleted) return false;
       if (String(item?.name || "").trim().toLowerCase() !== normalizedLabel) return false;
       if (!scopedCategory || scopedCategory === "general") return true;
-      return String(item?.category || "general").trim().toLowerCase() === scopedCategory;
+      return catalogItemMatchesBoardCategory(item, scopedCategory);
     }) || null;
   }
 

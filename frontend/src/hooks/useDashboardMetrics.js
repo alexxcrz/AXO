@@ -919,11 +919,14 @@ export function useDashboardMetrics({
         productMap.set(productKey, {
           key: productKey,
           product: row.productValue || "Sin producto",
+          productCode: row.productCode || "",
+          productName: row.productName || "",
+          productPresentation: row.productPresentation || "",
           sessions: 0,
           totalMinutes: 0,
           totalPieces: 0,
           boards: new Set(),
-          tarimas: new Map(),
+          tarimaKeys: new Set(),
         });
       }
 
@@ -932,34 +935,12 @@ export function useDashboardMetrics({
       productEntry.totalMinutes += Math.max(0, Number(row.durationMinutes || 0));
       productEntry.totalPieces += Math.max(0, Number(row.piecesReviewed || 0));
       productEntry.boards.add(String(row.boardName || "Tablero"));
-
-      if (!productEntry.tarimas.has(tarimaKey)) {
-        productEntry.tarimas.set(tarimaKey, {
-          key: `${productKey}::${tarimaKey}`,
-          tarima: tarimaKey,
-          sessions: 0,
-          totalMinutes: 0,
-          totalPieces: 0,
-        });
-      }
-
-      const tarimaEntry = productEntry.tarimas.get(tarimaKey);
-      tarimaEntry.sessions += 1;
-      tarimaEntry.totalMinutes += Math.max(0, Number(row.durationMinutes || 0));
-      tarimaEntry.totalPieces += Math.max(0, Number(row.piecesReviewed || 0));
+      productEntry.tarimaKeys.add(tarimaKey);
     });
 
     return Array.from(productMap.values())
       .map((entry) => {
-        const tarimas = Array.from(entry.tarimas.values())
-          .map((tarima) => ({
-            ...tarima,
-            avgMinutesPerSession: tarima.sessions > 0 ? tarima.totalMinutes / tarima.sessions : 0,
-            secondsPerPiece: tarima.totalPieces > 0 ? (tarima.totalMinutes * 60) / tarima.totalPieces : null,
-          }))
-          .sort((left, right) => right.totalPieces - left.totalPieces || right.totalMinutes - left.totalMinutes);
-
-        const palletCount = tarimas.length;
+        const palletCount = entry.tarimaKeys.size;
         const avgMinutesPerPallet = palletCount > 0 ? entry.totalMinutes / palletCount : 0;
         const avgMinutesPerSession = entry.sessions > 0 ? entry.totalMinutes / entry.sessions : 0;
         const secondsPerPiece = entry.totalPieces > 0 ? (entry.totalMinutes * 60) / entry.totalPieces : null;
@@ -967,6 +948,9 @@ export function useDashboardMetrics({
         return {
           key: entry.key,
           product: entry.product,
+          productCode: entry.productCode,
+          productName: entry.productName,
+          productPresentation: entry.productPresentation,
           sessions: entry.sessions,
           palletCount,
           totalMinutes: entry.totalMinutes,
@@ -975,7 +959,6 @@ export function useDashboardMetrics({
           avgMinutesPerSession,
           secondsPerPiece,
           boardCount: entry.boards.size,
-          tarimas,
         };
       })
       .sort((left, right) => right.totalPieces - left.totalPieces || right.totalMinutes - left.totalMinutes);
@@ -1185,6 +1168,43 @@ export function useDashboardMetrics({
       })
       .sort((left, right) => right.totalRecords - left.totalRecords || left.area.localeCompare(right.area, "es-MX"));
   }, [dashboardDynamicMetricRows, dashboardInventoryProductTimeRows, filteredDashboardRecords]);
+
+  const dashboardActivitySlaSummaryRows = useMemo(() => {
+    const groups = new Map();
+
+    filteredDashboardRecords.forEach((record) => {
+      if (!record.limitMinutes || record.limitMinutes <= 0) return;
+      const key = String(record.label || "Sin actividad").trim();
+      if (!groups.has(key)) {
+        groups.set(key, {
+          label: key,
+          limitMinutes: record.limitMinutes,
+          totalEvents: 0,
+          exceededCount: 0,
+          totalRealSeconds: 0,
+          totalExcessSeconds: 0,
+        });
+      }
+
+      const item = groups.get(key);
+      item.totalEvents += 1;
+      const realSeconds = Math.max(0, Number(record.durationSeconds || 0));
+      item.totalRealSeconds += realSeconds;
+      if (realSeconds > record.limitMinutes * 60) {
+        item.exceededCount += 1;
+        item.totalExcessSeconds += realSeconds - (record.limitMinutes * 60);
+      }
+    });
+
+    return Array.from(groups.values())
+      .map((item) => ({
+        ...item,
+        avgRealMinutes: item.totalEvents ? item.totalRealSeconds / item.totalEvents / 60 : 0,
+        avgExcessMinutes: item.exceededCount ? item.totalExcessSeconds / item.exceededCount / 60 : 0,
+        exceededPercent: item.totalEvents ? (item.exceededCount / item.totalEvents) * 100 : 0,
+      }))
+      .sort((left, right) => right.exceededCount - left.exceededCount || right.avgExcessMinutes - left.avgExcessMinutes);
+  }, [filteredDashboardRecords]);
 
   const dashboardAreaRows = useMemo(() => {
     const groups = new Map();
@@ -1641,6 +1661,7 @@ export function useDashboardMetrics({
     dashboardPalletLeaderboardRows,
     dashboardProductPerformanceRows,
     dashboardProductAggregateRows,
+    dashboardActivitySlaSummaryRows,
     dashboardBoardInsightRows,
     dashboardBoardKpiCards,
     inventoryItemsById,

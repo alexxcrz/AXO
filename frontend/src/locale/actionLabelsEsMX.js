@@ -7,6 +7,7 @@ export const ACTION_LABELS_ES_MX = {
   "workflow": "Acciones",
   "assignee": "Player",
   "auditDashboard": "Dashboard",
+  "globalDashboard": "Dashboard general",
   "auditHistory": "Historial",
   "exportDashboardData": "Exportar reportes del Dashboard",
   "manageDashboardState": "Gestionar estado del Dashboard (reset/demo)",

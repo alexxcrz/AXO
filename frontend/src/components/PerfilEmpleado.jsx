@@ -148,6 +148,7 @@ export function EmployeeProfileModal({
   onSubmit,
   onClose,
   onLogout,
+  onDeleteAccount,
   onUpdateIdentity,
   currentTheme,
   themeOptions = [],
@@ -193,6 +194,10 @@ export function EmployeeProfileModal({
   const [saving, setSaving]           = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [photoMessage, setPhotoMessage] = useState("");
+  const [deletePassword, setDeletePassword] = useState("");
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [deleteSubmitting, setDeleteSubmitting] = useState(false);
+  const [deleteMessage, setDeleteMessage] = useState("");
   const fileInputRef = useRef(null);
 
   const canBypass      = canBypassSelfProfileEditLimit(currentUser);
@@ -585,6 +590,69 @@ export function EmployeeProfileModal({
             </div>
           )}
         </div>
+
+        {onDeleteAccount ? (
+          <div className="ep-section ep-section--danger-zone">
+            <div className="ep-section__title">Zona de riesgo</div>
+            <p className="ep-danger-copy">
+              Eliminar tu cuenta borra tu acceso de forma permanente. Esta accion no se puede deshacer.
+            </p>
+            {!deleteConfirmOpen ? (
+              <button type="button" className="ep-btn ep-btn--danger" onClick={() => { setDeleteConfirmOpen(true); setDeleteMessage(""); }}>
+                Eliminar mi cuenta
+              </button>
+            ) : (
+              <div className="ep-delete-box">
+                <label className="ep-field__label" htmlFor="ep-delete-password">Confirma con tu contraseña actual</label>
+                <input
+                  id="ep-delete-password"
+                  className="ep-input"
+                  type="password"
+                  autoComplete="current-password"
+                  value={deletePassword}
+                  onChange={(event) => {
+                    setDeletePassword(event.target.value);
+                    setDeleteMessage("");
+                  }}
+                />
+                <div className="ep-delete-actions">
+                  <button
+                    type="button"
+                    className="ep-btn ep-btn--danger"
+                    disabled={deleteSubmitting || !deletePassword.trim()}
+                    onClick={async () => {
+                      setDeleteSubmitting(true);
+                      setDeleteMessage("");
+                      const result = await onDeleteAccount(deletePassword);
+                      setDeleteSubmitting(false);
+                      if (!result?.ok) {
+                        setDeleteMessage(result?.message || "No fue posible eliminar la cuenta.");
+                        return;
+                      }
+                      setDeletePassword("");
+                      setDeleteConfirmOpen(false);
+                    }}
+                  >
+                    {deleteSubmitting ? "Eliminando..." : "Confirmar eliminacion"}
+                  </button>
+                  <button
+                    type="button"
+                    className="ep-btn ep-btn--ghost"
+                    disabled={deleteSubmitting}
+                    onClick={() => {
+                      setDeleteConfirmOpen(false);
+                      setDeletePassword("");
+                      setDeleteMessage("");
+                    }}
+                  >
+                    Cancelar
+                  </button>
+                </div>
+                {deleteMessage ? <p className="ep-msg ep-msg--danger">{deleteMessage}</p> : null}
+              </div>
+            )}
+          </div>
+        ) : null}
 
           </>
         ) : null}

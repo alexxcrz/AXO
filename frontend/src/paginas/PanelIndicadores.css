@@ -1121,6 +1121,19 @@
   background: rgba(20, 184, 166, 0.05);
 }
 
+.dashboard-product-card-toggle.dashboard-product-card-static {
+  cursor: default;
+}
+
+.dashboard-product-card-detail--summary {
+  padding-top: 0;
+}
+
+.dashboard-product-expand-btn {
+  width: 100%;
+  justify-content: center;
+}
+
 .dashboard-product-detail-toggle-wrap {
   margin-top: 1rem;
 }

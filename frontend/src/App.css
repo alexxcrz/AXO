@@ -3527,6 +3527,81 @@ html[data-ui-theme] .app-notification-badge {
   text-align: left;
 }
 
+.board-start-conflict-alert {
+  display: grid;
+  gap: 0.75rem;
+  padding: 0.95rem 1rem;
+  border-radius: 14px;
+  border: 2px solid #f59e0b;
+  background: linear-gradient(180deg, #fff7ed 0%, #fffbeb 100%);
+  box-shadow: inset 0 0 0 1px rgba(245, 158, 11, 0.12);
+}
+
+.board-start-conflict-alert strong {
+  display: block;
+  color: #9a3412;
+  font-size: 1rem;
+}
+
+.board-start-conflict-alert p {
+  margin: 0;
+  color: #7c2d12;
+  line-height: 1.45;
+}
+
+.board-start-conflict-list {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.board-start-conflict-card {
+  display: grid;
+  gap: 0.45rem;
+  padding: 0.75rem 0.85rem;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+}
+
+.board-start-conflict-card-main {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.board-start-conflict-card-main strong {
+  color: #1f2937;
+  font-size: 0.95rem;
+}
+
+.board-start-conflict-card-main span {
+  color: #64748b;
+  font-size: 0.85rem;
+}
+
+.board-start-conflict-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.82rem;
+  color: #475569;
+}
+
+.board-start-conflict-note {
+  font-style: italic;
+}
+
+.sicfla-modal-actions .sicfla-button.danger {
+  background: #dc2626;
+  border-color: #dc2626;
+  color: #fff;
+}
+
+.sicfla-modal-actions .sicfla-button.danger:hover {
+  background: #b91c1c;
+  border-color: #b91c1c;
+}
+
 .board-finish-confirm-note {
   font-size: 0.78rem;
   color: #6b7280;
@@ -3534,21 +3609,20 @@ html[data-ui-theme] .app-notification-badge {
   padding-top: 0.25rem;
 }
 
-.board-action-button.start,
-.board-action-button.pause {
-  background: linear-gradient(180deg, #f5b547 0%, #ef8f19 100%);
+.board-action-button.start {
+  background: linear-gradient(180deg, #34d399 0%, #059669 100%);
 }
 
-.board-action-button.start {
-  background: linear-gradient(180deg, #5589b7 0%, #366b99 100%);
+.board-action-button.pause {
+  background: linear-gradient(180deg, #fbbf24 0%, #d97706 100%);
 }
 
 .board-action-button.finish {
-  background: linear-gradient(180deg, #ff7f73 0%, #ef4444 100%);
+  background: linear-gradient(180deg, #fb7185 0%, #e11d48 100%);
 }
 
 .board-action-button.delete {
-  background: linear-gradient(180deg, #ff8e86 0%, #ef4444 100%);
+  background: linear-gradient(180deg, #78716c 0%, #44403c 100%);
 }
 
 .board-action-button.delete.enabled {
@@ -14590,6 +14664,37 @@ html[data-ui-theme] body .switch-thumb {
   padding: 0 0.1rem;
 }
 
+.ep-section--danger-zone {
+  margin-top: 0.35rem;
+  padding: 0.85rem;
+  border-radius: 12px;
+  border: 1px solid rgba(220, 38, 38, 0.22);
+  background: rgba(220, 38, 38, 0.05);
+}
+
+.ep-danger-copy {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: #7f1d1d;
+}
+
+.ep-delete-box {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.ep-delete-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.ep-msg--danger {
+  color: #b91c1c;
+}
+
 /* ── Grid de campos ──────────────────────────────────────────────────────── */
 
 .ep-grid {
@@ -16880,18 +16985,50 @@ html[data-ui-theme] body .primary-button,
 html[data-ui-theme] body .sicfla-button,
 html[data-ui-theme] body .ep-btn--primary,
 html[data-ui-theme] body .copmec-ai-send-btn,
-html[data-ui-theme] body .board-action-button.start,
-html[data-ui-theme] body .board-action-button.pause,
 html[data-ui-theme] .primary-button,
 html[data-ui-theme] .sicfla-button,
 html[data-ui-theme] .ep-btn--primary,
-html[data-ui-theme] .copmec-ai-send-btn,
-html[data-ui-theme] .board-action-button.start,
-html[data-ui-theme] .board-action-button.pause {
+html[data-ui-theme] .copmec-ai-send-btn {
   background: linear-gradient(180deg, var(--ui-primary-soft) 0%, var(--ui-primary) 100%);
   border-color: color-mix(in srgb, var(--ui-primary-strong) 55%, black 45%);
   box-shadow: var(--ui-shadow-soft);
   color: var(--btn-on-primary, #ffffff) !important;
+}
+
+/* Botones de workflow del tablero: colores semánticos fijos, sin depender del tema UI */
+html[data-ui-theme] body .board-action-button.start,
+html[data-ui-theme] .board-action-button.start {
+  background: linear-gradient(180deg, #34d399 0%, #059669 100%) !important;
+  border-color: #047857 !important;
+  color: #ffffff !important;
+}
+
+html[data-ui-theme] body .board-action-button.pause,
+html[data-ui-theme] .board-action-button.pause {
+  background: linear-gradient(180deg, #fbbf24 0%, #d97706 100%) !important;
+  border-color: #b45309 !important;
+  color: #ffffff !important;
+}
+
+html[data-ui-theme] body .board-action-button.finish,
+html[data-ui-theme] .board-action-button.finish {
+  background: linear-gradient(180deg, #fb7185 0%, #e11d48 100%) !important;
+  border-color: #be123c !important;
+  color: #ffffff !important;
+}
+
+html[data-ui-theme] body .board-action-button.delete.enabled,
+html[data-ui-theme] .board-action-button.delete.enabled {
+  background: linear-gradient(180deg, #78716c 0%, #44403c 100%) !important;
+  border-color: #292524 !important;
+  color: #ffffff !important;
+}
+
+html[data-ui-theme] body .board-action-button.delete.locked,
+html[data-ui-theme] .board-action-button.delete.locked {
+  background: linear-gradient(180deg, #d6d3d1 0%, #a8a29e 100%) !important;
+  border-color: #78716c !important;
+  color: #ffffff !important;
 }
 
 html[data-ui-theme] body .primary-button:hover,

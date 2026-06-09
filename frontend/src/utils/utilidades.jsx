@@ -1,7 +1,8 @@
 /* eslint-disable */
 import {
-  STORAGE_KEY, SIDEBAR_COLLAPSED_KEY, ACTIVE_PAGE_KEY, DASHBOARD_SECTIONS_KEY, NOTIFICATION_READ_KEY, NOTIFICATION_DELETED_KEY, NOTIFICATION_INBOX_KEY, EMPTY_OBJECT, BOOTSTRAP_MASTER_ID, MASTER_USERNAME, API_BASE_URL, ENABLE_LEGACY_WHOLE_STATE_SYNC, PAGE_BOARD, PAGE_CUSTOM_BOARDS, PAGE_ADMIN, PAGE_DASHBOARD, PAGE_DASHBOARD_BUILDER, PAGE_HISTORY, PAGE_PROCESS_AUDITS, PAGE_INVENTORY, PAGE_TRANSPORT, PAGE_RETAIL, PAGE_USERS, PAGE_BIBLIOTECA, PAGE_INCIDENCIAS, PAGE_NOT_FOUND, PAGE_AREA_SHELL, PAGE_ROUTE_SLUGS, PAGE_ROUTE_ALIASES, EMPTY_LOGIN_DIRECTORY, ROLE_LEAD, ROLE_SR, ROLE_SSR, ROLE_JR, STATUS_PENDING, STATUS_RUNNING, STATUS_PAUSED, STATUS_FINISHED, INVENTORY_DOMAIN_BASE, INVENTORY_DOMAIN_CLEANING, INVENTORY_DOMAIN_ORDERS, INVENTORY_DOMAIN_MAINTENANCE, INVENTORY_DOMAIN_DESTINATIONS, INVENTORY_MOVEMENT_RESTOCK, INVENTORY_MOVEMENT_CONSUME, INVENTORY_MOVEMENT_TRANSFER, CONTROL_STATUS_OPTIONS, USER_ROLES, PERMISSION_SCHEMA_VERSION, ROLE_LEVEL, TEMPORARY_PASSWORD_MIN_LENGTH, PROFILE_SELF_EDIT_LIMIT, DEFAULT_AREA_OPTIONS, DEFAULT_BOARD_SECTION_OPTIONS, INVENTORY_LOOKUP_LOGISTICS_FIELD, BOARD_ACTIVITY_LIST_FIELD, BOARD_SLA_MIN_DURATION_RATIO, DEFAULT_JOB_TITLE_BY_ROLE, DASHBOARD_CHART_PALETTE, DEFAULT_DASHBOARD_SECTION_STATE, DEFAULT_ADMIN_TAB, ACTIVITY_FREQUENCY_OPTIONS, ACTIVITY_FREQUENCY_LABELS, ACTIVITY_FREQUENCY_DAY_OFFSETS, BOARD_FIELD_TYPES, BOARD_FIELD_TYPE_DETAILS, BOARD_FIELD_WIDTHS, COLOR_RULE_OPERATORS, BOARD_FIELD_WIDTH_STYLES, BOARD_FIELD_MIN_WIDTH_BY_TYPE, DEFAULT_BOARD_AUX_COLUMNS_ORDER, BOARD_AUX_COLUMN_DEFINITIONS, BOARD_AUX_COLUMN_IDS, BOARD_TEMPLATES, FORMULA_OPERATIONS, OPTION_SOURCE_TYPES, INVENTORY_PROPERTIES, INVENTORY_IMPORT_FIELD_ALIASES, INVENTORY_DOMAIN_OPTIONS, INVENTORY_MOVEMENT_OPTIONS, CLEANING_SITE_OPTIONS, DEFAULT_CLEANING_SITE, BOARD_OPERATIONAL_CONTEXT_NONE, BOARD_OPERATIONAL_CONTEXT_CLEANING_SITE, BOARD_OPERATIONAL_CONTEXT_CUSTOM, BOARD_OPERATIONAL_CONTEXT_OPTIONS, NAV_ITEMS, ACTION_DEFINITIONS, BOARD_PERMISSION_ACTION_IDS, BOARD_PERMISSION_ACTIONS, PAGE_ACTION_GROUPS, PERMISSION_PRESETS, RESPONSIBLE_VISUALS, ALL_PAGES, ALL_ACTION_IDS, ROLE_PERMISSION_MATRIX, KPI_STYLES
+  STORAGE_KEY, SIDEBAR_COLLAPSED_KEY, ACTIVE_PAGE_KEY, DASHBOARD_SECTIONS_KEY, NOTIFICATION_READ_KEY, NOTIFICATION_DELETED_KEY, NOTIFICATION_INBOX_KEY, EMPTY_OBJECT, BOOTSTRAP_MASTER_ID, MASTER_USERNAME, API_BASE_URL, ENABLE_LEGACY_WHOLE_STATE_SYNC, PAGE_BOARD, PAGE_CUSTOM_BOARDS, PAGE_ADMIN, PAGE_DASHBOARD, PAGE_GLOBAL_DASHBOARD, PAGE_DASHBOARD_BUILDER, PAGE_HISTORY, PAGE_PROCESS_AUDITS, PAGE_INVENTORY, PAGE_TRANSPORT, PAGE_RETAIL, PAGE_USERS, PAGE_BIBLIOTECA, PAGE_INCIDENCIAS, PAGE_NOT_FOUND, PAGE_AREA_SHELL, PAGE_ROUTE_SLUGS, PAGE_ROUTE_ALIASES, EMPTY_LOGIN_DIRECTORY, ROLE_LEAD, ROLE_SR, ROLE_SSR, ROLE_JR, STATUS_PENDING, STATUS_RUNNING, STATUS_PAUSED, STATUS_FINISHED, INVENTORY_DOMAIN_BASE, INVENTORY_DOMAIN_CLEANING, INVENTORY_DOMAIN_ORDERS, INVENTORY_DOMAIN_MAINTENANCE, INVENTORY_DOMAIN_DESTINATIONS, INVENTORY_MOVEMENT_RESTOCK, INVENTORY_MOVEMENT_CONSUME, INVENTORY_MOVEMENT_TRANSFER, CONTROL_STATUS_OPTIONS, USER_ROLES, PERMISSION_SCHEMA_VERSION, ROLE_LEVEL, TEMPORARY_PASSWORD_MIN_LENGTH, PROFILE_SELF_EDIT_LIMIT, DEFAULT_AREA_OPTIONS, DEFAULT_BOARD_SECTION_OPTIONS, INVENTORY_LOOKUP_LOGISTICS_FIELD, BOARD_ACTIVITY_LIST_FIELD, BOARD_SLA_MIN_DURATION_RATIO, DEFAULT_JOB_TITLE_BY_ROLE, DASHBOARD_CHART_PALETTE, DEFAULT_DASHBOARD_SECTION_STATE, DEFAULT_ADMIN_TAB, ACTIVITY_FREQUENCY_OPTIONS, ACTIVITY_FREQUENCY_LABELS, ACTIVITY_FREQUENCY_DAY_OFFSETS, BOARD_FIELD_TYPES, BOARD_FIELD_TYPE_DETAILS, BOARD_FIELD_WIDTHS, COLOR_RULE_OPERATORS, BOARD_FIELD_WIDTH_STYLES, BOARD_FIELD_MIN_WIDTH_BY_TYPE, DEFAULT_BOARD_AUX_COLUMNS_ORDER, BOARD_AUX_COLUMN_DEFINITIONS, BOARD_AUX_COLUMN_IDS, BOARD_TEMPLATES, FORMULA_OPERATIONS, OPTION_SOURCE_TYPES, INVENTORY_PROPERTIES, INVENTORY_IMPORT_FIELD_ALIASES, INVENTORY_DOMAIN_OPTIONS, INVENTORY_MOVEMENT_OPTIONS, CLEANING_SITE_OPTIONS, DEFAULT_CLEANING_SITE, BOARD_OPERATIONAL_CONTEXT_NONE, BOARD_OPERATIONAL_CONTEXT_CLEANING_SITE, BOARD_OPERATIONAL_CONTEXT_CUSTOM, BOARD_OPERATIONAL_CONTEXT_OPTIONS, NAV_ITEMS, ACTION_DEFINITIONS, BOARD_PERMISSION_ACTION_IDS, BOARD_PERMISSION_ACTIONS, PAGE_ACTION_GROUPS, PERMISSION_PRESETS, RESPONSIBLE_VISUALS, ALL_PAGES, ALL_ACTION_IDS, ROLE_PERMISSION_MATRIX, KPI_STYLES
 } from "./constantes.js";
+import { isDeprecatedDynamicArea, migrateDeprecatedAreaValue } from "../config/deprecatedAreas.js";
 import { getExcelJsModule } from "./utilidadesImportExcel.js";
 import {
   normalizeUserPermissionOverride,
@@ -1274,7 +1275,7 @@ export function normalizeCatalogCleaningSites(value) {
 }
 
 export function normalizeCatalogArea(value, fallback = "General") {
-  const normalizedValue = String(value || fallback || "General").trim();
+  const normalizedValue = migrateDeprecatedAreaValue(String(value || fallback || "General").trim());
   return normalizedValue || "General";
 }
 
@@ -2721,25 +2722,73 @@ function readDashboardInventoryNumericValue(row, keywords = []) {
   return Number.isFinite(numeric) ? numeric : null;
 }
 
-function readDashboardInventoryProductLabel(row) {
+function normalizeDashboardProductToken(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ");
+}
+
+function readDashboardInventoryProductIdentity(row) {
   const fields = Array.isArray(row?.sourceFields) ? row.sourceFields : [];
-  const productKeywords = ["nombre producto", "nombre", "descripcion", "producto", "sku", "articulo", "item", "producto/sku"];
-  const matchField = findDashboardInventoryField(fields, productKeywords);
-  if (matchField) {
-    const label = readDashboardInventoryFieldValue(row, matchField);
-    if (label) {
-      if (matchField.type === "inventoryLookup" && row?.inventoryItemsById instanceof Map) {
-        const values = row.rowValues || {};
-        const rawValue = values[matchField.id] ?? values[matchField.key] ?? values[matchField.name];
-        const inventoryItem = row.inventoryItemsById.get(rawValue);
-        if (inventoryItem) {
-          const nameLabel = inventoryItem.name || label;
-          const presentation = String(inventoryItem.presentation || "").trim();
-          return presentation ? `${nameLabel} - ${presentation}` : nameLabel;
-        }
-      }
-      return label;
+  const codeField = findDashboardInventoryField(fields, ["codigo", "código", "sku", "ean", "cod producto", "cod. producto"]);
+  const nameField = findDashboardInventoryField(fields, ["nombre producto", "nombre", "descripcion", "producto", "articulo", "item", "producto/sku"]);
+  const presentationField = findDashboardInventoryField(fields, ["presentacion", "presentación", "formato", "empaque", "tamano", "tamaño"]);
+
+  let code = codeField ? readDashboardInventoryFieldValue(row, codeField) : "";
+  let name = nameField ? readDashboardInventoryFieldValue(row, nameField) : "";
+  let presentation = presentationField ? readDashboardInventoryFieldValue(row, presentationField) : "";
+
+  const lookupField = nameField?.type === "inventoryLookup" ? nameField : findDashboardInventoryField(fields, ["producto", "sku", "articulo", "item"]);
+  if (lookupField?.type === "inventoryLookup" && row?.inventoryItemsById instanceof Map) {
+    const values = row?.rowValues && typeof row.rowValues === "object" ? row.rowValues : {};
+    const rawValue = values[lookupField.id] ?? values[lookupField.key] ?? values[lookupField.name];
+    const inventoryItem = row.inventoryItemsById.get(rawValue);
+    if (inventoryItem) {
+      name = String(inventoryItem.name || name || "").trim();
+      code = String(inventoryItem.code || inventoryItem.sku || inventoryItem.ean || code || "").trim();
+      presentation = String(inventoryItem.presentation || presentation || "").trim();
     }
+  }
+
+  if (!name) {
+    name = String(row?.rowLabel || "").trim();
+  }
+
+  return {
+    code: String(code || "").trim(),
+    name: String(name || "").trim(),
+    presentation: String(presentation || "").trim(),
+  };
+}
+
+function buildDashboardProductAggregateKey(identity = {}) {
+  const code = normalizeDashboardProductToken(identity.code);
+  const name = normalizeDashboardProductToken(identity.name);
+  const presentation = normalizeDashboardProductToken(identity.presentation);
+  const parts = [code, name, presentation].filter(Boolean);
+  return parts.length ? parts.join("::") : "sin-producto";
+}
+
+function formatDashboardProductAggregateLabel(identity = {}) {
+  const code = String(identity.code || "").trim();
+  const name = String(identity.name || "").trim();
+  const presentation = String(identity.presentation || "").trim();
+  const title = name || code || "Sin producto";
+  const extras = [];
+  if (code && normalizeDashboardProductToken(code) !== normalizeDashboardProductToken(title)) {
+    extras.push(code);
+  }
+  if (presentation) extras.push(presentation);
+  return extras.length ? `${title} · ${extras.join(" · ")}` : title;
+}
+
+function readDashboardInventoryProductLabel(row) {
+  const identity = readDashboardInventoryProductIdentity(row);
+  if (identity.name || identity.code || identity.presentation) {
+    return formatDashboardProductAggregateLabel(identity);
   }
   return String(row?.rowLabel || "").trim();
 }
@@ -2783,7 +2832,8 @@ export function resolveDashboardInventoryRowMetrics(row, inventoryItemsById = nu
   };
 
   const tarimaValue = readDashboardInventoryFieldValue(enrichedRow, findDashboardInventoryField(fields, ["tarima", "pallet", "palet"])) || "Sin tarima";
-  const productValue = readDashboardInventoryProductLabel(enrichedRow) || "Sin producto";
+  const productIdentity = readDashboardInventoryProductIdentity(enrichedRow);
+  const productValue = formatDashboardProductAggregateLabel(productIdentity) || readDashboardInventoryProductLabel(enrichedRow) || "Sin producto";
 
   const explicitExpectedPieces = readDashboardInventoryNumericValue(enrichedRow, ["piezas esperadas", "piezas esperada", "piezas a revisar", "cantidad esperada", "esperadas", "esperado", "piezas previstas", "total piezas"]);
   const cajasTarima = readDashboardInventoryNumericValue(enrichedRow, ["cajas tarima", "cajas", "tarimas", "palets", "pallets"]);
@@ -2841,7 +2891,10 @@ export function resolveDashboardInventoryRowMetrics(row, inventoryItemsById = nu
   return {
     tarimaValue,
     productValue,
-    productKey: String(productValue || "Sin producto").trim().toLowerCase().replace(/\s+/g, " "),
+    productCode: productIdentity.code,
+    productName: productIdentity.name,
+    productPresentation: productIdentity.presentation,
+    productKey: buildDashboardProductAggregateKey(productIdentity),
     expectedPieces: Number.isFinite(expectedPieces) ? expectedPieces : null,
     totalMermaPieces,
     missingPieces: Number.isFinite(missingPieces) ? missingPieces : null,
@@ -3813,8 +3866,13 @@ export function getBoardAssignmentSummary(board, userMap) {
 }
 
 export function buildAreaCatalog(users = [], catalog = []) {
-  return Array.from(new Set((catalog || []).concat((users || []).map((user) => normalizeAreaOption(getUserArea(user))))).values())
+  return Array.from(new Set(
+    (catalog || [])
+      .map((entry) => migrateDeprecatedAreaValue(entry))
+      .concat((users || []).map((user) => migrateDeprecatedAreaValue(getUserArea(user)))),
+  ).values())
     .filter(Boolean)
+    .filter((area) => !isDeprecatedDynamicArea(area))
     .sort((a, b) => a.localeCompare(b));
 }
 
@@ -3832,7 +3890,7 @@ export function hasLeadUser(users) {
 
 export function normalizeUserRecord(user, fallbackManagerId = null) {
   const role = normalizeRole(user.role);
-  const area = String(user.area ?? user.department ?? "").trim();
+  const area = migrateDeprecatedAreaValue(String(user.area ?? user.department ?? "").trim());
   const selfIdentityEditCount = Number(user.selfIdentityEditCount ?? 0);
   const username = String(user.email ?? user.username ?? "").trim();
   return {
@@ -3895,7 +3953,7 @@ const INVENTORY_PAGE_ACCESS_ACTION_IDS = [
 ];
 
 export function canAccessPage(user, pageId, permissions) {
-  if (pageId === PAGE_DASHBOARD) {
+  if (pageId === PAGE_DASHBOARD || pageId === PAGE_GLOBAL_DASHBOARD) {
     return canAccessGlobalDashboardPage(user, permissions);
   }
   if (pageId === PAGE_RETAIL) {
@@ -4050,6 +4108,12 @@ export function toSelectOption(value, group = "") {
   };
 }
 
+export function catalogItemMatchesBoardCategory(item, selectedCategory) {
+  const normalizedSelected = String(selectedCategory || "").trim();
+  if (!normalizedSelected) return true;
+  return normalizeKey(String(item?.category || "General").trim()) === normalizeKey(normalizedSelected);
+}
+
 export function buildSelectOptions(field, state, context = {}) {
   if (field.optionSource === "users") {
     return state.users
@@ -4068,7 +4132,7 @@ export function buildSelectOptions(field, state, context = {}) {
     const selectedCategory = String(field.optionCatalogCategory || "").trim();
     const candidates = state.catalog.filter((item) => !item.isDeleted);
     const filteredByCategory = selectedCategory
-      ? candidates.filter((item) => String(item.category || "General").trim() === selectedCategory)
+      ? candidates.filter((item) => catalogItemMatchesBoardCategory(item, selectedCategory))
       : candidates;
     const hasDayFilter = Number.isFinite(Number(context?.weekdayOffset));
     const weekdayOffset = hasDayFilter ? Number(context.weekdayOffset) : null;
@@ -4141,7 +4205,7 @@ export function getBoardRowCatalogItem(board, row, catalogMap) {
     if (item?.isDeleted) return false;
     if (String(item?.name || "").trim().toLowerCase() !== activityName) return false;
     if (!scopedCategory || scopedCategory === "general") return true;
-    return String(item?.category || "general").trim().toLowerCase() === scopedCategory;
+    return catalogItemMatchesBoardCategory(item, scopedCategory);
   }) || null;
 }
 
@@ -4152,6 +4216,51 @@ export function getBoardRowTimeLimitMinutes(board, row, catalogMap) {
 export function getBoardRowActivityLabel(board, row) {
   const activityListField = findBoardActivityListField(getBoardFields(board));
   return activityListField ? String(row?.values?.[activityListField.id] || "").trim() : "";
+}
+
+export function findActiveBoardRowsForUser(state, userId, options = {}) {
+  const normalizedUserId = String(userId || "").trim();
+  if (!normalizedUserId) return [];
+
+  const starterByRowId = options.starterByRowId && typeof options.starterByRowId === "object"
+    ? options.starterByRowId
+    : {};
+  const excludeBoardId = String(options.excludeBoardId || "").trim();
+  const excludeRowId = String(options.excludeRowId || "").trim();
+  const activeStatuses = new Set(options.activeStatuses || [STATUS_RUNNING, STATUS_PAUSED]);
+  const conflicts = [];
+
+  (state?.controlBoards || []).forEach((board) => {
+    (board?.rows || []).forEach((row) => {
+      if (!row?.id) return;
+      if (excludeBoardId && board.id === excludeBoardId && excludeRowId && row.id === excludeRowId) return;
+      if (!activeStatuses.has(String(row.status || "").trim())) return;
+
+      const starterId = String(starterByRowId[row.id] || "").trim();
+      const responsibleIds = getBoardRowResponsibleIds(row);
+      const isStarter = starterId === normalizedUserId;
+      const isAssignedPlayer = responsibleIds.includes(normalizedUserId);
+      if (!isStarter && !isAssignedPlayer) return;
+
+      conflicts.push({
+        boardId: board.id,
+        boardName: String(board.name || "Tablero").trim() || "Tablero",
+        rowId: row.id,
+        row,
+        board,
+        status: row.status,
+        activityLabel: getBoardRowActivityLabel(board, row) || "Actividad sin nombre",
+        isStarter,
+        isAssignedPlayer,
+      });
+    });
+  });
+
+  return conflicts.sort((left, right) => {
+    if (left.status === STATUS_RUNNING && right.status !== STATUS_RUNNING) return -1;
+    if (right.status === STATUS_RUNNING && left.status !== STATUS_RUNNING) return 1;
+    return String(left.boardName).localeCompare(String(right.boardName), "es-MX");
+  });
 }
 
 export function withBoardRowTimingContext(board, row) {
@@ -4334,6 +4443,27 @@ export function getLivePauseOverflowSeconds(activity, now, pauseState) {
   );
   if (authorizedPauseSeconds <= 0) return Math.max(0, pausedElapsedSeconds);
   return Math.max(0, pausedElapsedSeconds - authorizedPauseSeconds);
+}
+
+export function normalizeOperationalDateKey(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+  const isoPrefix = raw.match(/^(\d{4}-\d{2}-\d{2})T/);
+  if (isoPrefix) return isoPrefix[1];
+  const localized = raw.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+  if (localized) {
+    const year = localized[3].length === 2 ? `20${localized[3]}` : localized[3];
+    return `${year}-${String(localized[2]).padStart(2, "0")}-${String(localized[1]).padStart(2, "0")}`;
+  }
+  const parsed = new Date(raw);
+  if (!Number.isNaN(parsed.getTime())) {
+    const year = parsed.getFullYear();
+    const month = String(parsed.getMonth() + 1).padStart(2, "0");
+    const day = String(parsed.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  }
+  return raw;
 }
 
 export function getOperationalDateParts(now = Date.now(), timeZone = "America/Mexico_City") {

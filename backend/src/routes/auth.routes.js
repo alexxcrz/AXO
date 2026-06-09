@@ -2,7 +2,7 @@ import { Router } from "express";
 import { clearSessionCookie, isMasterCredentials, setSessionCookie } from "../config/auth.js";
 import { requireRoles } from "../middleware/auth.middleware.js";
 import { auditSecurityEvent, readSecurityEvents } from "../services/security-events.service.js";
-import { BOOTSTRAP_MASTER_ID, authenticateWarehouseUser, bootstrapFirstLeadUser, changeWarehouseSelfPassword, getLoginDirectory, hasLeadUser, resetWarehouseUserPassword, sanitizeUserRecord } from "../services/warehouse.store.js";
+import { BOOTSTRAP_MASTER_ID, authenticateWarehouseUser, bootstrapFirstLeadUser, changeWarehouseSelfPassword, deleteOwnWarehouseAccount, getLoginDirectory, hasLeadUser, resetWarehouseUserPassword, sanitizeUserRecord } from "../services/warehouse.store.js";
 import { STRONG_PASSWORD_MIN_LENGTH, TEMPORARY_PASSWORD_MIN_LENGTH } from "../utils/passwords.js";
 
 const ROLE_LEAD = "Lead";
@@ -170,6 +170,28 @@ authRouter.patch("/users/:userId/password", requireRoles([ROLE_LEAD, ROLE_SR]), 
 
   auditSecurityEvent("user_password_reset", req, { targetUserId: result.userId, targetUserName: result.userName });
   res.json({ ok: true, data: { state: result.state, userId: result.userId, userName: result.userName, mustChangePassword: true } });
+});
+
+authRouter.delete("/account", (req, res) => {
+  const result = deleteOwnWarehouseAccount(req.auth, req.body?.password || "");
+  if (!result.ok) {
+    const status = result.reason === "auth_required"
+      ? 401
+      : result.reason === "invalid_password"
+        ? 400
+        : 403;
+    const message = result.reason === "invalid_password"
+      ? "La contraseña no es correcta."
+      : result.reason === "sole_lead"
+        ? "No puedes eliminar tu cuenta si eres el unico Lead activo. Transfiere el liderazgo primero."
+        : "No fue posible eliminar tu cuenta.";
+    res.status(status).json({ ok: false, message });
+    return;
+  }
+
+  auditSecurityEvent("self_account_deleted", req, { userId: result.userId, userName: result.userName });
+  clearSessionCookie(res);
+  res.json({ ok: true, data: { state: result.state, userId: result.userId } });
 });
 
 authRouter.post("/logout", (_req, res) => {

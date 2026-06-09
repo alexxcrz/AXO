@@ -1,3 +1,17 @@
+if (import.meta.env.DEV) {
+  const suppressReactDevToolsAd = (method) => {
+    const original = console[method]?.bind(console);
+    if (!original) return;
+    console[method] = (...args) => {
+      const first = args[0];
+      if (typeof first === "string" && first.includes("Download the React DevTools")) return;
+      original(...args);
+    };
+  };
+  suppressReactDevToolsAd("log");
+  suppressReactDevToolsAd("info");
+}
+
 import { StrictMode, useEffect, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
@@ -7,10 +21,8 @@ import App from './App.jsx'
 import copmecLogo from './assets/axo-logo.png'
 import { syncNotificationPrefsToServiceWorker } from './utils/pushBridge.js'
 import { preloadCoreUiWebFonts } from './app/uiPreferencesConfig.js'
-
-function isStandaloneApp() {
-  return globalThis.matchMedia?.('(display-mode: standalone)').matches || globalThis.navigator?.standalone === true;
-}
+import { bindMobileDocumentShell, isStandaloneApp } from './app/mobileAppShell.js'
+import './app/mobileShell.css'
 
 export function RootWithSplash() {
   const [showStandaloneSplash, setShowStandaloneSplash] = useState(() => isStandaloneApp());
@@ -18,6 +30,7 @@ export function RootWithSplash() {
   useEffect(() => {
     document.documentElement.lang = "es-MX";
     void preloadCoreUiWebFonts();
+    return bindMobileDocumentShell();
   }, []);
 
   useEffect(() => {

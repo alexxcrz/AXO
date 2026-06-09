@@ -18,6 +18,7 @@ import {
 import { repairBoardRowTimes, repairWarehouseBoardTimes } from "./boardHistoryTimeRepair.js";
 import { attachRoadMonitorToTransportState, syncTransportRoadMonitors } from "./transport-road-monitor.service.js";
 import { normalizeRetailState } from "./retail.store.js";
+import { isDeprecatedDynamicArea, migrateDeprecatedAreaValue } from "../config/deprecatedAreas.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -1099,8 +1100,7 @@ function applyAutomatedBoardWeeklyCut(state, referenceDate = new Date()) {
 }
 
 function applyAutomatedBoardDailyRows(state, referenceDate = new Date()) {
-  const todayKey = formatLocalDateKey(referenceDate);
-  const weekdayOffset = getCatalogWeekdayOffset(referenceDate);
+  const { isoDate: todayKey, weekdayOffset } = getOperationalCalendarParts(state, referenceDate);
   let changed = false;
 
   const nextBoards = (state?.controlBoards || []).map((board) => {
@@ -1109,9 +1109,7 @@ function applyAutomatedBoardDailyRows(state, referenceDate = new Date()) {
     const dateField = fields.find((field) => field?.type === "date") || null;
     if (!activityListField || !dateField) return board;
 
-    const settings = withDefaultBoardSettings(board?.settings);
-    const isCleaningContext = normalizeBoardOperationalContextType(settings?.operationalContextType) === BOARD_OPERATIONAL_CONTEXT_CLEANING_SITE;
-    const cleaningSite = isCleaningContext ? normalizeCleaningSite(settings?.operationalContextValue, "") : "";
+    const cleaningSite = resolveBoardCleaningSiteForAutomation(board);
 
     const expectedActivityNames = getBoardActivityListValuesForOperationalDay(
       activityListField,
@@ -1121,16 +1119,38 @@ function applyAutomatedBoardDailyRows(state, referenceDate = new Date()) {
     );
     if (!expectedActivityNames.length) return board;
 
-    const rows = Array.isArray(board?.rows) ? [...board.rows] : [];
+    const expectedActivityKeys = new Set(expectedActivityNames.map((activityName) => normalizeKey(activityName)).filter(Boolean));
+    let rows = Array.isArray(board?.rows) ? [...board.rows] : [];
     const existingTodayActivities = new Set(
       rows
-        .filter((row) => String(row?.values?.[dateField.id] || "").trim() === todayKey)
+        .filter((row) => normalizeOperationalDateKey(row?.values?.[dateField.id]) === todayKey)
         .map((row) => normalizeKey(row?.values?.[activityListField.id] || ""))
         .filter(Boolean),
     );
 
+    rows = rows.map((row) => {
+      const activityKey = normalizeKey(row?.values?.[activityListField.id] || "");
+      const rowDate = normalizeOperationalDateKey(row?.values?.[dateField.id]);
+      if (rowDate || !activityKey || !expectedActivityKeys.has(activityKey)) return row;
+      changed = true;
+      return {
+        ...row,
+        values: {
+          ...(row?.values ?? EMPTY_OBJECT),
+          [dateField.id]: todayKey,
+        },
+      };
+    });
+
+    existingTodayActivities.clear();
+    rows.forEach((row) => {
+      if (normalizeOperationalDateKey(row?.values?.[dateField.id]) !== todayKey) return;
+      const activityKey = normalizeKey(row?.values?.[activityListField.id] || "");
+      if (activityKey) existingTodayActivities.add(activityKey);
+    });
+
     const missingActivityNames = expectedActivityNames.filter((activityName) => !existingTodayActivities.has(normalizeKey(activityName)));
-    if (!missingActivityNames.length) return board;
+    if (!missingActivityNames.length && !changed) return board;
 
     const addedRows = missingActivityNames.map((activityName) => createBoardRowRecord(fields, "", {
       status: "Pendiente",
@@ -1147,7 +1167,7 @@ function applyAutomatedBoardDailyRows(state, referenceDate = new Date()) {
       },
     }));
 
-    changed = true;
+    if (addedRows.length) changed = true;
     return {
       ...board,
       fields,
@@ -1975,6 +1995,7 @@ function normalizeState(state, previousState = null) {
     },
     users: users.map((user) => {
       const role = normalizeRole(user.role);
+      const migratedArea = migrateDeprecatedAreaValue(user.area || user.department || "");
       const previousUser = previousState?.users?.find((item) => item.id === user.id) || null;
       const loginIdentifier = String((user.email ?? user.username ?? previousUser?.email) || "").trim();
       const incomingPassword = String(user.password || "").trim();
@@ -1988,6 +2009,8 @@ function normalizeState(state, previousState = null) {
         ...user,
         email: loginIdentifier,
         role,
+        area: migratedArea,
+        department: migratedArea,
         passwordHash,
         password: undefined,
         mustChangePassword,
@@ -2004,8 +2027,20 @@ function normalizeState(state, previousState = null) {
       ? state.inventoryDestinations.map((destination) => normalizeInventoryDestination(destination)).filter(Boolean)
       : [],
     catalog: Array.isArray(state.catalog) && state.catalog.length
-      ? state.catalog.map((item) => sanitizeCatalogItemDraft(item, item?.id))
+      ? state.catalog.map((item) => {
+        const sanitized = sanitizeCatalogItemDraft(item, item?.id);
+        const migratedArea = migrateDeprecatedAreaValue(sanitized.area || sanitized.category || "");
+        return {
+          ...sanitized,
+          area: migratedArea || sanitized.area,
+          category: migratedArea || sanitized.category,
+        };
+      })
       : fallbackCatalog.map((item) => sanitizeCatalogItemDraft(item, item.id)),
+    areaCatalog: buildAreaCatalogEntries(
+      users.map((user) => ({ ...user, area: migrateDeprecatedAreaValue(user.area || user.department || ""), department: migrateDeprecatedAreaValue(user.area || user.department || "") })),
+      (Array.isArray(state.areaCatalog) ? state.areaCatalog : []).map((entry) => migrateDeprecatedAreaValue(entry)),
+    ),
     controlRows: Array.isArray(state.controlRows) ? state.controlRows : [],
     permissions,
     auditLog: Array.isArray(state.auditLog) ? state.auditLog : [],
@@ -2022,25 +2057,26 @@ function normalizeState(state, previousState = null) {
       : [],
     boardWeeklyCycle: normalizeBoardWeeklyCycle(state.boardWeeklyCycle),
     boardWeekHistory: Array.isArray(state.boardWeekHistory)
-      ? state.boardWeekHistory.map((snapshot) => normalizeBoardHistorySnapshot(snapshot, permissions, users))
+      ? state.boardWeekHistory.map((snapshot) => normalizeBoardHistorySnapshot(migrateBoardAreaFields(snapshot), permissions, users))
       : [],
     controlBoards: mergedControlBoards.map((board) => {
           const ownerId = board.ownerId ?? board.createdById ?? users[0]?.id ?? null;
-          const visibility = resolveBoardVisibilitySnapshot(board, ownerId);
+          const areaMigratedBoard = migrateBoardAreaFields(board);
+          const visibility = resolveBoardVisibilitySnapshot(areaMigratedBoard, ownerId);
           const normalizedBoard = repairEmptySystemBoard({
-            ...board,
-            createdById: board.createdById ?? users[0]?.id ?? null,
+            ...areaMigratedBoard,
+            createdById: areaMigratedBoard.createdById ?? users[0]?.id ?? null,
             ownerId,
             visibilityType: visibility.visibilityType,
             sharedDepartments: visibility.sharedDepartments,
             accessUserIds: visibility.accessUserIds,
-            settings: withDefaultBoardSettings(board.settings),
-            fields: normalizeBoardFields(board),
-            rows: Array.isArray(board.rows) ? board.rows : [],
+            settings: withDefaultBoardSettings(areaMigratedBoard.settings),
+            fields: normalizeBoardFields(areaMigratedBoard),
+            rows: Array.isArray(areaMigratedBoard.rows) ? areaMigratedBoard.rows : [],
           });
           return {
             ...normalizedBoard,
-            permissions: normalizeBoardPermissions(board.permissions, permissions, normalizedBoard),
+            permissions: normalizeBoardPermissions(areaMigratedBoard.permissions, permissions, normalizedBoard),
           };
         }),
     bibliotecaFiles: Array.isArray(state.bibliotecaFiles) ? state.bibliotecaFiles : [],
@@ -3525,8 +3561,21 @@ function snapshotCurrentStore() {
 }
 
 function tryReadStoreFromFile(filePath) {
-  const raw = fs.readFileSync(filePath, "utf8");
-  return normalizeState(JSON.parse(raw));
+  const parsed = JSON.parse(fs.readFileSync(filePath, "utf8"));
+  const normalized = normalizeState(parsed);
+  if (filePath === dataFilePath) {
+    const usersChanged = JSON.stringify(parsed.users || []) !== JSON.stringify(normalized.users || []);
+    const catalogChanged = JSON.stringify(parsed.areaCatalog || []) !== JSON.stringify(normalized.areaCatalog || []);
+    const boardsChanged = JSON.stringify(parsed.controlBoards || []) !== JSON.stringify(normalized.controlBoards || []);
+    if (usersChanged || catalogChanged || boardsChanged) {
+      writeStoreFile(dataFilePath, {
+        ...normalized,
+        revision: Number(parsed.revision || 0) + 1,
+        updatedAt: new Date().toISOString(),
+      });
+    }
+  }
+  return normalized;
 }
 
 function restoreStoreFromBackup(filePath) {
@@ -3685,13 +3734,11 @@ export function getWarehouseState() {
 
 export function getRawWarehouseState() {
   const currentState = readStore();
-  const { state: boardState, changed: boardChanged } = applyAutomatedBoardWeeklyCut(currentState);
-  const { state: dailyRowsState, changed: dailyRowsChanged } = applyAutomatedBoardDailyRows(boardState);
-  const { state: transportState, changed: transportChanged } = applyAutomatedTransportDailyCut(dailyRowsState);
-  if (!boardChanged && !dailyRowsChanged && !transportChanged) return currentState;
+  const { state: automatedState, changed } = applyWarehouseAutomationPipeline(currentState);
+  if (!changed) return currentState;
 
   const persistedState = normalizeState({
-    ...transportState,
+    ...automatedState,
     revision: Number(currentState.revision || 0) + 1,
     updatedAt: new Date().toISOString(),
   }, currentState);
@@ -3701,15 +3748,17 @@ export function getRawWarehouseState() {
 }
 
 export function replaceWarehouseState(nextState) {
-  const current = getRawWarehouseState();
+  const current = readStore();
   const mergedState = normalizeState({
     ...nextState,
     revision: Number(current.revision || 0) + 1,
     updatedAt: new Date().toISOString(),
   }, current);
+  const { state: automatedState } = applyWarehouseAutomationPipeline(mergedState);
+  const persistedState = normalizeState(automatedState, current);
 
-  writeStore(mergedState);
-  const sanitizedState = sanitizeState(mergedState);
+  writeStore(persistedState);
+  const sanitizedState = sanitizeState(persistedState);
   scheduleWarehouseStateBroadcast(sanitizedState);
   return sanitizedState;
 }
@@ -4050,7 +4099,7 @@ function canBypassSelfProfileEditLimit(user) {
 
 function sanitizeWarehouseUserDraft(payload = {}, fallbackManagerId = null) {
   const role = normalizeRole(payload.role);
-  const area = String(payload.area ?? payload.department ?? "").trim();
+  const area = migrateDeprecatedAreaValue(String(payload.area ?? payload.department ?? "").trim());
   const photo = String(payload.photo || "").trim();
   const photoThumbnailUrl = String(payload.photoThumbnailUrl || payload.photoThumbnail || "").trim();
   return {
@@ -4281,6 +4330,51 @@ export function updateWarehouseUser(auth, userId, payload = {}) {
   return { ok: true, state: replaceWarehouseState(nextState), userId: nextUser.id, userName: nextUser.name };
 }
 
+function buildWarehouseUserDeletionState(currentState, userId) {
+  const remainingUsers = (currentState.users || []).filter((user) => user.id !== userId);
+  return {
+    ...currentState,
+    users: remainingUsers,
+    activities: (currentState.activities || []).map((activity) => (
+      activity.responsibleId === userId ? { ...activity, responsibleId: null } : activity
+    )),
+    permissions: {
+      ...currentState.permissions,
+      userOverrides: Object.fromEntries(
+        Object.entries(currentState.permissions?.userOverrides || {}).filter(([overrideUserId]) => overrideUserId !== userId),
+      ),
+    },
+  };
+}
+
+export function deleteOwnWarehouseAccount(auth, password) {
+  const currentUser = findWarehouseUserById(auth?.userId);
+  if (!currentUser?.isActive) return { ok: false, reason: "auth_required" };
+  if (auth?.type === "master") return { ok: false, reason: "forbidden" };
+
+  const currentPassword = String(password || "").trim();
+  if (!currentPassword) return { ok: false, reason: "invalid_password" };
+
+  const storedHash = String(currentUser.passwordHash || "").trim();
+  if (!storedHash || !verifyPassword(currentPassword, storedHash)) {
+    return { ok: false, reason: "invalid_password" };
+  }
+
+  const currentState = getRawWarehouseState();
+  const activeLeads = (currentState.users || []).filter((user) => user.isActive && normalizeRole(user.role) === ROLE_LEAD);
+  if (normalizeRole(currentUser.role) === ROLE_LEAD && activeLeads.length <= 1) {
+    return { ok: false, reason: "sole_lead" };
+  }
+
+  const nextState = buildWarehouseUserDeletionState(currentState, currentUser.id);
+  return {
+    ok: true,
+    state: replaceWarehouseState(nextState),
+    userId: currentUser.id,
+    userName: currentUser.name,
+  };
+}
+
 export function deleteWarehouseUser(auth, userId) {
   const currentUser = findWarehouseUserById(auth?.userId);
   if (!currentUser?.isActive) return { ok: false, reason: "auth_required" };
@@ -4293,17 +4387,7 @@ export function deleteWarehouseUser(auth, userId) {
   if (!targetUser) return { ok: false, reason: "user_not_found" };
   if (!canManageUserRole(currentUser.role, targetUser.role)) return { ok: false, reason: "forbidden" };
 
-  const remainingUsers = (currentState.users || []).filter((user) => user.id !== userId);
-  const nextState = {
-    ...currentState,
-    users: remainingUsers,
-    activities: (currentState.activities || []).map((activity) => (activity.responsibleId === userId ? { ...activity, responsibleId: null } : activity)),
-    permissions: {
-      ...currentState.permissions,
-      userOverrides: Object.fromEntries(Object.entries(currentState.permissions?.userOverrides || {}).filter(([overrideUserId]) => overrideUserId !== userId)),
-    },
-  };
-
+  const nextState = buildWarehouseUserDeletionState(currentState, userId);
   return { ok: true, state: replaceWarehouseState(nextState), userId: targetUser.id, userName: targetUser.name };
 }
 
@@ -4694,6 +4778,80 @@ function formatLocalDateKey(referenceDate = new Date()) {
   return `${year}-${month}-${day}`;
 }
 
+function normalizeOperationalDateKey(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+  const isoPrefix = raw.match(/^(\d{4}-\d{2}-\d{2})T/);
+  if (isoPrefix) return isoPrefix[1];
+  const localized = raw.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+  if (localized) {
+    const year = localized[3].length === 2 ? `20${localized[3]}` : localized[3];
+    return `${year}-${String(localized[2]).padStart(2, "0")}-${String(localized[1]).padStart(2, "0")}`;
+  }
+  const parsed = new Date(raw);
+  if (!Number.isNaN(parsed.getTime())) {
+    return formatLocalDateKey(parsed);
+  }
+  return raw;
+}
+
+function getOperationalCalendarParts(state, referenceDate = new Date()) {
+  const timeZone = resolveOperationalTimeZone(normalizeSystemOperationalSettings(state?.system?.operational)?.timeZone);
+  const referenceMs = referenceDate instanceof Date ? referenceDate.getTime() : new Date(referenceDate).getTime();
+  const resolvedDate = Number.isFinite(referenceMs) ? new Date(referenceMs) : new Date();
+  try {
+    const formatter = new Intl.DateTimeFormat("en-US", {
+      timeZone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      weekday: "short",
+    });
+    const values = formatter.formatToParts(resolvedDate).reduce((accumulator, entry) => {
+      if (entry.type !== "literal") accumulator[entry.type] = entry.value;
+      return accumulator;
+    }, {});
+    const weekdayMap = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+    const jsDay = weekdayMap[String(values.weekday || "").trim()] ?? resolvedDate.getDay();
+    return {
+      isoDate: `${values.year}-${values.month}-${values.day}`,
+      weekdayOffset: jsDay === 0 ? 6 : jsDay - 1,
+    };
+  } catch {
+    return {
+      isoDate: formatLocalDateKey(resolvedDate),
+      weekdayOffset: getCatalogWeekdayOffset(resolvedDate),
+    };
+  }
+}
+
+function resolveBoardCleaningSiteForAutomation(board) {
+  const settings = withDefaultBoardSettings(board?.settings);
+  const contextType = normalizeBoardOperationalContextType(settings?.operationalContextType);
+  if (contextType === BOARD_OPERATIONAL_CONTEXT_CLEANING_SITE) {
+    return normalizeCleaningSite(settings?.operationalContextValue, "");
+  }
+  const nameBlob = [board?.name, board?.category, board?.description]
+    .map((entry) => String(entry || "").trim().toLowerCase())
+    .filter(Boolean)
+    .join(" ");
+  if (nameBlob.includes("limp")) {
+    return normalizeCleaningSite(settings?.operationalContextValue, "") || "C1";
+  }
+  return "";
+}
+
+function applyWarehouseAutomationPipeline(state, referenceDate = new Date()) {
+  const { state: boardState, changed: boardChanged } = applyAutomatedBoardWeeklyCut(state, referenceDate);
+  const { state: dailyRowsState, changed: dailyRowsChanged } = applyAutomatedBoardDailyRows(boardState, referenceDate);
+  const { state: transportState, changed: transportChanged } = applyAutomatedTransportDailyCut(dailyRowsState);
+  return {
+    state: transportState,
+    changed: boardChanged || dailyRowsChanged || transportChanged,
+  };
+}
+
 function getCatalogItemOperationalWeekdays(item, cleaningSite = "") {
   const normalizedCleaningSite = String(cleaningSite || "").trim().toUpperCase();
   const scheduledDays = normalizeCatalogScheduledDays(item?.scheduledDays, item?.frequency);
@@ -4717,13 +4875,19 @@ function getCatalogItemOperationalWeekdays(item, cleaningSite = "") {
   return [...new Set(cleaningSites.flatMap((site) => scheduledDaysBySite[site] || scheduledDays))].sort((a, b) => a - b);
 }
 
+function catalogItemMatchesBoardCategory(item, selectedCategory) {
+  const normalizedSelected = String(selectedCategory || "").trim();
+  if (!normalizedSelected) return true;
+  return normalizeKey(String(item?.category || "General").trim()) === normalizeKey(normalizedSelected);
+}
+
 function getBoardActivityListValuesForOperationalDay(field, catalog = [], weekdayOffset = null, cleaningSite = "") {
   const selectedCategory = String(field?.optionCatalogCategory || "").trim();
   const normalizedWeekdayOffset = normalizeCatalogWeekdayOffset(weekdayOffset);
   const seen = new Set();
   return (catalog || [])
     .filter((item) => !item?.isDeleted)
-    .filter((item) => !selectedCategory || String(item.category || "General").trim() === selectedCategory)
+    .filter((item) => catalogItemMatchesBoardCategory(item, selectedCategory))
     .filter((item) => {
       if (normalizedWeekdayOffset === null) return true;
       const activeDays = getCatalogItemOperationalWeekdays(item, cleaningSite);
@@ -4743,7 +4907,7 @@ function getBoardActivityListValues(field, catalog = []) {
   const seen = new Set();
   return (catalog || [])
     .filter((item) => !item?.isDeleted)
-    .filter((item) => !selectedCategory || String(item.category || "General").trim() === selectedCategory)
+    .filter((item) => catalogItemMatchesBoardCategory(item, selectedCategory))
     .map((item) => String(item.name || "").trim())
     .filter((name) => {
       const normalizedName = normalizeKey(name);
@@ -5177,7 +5341,29 @@ function doesBoardMatchWarehouseUserArea(board, user) {
 }
 
 function buildAreaCatalogEntries(users = [], catalog = []) {
-  return Array.from(new Set((catalog || []).concat((users || []).map((user) => normalizeAreaOption(user.area || user.department || ""))).filter(Boolean))).sort((a, b) => a.localeCompare(b));
+  const entries = (catalog || [])
+    .map((entry) => migrateDeprecatedAreaValue(entry))
+    .concat((users || []).map((user) => migrateDeprecatedAreaValue(user.area || user.department || "")))
+    .filter(Boolean);
+  return Array.from(new Set(entries))
+    .filter((entry) => !isDeprecatedDynamicArea(entry))
+    .sort((a, b) => a.localeCompare(b));
+}
+
+function migrateBoardAreaFields(board = {}) {
+  const ownerArea = migrateDeprecatedAreaValue(board?.settings?.ownerArea || board?.ownerArea || "");
+  const sharedDepartments = normalizeBoardSharedDepartments(board?.sharedDepartments || [])
+    .map((entry) => migrateDeprecatedAreaValue(entry))
+    .filter((entry) => entry && !isDeprecatedDynamicArea(entry));
+  return {
+    ...board,
+    ownerArea: ownerArea || board?.ownerArea || "",
+    sharedDepartments,
+    settings: {
+      ...(board?.settings ?? EMPTY_OBJECT),
+      ownerArea,
+    },
+  };
 }
 
 function sanitizeInventoryItemDraft(item, existingId = null) {
@@ -5838,6 +6024,7 @@ export function addWarehouseArea(auth, areaName, _parentArea = "") {
 
   const nextArea = normalizeAreaOption(areaName);
   if (!nextArea) return { ok: false, reason: "invalid_payload" };
+  if (isDeprecatedDynamicArea(nextArea)) return { ok: false, reason: "deprecated_area" };
   const nextCatalog = buildAreaCatalogEntries(currentState.users, (currentState.areaCatalog || []).concat(nextArea));
   if ((currentState.areaCatalog || []).includes(nextArea)) {
     return { ok: false, reason: "duplicate_area" };

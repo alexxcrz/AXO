@@ -27,6 +27,8 @@ export const PAGE_BOARD = "index";
 export const PAGE_CUSTOM_BOARDS = "customBoards";
 export const PAGE_ADMIN = "admin";
 export const PAGE_DASHBOARD = "dashboard";
+/** Dashboard corporativo (todas las áreas), accesible desde Admin. */
+export const PAGE_GLOBAL_DASHBOARD = "globalDashboard";
 /** @deprecated Ruta legada; redirige a dashboard. La página ya no existe. */
 export const PAGE_DASHBOARD_BUILDER = "dashboardBuilder";
 export const PAGE_HISTORY = "history";
@@ -656,6 +658,7 @@ export const NAV_ITEMS = [
   { id: PAGE_DASHBOARD,      label: "Dashboard",           icon: BarChart3,       group: "General",    roles: [ROLE_LEAD, ROLE_SR, ROLE_SSR] },
   { id: PAGE_CUSTOM_BOARDS,  label: "Mis tableros",        icon: LayoutDashboard, group: "General",    roles: [ROLE_LEAD, ROLE_SR, ROLE_SSR, ROLE_JR] },
   { id: PAGE_BOARD,          label: "Creador de tableros", icon: ClipboardList,   group: "Producción", roles: [ROLE_LEAD, ROLE_SR, ROLE_SSR] },
+  { id: PAGE_GLOBAL_DASHBOARD, label: "Dashboard general", icon: BarChart3,       group: "Admin",      roles: [ROLE_LEAD, ROLE_SR] },
   { id: PAGE_HISTORY,        label: "Historial",           icon: CalendarDays,    group: "Admin",      roles: [ROLE_LEAD, ROLE_SR] },
   { id: PAGE_PROCESS_AUDITS, label: "Auditoría",           icon: ClipboardCheck,  group: "Mejora continua", roles: [ROLE_LEAD, ROLE_SR, ROLE_SSR] },
   { id: "auditDashboard",    label: "Dashboard",           icon: BarChart3,       group: "Mejora continua", roles: [ROLE_LEAD, ROLE_SR, ROLE_SSR] },
@@ -925,6 +928,7 @@ export const PAGE_ACTION_GROUPS = {
   [PAGE_HISTORY]: ["editHistoryRecords"],
   [PAGE_PROCESS_AUDITS]: ["viewProcessAudits", "manageProcessAudits", "manageProcessAuditTemplates"],
   [PAGE_INVENTORY]: ["viewBaseInventory", "manageInventory", "deleteInventory", "importInventory", "viewCleaningInventory", "manageCleaningInventory", "deleteCleaningInventory", "importCleaningInventory", "viewOrderInventory", "manageOrderInventory", "deleteOrderInventory", "importOrderInventory", "viewMaintenanceInventory", "manageMaintenanceInventory", "deleteMaintenanceInventory", "importMaintenanceInventory"],
+  [PAGE_GLOBAL_DASHBOARD]: ["exportDashboardData", "manageDashboardState"],
   auditDashboard: ["exportDashboardData", "manageDashboardState"],
   auditHistory: ["viewProcessAudits"],
   [PAGE_TRANSPORT]: [

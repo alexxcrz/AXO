@@ -77,7 +77,7 @@ import {
   getAreaDashboardZoneWrapClass,
 } from "../utils/areaDashboardThemes";
 import { buildAreaBridgeKpiCards, buildAreaExecutiveKpiCards } from "../utils/areaDashboardKpis";
-import { navigateToAreaDashboard, openGeneralDashboard } from "../utils/areaDashboardNavigation";
+import { navigateToAreaDashboard } from "../utils/areaDashboardNavigation";
 import {
   buildGeneralAreaDashboardPanels,
   mergeAreaSectionsForGeneralDashboard,
@@ -251,6 +251,7 @@ export default function PanelIndicadores({ contexto }) {
     DashboardRankItem,
     getResponsibleVisual,
     dashboardActivityRows,
+    dashboardActivitySlaSummaryRows,
     dashboardCatalogFrequencyRows,
     dashboardCatalogTypeRows,
     dashboardDynamicMetricRows,
@@ -319,7 +320,7 @@ export default function PanelIndicadores({ contexto }) {
   const dashboardVisibleControlBoards = useMemo(() => rawDashboardVisibleControlBoards ?? filteredVisibleControlBoards ?? [], [rawDashboardVisibleControlBoards, filteredVisibleControlBoards]);
   const canManageDashboardActions = Boolean(canManageDashboardControls ?? canManageDashboardState);
   const canExportDashboardActions = Boolean(canExportDashboardData ?? true);
-  const showGlobalAreaFilter = selectedAreaSectionId === "all";
+  const showGlobalAreaFilter = selectedAreaSectionId === "all" || selectedAreaSectionId === "admin";
   const dashboardAreaOptions = useMemo(() => {
     const options = Array.from(new Set((Array.isArray(departmentOptions) ? departmentOptions : [])
       .map((area) => String(area || "").trim())
@@ -416,11 +417,6 @@ export default function PanelIndicadores({ contexto }) {
     transportRecords,
   ]);
 
-  const areaShareOfGeneral = useMemo(() => {
-    if (showGlobalAreaFilter || !globalPeriodMetrics.total) return null;
-    return Math.round((dashboardMetrics.total / globalPeriodMetrics.total) * 100);
-  }, [dashboardMetrics.total, globalPeriodMetrics.total, showGlobalAreaFilter]);
-
   const dashboardNavigationHandlers = useMemo(() => ({
     setSelectedAreaSectionId,
     setPage,
@@ -493,7 +489,7 @@ export default function PanelIndicadores({ contexto }) {
   const [inventoryMetric, setInventoryMetric] = useState("secondsPerPiece");
   const [inventoryView, setInventoryView] = useState("all");
   const [productLeaderboardSearch, setProductLeaderboardSearch] = useState("");
-  const [expandedProductKey, setExpandedProductKey] = useState("");
+  const [showAllProductPerformanceRows, setShowAllProductPerformanceRows] = useState(false);
   const [showInventoryDetailTable, setShowInventoryDetailTable] = useState(false);
   const [isExportingProductPdf, setIsExportingProductPdf] = useState(false);
   const [catalogTypeChartType, setCatalogTypeChartType] = useState("bar");
@@ -593,7 +589,7 @@ export default function PanelIndicadores({ contexto }) {
     }
 
     const currentAreaFilter = normalizeAreaFilterValue(dashboardFilters.area);
-    if (selectedAreaSectionId === "all") {
+    if (selectedAreaSectionId === "all" || selectedAreaSectionId === "admin") {
       if (currentAreaFilter === "all" && dashboardFilters.source === "all") return;
       setDashboardFilters((current) => ({ ...current, area: "all", source: "all" }));
       return;
@@ -619,7 +615,7 @@ export default function PanelIndicadores({ contexto }) {
     setDashboardFilters,
   ]);
 
-  const activeAreaLabel = selectedAreaSectionId === "all"
+  const activeAreaLabel = (selectedAreaSectionId === "all" || selectedAreaSectionId === "admin")
     ? (dashboardFilters.area === "all" ? "General" : dashboardFilters.area)
     : (selectedAreaSection?.label || "Área");
 
@@ -828,10 +824,13 @@ export default function PanelIndicadores({ contexto }) {
         productMap.set(productKey, {
           key: productKey,
           product: row.productValue || "Sin producto",
+          productCode: row.productCode || "",
+          productName: row.productName || "",
+          productPresentation: row.productPresentation || "",
           sessions: 0,
           totalMinutes: 0,
           totalPieces: 0,
-          tarimas: new Map(),
+          tarimaKeys: new Set(),
         });
       }
 
@@ -839,37 +838,18 @@ export default function PanelIndicadores({ contexto }) {
       productEntry.sessions += 1;
       productEntry.totalMinutes += Math.max(0, Number(row.durationMinutes || 0));
       productEntry.totalPieces += Math.max(0, Number(row.piecesReviewed || 0));
-
-      if (!productEntry.tarimas.has(tarimaKey)) {
-        productEntry.tarimas.set(tarimaKey, {
-          key: `${productKey}::${tarimaKey}`,
-          tarima: tarimaKey,
-          sessions: 0,
-          totalMinutes: 0,
-          totalPieces: 0,
-        });
-      }
-
-      const tarimaEntry = productEntry.tarimas.get(tarimaKey);
-      tarimaEntry.sessions += 1;
-      tarimaEntry.totalMinutes += Math.max(0, Number(row.durationMinutes || 0));
-      tarimaEntry.totalPieces += Math.max(0, Number(row.piecesReviewed || 0));
+      productEntry.tarimaKeys.add(tarimaKey);
     });
 
     return Array.from(productMap.values())
       .map((entry) => {
-        const tarimas = Array.from(entry.tarimas.values())
-          .map((tarima) => ({
-            ...tarima,
-            avgMinutesPerSession: tarima.sessions > 0 ? tarima.totalMinutes / tarima.sessions : 0,
-            secondsPerPiece: tarima.totalPieces > 0 ? (tarima.totalMinutes * 60) / tarima.totalPieces : null,
-          }))
-          .sort((left, right) => right.totalPieces - left.totalPieces || right.totalMinutes - left.totalMinutes);
-
-        const palletCount = tarimas.length;
+        const palletCount = entry.tarimaKeys.size;
         return {
           key: entry.key,
           product: entry.product,
+          productCode: entry.productCode,
+          productName: entry.productName,
+          productPresentation: entry.productPresentation,
           sessions: entry.sessions,
           palletCount,
           totalMinutes: entry.totalMinutes,
@@ -877,7 +857,6 @@ export default function PanelIndicadores({ contexto }) {
           avgMinutesPerPallet: palletCount > 0 ? entry.totalMinutes / palletCount : 0,
           avgMinutesPerSession: entry.sessions > 0 ? entry.totalMinutes / entry.sessions : 0,
           secondsPerPiece: entry.totalPieces > 0 ? (entry.totalMinutes * 60) / entry.totalPieces : null,
-          tarimas,
         };
       })
       .sort((left, right) => right.totalPieces - left.totalPieces || right.totalMinutes - left.totalMinutes);
@@ -887,15 +866,27 @@ export default function PanelIndicadores({ contexto }) {
     const query = productLeaderboardSearch.trim().toLowerCase();
     if (!query) return scopedProductPerformanceRows;
     return scopedProductPerformanceRows.filter((product) => {
-      if (String(product.product || "").toLowerCase().includes(query)) return true;
-      return (product.tarimas || []).some((tarima) => String(tarima.tarima || "").toLowerCase().includes(query));
+      const haystack = [
+        product.product,
+        product.productCode,
+        product.productName,
+        product.productPresentation,
+      ].map((value) => String(value || "").toLowerCase()).join(" ");
+      return haystack.includes(query);
     });
   }, [scopedProductPerformanceRows, productLeaderboardSearch]);
 
-  const topProductPerformanceRows = useMemo(() => {
-    if (productLeaderboardSearch.trim()) return filteredProductPerformanceRows.slice(0, 12);
+  const chartProductPerformanceRows = useMemo(
+    () => filteredProductPerformanceRows.slice(0, 10),
+    [filteredProductPerformanceRows],
+  );
+
+  const visibleProductPerformanceRows = useMemo(() => {
+    if (productLeaderboardSearch.trim() || showAllProductPerformanceRows) {
+      return filteredProductPerformanceRows;
+    }
     return filteredProductPerformanceRows.slice(0, 5);
-  }, [filteredProductPerformanceRows, productLeaderboardSearch]);
+  }, [filteredProductPerformanceRows, productLeaderboardSearch, showAllProductPerformanceRows]);
 
   const reviewedTarimaSearchOptions = useMemo(() => {
     const tarimaSet = new Set();
@@ -1322,7 +1313,7 @@ export default function PanelIndicadores({ contexto }) {
       });
       const { addPageHeader, addPageFooter, drawSectionTable, marginX } = pdfCtx;
 
-      addPageHeader("Rendimiento por producto — Tarimas y piezas", "Promedios acumulados por producto y desglose de tarimas");
+      addPageHeader("Rendimiento por producto — Resumen consolidado", "Promedios acumulados por código, nombre y presentación");
       drawSectionTable(
         "Promedio por producto",
         ["Producto", "Tarimas", "Sesiones", "Piezas revisadas", "Min total", "Min / tarima", "Min / sesión", "Seg / pieza"],
@@ -1338,24 +1329,6 @@ export default function PanelIndicadores({ contexto }) {
         ]),
         { autoTable, accent: DASHBOARD_PDF_THEME.brandLight },
       );
-
-      scopedProductPerformanceRows.forEach((product) => {
-        if (!product.tarimas?.length) return;
-        if ((pdf.lastAutoTable?.finalY || 0) > pdf.internal.pageSize.getHeight() - 120) pdf.addPage();
-        drawSectionTable(
-          `Detalle de tarimas · ${product.product}`,
-          ["Tarima", "Sesiones", "Piezas", "Min total", "Prom / sesión", "Seg / pieza"],
-          product.tarimas.map((tarima) => [
-            tarima.tarima,
-            String(tarima.sessions || 0),
-            formatMetricNumber(tarima.totalPieces, 0),
-            formatMetricNumber(tarima.totalMinutes, 1),
-            formatMetricNumber(tarima.avgMinutesPerSession, 1),
-            tarima.secondsPerPiece !== null ? formatMetricNumber(tarima.secondsPerPiece, 1) : "-",
-          ]),
-          { autoTable, accent: getDashboardPdfAreaAccent("inventario") },
-        );
-      });
 
       addPageFooter("Rendimiento por producto");
       pdf.save(`rendimiento-productos-${new Date().toISOString().slice(0, 10)}.pdf`);
@@ -2087,53 +2060,23 @@ export default function PanelIndicadores({ contexto }) {
         </div>
       ) : null}
 
+      {showGlobalAreaFilter ? (
       <nav className="dashboard-area-hub" aria-label="Navegación entre dashboard general y áreas">
-        {showGlobalAreaFilter ? (
-          <>
-            <span className="dashboard-area-hub-label">Ir al dashboard del área</span>
-            <div className="dashboard-area-hub-links">
-              {linkedAreaSections.map((section) => (
-                <button
-                  key={section.id}
-                  type="button"
-                  className="dashboard-area-hub-link"
-                  onClick={() => navigateToAreaDashboard(section, dashboardNavigationHandlers)}
-                >
-                  {section.label}
-                </button>
-              ))}
-            </div>
-          </>
-        ) : (
-          <>
+        <span className="dashboard-area-hub-label">Ir al dashboard del área</span>
+        <div className="dashboard-area-hub-links">
+          {linkedAreaSections.map((section) => (
             <button
+              key={section.id}
               type="button"
-              className="dashboard-area-hub-back"
-              onClick={() => openGeneralDashboard(dashboardNavigationHandlers)}
+              className="dashboard-area-hub-link"
+              onClick={() => navigateToAreaDashboard(section, dashboardNavigationHandlers)}
             >
-              Dashboard general
+              {section.label}
             </button>
-            <span className="dashboard-area-hub-context">
-              Vista de <strong>{activeAreaLabel}</strong>
-              {areaShareOfGeneral != null ? (
-                <> · <strong>{areaShareOfGeneral}%</strong> del volumen corporativo ({formatMetricNumber(dashboardMetrics.total)} / {formatMetricNumber(globalPeriodMetrics.total)} registros)</>
-              ) : null}
-            </span>
-            <div className="dashboard-area-hub-links">
-              {linkedAreaSections.slice(0, 8).map((section) => (
-                <button
-                  key={section.id}
-                  type="button"
-                  className="dashboard-area-hub-link"
-                  onClick={() => navigateToAreaDashboard(section, dashboardNavigationHandlers)}
-                >
-                  {section.label}
-                </button>
-              ))}
-            </div>
-          </>
-        )}
+          ))}
+        </div>
       </nav>
+      ) : null}
 
       <div className="dashboard-topbar dashboard-topbar-v2">
         <div className="dashboard-topbar-heading">
@@ -2162,7 +2105,7 @@ export default function PanelIndicadores({ contexto }) {
               ) : (
                 <label className="dashboard-filter-field dashboard-filter-field-area">
                   <span>Área vinculada</span>
-                  <span className="dashboard-filter-locked-area" title="Sincronizada con el menú lateral y el dashboard general">
+                  <span className="dashboard-filter-locked-area" title="Sincronizada con el menú lateral">
                     {activeAreaLabel}
                   </span>
                 </label>
@@ -2891,7 +2834,7 @@ export default function PanelIndicadores({ contexto }) {
               </div>
             </div>
             <p className="dashboard-panel-subtitle">
-              Agrupa automáticamente el mismo producto y acumula cada tarima nueva para calcular promedios de tiempo y piezas revisadas.
+              Resume cada producto por código, nombre y presentación: suma todas las revisiones del mismo SKU y muestra promedios generales (sin desglose fila por fila).
             </p>
             <div className="dashboard-product-leaderboard-toolbar">
               <label className="dashboard-product-search">
@@ -2900,7 +2843,7 @@ export default function PanelIndicadores({ contexto }) {
                   type="search"
                   value={productLeaderboardSearch}
                   onChange={(event) => setProductLeaderboardSearch(event.target.value)}
-                  placeholder="Buscar producto o tarima revisada…"
+                  placeholder="Buscar por código, nombre o presentación…"
                   list="dashboard-reviewed-tarimas"
                 />
                 <datalist id="dashboard-reviewed-tarimas">
@@ -2945,9 +2888,9 @@ export default function PanelIndicadores({ contexto }) {
                 </button>
               </div>
             </div>
-            {topProductPerformanceRows.length > 0 ? (
+            {chartProductPerformanceRows.length > 0 ? (
               <DashboardColumnChart
-                rows={topProductPerformanceRows.map((product) => {
+                rows={chartProductPerformanceRows.map((product) => {
                   const metricValue = Number(product[inventoryMetric] || 0);
                   const valueLabel = inventoryMetric === "secondsPerPiece"
                     ? `${formatMetricNumber(metricValue, 1)} s/pieza`
@@ -2967,72 +2910,48 @@ export default function PanelIndicadores({ contexto }) {
                 emptyLabel="No hay productos con datos para este filtro."
               />
             ) : null}
-            {!productLeaderboardSearch.trim() && filteredProductPerformanceRows.length > 5 ? (
-              <p className="dashboard-product-leaderboard-hint">
-                Mostrando top 5 de {filteredProductPerformanceRows.length} productos. Usa el buscador para ver cualquier producto o tarima.
-              </p>
+            {filteredProductPerformanceRows.length > visibleProductPerformanceRows.length ? (
+              <div className="dashboard-product-detail-toggle-wrap">
+                <button
+                  type="button"
+                  className="icon-button dashboard-product-expand-btn"
+                  onClick={() => setShowAllProductPerformanceRows((current) => !current)}
+                  aria-expanded={showAllProductPerformanceRows}
+                >
+                  {showAllProductPerformanceRows
+                    ? `▲ Ocultar lista · mostrando ${filteredProductPerformanceRows.length} productos`
+                    : `▼ Ver todos los productos (${filteredProductPerformanceRows.length})`}
+                </button>
+              </div>
             ) : null}
             <div className="dashboard-product-card-grid">
-              {(productLeaderboardSearch.trim() ? filteredProductPerformanceRows : topProductPerformanceRows).map((product, index) => {
-                const isExpanded = expandedProductKey === product.key;
-                return (
-                  <section key={product.key} className={`dashboard-product-card${isExpanded ? " is-expanded" : ""}`}>
-                    <button
-                      type="button"
-                      className="dashboard-product-card-toggle"
-                      onClick={() => setExpandedProductKey((current) => (current === product.key ? "" : product.key))}
-                    >
-                      <div className="dashboard-product-card-rank">#{index + 1}</div>
-                      <div className="dashboard-product-card-main">
-                        <h4>{product.product}</h4>
-                        <p>{product.palletCount} tarima(s) · {product.sessions} sesión(es)</p>
-                      </div>
-                      <div className="dashboard-product-card-metrics">
-                        <span><strong>{formatMetricNumber(product.totalPieces, 0)}</strong> piezas</span>
-                        <span><strong>{formatMetricNumber(product.totalMinutes, 1)}</strong> min</span>
-                        <span>
-                          <strong>
-                            {product.secondsPerPiece !== null ? `${formatMetricNumber(product.secondsPerPiece, 1)} s` : "-"}
-                          </strong>
-                          {" "}/ pieza
-                        </span>
-                      </div>
-                    </button>
-                    {isExpanded ? (
-                      <div className="dashboard-product-card-detail">
-                        <div className="dashboard-product-card-summary">
-                          <span>Promedio por tarima: <strong>{formatMetricNumber(product.avgMinutesPerPallet, 1)} min</strong></span>
-                          <span>Promedio por sesión: <strong>{formatMetricNumber(product.avgMinutesPerSession, 1)} min</strong></span>
-                        </div>
-                        <table className="dashboard-table-clean dashboard-product-tarima-table">
-                          <thead>
-                            <tr>
-                              <th>Tarima</th>
-                              <th>Sesiones</th>
-                              <th>Piezas</th>
-                              <th>Tiempo</th>
-                              <th>Prom / sesión</th>
-                              <th>Seg / pieza</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {(product.tarimas || []).map((tarima) => (
-                              <tr key={tarima.key}>
-                                <td><strong>{tarima.tarima}</strong></td>
-                                <td>{tarima.sessions}</td>
-                                <td>{formatMetricNumber(tarima.totalPieces, 0)}</td>
-                                <td>{formatMetricNumber(tarima.totalMinutes, 1)} min</td>
-                                <td>{formatMetricNumber(tarima.avgMinutesPerSession, 1)} min</td>
-                                <td>{tarima.secondsPerPiece !== null ? `${formatMetricNumber(tarima.secondsPerPiece, 1)} s` : "-"}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    ) : null}
-                  </section>
-                );
-              })}
+              {visibleProductPerformanceRows.map((product, index) => (
+                <section key={product.key} className="dashboard-product-card">
+                  <div className="dashboard-product-card-toggle dashboard-product-card-static">
+                    <div className="dashboard-product-card-rank">#{index + 1}</div>
+                    <div className="dashboard-product-card-main">
+                      <h4>{product.product}</h4>
+                      <p>{product.palletCount} tarima(s) · {product.sessions} sesión(es) · promedio consolidado</p>
+                    </div>
+                    <div className="dashboard-product-card-metrics">
+                      <span><strong>{formatMetricNumber(product.totalPieces, 0)}</strong> piezas</span>
+                      <span><strong>{formatMetricNumber(product.totalMinutes, 1)}</strong> min total</span>
+                      <span>
+                        <strong>
+                          {product.secondsPerPiece !== null ? `${formatMetricNumber(product.secondsPerPiece, 1)} s` : "-"}
+                        </strong>
+                        {" "}/ pieza
+                      </span>
+                    </div>
+                  </div>
+                  <div className="dashboard-product-card-detail dashboard-product-card-detail--summary">
+                    <div className="dashboard-product-card-summary">
+                      <span>Promedio por tarima: <strong>{formatMetricNumber(product.avgMinutesPerPallet, 1)} min</strong></span>
+                      <span>Promedio por sesión: <strong>{formatMetricNumber(product.avgMinutesPerSession, 1)} min</strong></span>
+                    </div>
+                  </div>
+                </section>
+              ))}
             </div>
             {filteredProductPerformanceRows.length === 0 ? (
               <p className="dashboard-product-leaderboard-empty">No hay productos ni tarimas que coincidan con la búsqueda actual.</p>
@@ -3383,44 +3302,43 @@ export default function PanelIndicadores({ contexto }) {
       )) : null}
 
       {isDashboardSectionEnabled("alerts") ? zoneWrap("alerts", (
-      <DashboardSection zone="alerts" title={showGlobalAreaFilter ? "Alertas y tablas ejecutivas" : (areaDashboardTheme.alertsTitle || "Alertas y tablas ejecutivas")} subtitle={showGlobalAreaFilter ? "Excepciones, pausas críticas y consolidado por área para revisión puntual." : (areaDashboardTheme.alertsSubtitle || "Excepciones y pausas críticas del periodo.")} summary={`${dashboardMetrics.exceeded.length} alertas · ${pauseAnalysis.length} causas de pausa`} icon={OctagonAlert} open={dashboardSectionsOpen.alerts} onToggle={() => setDashboardSectionsOpen((current) => ({ ...current, alerts: !current.alerts }))}>
+      <DashboardSection zone="alerts" title={showGlobalAreaFilter ? "Alertas y tablas ejecutivas" : (areaDashboardTheme.alertsTitle || "Alertas y tablas ejecutivas")} subtitle={showGlobalAreaFilter ? "Resumen por actividad y consolidado por área (promedios generales, sin desglose de cada registro)." : (areaDashboardTheme.alertsSubtitle || "Resumen de excepciones y pausas del periodo.")} summary={`${dashboardActivitySlaSummaryRows.filter((row) => row.exceededCount > 0).length} actividades con alertas · ${pauseAnalysis.length} causas de pausa`} icon={OctagonAlert} open={dashboardSectionsOpen.alerts} onToggle={() => setDashboardSectionsOpen((current) => ({ ...current, alerts: !current.alerts }))}>
         <div className="dashboard-main-grid dashboard-bottom-grid">
           <article className="dashboard-panel dashboard-panel-wide">
             <div className="dashboard-panel-header with-badge">
               <div>
-                <h3>Registros que Excedieron el Límite</h3>
-                <p>Tiempo real vs. límite objetivo en actividades semanales</p>
+                <h3>Resumen de actividades vs. límite SLA</h3>
+                <p>Promedio general por tipo de actividad. No lista cada registro individual.</p>
               </div>
-              <span className="dashboard-alert-pill">{dashboardMetrics.exceeded.length} alertas</span>
+              <span className="dashboard-alert-pill">{dashboardActivitySlaSummaryRows.filter((row) => row.exceededCount > 0).length} con exceso</span>
             </div>
             <div className="dashboard-table-wrap">
               <table className="dashboard-table-clean">
                 <thead>
                   <tr>
-                    <th>Operación</th>
-                    <th>Fuente</th>
-                    <th>Player</th>
-                    <th>Tiempo Real</th>
+                    <th>Actividad</th>
+                    <th>Eventos</th>
+                    <th>Con exceso</th>
+                    <th>% exceso</th>
                     <th>Límite</th>
-                    <th>Exceso</th>
+                    <th>Prom. real</th>
+                    <th>Prom. exceso</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {dashboardMetrics.exceeded.length ? dashboardMetrics.exceeded.map((record) => {
-                    const excess = record.durationSeconds / 60 - record.limitMinutes;
-                    return (
-                      <tr key={record.id}>
-                        <td>{record.label.toUpperCase()}</td>
-                        <td>{record.sourceLabel}</td>
-                        <td>{record.responsibleName}</td>
-                        <td className="dashboard-number-warning">{formatMinutes(record.durationSeconds / 60)}</td>
-                        <td>{record.limitMinutes} min</td>
-                        <td>{Math.max(0, Math.round(excess))}</td>
-                      </tr>
-                    );
-                  }) : (
+                  {dashboardActivitySlaSummaryRows.length ? dashboardActivitySlaSummaryRows.map((row) => (
+                    <tr key={row.label}>
+                      <td>{row.label.toUpperCase()}</td>
+                      <td>{row.totalEvents}</td>
+                      <td className={row.exceededCount > 0 ? "dashboard-number-warning" : ""}>{row.exceededCount}</td>
+                      <td>{formatPercent(row.exceededPercent)}</td>
+                      <td>{row.limitMinutes} min</td>
+                      <td>{formatMinutes(row.avgRealMinutes)}</td>
+                      <td>{row.exceededCount > 0 ? formatMinutes(row.avgExcessMinutes) : "—"}</td>
+                    </tr>
+                  )) : (
                     <tr>
-                      <td colSpan={6}>No hay registros fuera de SLA en el periodo.</td>
+                      <td colSpan={7}>No hay actividades con límite SLA en el periodo.</td>
                     </tr>
                   )}
                 </tbody>

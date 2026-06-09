@@ -38,7 +38,7 @@ import {
 } from "lucide-react";
 import { CopmecBrand } from "./ComponentesDashboard";
 import logoIA from "../assets/AXOIA.png";
-import { PAGE_AREA_SHELL, PAGE_DASHBOARD, PAGE_PROCESS_AUDITS, PAGE_ROUTE_SLUGS, PAGE_TRANSPORT, PAGE_RETAIL } from "../utils/constantes";
+import { PAGE_AREA_SHELL, PAGE_DASHBOARD, PAGE_GLOBAL_DASHBOARD, PAGE_PROCESS_AUDITS, PAGE_ROUTE_SLUGS, PAGE_TRANSPORT, PAGE_RETAIL } from "../utils/constantes";
 import { AREA_SECTIONS_WITHOUT_TABS } from "../app/areaNavigationConfig.js";
 import { formatNavNotificationCount } from "../utils/processAuditMetrics.js";
 
@@ -191,7 +191,6 @@ function SidebarIcon({ icon: Icon, className = "" }) {
 
 export const Sidebar = React.memo(function Sidebar({ currentUser, page, onPageChange, isOpen, isCollapsed, onClose, onOpenProfile, onToggleCollapsed, areaSections, utilityNavItems, selectedAreaSectionId, navTransportSection, navTransportTab, navRetailTab = "ordenes-compra", navAuditTab, canUseAI, onOpenAI }) {
   const avatarUrl = getUserAvatarUrl(currentUser);
-  const globalDashboardItem = (Array.isArray(utilityNavItems) ? utilityNavItems : []).find((item) => item.id === PAGE_DASHBOARD) || null;
   const sortedAreaSections = (Array.isArray(areaSections) ? areaSections : [])
     .map((section) => ({
       ...section,
@@ -313,22 +312,6 @@ export const Sidebar = React.memo(function Sidebar({ currentUser, page, onPageCh
       </div>
 
       <nav className="sidebar-nav">
-        {globalDashboardItem ? (
-          <a
-            className={`nav-item nav-item-dashboard-global ${page === PAGE_DASHBOARD && selectedAreaSectionId === "all" ? "active" : ""}`}
-            href={getPageHref(globalDashboardItem.id)}
-            title={globalDashboardItem.label}
-            aria-label={globalDashboardItem.label}
-            onClick={(event) => {
-              event.preventDefault();
-              onPageChange(globalDashboardItem.id, "all");
-              onClose?.();
-            }}
-          >
-            <SidebarIcon icon={getSidebarTabIcon(globalDashboardItem)} />
-            <span>{globalDashboardItem.shortLabel || globalDashboardItem.label}</span>
-          </a>
-        ) : null}
         {(() => {
           const elements = [];
           sortedSidebarSections.forEach((entry) => {
@@ -425,10 +408,15 @@ export const Sidebar = React.memo(function Sidebar({ currentUser, page, onPageCh
                     const isAuditHistory = item.id === "auditHistory";
                     const isAuditCapture = item.id === PAGE_PROCESS_AUDITS;
                     const isAuditDashboard = item.id === "auditDashboard";
+                    const isGlobalDashboard = item.id === PAGE_GLOBAL_DASHBOARD;
                     const isAdminGroup = group.label === "Admin";
                     const nextAreaId = isAdminGroup ? "admin" : "all";
-                    const hrefPageId = (isAuditHistory || isAuditDashboard) ? PAGE_PROCESS_AUDITS : item.id;
-                    const itemActive = page === hrefPageId || (isAuditCapture && page === PAGE_PROCESS_AUDITS);
+                    const hrefPageId = isGlobalDashboard
+                      ? PAGE_DASHBOARD
+                      : ((isAuditHistory || isAuditDashboard) ? PAGE_PROCESS_AUDITS : item.id);
+                    const itemActive = isGlobalDashboard
+                      ? (page === PAGE_DASHBOARD && selectedAreaSectionId === "admin")
+                      : (page === hrefPageId || (isAuditCapture && page === PAGE_PROCESS_AUDITS));
                     return (
                       <a
                         key={item.id}
@@ -438,7 +426,9 @@ export const Sidebar = React.memo(function Sidebar({ currentUser, page, onPageCh
                         aria-label={item.label}
                         onClick={(event) => {
                           event.preventDefault();
-                          if (isAuditHistory) {
+                          if (isGlobalDashboard) {
+                            onPageChange(PAGE_DASHBOARD, "admin");
+                          } else if (isAuditHistory) {
                             onPageChange(PAGE_PROCESS_AUDITS, "all", undefined, undefined, { tab: "history" });
                           } else if (isAuditDashboard) {
                             onPageChange(PAGE_PROCESS_AUDITS, "all", undefined, undefined, { tab: "dashboard" });

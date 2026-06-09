@@ -121,6 +121,10 @@ import {
 
 } from "./utils/utilidadesImportExcel.js";
 import { normalizeOperationalInspectionTemplate } from "./utils/operationalInspectionTemplate";
+import { isDeprecatedDynamicArea, migrateDeprecatedAreaValue } from "./config/deprecatedAreas.js";
+import { isMobileShellActive } from "./app/mobileAppShell.js";
+import MobileBottomNav from "./components/MobileBottomNav.jsx";
+import PullToRefresh from "./components/PullToRefresh.jsx";
 
 // â”€â”€ Constantes globales â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
@@ -455,6 +459,7 @@ import {
   canAccessPage,
   canAccessAreaNavItem,
   canAccessAreaDashboardPage,
+  canAccessGlobalDashboardPage,
   canAccessAreaShellPage,
   userHasAnyRetailAreaScope,
   resolveFirstAccessiblePage,
@@ -487,6 +492,10 @@ import {
 
   getOperationalElapsedSeconds,
 
+  findActiveBoardRowsForUser,
+
+  getBoardRowActivityLabel,
+
   getNormalizedFormulaTerms,
 
   evaluateFormulaFieldValue,
@@ -502,6 +511,12 @@ import {
   normalizeSystemOperationalSettings,
 
 } from "./utils/utilidades.jsx";
+import {
+  applyAreaLandingState,
+  isGlobalAreaRouteContext,
+  resolveAreaLandingForPage,
+  resolveFirstAccessibleAreaLanding,
+} from "./utils/areaLandingNavigation.js";
 import {
   extractDelegationGrantsFromUserOverride,
   intersectGrantableScope,
@@ -700,6 +715,8 @@ function App() { // NOSONAR
   const [deleteInventoryId, setDeleteInventoryId] = useState(null);
   const [deleteBoardId, setDeleteBoardId] = useState(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [mobilePageTransitionKey, setMobilePageTransitionKey] = useState(0);
+  const mobileOverlayStackRef = useRef(0);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "true");
   const [selectedCustomBoardId, setSelectedCustomBoardId] = useState(INITIAL_ROUTE_STATE.selectedBoardId);
   const [selectedCustomBoardViewId, setSelectedCustomBoardViewId] = useState("current");
@@ -1131,7 +1148,7 @@ function App() { // NOSONAR
     setNotificationPanelOpen(false);
 
     if (notification.targetAction === "profile") {
-      setProfileModalOpen(true);
+      openProfileModal();
       return;
     }
 
@@ -1469,8 +1486,44 @@ function App() { // NOSONAR
     routeLastUrlRef.current = nextUrl;
   }, [adminTab, page, selectedAreaSectionId, selectedCustomBoardId, selectedHistoryWeekId, selectedWeekId, navTransportSection, sessionUserId]);
 
+  function pushMobileOverlayState(overlayId) {
+    if (!isMobileShellActive()) return;
+    mobileOverlayStackRef.current += 1;
+    globalThis.history.pushState({ axoOverlay: overlayId, axoOverlayDepth: mobileOverlayStackRef.current }, "");
+  }
+
+  function openMobileSidebar() {
+    setIsSidebarOpen(true);
+    pushMobileOverlayState("sidebar");
+  }
+
+  function openProfileModal() {
+    setProfileModalOpen(true);
+    pushMobileOverlayState("profile");
+  }
+
   useEffect(() => {
-    function handlePopState() {
+    setMobilePageTransitionKey((current) => current + 1);
+  }, [page, selectedAreaSectionId]);
+
+  useEffect(() => {
+    function handlePopState(event) {
+      if (profileModalOpen) {
+        setProfileModalOpen(false);
+        setPasswordForm({ password: "", confirmPassword: "", message: "" });
+        mobileOverlayStackRef.current = Math.max(0, mobileOverlayStackRef.current - 1);
+        return;
+      }
+      if (isSidebarOpen) {
+        setIsSidebarOpen(false);
+        mobileOverlayStackRef.current = Math.max(0, mobileOverlayStackRef.current - 1);
+        return;
+      }
+      if (event?.state?.axoOverlay) {
+        mobileOverlayStackRef.current = Math.max(0, mobileOverlayStackRef.current - 1);
+        return;
+      }
+
       const routeState = getInitialRouteState();
       routeSyncFromPopRef.current = true;
       setPage(routeState.page || PAGE_DASHBOARD);
@@ -1483,7 +1536,7 @@ function App() { // NOSONAR
 
     globalThis.addEventListener("popstate", handlePopState);
     return () => globalThis.removeEventListener("popstate", handlePopState);
-  }, []);
+  }, [profileModalOpen, isSidebarOpen]);
 
   useEffect(() => {
     let active = true;
@@ -2277,6 +2330,7 @@ function App() { // NOSONAR
     historyPauseLogs,
     dashboardResponsibleRows,
     dashboardActivityRows,
+    dashboardActivitySlaSummaryRows,
     dashboardDistributionRows,
   } = useDashboardMetrics({
     state,
@@ -2751,7 +2805,7 @@ function App() { // NOSONAR
 
     return rootAreaOptions
       .map((rootArea) => normalizeAreaOption(rootArea))
-      .filter((rootArea) => rootArea && !staticRoots.has(rootArea));
+      .filter((rootArea) => rootArea && !staticRoots.has(rootArea) && !isDeprecatedDynamicArea(rootArea));
   }, [rootAreaOptions]);
 
   const activeAreaScopes = useMemo(() => {
@@ -2865,6 +2919,10 @@ function App() { // NOSONAR
     const nextArea = normalizeAreaOption(areaModal.name);
     if (!nextArea) {
       setAreaModal((current) => ({ ...current, error: "Escribe el nombre del área." }));
+      return;
+    }
+    if (isDeprecatedDynamicArea(nextArea)) {
+      setAreaModal((current) => ({ ...current, error: "Esa área ya no está disponible. Usa OPERACIONES." }));
       return;
     }
     if (departmentOptions.includes(nextArea)) {
@@ -2990,6 +3048,7 @@ function App() { // NOSONAR
       return;
     }
     const canStayOnPage = allowedPages.includes(page)
+      || (page === PAGE_DASHBOARD && selectedAreaSectionId === "admin" && canAccessGlobalDashboardPage(currentUser, normalizedPermissions))
       || (page === PAGE_DASHBOARD && canAccessAreaDashboardPage(currentUser, selectedAreaSectionId, normalizedPermissions))
       || (page === PAGE_AREA_SHELL && canAccessAreaShellPage(currentUser, selectedAreaSectionId, normalizedPermissions))
       || (page === PAGE_RETAIL && userHasAnyRetailAreaScope(currentUser, normalizedPermissions));
@@ -3017,22 +3076,6 @@ function App() { // NOSONAR
     }
     return resolveFirstAccessiblePage(user, permissions);
   }
-
-  // Si el usuario NO tiene dashboard corporativo, evita arrancar en "ALL".
-  useEffect(() => {
-    if (!currentUser) return;
-    if (selectedAreaSectionId !== "all") return;
-    if (canAccessPage(currentUser, PAGE_DASHBOARD, normalizedPermissions)) return;
-    const nextAreaSectionId = resolveDefaultAreaSectionIdForUser(currentUser);
-    setSelectedAreaSectionId(nextAreaSectionId);
-    if (nextAreaSectionId === "retail") {
-      setPage(PAGE_RETAIL);
-      setNavRetailTab("dashboard");
-    } else if (AREA_SECTIONS_WITHOUT_TABS.has(nextAreaSectionId)) {
-      setPage(resolveLandingPageForUser(currentUser, normalizedPermissions, nextAreaSectionId));
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentUser?.id, selectedAreaSectionId, normalizedPermissions]);
 
   useEffect(() => {
     if (adminTab === "permissions" || adminTab === "reports") {
@@ -3460,6 +3503,15 @@ function App() { // NOSONAR
 
   const isHistoricalBoardReadOnly = isHistoricalCustomBoardView && !canEditHistoricalBoardWeeks;
 
+  const boardStartConflictRows = useMemo(() => {
+    if (!boardStartConfirm.open || !currentUser?.id) return [];
+    return findActiveBoardRowsForUser(state, currentUser.id, {
+      starterByRowId: starterByRowIdRef.current,
+      excludeBoardId: boardStartConfirm.boardId,
+      excludeRowId: boardStartConfirm.rowId,
+    });
+  }, [boardStartConfirm.open, boardStartConfirm.boardId, boardStartConfirm.rowId, currentUser?.id, state.controlBoards]);
+
   const selectedCustomBoardDisplay = useMemo(
     () => selectedCustomBoardSnapshot || selectedCustomBoard,
     [selectedCustomBoard, selectedCustomBoardSnapshot],
@@ -3645,6 +3697,7 @@ function App() { // NOSONAR
 
   const utilityNavItems = useMemo(
     () => allowedNavItems.filter((item) => {
+      if (item.id === PAGE_DASHBOARD) return false;
       if ([PAGE_CUSTOM_BOARDS, PAGE_BOARD, PAGE_TRANSPORT, PAGE_INCIDENCIAS].includes(item.id)) return false;
       if (item.group === "Mejora continua") return false;
       const requiredActionId = NAV_UTILITY_ACTION_BY_GROUP[item.group] || "";
@@ -3742,6 +3795,24 @@ function App() { // NOSONAR
       });
   }, [currentUser, normalizedPermissions, dynamicAreaSectionRoots, processAuditAttentionCount, processAuditProblemCount, processAuditPendingProposalsCount, processAuditAuthorizationCount, processAuditImplementationCount, processAuditRejectedCount]);
 
+  // Evita rutas globales (/tableros, /dashboard sin área): siempre aterriza en el área permitida.
+  useEffect(() => {
+    if (!currentUser || isBootstrapMasterSession) return;
+    if (!isGlobalAreaRouteContext(page, selectedAreaSectionId)) return;
+    const landing = resolveFirstAccessibleAreaLanding(currentUser, normalizedPermissions, areaNavSections);
+    if (!landing?.areaSectionId || landing.areaSectionId === "all") return;
+    applyAreaLandingState(landing, {
+      setSelectedAreaSectionId,
+      setPage,
+      setNavTransportSection,
+      setNavTransportTab,
+      setNavRetailTab,
+      setAuditShortcutPreset,
+      setNavAuditTab,
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser?.id, isBootstrapMasterSession, page, selectedAreaSectionId, areaNavSections, normalizedPermissions]);
+
   useEffect(() => {
     if (!currentUser) return;
     if (!AREA_SECTIONS_WITHOUT_TABS.has(selectedAreaSectionId)) return;
@@ -3767,8 +3838,19 @@ function App() { // NOSONAR
       return;
     }
 
-    setSelectedAreaSectionId("all");
-  }, [areaNavSections, selectedAreaSectionId]);
+    const landing = resolveFirstAccessibleAreaLanding(currentUser, normalizedPermissions, areaNavSections);
+    if (landing?.areaSectionId && landing.areaSectionId !== "all") {
+      applyAreaLandingState(landing, {
+        setSelectedAreaSectionId,
+        setPage,
+        setNavTransportSection,
+        setNavTransportTab,
+        setNavRetailTab,
+        setAuditShortcutPreset,
+        setNavAuditTab,
+      });
+    }
+  }, [areaNavSections, currentUser, normalizedPermissions, selectedAreaSectionId]);
 
   const permissionManagedUsers = useMemo(
     () => visibleUsers.filter((user) => user.isActive),
@@ -6412,18 +6494,8 @@ function App() { // NOSONAR
       setState(normalizedState);
       setLoginDirectory(buildLoginDirectoryFromState(normalizedState));
       setPasswordForm({ password: "", confirmPassword: "", message: "" });
-      const nextUser = normalizedState.users.find((user) => user.id === authResult.userId) || authResult.user;
-      const nextPermissions = normalizePermissions(normalizedState.permissions);
-      // Si no tiene dashboard corporativo, entra directo a su área.
-      const nextAreaSectionId = !canAccessPage(nextUser, PAGE_DASHBOARD, nextPermissions)
-        ? resolveDefaultAreaSectionIdForUser(nextUser)
-        : "all";
-      setSelectedAreaSectionId(nextAreaSectionId);
-      if (nextAreaSectionId === "retail") {
-        setNavRetailTab("dashboard");
-      }
-      setPage(resolveLandingPageForUser(nextUser, nextPermissions, nextAreaSectionId));
       setSyncStatus("Sincronizado");
+      // El efecto de aterrizaje por área redirige desde rutas globales (/tableros, etc.).
     } catch (error) {
       if (isSessionRequiredError(error)) {
         setLoginError("Se validaron tus credenciales, pero no se pudo guardar la sesión. Revisa CORS_ALLOWED_ORIGINS y SESSION_COOKIE_SAMESITE en Render.");
@@ -6431,6 +6503,25 @@ function App() { // NOSONAR
       }
       setLoginError(error?.message || "No se pudo iniciar sesión.");
     }
+  }
+
+  async function handleDeleteOwnAccount(password) {
+    try {
+      await requestJson("/auth/account", {
+        method: "DELETE",
+        body: JSON.stringify({ password }),
+      });
+      await handleLogout();
+      pushAppToast("Tu cuenta fue eliminada correctamente.", "success");
+      return { ok: true };
+    } catch (error) {
+      return { ok: false, message: error?.message || "No fue posible eliminar tu cuenta." };
+    }
+  }
+
+  async function handleMobilePullRefresh() {
+    scheduleWarehouseStateRefresh();
+    await new Promise((resolve) => globalThis.setTimeout(resolve, 650));
   }
 
   async function handleLogout() {
@@ -6809,11 +6900,30 @@ function App() { // NOSONAR
     return true;
   }
 
+  function closeBoardStartConfirm() {
+    setBoardStartConfirm({ open: false, boardId: null, rowId: null, title: "", message: "" });
+  }
+
   function confirmStartBoardRow() {
     if (!boardStartConfirm.boardId || !boardStartConfirm.rowId) return;
     const boardId = boardStartConfirm.boardId;
     const rowId = boardStartConfirm.rowId;
-    setBoardStartConfirm({ open: false, boardId: null, rowId: null, title: "", message: "" });
+    closeBoardStartConfirm();
+    changeBoardRowStatus(boardId, rowId, STATUS_RUNNING, { skipStartConfirm: true });
+  }
+
+  async function finishPreviousActivityAndStart() {
+    const conflict = boardStartConflictRows[0];
+    const { boardId, rowId } = boardStartConfirm;
+    if (!boardId || !rowId) return;
+    closeBoardStartConfirm();
+    if (conflict?.boardId && conflict?.rowId) {
+      try {
+        await executeBoardRowStatusChange(conflict.boardId, conflict.rowId, STATUS_FINISHED);
+      } catch {
+        return;
+      }
+    }
     changeBoardRowStatus(boardId, rowId, STATUS_RUNNING, { skipStartConfirm: true });
   }
 
@@ -6825,7 +6935,9 @@ function App() { // NOSONAR
     const permissionBoard = selectedCustomBoard?.id === boardId ? selectedCustomBoard : resolveBoardMutationBoard(boardId);
     const board = resolveBoardMutationBoard(boardId);
     const row = board?.rows?.find((item) => item.id === rowId);
-    if (!board || !row || !canOperateBoardRowRecord(currentUser, permissionBoard, row, normalizedPermissions)) return;
+    if (!board || !row || !canOperateBoardRowRecord(currentUser, permissionBoard, row, normalizedPermissions)) {
+      return Promise.resolve(false);
+    }
 
     const nowTime = new Date().toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
     const autoTimeValues = (board.fields || []).reduce((accumulator, field) => {
@@ -6855,7 +6967,7 @@ function App() { // NOSONAR
           tone: "danger",
           message: `Completa los campos obligatorios antes de terminar: ${missingFields.map((field) => field.label).join(", ")}.`,
         });
-        return;
+        return Promise.resolve(false);
       }
     }
 
@@ -6931,7 +7043,7 @@ function App() { // NOSONAR
       // ignore
     }
 
-    requestJson(getBoardRowPatchEndpoint(boardId, rowId), {
+    return requestJson(getBoardRowPatchEndpoint(boardId, rowId), {
       method: "PATCH",
       body: JSON.stringify({
         status,
@@ -6939,9 +7051,11 @@ function App() { // NOSONAR
       }),
     }).then((remoteState) => {
       applyRemoteWarehouseState(remoteState, setState, setLoginDirectory, skipNextSyncRef, setSyncStatus);
+      return true;
     }).catch((error) => {
       applyOptimisticBoardRowStatus(boardId, rowId, () => previousRowSnapshot);
       setBoardRuntimeFeedback({ tone: "danger", message: error?.message || "No se pudo cambiar el estado de la fila." });
+      throw error;
     });
   }
 
@@ -7783,6 +7897,7 @@ function App() { // NOSONAR
     customBoardMetrics,
     customBoardSearch,
     dashboardActivityRows,
+    dashboardActivitySlaSummaryRows,
     dashboardAreaBoardDetailedRows,
     dashboardAreaRows,
     DashboardBarRow,
@@ -8157,8 +8272,26 @@ function App() { // NOSONAR
         currentUser={currentUser}
         page={page}
         navAuditTab={navAuditTab}
-        onPageChange={(nextPage, nextAreaSectionId = "all", transportSection, transportTab, auditPreset, retailTab) => {
-          setSelectedAreaSectionId(nextAreaSectionId || "all");
+        onPageChange={(nextPage, nextAreaSectionId, transportSection, transportTab, auditPreset, retailTab) => {
+          const normalizedArea = String(nextAreaSectionId || "").trim();
+          const resolvedArea = normalizedArea && normalizedArea !== "all"
+            ? normalizedArea
+            : (selectedAreaSectionId !== "all" ? selectedAreaSectionId : "");
+          if (!resolvedArea && currentUser && isGlobalAreaRouteContext(nextPage, "all")) {
+            const landing = resolveAreaLandingForPage(currentUser, normalizedPermissions, areaNavSections, nextPage)
+              || resolveFirstAccessibleAreaLanding(currentUser, normalizedPermissions, areaNavSections);
+            applyAreaLandingState(landing, {
+              setSelectedAreaSectionId,
+              setPage,
+              setNavTransportSection,
+              setNavTransportTab,
+              setNavRetailTab,
+              setAuditShortcutPreset,
+              setNavAuditTab,
+            });
+            return;
+          }
+          setSelectedAreaSectionId(resolvedArea || selectedAreaSectionId || "all");
           setPage(nextPage);
           if (transportSection) setNavTransportSection(transportSection);
           setNavTransportTab(transportTab || "");
@@ -8169,7 +8302,7 @@ function App() { // NOSONAR
         isOpen={isSidebarOpen}
         isCollapsed={isSidebarCollapsed}
         onClose={() => setIsSidebarOpen(false)}
-        onOpenProfile={() => setProfileModalOpen(true)}
+        onOpenProfile={openProfileModal}
         onToggleCollapsed={() => setIsSidebarCollapsed((current) => !current)}
         areaSections={areaNavSections}
         utilityNavItems={utilityNavItems}
@@ -8189,7 +8322,7 @@ function App() { // NOSONAR
           </div>
         ) : null}
         <header className={`content-header ${page === PAGE_DASHBOARD ? "dashboard-header-shell" : ""}`}>
-          <button type="button" className="mobile-nav-toggle" onClick={() => setIsSidebarOpen(true)} aria-label="Abrir menú">
+          <button type="button" className="mobile-nav-toggle" onClick={openMobileSidebar} aria-label="Abrir menú">
             <Menu size={18} />
             <span>Menú</span>
           </button>
@@ -8230,6 +8363,8 @@ function App() { // NOSONAR
           </div>
         </header>
 
+        <PullToRefresh className="content-scroll-region" onRefresh={handleMobilePullRefresh} disabled={!isMobileShellActive()}>
+        <div key={mobilePageTransitionKey} className="page-transition-shell">
         <Suspense fallback={<PageFallback />}>
           {page === PAGE_BOARD || page === PAGE_ADMIN ? <TablerosCreados contexto={paginasContexto} /> : null}
           {page === PAGE_CUSTOM_BOARDS ? <MisTableros contexto={paginasContexto} /> : null}
@@ -8254,7 +8389,35 @@ function App() { // NOSONAR
           {page === PAGE_SYSTEM_SETTINGS ? <ConfiguracionSistema contexto={paginasContexto} /> : null}
           {page === PAGE_NOT_FOUND ? <PaginaNoEncontrada contexto={paginasContexto} /> : null}
         </Suspense>
+        </div>
+        </PullToRefresh>
       </section>
+
+      <MobileBottomNav
+        activePage={page}
+        onNavigate={(nextPage) => {
+          if (!nextPage) return;
+          const landing = currentUser
+            ? (resolveAreaLandingForPage(currentUser, normalizedPermissions, areaNavSections, nextPage)
+              || resolveFirstAccessibleAreaLanding(currentUser, normalizedPermissions, areaNavSections))
+            : null;
+          if (landing?.areaSectionId) {
+            applyAreaLandingState({ ...landing, page: nextPage }, {
+              setSelectedAreaSectionId,
+              setPage,
+              setNavTransportSection,
+              setNavTransportTab,
+              setNavRetailTab,
+              setAuditShortcutPreset,
+              setNavAuditTab,
+            });
+          } else {
+            setPage(nextPage);
+          }
+          setIsSidebarOpen(false);
+        }}
+        onOpenMenu={openMobileSidebar}
+      />
 
       <Modal open={pauseState.open} title="Actividad en pausa" confirmLabel={pauseState.completed ? (pauseState.continueReady ? "Continuar" : "Espera un momento...") : "Confirmar pausa"} cancelLabel="Cancelar" hideCancel={pauseState.completed} confirmDisabled={pauseState.completed && !pauseState.continueReady} onClose={() => { if (pauseContinueTimerRef.current) clearTimeout(pauseContinueTimerRef.current); setPauseState({ open: false, activityId: null, reason: "", customReason: "", error: "", completed: false, continueReady: false, pauseLogId: null }); }} onConfirm={handleConfirmPause}>
         <div className="modal-form-grid">
@@ -8384,14 +8547,60 @@ function App() { // NOSONAR
       <Modal
         open={boardStartConfirm.open}
         title={boardStartConfirm.title || "Confirmar inicio"}
-        confirmLabel="Confirmar"
+        confirmLabel={boardStartConflictRows.length ? "Iniciar de todos modos" : "Confirmar"}
         cancelLabel="Cancelar"
-        onClose={() => setBoardStartConfirm({ open: false, boardId: null, rowId: null, title: "", message: "" })}
+        onClose={closeBoardStartConfirm}
         onConfirm={confirmStartBoardRow}
+        footerActions={boardStartConflictRows.length ? (
+          <button
+            type="button"
+            className="sicfla-button danger"
+            onClick={() => { void finishPreviousActivityAndStart(); }}
+          >
+            Terminar anterior e iniciar esta
+          </button>
+        ) : null}
       >
         <div className="modal-form-grid">
           <p>{boardStartConfirm.message || "¿Deseas iniciar esta actividad?"}</p>
-          <p className="modal-footnote">Solo puedes tener una actividad en curso por player, entre actividades y tableros.</p>
+          {boardStartConflictRows.length ? (
+            <div className="board-start-conflict-alert" role="alert">
+              <strong>Ya tienes otra actividad en curso</strong>
+              <p>
+                Detectamos {boardStartConflictRows.length === 1 ? "una actividad activa" : `${boardStartConflictRows.length} actividades activas`} vinculada a tu usuario.
+                Puedes terminarla desde aquí o iniciar esta actividad de todos modos si la anterior la iniciaste para otra persona.
+              </p>
+              <div className="board-start-conflict-list">
+                {boardStartConflictRows.map((conflict) => {
+                  const elapsedSecs = conflict.row?.startTime
+                    ? Math.max(
+                      getElapsedSeconds(conflict.row, Date.now(), operationalPauseState),
+                      getOperationalElapsedSeconds(conflict.row.startTime, Date.now(), operationalPauseState),
+                    )
+                    : 0;
+                  return (
+                    <article key={`${conflict.boardId}-${conflict.rowId}`} className="board-start-conflict-card">
+                      <div className="board-start-conflict-card-main">
+                        <strong>{conflict.activityLabel}</strong>
+                        <span>{conflict.boardName}</span>
+                      </div>
+                      <div className="board-start-conflict-card-meta">
+                        <span className={`chip ${conflict.status === STATUS_RUNNING ? "success" : "soft"}`.trim()}>
+                          {conflict.status}
+                        </span>
+                        {elapsedSecs > 0 ? <span>{formatDurationClock(elapsedSecs)} transcurridos</span> : null}
+                        {conflict.isStarter && !conflict.isAssignedPlayer ? (
+                          <span className="board-start-conflict-note">La iniciaste tú</span>
+                        ) : null}
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            </div>
+          ) : (
+            <p className="modal-footnote">Solo puedes tener una actividad en curso por player, entre actividades y tableros.</p>
+          )}
         </div>
       </Modal>
 
@@ -8797,7 +9006,7 @@ function App() { // NOSONAR
         </AlertModalProvider>
       ) : null}
 
-      {profileModalOpen ? <EmployeeProfileModal currentUser={currentUser} passwordForm={passwordForm} onPasswordChange={setPasswordForm} onSubmit={submitPasswordReset} onUpdateIdentity={updateCurrentUserIdentity} currentTheme={uiTheme} themeOptions={UI_THEME_OPTIONS} onThemeChange={setUiTheme} currentFont={uiFont} fontOptions={UI_FONT_OPTIONS} onFontChange={setUiFont} currentFontSize={uiFontSize} fontSizeOptions={UI_FONT_SIZE_OPTIONS} onFontSizeChange={setUiFontSize} onClose={() => { setProfileModalOpen(false); setPasswordForm({ password: "", confirmPassword: "", message: "" }); }} onLogout={() => { setProfileModalOpen(false); setPasswordForm({ password: "", confirmPassword: "", message: "" }); handleLogout(); }} /> : null}
+      {profileModalOpen ? <EmployeeProfileModal currentUser={currentUser} passwordForm={passwordForm} onPasswordChange={setPasswordForm} onSubmit={submitPasswordReset} onUpdateIdentity={updateCurrentUserIdentity} onDeleteAccount={handleDeleteOwnAccount} currentTheme={uiTheme} themeOptions={UI_THEME_OPTIONS} onThemeChange={setUiTheme} currentFont={uiFont} fontOptions={UI_FONT_OPTIONS} onFontChange={setUiFont} currentFontSize={uiFontSize} fontSizeOptions={UI_FONT_SIZE_OPTIONS} onFontSizeChange={setUiFontSize} onClose={() => { setProfileModalOpen(false); setPasswordForm({ password: "", confirmPassword: "", message: "" }); }} onLogout={() => { setProfileModalOpen(false); setPasswordForm({ password: "", confirmPassword: "", message: "" }); handleLogout(); }} /> : null}
 
       <Modal
         open={excelSheetSelector.open}

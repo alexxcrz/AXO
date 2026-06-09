@@ -47,6 +47,7 @@ export function buildPaginasContexto(d) {
     customBoardMetrics: d.customBoardMetrics,
     customBoardSearch: d.customBoardSearch,
     dashboardActivityRows: d.dashboardActivityRows,
+    dashboardActivitySlaSummaryRows: d.dashboardActivitySlaSummaryRows,
     dashboardAreaRows: d.dashboardAreaRows,
     dashboardCatalogFrequencyRows: d.dashboardCatalogFrequencyRows,
     dashboardCatalogTypeRows: d.dashboardCatalogTypeRows,
