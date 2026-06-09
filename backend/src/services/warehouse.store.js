@@ -7785,8 +7785,10 @@ export function patchWarehouseBoardRow(auth, boardId, rowId, patch = {}) {
       : null;
   }
 
-  // Lead-only direct overrides for time fields (startTime, endTime, accumulatedSeconds) and persisted pause logs.
-  if (normalizeRole(currentUser.role) === ROLE_LEAD) {
+  // Lead o quien puede corregir histórico: overrides de tiempos y pausas persistidas.
+  const canOverridePauseAndTimes = normalizeRole(currentUser.role) === ROLE_LEAD
+    || canUserDoWarehouseAction(currentUser, "editHistoryRecords", currentState.permissions);
+  if (canOverridePauseAndTimes) {
     const hasTimeOverride = hasOwn(patch, "startTime") || hasOwn(patch, "endTime") || hasOwn(patch, "accumulatedSeconds") || hasOwn(patch, "totalElapsedSecondsOverride");
     const hasPauseLogOverride = hasOwn(patch, "pauseLogs");
     if (hasOwn(patch, "startTime") && patch.startTime) {
@@ -7954,6 +7956,11 @@ function canPatchBoardHistoryRow(user, snapshot, row, permissions, patch = {}) {
   if (normalizeRole(user.role) === ROLE_LEAD) return true;
   if (canEditBoardHistoryRecords(user, permissions)) return true;
 
+  const isPauseLogPatch = hasOwn(patch, "pauseLogs")
+    || hasOwn(patch, "totalElapsedSecondsOverride")
+    || Boolean(patch.clearPauseLogs);
+  if (isPauseLogPatch) return false;
+
   const boardLike = buildBoardHistoryBoardLike(snapshot);
   const isWorkflowPatch = hasOwn(patch, "status") || hasOwn(patch, "lastPauseReason");
   if (isWorkflowPatch) {
@@ -8051,6 +8058,35 @@ function buildPatchedBoardHistoryRow(row, patch = {}, fields = [], snapshot = {}
     const responsibleId = String(patch.responsibleId || "").trim();
     nextRow.responsibleId = responsibleId;
     nextRow.responsibleIds = responsibleId ? [responsibleId] : [];
+  }
+
+  if (hasOwn(patch, "totalElapsedSecondsOverride")) {
+    const totalOverride = Number(patch.totalElapsedSecondsOverride);
+    nextRow.totalElapsedSecondsOverride = Number.isFinite(totalOverride) && totalOverride >= 0
+      ? Math.max(0, totalOverride)
+      : null;
+  }
+  if (hasOwn(patch, "pauseLogs")) {
+    nextRow.pauseLogs = Array.isArray(patch.pauseLogs)
+      ? patch.pauseLogs.map((entry) => ({
+          id: entry?.id || makeId("pause"),
+          reason: String(entry?.reason || "").trim(),
+          pausedAt: entry?.pausedAt || null,
+          resumedAt: entry?.resumedAt || null,
+          pauseDurationSeconds: Math.max(0, Number(entry?.pauseDurationSeconds || 0)),
+          pauseAuthorizedSeconds: getPauseLogAuthorizedSeconds(entry),
+          countedPauseDurationSeconds: getPauseLogCountedSeconds(entry),
+        }))
+      : [];
+    if (!hasOwn(patch, "totalElapsedSecondsOverride")) {
+      const totalPauseSeconds = nextRow.pauseLogs.reduce((sum, entry) => sum + getPauseLogCountedSeconds(entry), 0);
+      nextRow.totalElapsedSecondsOverride = Math.max(0, Number(nextRow.accumulatedSeconds || 0)) + totalPauseSeconds;
+    }
+  }
+  if (Boolean(patch.clearPauseLogs)) {
+    nextRow.pauseLogs = [];
+    nextRow.lastPauseReason = "";
+    nextRow.totalElapsedSecondsOverride = Math.max(0, Number(nextRow.accumulatedSeconds || 0));
   }
 
   const { row: repaired } = repairBoardRowTimes(nextRow, fields, snapshot, stats);

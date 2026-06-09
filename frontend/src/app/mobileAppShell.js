@@ -22,17 +22,12 @@ export function isMobileShellActive() {
   return isStandaloneApp() || (isCoarsePointer() && isMobileShellViewport());
 }
 
-/** Android instalado: barra de estado y chrome oscuros obligatorios */
-export function shouldForceAndroidDarkShell() {
-  return isStandaloneApp() && isAndroidDevice();
-}
-
 export function prefersSystemDarkMode() {
   return Boolean(globalThis.matchMedia?.("(prefers-color-scheme: dark)")?.matches);
 }
 
+/** Solo sigue la preferencia del sistema (modo oscuro del celular). */
 export function resolveMobileColorScheme() {
-  if (shouldForceAndroidDarkShell()) return "dark";
   return prefersSystemDarkMode() ? "dark" : "light";
 }
 
@@ -40,18 +35,17 @@ export function applyMobileDocumentShell() {
   const html = document.documentElement;
   const standalone = isStandaloneApp();
   const mobileShell = isMobileShellActive();
-  const androidDark = shouldForceAndroidDarkShell();
   const scheme = resolveMobileColorScheme();
 
   html.classList.toggle("standalone-app", standalone);
   html.classList.toggle("mobile-shell", mobileShell);
-  html.classList.toggle("android-standalone-dark", androidDark);
+  html.classList.remove("android-standalone-dark");
   html.dataset.colorScheme = scheme;
   html.style.colorScheme = scheme;
 
   const themeMeta = document.querySelector('meta[name="theme-color"]');
   if (themeMeta) {
-    themeMeta.content = androidDark || scheme === "dark" ? "#0f1419" : "#314d69";
+    themeMeta.content = scheme === "dark" ? "#0f1419" : "#314d69";
   }
 }
 

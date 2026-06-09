@@ -2591,8 +2591,13 @@ export default function MisTableros({ contexto }) {
                       : 0;
                   const durationEditKey = `${pauseDetailsRow.id}:${entry?.id || index}`;
                   const durationEditValue = pauseDurationEdits[durationEditKey] ?? formatDurationClock(durationSeconds);
-                  const canEditPauseDuration = Boolean(canManageDashboardState) && Boolean(entry?.resumedAt);
-                  const canDeletePauseEntry = Boolean(canManageDashboardState);
+                  const canManagePauseLogs = !isHistoricalBoardReadOnly && (
+                    canManageDashboardState
+                    || canEditHistoricalBoardWeeks
+                    || canEditBoardRowRecord(currentUser, selectedCustomBoard, pauseDetailsRow, normalizedPermissions)
+                  );
+                  const canEditPauseDuration = canManagePauseLogs && Boolean(entry?.resumedAt);
+                  const canDeletePauseEntry = canManagePauseLogs;
                   return (
                     <article key={entry?.id || `${pauseDetailsRow.id}-pause-${index}`} style={{ border: "1px solid rgba(49, 77, 105, 0.14)", borderRadius: "0.8rem", padding: "0.48rem 0.58rem", display: "grid", gap: "0.2rem" }}>
                       <strong style={{ fontSize: "0.78rem" }}>Pausa {index + 1}</strong>

@@ -40,6 +40,11 @@ import { CopmecBrand } from "./ComponentesDashboard";
 import logoIA from "../assets/AXOIA.png";
 import { PAGE_AREA_SHELL, PAGE_DASHBOARD, PAGE_GLOBAL_DASHBOARD, PAGE_PROCESS_AUDITS, PAGE_ROUTE_SLUGS, PAGE_TRANSPORT, PAGE_RETAIL } from "../utils/constantes";
 import { AREA_SECTIONS_WITHOUT_TABS } from "../app/areaNavigationConfig.js";
+import {
+  isSelectedAreaSection,
+  isSelectedUtilityGroup,
+  resolveUtilityItemActive,
+} from "../app/sidebarNavigation.js";
 import { formatNavNotificationCount } from "../utils/processAuditMetrics.js";
 
 // No hay atajos dentro de Mejora continua. Auditoría e Historial son entradas separadas en NAV_ITEMS.
@@ -288,6 +293,45 @@ export const Sidebar = React.memo(function Sidebar({ currentUser, page, onPageCh
     });
   }, [sortedAreaSections]);
 
+  useEffect(() => {
+    const activeSectionId = String(selectedAreaSectionId || "").trim().toLowerCase();
+    if (!activeSectionId) return;
+
+    if (activeSectionId === "admin") {
+      setCollapsedUtilityGroups((current) => (
+        current.Admin === false ? current : { ...current, Admin: false }
+      ));
+      return;
+    }
+
+    if (activeSectionId === "all") {
+      const groupLabels = new Set();
+      (Array.isArray(utilityNavItems) ? utilityNavItems : []).forEach((item) => {
+        const groupLabel = item.group || "";
+        if (!groupLabel || groupLabel === "Admin") return;
+        if (resolveUtilityItemActive(item, groupLabel, page, selectedAreaSectionId, navAuditTab)) {
+          groupLabels.add(groupLabel);
+        }
+      });
+      if (groupLabels.size === 0) return;
+      setCollapsedUtilityGroups((current) => {
+        let next = current;
+        groupLabels.forEach((label) => {
+          if (current[label] !== false) {
+            next = next === current ? { ...current } : next;
+            next[label] = false;
+          }
+        });
+        return next;
+      });
+      return;
+    }
+
+    setCollapsedAreaSections((current) => (
+      current[activeSectionId] === false ? current : { ...current, [activeSectionId]: false }
+    ));
+  }, [selectedAreaSectionId, page, navAuditTab, utilityNavItems]);
+
   function toggleAreaSection(sectionId) {
     setCollapsedAreaSections((current) => ({
       ...current,
@@ -317,13 +361,13 @@ export const Sidebar = React.memo(function Sidebar({ currentUser, page, onPageCh
           sortedSidebarSections.forEach((entry) => {
             if (entry.type === "area") {
               const section = entry.section;
-              const activeInSection = selectedAreaSectionId === section.id;
+              const activeInSection = isSelectedAreaSection(section, selectedAreaSectionId);
               const sectionCollapsed = Boolean(collapsedAreaSections[section.id]);
               elements.push(
-                <section key={`area-group-${section.id}`} className={`nav-section ${sectionCollapsed ? "collapsed" : "expanded"} ${activeInSection ? "active" : ""}`}>
+                <section key={`area-group-${section.id}`} className={`nav-section sidebar-area-section ${sectionCollapsed ? "collapsed" : "expanded"} ${activeInSection ? "active is-current-area" : ""}`}>
                   <button
                     type="button"
-                    className="nav-section-toggle"
+                    className={`nav-section-toggle ${activeInSection ? "active" : ""}`.trim()}
                     onClick={() => {
                       if (!section.items?.length && AREA_SECTIONS_WITHOUT_TABS.has(section.id)) {
                         onPageChange(PAGE_AREA_SHELL, section.id, "", "", null, "");
@@ -335,6 +379,7 @@ export const Sidebar = React.memo(function Sidebar({ currentUser, page, onPageCh
                     }}
                     aria-expanded={!sectionCollapsed}
                     aria-controls={`nav-section-panel-${section.id}`}
+                    aria-current={activeInSection ? "true" : undefined}
                   >
                     <SidebarIcon icon={getSidebarSectionIcon(section.id)} className="nav-section-toggle-icon" />
                     <span className="nav-section-toggle-label">{section.label}</span>
@@ -386,15 +431,17 @@ export const Sidebar = React.memo(function Sidebar({ currentUser, page, onPageCh
             }
 
             const group = entry.group;
+            const activeInGroup = isSelectedUtilityGroup(group, page, selectedAreaSectionId, navAuditTab);
             const groupCollapsed = Boolean(collapsedUtilityGroups[group.label]);
             elements.push(
-              <section key={`util-group-${group.label}`} className={`nav-section ${groupCollapsed ? "collapsed" : "expanded"}`}>
+              <section key={`util-group-${group.label}`} className={`nav-section sidebar-area-section ${groupCollapsed ? "collapsed" : "expanded"} ${activeInGroup ? "active is-current-area" : ""}`}>
                 <button
                   type="button"
-                  className="nav-section-toggle"
+                  className={`nav-section-toggle ${activeInGroup ? "active" : ""}`.trim()}
                   onClick={() => toggleUtilityGroup(group.label)}
                   aria-expanded={!groupCollapsed}
                   aria-controls={`nav-util-panel-${group.label}`}
+                  aria-current={activeInGroup ? "true" : undefined}
                 >
                   <SidebarIcon icon={getSidebarSectionIcon(group.label)} className="nav-section-toggle-icon" />
                   <span className="nav-section-toggle-label">{group.label}</span>
@@ -414,9 +461,13 @@ export const Sidebar = React.memo(function Sidebar({ currentUser, page, onPageCh
                     const hrefPageId = isGlobalDashboard
                       ? PAGE_DASHBOARD
                       : ((isAuditHistory || isAuditDashboard) ? PAGE_PROCESS_AUDITS : item.id);
-                    const itemActive = isGlobalDashboard
-                      ? (page === PAGE_DASHBOARD && selectedAreaSectionId === "admin")
-                      : (page === hrefPageId || (isAuditCapture && page === PAGE_PROCESS_AUDITS));
+                    const itemActive = resolveUtilityItemActive(
+                      item,
+                      group.label,
+                      page,
+                      selectedAreaSectionId,
+                      navAuditTab,
+                    );
                     return (
                       <a
                         key={item.id}

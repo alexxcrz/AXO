@@ -362,7 +362,11 @@ export default function PanelIndicadores({ contexto }) {
     const logs = records.flatMap((record) => (
       (Array.isArray(record.pauseLogEntries) ? record.pauseLogEntries : [])
         .filter((log) => pauseReasonsMatch(log.reason, reasonEntry?.reason))
-        .map((log) => ({ ...log, sourceRecord: record }))
+        .map((log) => ({
+          ...log,
+          activityLabel: log.activityLabel || record.label || record.boardName || "",
+          sourceRecord: record,
+        }))
     ));
 
     return { records, logs };
@@ -384,41 +388,34 @@ export default function PanelIndicadores({ contexto }) {
     setPauseModalOpen(false);
   }
 
-  function goToBoardFromPauseModal() {
-    const data = pauseModalData;
-    if (!data) return;
-    const log = data.logs?.[0];
-    const record = log?.sourceRecord || data.records?.[0];
-    if (record) {
-      goToBoardFromDashboardRecord(record, {
-        rowId: log?.rowId || record.rowId,
-        operationalDate: log?.operationalDate || record.operationalDate,
-        cleaningSite: log?.cleaningSite || record.cleaningSite,
-        boardViewId: log?.historySnapshotId || record.historySnapshotId || "current",
-        openPauseDetails: true,
-      });
+  function goToBoardFromPauseLogEntry(entry) {
+    const record = entry?.sourceRecord;
+    const boardId = String(entry?.boardId || record?.boardId || pauseModalData?.board?.boardId || "").trim();
+    if (!boardId) {
+      pushAppToast?.("No se pudo ubicar el tablero de esta pausa.", "warning");
       return;
     }
-    if (data.board?.boardId) {
-      navigateToBoardFocus?.({
-        boardId: data.board.boardId,
-        rowId: "",
-        operationalDate: "",
-        cleaningSite: "",
-        boardViewId: "current",
-        openPauseDetails: false,
-      });
-      setPauseModalOpen(false);
-      return;
-    }
-    pushAppToast?.("No hay una actividad vinculada para abrir en el tablero.", "warning");
+    const historySnapshotId = String(entry?.historySnapshotId || record?.historySnapshotId || "").trim();
+    const boardViewId = historySnapshotId || "current";
+    const focusRecord = record?.source === "board"
+      ? record
+      : {
+          source: "board",
+          boardId,
+          rowId: entry?.rowId || "",
+          operationalDate: entry?.operationalDate || entry?.pausedAt || "",
+          cleaningSite: entry?.cleaningSite || "",
+          historySnapshotId: boardViewId !== "current" ? boardViewId : "",
+        };
+    goToBoardFromDashboardRecord(focusRecord, {
+      boardId,
+      rowId: entry?.rowId || record?.rowId || "",
+      operationalDate: entry?.operationalDate || record?.operationalDate || entry?.pausedAt || "",
+      cleaningSite: entry?.cleaningSite || record?.cleaningSite || "",
+      boardViewId,
+      openPauseDetails: true,
+    });
   }
-
-  const boardSlaExceededRecords = useMemo(
-    () => (Array.isArray(dashboardMetrics?.exceeded) ? dashboardMetrics.exceeded : [])
-      .filter((record) => record?.source === "board" && record?.boardId),
-    [dashboardMetrics?.exceeded],
-  );
 
   const hasDashboardSection = useCallback((sectionType) => visibleDashboardSections.has(sectionType), [visibleDashboardSections]);
 
@@ -3408,62 +3405,6 @@ export default function PanelIndicadores({ contexto }) {
             </div>
           </article>
 
-          <article className="dashboard-panel dashboard-panel-wide">
-            <div className="dashboard-panel-header with-badge">
-              <div>
-                <h3>Actividades fuera de tiempo (SLA)</h3>
-                <p>Registros individuales que rebasaron el límite. Abre el tablero en la fecha y nave exactas.</p>
-              </div>
-              <span className="dashboard-alert-pill">{boardSlaExceededRecords.length} alerta(s)</span>
-            </div>
-            <div className="dashboard-table-wrap">
-              <table className="dashboard-table-clean">
-                <thead>
-                  <tr>
-                    <th>Actividad / Tablero</th>
-                    <th>Player</th>
-                    <th>Fecha</th>
-                    <th>Nave</th>
-                    <th>Real</th>
-                    <th>Límite</th>
-                    <th>Exceso</th>
-                    <th />
-                  </tr>
-                </thead>
-                <tbody>
-                  {boardSlaExceededRecords.length ? boardSlaExceededRecords.map((record) => (
-                    <tr key={record.id}>
-                      <td>
-                        <strong>{record.label || record.boardName}</strong>
-                        <br />
-                        <small>{record.boardName}</small>
-                      </td>
-                      <td>{record.responsibleName || "-"}</td>
-                      <td>{record.operationalDate || "-"}</td>
-                      <td>{record.cleaningSite || record.operationalContextValue || "-"}</td>
-                      <td>{formatMinutes((record.durationSeconds || 0) / 60)}</td>
-                      <td>{record.limitMinutes} min</td>
-                      <td className="dashboard-number-warning">{formatMinutes((record.excessSeconds || 0) / 60)}</td>
-                      <td>
-                        <button
-                          type="button"
-                          style={{ background: "none", border: "none", padding: 0, color: "#0366d6", cursor: "pointer", textDecoration: "underline" }}
-                          onClick={() => goToBoardFromDashboardRecord(record, { rowId: record.rowId })}
-                        >
-                          Ver en tablero
-                        </button>
-                      </td>
-                    </tr>
-                  )) : (
-                    <tr>
-                      <td colSpan={8}>No hay actividades de tablero fuera de SLA en el periodo.</td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </article>
-
           <aside className="dashboard-panel dashboard-panel-rank dashboard-pause-panel">
             <div className="dashboard-panel-header">
               <div>
@@ -3564,30 +3505,46 @@ export default function PanelIndicadores({ contexto }) {
                 <h3 style={{ margin: 0 }}>{pauseModalData.reasonEntry.reason} · {pauseModalData.board.boardName}</h3>
                 <small>{(pauseModalData.logs || []).length} evento(s) · {Math.round(((pauseModalData.reasonEntry.seconds || 0) / 60))} min</small>
               </div>
-              <div style={{ display: "flex", gap: "0.5rem" }}>
-                <button type="button" style={{ padding: "0.4rem 0.8rem", borderRadius: "0.6rem", border: "1px solid #ddd", background: "#f3f4f6" }} onClick={() => setPauseModalOpen(false)}>Cerrar</button>
-                <button type="button" style={{ padding: "0.4rem 0.8rem", borderRadius: "0.6rem", border: "none", background: "#314d69", color: "#fff" }} onClick={goToBoardFromPauseModal}>
-                  Ver en tablero
-                </button>
-              </div>
+              <button type="button" style={{ padding: "0.4rem 0.8rem", borderRadius: "0.6rem", border: "1px solid #ddd", background: "#f3f4f6" }} onClick={() => setPauseModalOpen(false)}>Cerrar</button>
             </div>
             <div style={{ marginTop: "0.75rem", display: "grid", gap: "0.5rem" }}>
-              {(pauseModalData.logs || []).length ? (pauseModalData.logs || []).map((entry, idx) => (
-                <div key={entry.id || idx} style={{ border: "1px solid rgba(49, 77, 105, 0.08)", borderRadius: "0.6rem", padding: "0.6rem", display: "grid", gridTemplateColumns: "1fr auto", gap: "0.25rem" }}>
+              {(pauseModalData.logs || []).length ? (pauseModalData.logs || []).map((entry, idx) => {
+                const activityLabel = String(entry.activityLabel || entry.sourceRecord?.label || "").trim();
+                const playerName = String(entry.sourceRecord?.responsibleName || "").trim();
+                const naveLabel = String(entry.cleaningSite || entry.sourceRecord?.cleaningSite || entry.sourceRecord?.operationalContextValue || "").trim();
+                const dateLabel = String(entry.operationalDate || entry.sourceRecord?.operationalDate || "").trim();
+                return (
+                <div key={entry.id || `${entry.rowId}-${entry.pausedAt}-${idx}`} style={{ border: "1px solid rgba(49, 77, 105, 0.12)", borderRadius: "0.6rem", padding: "0.65rem", display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: "0.5rem", alignItems: "start" }}>
                   <div>
-                    <div style={{ fontSize: "0.95rem", fontWeight: 600 }}>{entry.reason || pauseModalData.reasonEntry.reason}</div>
-                    <div style={{ fontSize: "0.85rem", color: "#444" }}>{entry.comment || "-"}</div>
-                    <div style={{ fontSize: "0.82rem", color: "#666", marginTop: "0.25rem" }}>
+                    <div style={{ fontSize: "0.95rem", fontWeight: 600, color: "#1f2937" }}>{activityLabel || "Actividad sin nombre"}</div>
+                    <div style={{ fontSize: "0.84rem", color: "#374151", marginTop: "0.15rem" }}>
+                      Motivo: {entry.reason || pauseModalData.reasonEntry.reason}
+                    </div>
+                    {(playerName || naveLabel || dateLabel) ? (
+                      <div style={{ fontSize: "0.8rem", color: "#4b5563", marginTop: "0.2rem" }}>
+                        {[playerName ? `Player: ${playerName}` : null, naveLabel ? `Nave: ${naveLabel}` : null, dateLabel ? `Día: ${dateLabel}` : null].filter(Boolean).join(" · ")}
+                      </div>
+                    ) : null}
+                    <div style={{ fontSize: "0.82rem", color: "#6b7280", marginTop: "0.25rem" }}>
                       Pausado: {entry.pausedAt ? new Date(entry.pausedAt).toLocaleString("es-MX") : "-"} · Reanudó: {entry.resumedAt ? new Date(entry.resumedAt).toLocaleString("es-MX") : "-"}
                     </div>
                   </div>
-                  <div style={{ textAlign: "right" }}>
-                    <div style={{ fontWeight: 700 }}>{Math.round((entry.pauseDurationSeconds || 0) / 60)} min</div>
-                    <div style={{ fontSize: "0.82rem", color: "#666" }}>Aut: {Math.round((entry.pauseAuthorizedSeconds || 0) / 60)}m</div>
-                    <div style={{ fontSize: "0.82rem", color: "#666" }}>Contado: {Math.round((entry.countedPauseDurationSeconds || entry.pauseDurationSeconds || 0) / 60)}m</div>
+                  <div style={{ display: "grid", gap: "0.35rem", justifyItems: "end" }}>
+                    <div style={{ textAlign: "right" }}>
+                      <div style={{ fontWeight: 700, color: "#1f2937" }}>{Math.round((entry.pauseDurationSeconds || 0) / 60)} min</div>
+                      <div style={{ fontSize: "0.82rem", color: "#6b7280" }}>Aut: {Math.round((entry.pauseAuthorizedSeconds || 0) / 60)}m</div>
+                      <div style={{ fontSize: "0.82rem", color: "#6b7280" }}>Contado: {Math.round((entry.countedPauseDurationSeconds || entry.pauseDurationSeconds || 0) / 60)}m</div>
+                    </div>
+                    <button
+                      type="button"
+                      style={{ padding: "0.35rem 0.65rem", borderRadius: "0.5rem", border: "none", background: "#314d69", color: "#fff", fontSize: "0.78rem", fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}
+                      onClick={() => goToBoardFromPauseLogEntry(entry)}
+                    >
+                      Ver en tablero
+                    </button>
                   </div>
                 </div>
-              )) : <div>No hay eventos de pausa para esta causa en el tablero.</div>}
+              );}) : <div>No hay eventos de pausa para esta causa en el tablero.</div>}
             </div>
           </div>
         </div>, document.body) : null}

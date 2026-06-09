@@ -26,30 +26,14 @@ html.mobile-shell .warehouse-app {
   min-height: 100dvh;
 }
 
-/* Android instalado: dark shell obligatorio */
-html.android-standalone-dark body {
-  background: #0f1419;
-  color: #e8edf4;
-}
-
-html.android-standalone-dark .warehouse-app {
-  background: #0f1419;
-}
-
-html.android-standalone-dark .content-header {
-  background: linear-gradient(180deg, #151b24 0%, #121820 100%);
-  border-bottom-color: rgba(255, 255, 255, 0.08);
-  color: #e8edf4;
-}
-
-html.android-standalone-dark .content-header .eyebrow,
-html.android-standalone-dark .content-header h2 {
-  color: #e8edf4;
-}
-
-html[data-color-scheme="dark"]:not(.android-standalone-dark) body {
+/* Dark mode only when the OS requests it */
+html.mobile-shell[data-color-scheme="dark"] body {
   background: #121820;
   color: #e8edf4;
+}
+
+html.mobile-shell[data-color-scheme="dark"] .warehouse-app {
+  background: #121820;
 }
 
 /* Safe areas */
@@ -140,5 +124,162 @@ html.mobile-shell .admin-tab-bar {
 @media (prefers-reduced-motion: reduce) {
   html.mobile-shell .page-transition-shell {
     animation: none;
+  }
+}
+
+/* Readable text on light surfaces (boards, modals, chat, alerts) */
+html.mobile-shell .content-scroll-region .surface-card,
+html.mobile-shell .content-scroll-region .table-card,
+html.mobile-shell .content-scroll-region .table-wrap,
+html.mobile-shell .modal-card,
+html.mobile-shell .sicfla-modal,
+html.mobile-shell .app-notification-panel,
+html.mobile-shell .app-notification-item,
+html.mobile-shell .chat-pro-ventana {
+  color: var(--ui-text, var(--sicfla-text, #22384f));
+}
+
+html.mobile-shell .surface-card label,
+html.mobile-shell .surface-card span,
+html.mobile-shell .surface-card small,
+html.mobile-shell .surface-card p,
+html.mobile-shell .surface-card strong,
+html.mobile-shell .table-wrap label,
+html.mobile-shell .table-wrap span,
+html.mobile-shell .table-wrap small,
+html.mobile-shell .table-wrap p,
+html.mobile-shell .table-wrap strong,
+html.mobile-shell .app-notification-item strong,
+html.mobile-shell .app-notification-item p,
+html.mobile-shell .app-notification-item small,
+html.mobile-shell .app-notification-item span {
+  color: var(--ui-text, var(--sicfla-text, #22384f));
+}
+
+html.mobile-shell .subtle-line {
+  color: #5d6775 !important;
+}
+
+html.mobile-shell .app-notification-item-header span,
+html.mobile-shell .app-notification-item small {
+  color: #4b5563 !important;
+}
+
+/* Unified board typography on mobile (respects profile font size) */
+html.mobile-shell .board-runtime-table th,
+html.mobile-shell .board-runtime-table td,
+html.mobile-shell .board-table-clean th,
+html.mobile-shell .board-table-clean td {
+  font-size: 0.92rem;
+  font-weight: 500;
+  line-height: 1.35;
+}
+
+html.mobile-shell .board-runtime-table select,
+html.mobile-shell .board-inline-select,
+html.mobile-shell .board-top-select select,
+html.mobile-shell .board-runtime-table input,
+html.mobile-shell .board-runtime-table textarea {
+  font-size: 1rem !important;
+  font-weight: 500 !important;
+  color: var(--ui-text, #374151) !important;
+  -webkit-text-fill-color: var(--ui-text, #374151) !important;
+}
+
+html.mobile-shell .board-runtime-table input::placeholder,
+html.mobile-shell .board-runtime-table textarea::placeholder {
+  color: #6b7280 !important;
+  opacity: 1;
+}
+
+html.mobile-shell .board-top-select span {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #5d6775;
+}
+
+/* Chat settings and lists */
+html.mobile-shell .chat-pro-ventana .chat-audio-settings-title,
+html.mobile-shell .chat-pro-ventana .chat-audio-label,
+html.mobile-shell .chat-pro-ventana .chat-audio-field span,
+html.mobile-shell .chat-pro-ventana .usuario-item-pro,
+html.mobile-shell .chat-pro-ventana .chat-activo-nombre,
+html.mobile-shell .chat-pro-ventana .chat-activo-mensaje,
+html.mobile-shell .chat-pro-ventana .grupo-nombre,
+html.mobile-shell .chat-pro-ventana .grupo-desc {
+  color: var(--cp-text, #24384a) !important;
+  -webkit-text-fill-color: var(--cp-text, #24384a) !important;
+}
+
+html.mobile-shell .chat-pro-ventana select,
+html.mobile-shell .chat-pro-ventana input[type="range"] {
+  color: var(--cp-text, #24384a) !important;
+  -webkit-text-fill-color: var(--cp-text, #24384a) !important;
+}
+
+/* Sidebar active item */
+html.mobile-shell .sidebar-shell .nav-item.active {
+  background: rgba(255, 255, 255, 0.26) !important;
+  border: 1px solid rgba(255, 255, 255, 0.52) !important;
+  box-shadow: inset 4px 0 0 #7dd3fc, inset 0 1px 0 rgba(255, 255, 255, 0.14) !important;
+  transform: translateX(5px);
+}
+
+html.mobile-shell .sidebar-shell .nav-item.active .nav-item-label {
+  font-weight: 700 !important;
+  letter-spacing: 0.02em;
+}
+
+html.mobile-shell .sidebar-shell .nav-section.active > .nav-section-toggle {
+  color: #ffffff !important;
+  font-weight: 800;
+}
+
+html.mobile-shell .sidebar-shell .nav-section.active {
+  border-left: 3px solid #7dd3fc;
+  padding-left: 0.15rem;
+}
+
+/* Sidebar active area - collapsed rail icon-only */
+html.mobile-shell .sidebar-shell .sidebar-area-section.is-current-area > .nav-section-toggle,
+html.mobile-shell .sidebar-shell.collapsed .nav-section.active .nav-section-toggle,
+html.mobile-shell .sidebar-shell.collapsed .nav-section-toggle.active {
+  background: linear-gradient(135deg, rgba(56, 189, 248, 0.42) 0%, rgba(14, 165, 233, 0.28) 100%) !important;
+  border: 2px solid #7dd3fc !important;
+  box-shadow: 0 0 0 2px rgba(125, 211, 252, 0.38) !important;
+}
+
+html.mobile-shell .sidebar-shell.collapsed .nav-section.active::before,
+html.mobile-shell .sidebar-shell .sidebar-area-section.is-current-area::before {
+  content: "";
+  position: absolute;
+  left: -0.45rem;
+  top: 0.18rem;
+  bottom: 0.18rem;
+  width: 4px;
+  border-radius: 0 999px 999px 0;
+  background: #7dd3fc;
+  box-shadow: 0 0 10px rgba(125, 211, 252, 0.9);
+  z-index: 2;
+  pointer-events: none;
+}
+
+html.mobile-shell .sidebar-shell.collapsed .nav-section.active .nav-section-toggle-icon,
+html.mobile-shell .sidebar-shell.collapsed .nav-section-toggle.active .nav-section-toggle-icon,
+html.mobile-shell .sidebar-shell .sidebar-area-section.is-current-area .nav-section-toggle-icon {
+  filter: drop-shadow(0 0 6px rgba(125, 211, 252, 0.85));
+}
+
+@media (max-width: 720px) {
+  html.mobile-shell .board-table-clean,
+  html.mobile-shell .board-runtime-table {
+    min-width: 100% !important;
+    width: 100% !important;
+    table-layout: fixed;
+  }
+
+  html.mobile-shell .board-table-wrap,
+  html.mobile-shell .custom-board-table-wrap {
+    overflow-x: auto;
   }
 }

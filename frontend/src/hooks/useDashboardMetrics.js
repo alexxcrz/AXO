@@ -239,6 +239,7 @@ export function useDashboardMetrics({
         const reason = normalizePauseReason(entry?.reason || row?.lastPauseReason);
         if (!pausedAt) {
           return {
+            id: entry?.id || "",
             reason,
             pausedAt,
             resumedAt,
@@ -255,6 +256,7 @@ export function useDashboardMetrics({
         }
         if (resumedAt) {
           return {
+            id: entry?.id || "",
             reason,
             pausedAt,
             resumedAt,
@@ -270,6 +272,7 @@ export function useDashboardMetrics({
           };
         }
         return {
+          id: entry?.id || "",
           reason,
           pausedAt,
           resumedAt: null,
@@ -373,6 +376,7 @@ export function useDashboardMetrics({
         pauseReasons: pauseSummary.reasons,
         pauseLogEntries: pauseSummary.logs.map((entry) => ({
           ...entry,
+          activityLabel: rowActivityLabel || board.name,
           rowId: row.id,
           boardId: board.id,
           cleaningSite: navigationMeta.cleaningSite,
@@ -429,6 +433,7 @@ export function useDashboardMetrics({
         pauseReasons: pauseSummary.reasons,
         pauseLogEntries: pauseSummary.logs.map((entry) => ({
           ...entry,
+          activityLabel: rowActivityLabel || snapshot.boardName,
           rowId: row.id,
           boardId: resolvedSnapshotBoardId,
           cleaningSite: navigationMeta.cleaningSite,
