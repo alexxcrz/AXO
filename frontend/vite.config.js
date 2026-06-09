@@ -12,6 +12,17 @@ export default defineConfig({
     outDir: '../backend/frontend-dist',
     emptyOutDir: true,
     chunkSizeWarningLimit: 1024,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('node_modules/jspdf-autotable')) return 'jspdf-autotable';
+          if (id.includes('node_modules/jspdf')) return 'jspdf';
+          if (id.includes('node_modules/exceljs')) return 'exceljs';
+          if (id.includes('node_modules/html2canvas')) return 'html2canvas';
+          if (id.includes('node_modules/jsbarcode') || id.includes('node_modules/qrcode')) return 'barcode';
+        },
+      },
+    },
   },
   server: {
     host: '0.0.0.0',

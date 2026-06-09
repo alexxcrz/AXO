@@ -9,6 +9,7 @@ const PRODUCT_ORDER_STORAGE_PREFIX = "copmec_returns_recondition_product_order";
 const PRODUCT_WIDTH_STORAGE_PREFIX = "copmec_returns_recondition_product_width";
 import { Modal } from "../../components/Modal";
 import { findInventoryItemByQuery, normalizeKey, formatElapsedMs } from "../../utils/utilidades.jsx";
+import { loadJsPdfWithAutoTable } from "../../utils/jspdfLoader.js";
 
 const ACTIVE_TARIMA_STORAGE_PREFIX = "copmec_returns_recondition_active_tarima";
 const COMPLETED_BOXES_STORAGE_PREFIX = "copmec_returns_recondition_completed_boxes";
@@ -1437,8 +1438,7 @@ function ReturnsReconditionScannerInner({
 
   async function exportClosedBoxPdf(box, options = {}) {
     try {
-      const [{ jsPDF }, autoTableModule] = await Promise.all([import("jspdf"), import("jspdf-autotable")]);
-      const autoTable = autoTableModule.default || autoTableModule;
+      const { jsPDF, autoTable } = await loadJsPdfWithAutoTable();
       const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
       const marginX = 40;
       let y = 48;
@@ -1559,8 +1559,7 @@ function ReturnsReconditionScannerInner({
 
   async function exportTarimaPdf(tarima, boxes, options = {}) {
     try {
-      const [{ jsPDF }, autoTableModule] = await Promise.all([import("jspdf"), import("jspdf-autotable")]);
-      const autoTable = autoTableModule.default || autoTableModule;
+      const { jsPDF, autoTable } = await loadJsPdfWithAutoTable();
       const doc = new jsPDF({ orientation: "portrait", unit: "pt", format: "a4" });
       const marginX = 40;
       let y = 48;

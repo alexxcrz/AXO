@@ -1,6 +1,5 @@
 import { useEffect, useRef } from "react";
-import JsBarcode from "jsbarcode";
-import QRCode from "qrcode";
+import { loadJsBarcode, loadQRCode } from "./barcodeLoader.js";
 
 const JSBARCODE_FORMAT = {
   EAN13: "EAN13",
@@ -27,31 +26,47 @@ export default function RetailBarcode({ value, format = "CODE128", width = 200, 
   const isQr = String(format).toUpperCase() === "QR";
 
   useEffect(() => {
-    if (isQr || !svgRef.current) return;
-    const fmt = JSBARCODE_FORMAT[format] || "CODE128";
-    try {
-      JsBarcode(svgRef.current, sanitize(value, fmt), {
-        format: fmt,
-        displayValue: true,
-        height: Math.max(18, height - 16),
-        width: 2,
-        margin: 0,
-        fontSize: 11,
-        background: "#ffffff",
-      });
-    } catch {
+    if (isQr || !svgRef.current) return undefined;
+    let cancelled = false;
+
+    (async () => {
+      const JsBarcode = await loadJsBarcode();
+      if (cancelled || !svgRef.current) return;
+      const fmt = JSBARCODE_FORMAT[format] || "CODE128";
       try {
-        JsBarcode(svgRef.current, String(value || "000"), { format: "CODE128", height: Math.max(18, height - 16), width: 2, margin: 0, fontSize: 11, background: "#ffffff" });
+        JsBarcode(svgRef.current, sanitize(value, fmt), {
+          format: fmt,
+          displayValue: true,
+          height: Math.max(18, height - 16),
+          width: 2,
+          margin: 0,
+          fontSize: 11,
+          background: "#ffffff",
+        });
       } catch {
-        /* ignore */
+        try {
+          JsBarcode(svgRef.current, String(value || "000"), { format: "CODE128", height: Math.max(18, height - 16), width: 2, margin: 0, fontSize: 11, background: "#ffffff" });
+        } catch {
+          /* ignore */
+        }
       }
-    }
+    })();
+
+    return () => { cancelled = true; };
   }, [value, format, height, isQr]);
 
   useEffect(() => {
-    if (!isQr || !canvasRef.current) return;
+    if (!isQr || !canvasRef.current) return undefined;
+    let cancelled = false;
     const side = Math.max(40, Math.min(width, height));
-    QRCode.toCanvas(canvasRef.current, String(value || " "), { width: side, margin: 0 }, () => {});
+
+    (async () => {
+      const QRCode = await loadQRCode();
+      if (cancelled || !canvasRef.current) return;
+      QRCode.toCanvas(canvasRef.current, String(value || " "), { width: side, margin: 0 }, () => {});
+    })();
+
+    return () => { cancelled = true; };
   }, [value, width, height, isQr]);
 
   if (isQr) return <canvas ref={canvasRef} style={{ maxWidth: "100%", maxHeight: "100%" }} />;

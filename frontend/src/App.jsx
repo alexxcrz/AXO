@@ -40,23 +40,23 @@ import {
   Zap,
 } from "lucide-react";
 import { Modal } from "./components/Modal";
-import { BoardBuilderModal, BoardComponentStudioModal } from "./components/ModalesConstructorTableros";
-import GestionInventario from "./paginas/GestionInventario";
-import GestionTransporte from "./paginas/GestionTransporte";
-import GestionIncidencias from "./paginas/GestionIncidencias";
-import GestionUsuarios from "./paginas/GestionUsuarios";
-import HistorialSemanas from "./paginas/HistorialSemanas";
-import AuditoriasProcesosCompact from "./paginas/AuditoriasProcesosCompact";
-import MisTableros from "./paginas/MisTableros";
-import ConfiguracionSistema from "./paginas/ConfiguracionSistema";
-import PaginaNoEncontrada from "./paginas/PaginaNoEncontrada";
-import GestionRetail from "./paginas/GestionRetail";
-import PanelIndicadores from "./paginas/PanelIndicadores";
-import TablerosCreados from "./paginas/TablerosCreados";
-import BibliotecaPage from "./paginas/BibliotecaPage";
+const BoardBuilderModal = lazy(() => import("./components/ModalesConstructorTableros").then((m) => ({ default: m.BoardBuilderModal })));
+const BoardComponentStudioModal = lazy(() => import("./components/ModalesConstructorTableros").then((m) => ({ default: m.BoardComponentStudioModal })));
+const GestionInventario = lazy(() => import("./paginas/GestionInventario"));
+const GestionTransporte = lazy(() => import("./paginas/GestionTransporte"));
+const GestionIncidencias = lazy(() => import("./paginas/GestionIncidencias"));
+const GestionUsuarios = lazy(() => import("./paginas/GestionUsuarios"));
+const HistorialSemanas = lazy(() => import("./paginas/HistorialSemanas"));
+const AuditoriasProcesos = lazy(() => import("./paginas/AuditoriasProcesosCompact"));
+const MisTableros = lazy(() => import("./paginas/MisTableros"));
+const ConfiguracionSistema = lazy(() => import("./paginas/ConfiguracionSistema"));
+const PaginaNoEncontrada = lazy(() => import("./paginas/PaginaNoEncontrada"));
+const GestionRetail = lazy(() => import("./paginas/GestionRetail"));
+const PanelIndicadores = lazy(() => import("./paginas/PanelIndicadores"));
+const TablerosCreados = lazy(() => import("./paginas/TablerosCreados"));
+const BibliotecaPage = lazy(() => import("./paginas/BibliotecaPage"));
+const CopmecAIWidget = lazy(() => import("./components/CopmecAIWidget"));
 
-const AuditoriasProcesos = AuditoriasProcesosCompact;
-import CopmecAIWidget from "./components/CopmecAIWidget";
 import "./App.css";
 import "./app/uiContrast.css";
 
@@ -573,7 +573,7 @@ import { ES_MX_AREA_MODAL as AREA_T } from "./locale/esMXAreaModal.js";
 import { AppToastStack, AppNotificationCenter } from "./components/Notificaciones.jsx";
 import { InventoryLookupInput } from "./components/BuscadorInventario.jsx";
 import { io } from "socket.io-client";
-import ChatPro from "./components/ChatPro.jsx";
+const ChatPro = lazy(() => import("./components/ChatPro.jsx"));
 import { AlertModalProvider } from "./components/AlertModal.jsx";
 import {
   initNotificationService,
@@ -7193,7 +7193,8 @@ function App() { // NOSONAR
     if (!selectedCustomBoard) return null;
 
     const boardView = selectedCustomBoardDisplay || selectedCustomBoard;
-    const [{ jsPDF }, { default: autoTable }] = await Promise.all([import("jspdf"), import("jspdf-autotable")]);
+    const { loadJsPdfWithAutoTable } = await import("./utils/jspdfLoader.js");
+    const { jsPDF, autoTable } = await loadJsPdfWithAutoTable();
     const pdfColumns = getSelectedBoardPdfColumns(boardView);
     const body = getSelectedBoardPdfRows(boardView, pdfColumns);
     const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
@@ -8859,6 +8860,7 @@ function App() { // NOSONAR
         </div>
       </Modal>
 
+      <Suspense fallback={null}>
       <BoardBuilderModal
         open={boardBuilderModal.open}
         mode={boardBuilderModal.mode}
@@ -8915,6 +8917,7 @@ function App() { // NOSONAR
       />
 
       <BoardComponentStudioModal open={componentStudioOpen} mode={editingDraftColumnId ? "edit" : "create"} draft={controlBoardDraft} onChange={setControlBoardDraft} onClose={() => { setComponentStudioOpen(false); setEditingDraftColumnId(null); setControlBoardDraft((current) => ({ ...current, ...createEmptyFieldDraft() })); }} onConfirm={addDraftColumn} catalog={state.catalog} inventoryItems={state.inventoryItems} visibleUsers={visibleUsers} sectionOptions={boardSectionOptions} activityCategoryOptions={activityCatalogCategoryOptions} contextoConstructor={contextoConstructor} />
+      </Suspense>
 
       <Modal open={excelFormulaWizard.open} title="Asistente de fórmulas de Excel" confirmLabel="Aplicar mapeo" cancelLabel="Cerrar" onClose={() => setExcelFormulaWizard({ open: false, items: [] })} onConfirm={applyExcelFormulaWizard}>
         <div className="modal-form-grid">
@@ -9002,7 +9005,9 @@ function App() { // NOSONAR
 
       {currentUser ? (
         <AlertModalProvider>
-          <ChatPro socket={socketRef.current} user={currentUser} connectCount={socketConnectCount} />
+          <Suspense fallback={null}>
+            <ChatPro socket={socketRef.current} user={currentUser} connectCount={socketConnectCount} />
+          </Suspense>
         </AlertModalProvider>
       ) : null}
 
@@ -9520,7 +9525,9 @@ function App() { // NOSONAR
           )) : <p>No hay pausas registradas para esta actividad.</p>}
         </div>
       </Modal>
-      <CopmecAIWidget canUseAI={!!actionPermissions.useCopmecAI} isOpen={aiOpen} onClose={() => setAiOpen(false)} sidebarCollapsed={isSidebarCollapsed} />
+      <Suspense fallback={null}>
+        <CopmecAIWidget canUseAI={!!actionPermissions.useCopmecAI} isOpen={aiOpen} onClose={() => setAiOpen(false)} sidebarCollapsed={isSidebarCollapsed} />
+      </Suspense>
     </main>
   );
 }

@@ -1,6 +1,5 @@
-import { jsPDF } from "jspdf";
-import JsBarcode from "jsbarcode";
-import QRCode from "qrcode";
+import { loadJsPdf } from "../utils/jspdfLoader.js";
+import { loadJsBarcode, loadQRCode } from "./barcodeLoader.js";
 
 const JSBARCODE_FORMAT = {
   EAN13: "EAN13",
@@ -52,8 +51,10 @@ export function resolveLabelValue(source, ctx = {}) {
 async function barcodeDataUrl(el, value) {
   const isQr = String(el.barcodeFormat).toUpperCase() === "QR";
   if (isQr) {
+    const QRCode = await loadQRCode();
     return QRCode.toDataURL(String(value || " "), { margin: 0, width: 320 });
   }
+  const JsBarcode = await loadJsBarcode();
   const fmt = JSBARCODE_FORMAT[el.barcodeFormat] || "CODE128";
   const canvas = document.createElement("canvas");
   try {
@@ -69,6 +70,7 @@ async function barcodeDataUrl(el, value) {
 }
 
 export async function buildHuellaPdf(elements, ctx = {}, size = { widthMm: 100, heightMm: 150 }) {
+  const jsPDF = await loadJsPdf();
   const widthMm = size.widthMm || 100;
   const heightMm = size.heightMm || 150;
   const doc = new jsPDF({ unit: "mm", format: [widthMm, heightMm], orientation: heightMm >= widthMm ? "portrait" : "landscape" });
@@ -85,7 +87,6 @@ export async function buildHuellaPdf(elements, ctx = {}, size = { widthMm: 100, 
       doc.text(String(value), tx, el.y + fontSize * 0.34, { align, maxWidth: el.w });
     } else if (el.type === "barcode") {
       const value = el.source === "static" ? (el.text || "") : resolveLabelValue(el.source, ctx);
-      // eslint-disable-next-line no-await-in-loop
       const url = await barcodeDataUrl(el, value);
       if (url) doc.addImage(url, "PNG", el.x, el.y, el.w, el.height || 28);
     } else if (el.type === "list") {
@@ -112,7 +113,6 @@ export async function buildHuellaPdf(elements, ctx = {}, size = { widthMm: 100, 
         }
         if (el.showBarcode) {
           const bcValue = resolveItemValue(el.barcodeSource, it) || it.code;
-          // eslint-disable-next-line no-await-in-loop
           const url = await barcodeDataUrl({ barcodeFormat: el.barcodeFormat }, bcValue);
           if (url) doc.addImage(url, "PNG", el.x, cursorY, el.w, Math.max(3, Math.min(bcH, rowTop + rowH - cursorY)));
         }

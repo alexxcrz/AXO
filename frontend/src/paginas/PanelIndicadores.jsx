@@ -64,6 +64,7 @@ function getDashboardDatePopoverStyle(triggerElement) {
 
 import { formatMinutesToHourMinute, formatTime, getDashboardPeriodKey, normalizeBoardMultiSelectDetailValue, resolveDashboardInventoryRowMetrics } from "../utils/utilidades";
 import { createDashboardPdfContext, DASHBOARD_PDF_THEME, getDashboardPdfAreaAccent } from "../utils/dashboardPdfTheme";
+import { loadJsPdfWithAutoTable } from "../utils/jspdfLoader.js";
 import {
   appendGeneralAreaPanelsToPdf,
   buildDashboardPdfFileName,
@@ -1304,8 +1305,7 @@ export default function PanelIndicadores({ contexto }) {
 
     try {
       setIsExportingProductPdf(true);
-      const [{ jsPDF }, autoTableModule] = await Promise.all([import("jspdf"), import("jspdf-autotable")]);
-      const autoTable = autoTableModule.default || autoTableModule.autoTable;
+      const { jsPDF, autoTable } = await loadJsPdfWithAutoTable();
       const pdf = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
       const pdfCtx = createDashboardPdfContext(pdf, {
         areaLabel: activeAreaLabel,
@@ -1393,8 +1393,7 @@ export default function PanelIndicadores({ contexto }) {
           paused: dashboardMetrics.paused,
         });
       const exportGeneralAreaPanelsForPdf = showGlobalAreaFilter ? generalAreaDashboardPanels : [];
-      const [{ jsPDF }, autoTableModule] = await Promise.all([import("jspdf"), import("jspdf-autotable")]);
-      const autoTable = autoTableModule.default || autoTableModule.autoTable;
+      const { jsPDF, autoTable } = await loadJsPdfWithAutoTable();
       const pdf = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
       const marginX = 28;
       const pageWidth = pdf.internal.pageSize.getWidth();
