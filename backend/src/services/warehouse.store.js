@@ -3853,17 +3853,44 @@ export function findWarehouseUserById(userId) {
   return getRawWarehouseState().users.find((user) => user.id === userId) || null;
 }
 
+const WAREHOUSE_BOARD_OPERATION_ACTION_IDS = new Set([
+  "createBoardRow",
+  "deleteBoardRow",
+  "editFinishedBoardRow",
+  "boardWorkflow",
+  "exportBoardExcel",
+  "previewBoardPdf",
+  "exportBoardPdf",
+]);
+
+function hasGrantedWarehouseBoardOperationalAccess(board, user) {
+  if (!board || !user) return false;
+  const ownerId = String(board.ownerId || board.createdById || "").trim();
+  const visibility = resolveBoardVisibilitySnapshot(board, ownerId);
+  const userId = String(user.id || "").trim();
+  if (board.createdById === userId || board.ownerId === userId) return true;
+  if (visibility.visibilityType === "users" && visibility.accessUserIds.includes(userId)) return true;
+  if (visibility.visibilityType === "all") return true;
+  if (visibility.visibilityType === "department") {
+    const userArea = normalizeAreaOption(user.department || user.area || "");
+    return Boolean(userArea) && visibility.sharedDepartments.includes(userArea);
+  }
+  return false;
+}
+
 export function canManageWarehouseBoard(user, board) {
   if (!user || !board) return false;
   const normalizedRole = normalizeRole(user.role);
   if (normalizedRole === ROLE_LEAD) return true;
-  if (!doesBoardMatchWarehouseUserArea(board, user)) return false;
-  if (board.createdById === user.id || board.ownerId === user.id) return true;
-  if (board.visibilityType === "users" && (board.accessUserIds || []).includes(user.id)) return true;
-  if (board.visibilityType === "all") return true;
-  if (board.visibilityType === "department") {
-    const userArea = normalizeAreaOption(user.department || user.area || "");
-    return Boolean(userArea) && (board.sharedDepartments || []).includes(userArea);
+  if (hasGrantedWarehouseBoardOperationalAccess(board, user)) return true;
+  if (doesBoardMatchWarehouseUserArea(board, user)) {
+    const ownerId = String(board.ownerId || board.createdById || "").trim();
+    const visibility = resolveBoardVisibilitySnapshot(board, ownerId);
+    if (visibility.visibilityType === "all") return true;
+    if (visibility.visibilityType === "department") {
+      const userArea = normalizeAreaOption(user.department || user.area || "");
+      return Boolean(userArea) && visibility.sharedDepartments.includes(userArea);
+    }
   }
   return false;
 }
@@ -3996,6 +4023,14 @@ export function canUserDoBoardAction(user, boardId, actionId) {
   const board = (currentState.controlBoards || []).find((item) => item.id === boardId);
   if (!board) return false;
   if (!canManageWarehouseBoard(user, board)) return false;
+  if (hasGrantedWarehouseBoardOperationalAccess(board, user) && WAREHOUSE_BOARD_OPERATION_ACTION_IDS.has(actionId)) {
+    return true;
+  }
+  const boardPermissions = board.permissions;
+  if (boardPermissions?.isEnabled) {
+    const actionEntry = boardPermissions.actions?.[actionId];
+    if (userMatchesPermissionEntry(user, actionEntry)) return true;
+  }
   return canUserDoWarehouseAction(user, actionId, currentState.permissions);
 }
 
@@ -7272,11 +7307,28 @@ export function duplicateWarehouseBoard(auth, boardId, includeRows = false) {
 export function canEditWarehouseBoardRow(user, board, row, permissions, actionId = "createBoardRow") {
   if (!user || !board || !row) return false;
   if (!canManageWarehouseBoard(user, board)) return false;
-  // Lead always has full edit access, including finished rows.
   if (normalizeRole(user.role) === ROLE_LEAD) return true;
-  if (row.status === "Terminado") return false;
-  if (!canUserDoWarehouseAction(user, actionId, permissions)) return false;
-  return true;
+  if (row.status === "Terminado") {
+    if (canUserDoWarehouseAction(user, "editFinishedBoardRow", permissions)) return true;
+    if (hasGrantedWarehouseBoardOperationalAccess(board, user) && WAREHOUSE_BOARD_OPERATION_ACTION_IDS.has("editFinishedBoardRow")) {
+      return true;
+    }
+    const boardPermissions = board.permissions;
+    if (boardPermissions?.isEnabled) {
+      const finishedEntry = boardPermissions.actions?.editFinishedBoardRow;
+      if (userMatchesPermissionEntry(user, finishedEntry)) return true;
+    }
+    return canUserDoWarehouseAction(user, "editHistoryRecords", permissions);
+  }
+  if (hasGrantedWarehouseBoardOperationalAccess(board, user) && WAREHOUSE_BOARD_OPERATION_ACTION_IDS.has(actionId)) {
+    return true;
+  }
+  const boardPermissions = board.permissions;
+  if (boardPermissions?.isEnabled) {
+    const actionEntry = boardPermissions.actions?.[actionId];
+    if (userMatchesPermissionEntry(user, actionEntry)) return true;
+  }
+  return canUserDoWarehouseAction(user, actionId, permissions);
 }
 
 export function canOperateWarehouseBoardRow(user, board, row, permissions) {
@@ -7294,7 +7346,7 @@ export function createWarehouseBoardRow(auth, boardId) {
   if (!board) {
     return { ok: false, reason: "board_not_found" };
   }
-  if (!canManageWarehouseBoard(currentUser, board) || !canUserDoWarehouseAction(currentUser, "createBoardRow", currentState.permissions)) {
+  if (!canUserDoBoardAction(currentUser, boardId, "createBoardRow")) {
     return { ok: false, reason: "forbidden" };
   }
 
@@ -7628,7 +7680,7 @@ export function bulkImportWarehouseBoardRows(auth, boardId, rowsPayload) {
   if (!board) {
     return { ok: false, reason: "board_not_found" };
   }
-  if (!canManageWarehouseBoard(currentUser, board) || !canUserDoWarehouseAction(currentUser, "createBoardRow", currentState.permissions)) {
+  if (!canUserDoBoardAction(currentUser, boardId, "createBoardRow")) {
     return { ok: false, reason: "forbidden" };
   }
 
@@ -7702,8 +7754,32 @@ function findBoardHistorySnapshotAndRow(state, snapshotId, rowId) {
   return { snapshotIndex, rowIndex, snapshot, row };
 }
 
-function buildPatchedBoardHistoryRow(row, patch = {}, fields = [], snapshot = {}) {
+function buildBoardHistoryBoardLike(snapshot = {}) {
+  return {
+    ...snapshot,
+    id: String(snapshot.boardId || snapshot.id || "").trim(),
+    name: String(snapshot.boardName || snapshot.name || "Tablero").trim() || "Tablero",
+  };
+}
+
+function canPatchBoardHistoryRow(user, snapshot, row, permissions, patch = {}) {
+  if (!user || !snapshot || !row) return false;
+  if (normalizeRole(user.role) === ROLE_LEAD) return true;
+  if (canEditBoardHistoryRecords(user, permissions)) return true;
+
+  const boardLike = buildBoardHistoryBoardLike(snapshot);
+  const isWorkflowPatch = hasOwn(patch, "status") || hasOwn(patch, "lastPauseReason");
+  if (isWorkflowPatch) {
+    if (row.status !== "Terminado" || hasOwn(patch, "status")) {
+      return canOperateWarehouseBoardRow(user, boardLike, row, permissions);
+    }
+  }
+  return canEditWarehouseBoardRow(user, boardLike, row, permissions);
+}
+
+function buildPatchedBoardHistoryRow(row, patch = {}, fields = [], snapshot = {}, operationalSettings = {}) {
   const stats = { rowsChanged: 0, valuesAligned: 0, isoRebuilt: 0 };
+  const pauseControl = operationalSettings?.pauseControl;
   const nextRow = {
     ...row,
     values: {
@@ -7712,13 +7788,79 @@ function buildPatchedBoardHistoryRow(row, patch = {}, fields = [], snapshot = {}
     },
   };
 
-  if (hasOwn(patch, "status")) nextRow.status = String(patch.status || "").trim() || row.status;
+  if (hasOwn(patch, "status")) {
+    const now = new Date();
+    const nowIso = now.toISOString();
+    const hours = String(now.getHours()).padStart(2, "0");
+    const minutes = String(now.getMinutes()).padStart(2, "0");
+    const seconds = String(now.getSeconds()).padStart(2, "0");
+    const nowTime = `${hours}:${minutes}:${seconds}`;
+
+    if (patch.status === "En curso") {
+      (fields || []).forEach((field) => {
+        if (field.type !== "time") return;
+        const normalizedLabel = normalizeKey(field.label || "");
+        const currentValue = String(nextRow.values?.[field.id] || "").trim();
+        if ((normalizedLabel.includes("inicio") || normalizedLabel.includes("start")) && !currentValue) {
+          nextRow.values[field.id] = nowTime;
+        }
+      });
+      nextRow.status = patch.status;
+      nextRow.startTime = nextRow.startTime || nowIso;
+      nextRow.endTime = row.status === "Terminado" ? null : nextRow.endTime;
+      nextRow.lastResumedAt = nowIso;
+      nextRow.pauseStartedAt = null;
+      nextRow.pauseAffectsTimer = false;
+      nextRow.pauseAuthorizedSeconds = 0;
+    } else if (patch.status === "Pausado") {
+      nextRow.status = patch.status;
+      nextRow.accumulatedSeconds = updateElapsedForFinish(row, nowIso, pauseControl, row?.cleaningSite);
+      nextRow.lastResumedAt = null;
+      nextRow.pauseStartedAt = nowIso;
+    } else if (patch.status === "Terminado") {
+      (fields || []).forEach((field) => {
+        if (field.type !== "time") return;
+        const normalizedLabel = normalizeKey(field.label || "");
+        if (normalizedLabel.includes("fin") || normalizedLabel.includes("final") || normalizedLabel.includes("end")) {
+          nextRow.values[field.id] = nowTime;
+        }
+      });
+      nextRow.status = patch.status;
+      nextRow.endTime = nowIso;
+      nextRow.accumulatedSeconds = String(row.status || "") === "Pausado"
+        ? Math.max(0, Number(row.accumulatedSeconds || 0))
+        : Math.max(0, updateElapsedForFinish(row, nowIso, pauseControl, row?.cleaningSite));
+      nextRow.lastResumedAt = null;
+      nextRow.pauseStartedAt = null;
+      nextRow.pauseAffectsTimer = false;
+      nextRow.pauseAuthorizedSeconds = 0;
+    } else {
+      nextRow.status = String(patch.status || "").trim() || row.status;
+    }
+  }
+
+  if (hasOwn(patch, "lastPauseReason")) nextRow.lastPauseReason = String(patch.lastPauseReason || "").trim();
   if (hasOwn(patch, "startTime")) nextRow.startTime = String(patch.startTime || "").trim() || null;
   if (hasOwn(patch, "endTime")) nextRow.endTime = String(patch.endTime || "").trim() || null;
   if (hasOwn(patch, "accumulatedSeconds")) {
     nextRow.accumulatedSeconds = Math.max(0, Number(patch.accumulatedSeconds || 0));
   }
-  if (hasOwn(patch, "responsibleId")) {
+  if (hasOwn(patch, "lastResumedAt")) nextRow.lastResumedAt = patch.lastResumedAt || null;
+  if (hasOwn(patch, "pauseStartedAt")) nextRow.pauseStartedAt = patch.pauseStartedAt || null;
+  if (hasOwn(patch, "pauseAffectsTimer")) nextRow.pauseAffectsTimer = Boolean(patch.pauseAffectsTimer);
+  if (hasOwn(patch, "pauseAuthorizedSeconds")) {
+    nextRow.pauseAuthorizedSeconds = Math.max(0, Number(patch.pauseAuthorizedSeconds || 0));
+  }
+  if (hasOwn(patch, "operationalInspectionRecord")) {
+    nextRow.operationalInspectionRecord = patch.operationalInspectionRecord && typeof patch.operationalInspectionRecord === "object"
+      ? JSON.parse(JSON.stringify(patch.operationalInspectionRecord))
+      : null;
+  }
+  if (hasOwn(patch, "responsibleIds")) {
+    const responsibleIds = normalizeBoardResponsibleIds(patch.responsibleIds, "");
+    nextRow.responsibleIds = responsibleIds;
+    nextRow.responsibleId = responsibleIds[0] || "";
+  } else if (hasOwn(patch, "responsibleId")) {
     const responsibleId = String(patch.responsibleId || "").trim();
     nextRow.responsibleId = responsibleId;
     nextRow.responsibleIds = responsibleId ? [responsibleId] : [];
@@ -7735,16 +7877,17 @@ export function patchBoardHistoryRow(auth, snapshotId, rowId, patch = {}) {
   }
 
   const currentState = getRawWarehouseState();
-  if (!canEditBoardHistoryRecords(currentUser, currentState.permissions)) {
-    return { ok: false, reason: "forbidden" };
-  }
-
   const { snapshotIndex, rowIndex, snapshot, row } = findBoardHistorySnapshotAndRow(currentState, snapshotId, rowId);
   if (!snapshot) return { ok: false, reason: "snapshot_not_found" };
   if (!row) return { ok: false, reason: "row_not_found" };
 
+  if (!canPatchBoardHistoryRow(currentUser, snapshot, row, currentState.permissions, patch)) {
+    return { ok: false, reason: "forbidden" };
+  }
+
   const fields = Array.isArray(snapshot.fields) ? snapshot.fields : [];
-  const nextRow = buildPatchedBoardHistoryRow(row, patch, fields, snapshot);
+  const operationalSettings = normalizeSystemOperationalSettings(currentState.system?.operational);
+  const nextRow = buildPatchedBoardHistoryRow(row, patch, fields, snapshot, operationalSettings);
   const nextSnapshot = {
     ...snapshot,
     rows: snapshot.rows.map((entry, index) => (index === rowIndex ? nextRow : entry)),

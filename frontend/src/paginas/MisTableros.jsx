@@ -357,6 +357,8 @@ export default function MisTableros({ contexto }) {
     setSelectedCustomBoardViewId,
     selectedCustomBoardRowId,
     isHistoricalCustomBoardView,
+    isHistoricalBoardReadOnly,
+    canEditHistoricalBoardWeeks,
     canChangeSelectedBoardOperationalContext,
     customBoardMetrics: _customBoardMetrics,
     StatTile,
@@ -393,6 +395,7 @@ export default function MisTableros({ contexto }) {
     InventoryLookupInput,
     updateBoardRowValue,
     updateBoardRowTimeOverride,
+    getBoardRowPatchEndpoint,
     visibleUsers,
     requestJson,
     applyRemoteWarehouseState,
@@ -1084,10 +1087,13 @@ export default function MisTableros({ contexto }) {
         ...(recordPayload && typeof recordPayload === "object" ? recordPayload : {}),
       };
 
-      const patchedState = await requestJson(`/warehouse/boards/${selectedCustomBoard.id}/rows/${inspectionModalState.rowId}`, {
-        method: "PATCH",
-        body: JSON.stringify({ operationalInspectionRecord: checklistRecord }),
-      });
+      const patchedState = await requestJson(
+        getBoardRowPatchEndpoint(selectedCustomBoard.id, inspectionModalState.rowId),
+        {
+          method: "PATCH",
+          body: JSON.stringify({ operationalInspectionRecord: checklistRecord }),
+        },
+      );
       applyRemoteWarehouseState(patchedState, setState, setLoginDirectory, skipNextSyncRef, setSyncStatus);
 
       if (shouldFinalize) {
@@ -1125,27 +1131,50 @@ export default function MisTableros({ contexto }) {
       .filter(Boolean)));
     const nextResponsibleId = normalizedResponsibleIds[0] || "";
 
-    setState((current) => ({
-      ...current,
-      controlBoards: (current.controlBoards || []).map((board) => (
-        board.id !== selectedCustomBoard.id
-          ? board
-          : {
-              ...board,
-              rows: (board.rows || []).map((row) => (
-                row.id !== rowId
-                  ? row
-                  : {
-                      ...row,
-                      responsibleId: nextResponsibleId,
-                      responsibleIds: normalizedResponsibleIds,
-                    }
-              )),
-            }
-      )),
-    }));
+    if (isHistoricalCustomBoardView && selectedCustomBoardSnapshot) {
+      const snapshotId = selectedCustomBoardSnapshot.id;
+      setState((current) => ({
+        ...current,
+        boardWeekHistory: (current.boardWeekHistory || []).map((snapshot) => (
+          snapshot.id !== snapshotId
+            ? snapshot
+            : {
+                ...snapshot,
+                rows: (snapshot.rows || []).map((row) => (
+                  row.id !== rowId
+                    ? row
+                    : {
+                        ...row,
+                        responsibleId: nextResponsibleId,
+                        responsibleIds: normalizedResponsibleIds,
+                      }
+                )),
+              }
+        )),
+      }));
+    } else {
+      setState((current) => ({
+        ...current,
+        controlBoards: (current.controlBoards || []).map((board) => (
+          board.id !== selectedCustomBoard.id
+            ? board
+            : {
+                ...board,
+                rows: (board.rows || []).map((row) => (
+                  row.id !== rowId
+                    ? row
+                    : {
+                        ...row,
+                        responsibleId: nextResponsibleId,
+                        responsibleIds: normalizedResponsibleIds,
+                      }
+                )),
+              }
+        )),
+      }));
+    }
 
-    requestJson(`/warehouse/boards/${selectedCustomBoard.id}/rows/${rowId}`, {
+    requestJson(getBoardRowPatchEndpoint(selectedCustomBoard.id, rowId), {
       method: "PATCH",
       body: JSON.stringify({ responsibleIds: normalizedResponsibleIds, responsibleId: nextResponsibleId }),
     }).then((remoteState) => {
@@ -1332,9 +1361,10 @@ export default function MisTableros({ contexto }) {
                   <span className="chip">{isHistoricalCustomBoardView ? selectedCustomBoardSnapshot?.weekName : "Operación activa"}</span>
                 </div>
               </div>
-              <div className="toolbar-actions custom-board-toolbar-actions board-pdf-hide">
+              <div className="custom-board-header-controls board-pdf-hide">
+              <div className="toolbar-actions custom-board-toolbar-actions">
                 {filteredVisibleControlBoards.length > 1 ? (
-                  <label className="board-top-select min-width">
+                  <label className="board-top-select min-width board-board-select-inline">
                     <span>Tablero</span>
                     <select value={selectedCustomBoard.id} onChange={(event) => {
                       setSelectedCustomBoardId(event.target.value);
@@ -1392,7 +1422,7 @@ export default function MisTableros({ contexto }) {
                   </label>
                 ) : null}
               </div>
-                <div className="custom-board-actions-menu-shell" ref={customBoardActionsMenuRef}>
+              <div className="custom-board-actions-menu-shell" ref={customBoardActionsMenuRef}>
                   <button
                     type="button"
                     className="primary-button custom-board-add-row-button"
@@ -1453,7 +1483,8 @@ export default function MisTableros({ contexto }) {
                     </div>,
                     document.body
                   ) : null}
-                </div>
+              </div>
+              </div>
             </div>
 
             <div className="board-meta-inline board-meta-inline-header">
@@ -1464,7 +1495,12 @@ export default function MisTableros({ contexto }) {
               {isHistoricalCustomBoardView ? <span>Corte · {formatDate(selectedCustomBoardSnapshot?.startDate)} - {formatDate(selectedCustomBoardSnapshot?.endDate)}</span> : null}
             </div>
             {!weekdayAllowedBySystemSchedule && showCleaningNaveSelector ? <p className="validation-text">La nave {cleaningNaveValue} no tiene actividades configuradas para este día en la semana seleccionada.</p> : null}
-            {isHistoricalCustomBoardView ? <p className="subtle-line">Vista histórica en solo lectura. El tablero activo ya quedó limpio para la semana actual.</p> : null}
+            {isHistoricalBoardReadOnly ? (
+              <p className="subtle-line">Vista histórica en solo lectura. El tablero activo ya quedó limpio para la semana actual.</p>
+            ) : null}
+            {canEditHistoricalBoardWeeks ? (
+              <p className="subtle-line">Semana cerrada con edición habilitada. Puedes corregir registros o terminar actividades que quedaron pendientes.</p>
+            ) : null}
             <p className="required-legend"><span className="required-mark" aria-hidden="true">*</span> obligatorio</p>
 
             {boardLooksReturnsRecondition ? (
@@ -1481,7 +1517,7 @@ export default function MisTableros({ contexto }) {
                 setSyncStatus={setSyncStatus}
                 setBoardRuntimeFeedback={setBoardRuntimeFeedback}
                 operationalWorkHours={effectiveWorkHours}
-                disabled={isHistoricalCustomBoardView}
+                disabled={isHistoricalBoardReadOnly}
               />
             ) : null}
 
@@ -1527,11 +1563,12 @@ export default function MisTableros({ contexto }) {
                 <tbody>
                   {visibleRows.map((row) => {
                     const isLeadPrincipal = Boolean(canManageDashboardState);
-                    const rowCaptureEnabled = !isHistoricalCustomBoardView && (isLeadPrincipal || canEditBoardRowRecord(currentUser, selectedCustomBoard, row, normalizedPermissions));
-                    const rowWorkflowEnabled = !isHistoricalCustomBoardView && (isLeadPrincipal || canOperateBoardRowRecord(currentUser, selectedCustomBoard, row, normalizedPermissions));
+                    const rowCaptureEnabled = !isHistoricalBoardReadOnly && (isLeadPrincipal || canEditBoardRowRecord(currentUser, selectedCustomBoard, row, normalizedPermissions));
+                    const rowWorkflowEnabled = !isHistoricalBoardReadOnly && (isLeadPrincipal || canOperateBoardRowRecord(currentUser, selectedCustomBoard, row, normalizedPermissions));
                     const canDeleteBoardRows = Boolean(selectedBoardActionPermissions.deleteBoardRow) || isLeadPrincipal;
                     const rowDeleteEnabled = canDeleteBoardRows
                       && !isHistoricalCustomBoardView
+                      && !isHistoricalBoardReadOnly
                       && (isLeadPrincipal || (row.status !== STATUS_FINISHED && canEditBoardRowRecord(currentUser, selectedCustomBoard, row, normalizedPermissions)));
                     const isFinishedRow = row.status === STATUS_FINISHED;
                     const rowSlaReferenceNow = isFinishedRow && row.endTime ? new Date(row.endTime).getTime() : realtimeNow;
@@ -1539,8 +1576,8 @@ export default function MisTableros({ contexto }) {
                       ? evaluateBoardRowSla(boardView, row, catalogMap, rowSlaReferenceNow, pauseState)
                       : null;
                     const rowFieldEditable = rowCaptureEnabled;
-                    const rowAssigneeEditable = !isHistoricalCustomBoardView;
-                    const rowDisplayReadOnly = isHistoricalCustomBoardView;
+                    const rowAssigneeEditable = !isHistoricalBoardReadOnly;
+                    const rowDisplayReadOnly = isHistoricalBoardReadOnly;
                     const canStartRow = row.status === STATUS_PENDING || row.status === STATUS_PAUSED;
                     const canPauseRow = row.status === STATUS_RUNNING;
                     const checklistTemplateForRow = resolveChecklistTemplateForActivity(getRowActivityLabel(row));

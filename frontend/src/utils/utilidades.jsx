@@ -3958,16 +3958,41 @@ export function canUserAccessTemplate(template, user) {
   return false;
 }
 
+function matchesPermissionGrantEntry(user, entry) {
+  if (!user || !entry) return false;
+  const normalizedRole = normalizeRole(user.role);
+  if (Array.isArray(entry.roles) && entry.roles.includes(normalizedRole)) return true;
+  if (Array.isArray(entry.userIds) && entry.userIds.includes(user.id)) return true;
+  const department = normalizeAreaOption(getUserArea(user));
+  if (department && Array.isArray(entry.departments) && entry.departments.includes(department)) return true;
+  return false;
+}
+
+export function hasGrantedBoardOperationalAccess(board, user) {
+  if (!board || !user) return false;
+  const visibility = getNormalizedBoardVisibility(board);
+  const userId = String(user.id || "").trim();
+  if (board.createdById === userId || board.ownerId === userId) return true;
+  if (visibility.visibilityType === "users" && visibility.accessUserIds.includes(userId)) return true;
+  if (visibility.visibilityType === "all") return true;
+  if (visibility.visibilityType === "department") {
+    const userArea = normalizeAreaOption(getUserArea(user));
+    return Boolean(userArea) && visibility.sharedDepartments.includes(userArea);
+  }
+  return false;
+}
+
 export function canManageBoard(user, board) {
   if (!user || !board) return false;
-  if (user.role === ROLE_LEAD) return true;
-  if (!doesBoardMatchUserArea(board, user)) return false;
-  if (board.createdById === user.id || board.ownerId === user.id) return true;
-  if (board.visibilityType === "users" && (board.accessUserIds || []).includes(user.id)) return true;
-  if (board.visibilityType === "all") return true;
-  if (board.visibilityType === "department") {
-    const userArea = normalizeAreaOption(getUserArea(user));
-    return Boolean(userArea) && (board.sharedDepartments || []).includes(userArea);
+  if (normalizeRole(user.role) === ROLE_LEAD) return true;
+  if (hasGrantedBoardOperationalAccess(board, user)) return true;
+  if (doesBoardMatchUserArea(board, user)) {
+    const visibility = getNormalizedBoardVisibility(board);
+    if (visibility.visibilityType === "all") return true;
+    if (visibility.visibilityType === "department") {
+      const userArea = normalizeAreaOption(getUserArea(user));
+      return Boolean(userArea) && visibility.sharedDepartments.includes(userArea);
+    }
   }
   return false;
 }
@@ -3986,14 +4011,30 @@ export function canDoBoardAction(user, board) {
   return canManageBoard(user, board);
 }
 
+export function canDoBoardActionForUser(user, board, actionId, globalPermissions) {
+  if (!user || !board || !actionId) return false;
+  if (normalizeRole(user.role) === ROLE_LEAD) return true;
+  if (!canManageBoard(user, board)) return false;
+  if (hasGrantedBoardOperationalAccess(board, user) && BOARD_PERMISSION_ACTION_IDS.has(actionId)) {
+    return true;
+  }
+  const boardPermissions = board.permissions;
+  if (boardPermissions?.isEnabled) {
+    const actionEntry = boardPermissions.actions?.[actionId];
+    if (matchesPermissionGrantEntry(user, actionEntry)) return true;
+  }
+  return canDoAction(user, actionId, globalPermissions);
+}
+
 export function canEditBoardRowRecord(user, board, row, permissions, actionId = "createBoardRow") {
   if (!user || !board || !row) return false;
-  if (!canDoBoardAction(user, board)) return false;
-  // Lead always has full row edit access on boards they can manage.
+  if (!canManageBoard(user, board)) return false;
   if (normalizeRole(user.role) === ROLE_LEAD) return true;
-  if (row.status === STATUS_FINISHED) return false;
-  if (!canDoAction(user, actionId, permissions)) return false;
-  return true;
+  if (row.status === STATUS_FINISHED) {
+    return canDoBoardActionForUser(user, board, "editFinishedBoardRow", permissions)
+      || canDoAction(user, "editHistoryRecords", permissions);
+  }
+  return canDoBoardActionForUser(user, board, actionId, permissions);
 }
 
 export function canOperateBoardRowRecord(user, board, row, permissions) {

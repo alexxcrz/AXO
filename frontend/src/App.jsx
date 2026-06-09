@@ -470,6 +470,8 @@ import {
 
   canDoBoardAction,
 
+  canDoBoardActionForUser,
+
   canEditBoardRowRecord,
 
   canOperateBoardRowRecord,
@@ -619,6 +621,7 @@ function App() { // NOSONAR
     open: false,
     boardId: null,
     rowId: null,
+    historySnapshotId: null,
     reason: "",
     customReason: "",
     error: "",
@@ -3407,21 +3410,10 @@ function App() { // NOSONAR
   const visibleControlBoards = useMemo(() => {
     if (!currentUser) return [];
     const canViewHistoricalBoardScopes = canDoAction(currentUser, "viewHistoricalBoardScopes", normalizedPermissions);
-    return (state.controlBoards || []).filter((board) => {
-      // Simple area matching based on shared departments or owner area
-      if (activeAreaScopes.length > 0) {
-        const boardAreas = [
-          ...(board?.settings?.ownerArea ? [board.settings.ownerArea] : []),
-          ...(board?.sharedDepartments || []),
-        ];
-        const hasMatchingArea = boardAreas.some((area) => 
-          activeAreaScopes.some((selectedArea) => normalizeAreaOption(area) === normalizeAreaOption(selectedArea))
-        );
-        if (!hasMatchingArea) return false;
-      }
-      return canViewHistoricalBoardScopes || getBoardVisibleToUser(board, currentUser);
-    });
-  }, [activeAreaScopes, currentUser, normalizedPermissions, state.controlBoards]);
+    return (state.controlBoards || []).filter((board) => (
+      canViewHistoricalBoardScopes || getBoardVisibleToUser(board, currentUser)
+    ));
+  }, [currentUser, normalizedPermissions, state.controlBoards]);
 
   const filteredVisibleControlBoards = useMemo(() => {
     const term = customBoardSearch.trim().toLowerCase();
@@ -3437,21 +3429,10 @@ function App() { // NOSONAR
   const visibleBoardHistorySnapshots = useMemo(() => {
     if (!currentUser) return [];
     const canViewHistoricalBoardScopes = canDoAction(currentUser, "viewHistoricalBoardScopes", normalizedPermissions);
-    return (state.boardWeekHistory || []).filter((snapshot) => {
-      // Simple area matching based on shared departments or owner area
-      if (activeAreaScopes.length > 0) {
-        const snapshotAreas = [
-          ...(snapshot?.settings?.ownerArea ? [snapshot.settings.ownerArea] : []),
-          ...(snapshot?.sharedDepartments || []),
-        ];
-        const hasMatchingArea = snapshotAreas.some((area) => 
-          activeAreaScopes.some((selectedArea) => normalizeAreaOption(area) === normalizeAreaOption(selectedArea))
-        );
-        if (!hasMatchingArea) return false;
-      }
-      return canViewHistoricalBoardScopes || getBoardVisibleToUser(snapshot, currentUser);
-    });
-  }, [activeAreaScopes, currentUser, normalizedPermissions, state.boardWeekHistory]);
+    return (state.boardWeekHistory || []).filter((snapshot) => (
+      canViewHistoricalBoardScopes || getBoardVisibleToUser(snapshot, currentUser)
+    ));
+  }, [currentUser, normalizedPermissions, state.boardWeekHistory]);
 
   const selectedCustomBoardHistoryOptions = useMemo(() => {
     if (!selectedCustomBoard) return [];
@@ -3467,6 +3448,18 @@ function App() { // NOSONAR
 
   const isHistoricalCustomBoardView = Boolean(selectedCustomBoardSnapshot);
 
+  const canEditHistoricalBoardWeeks = useMemo(() => {
+    if (!isHistoricalCustomBoardView || !currentUser) return false;
+    if (canManageDashboardState) return true;
+    if (canDoAction(currentUser, "editHistoryRecords", normalizedPermissions)) return true;
+    if (canDoAction(currentUser, "manageWeeks", normalizedPermissions)) return true;
+    if (!selectedCustomBoard) return false;
+    return canDoBoardActionForUser(currentUser, selectedCustomBoard, "boardWorkflow", normalizedPermissions)
+      || canDoBoardActionForUser(currentUser, selectedCustomBoard, "createBoardRow", normalizedPermissions);
+  }, [isHistoricalCustomBoardView, currentUser, canManageDashboardState, normalizedPermissions, selectedCustomBoard]);
+
+  const isHistoricalBoardReadOnly = isHistoricalCustomBoardView && !canEditHistoricalBoardWeeks;
+
   const selectedCustomBoardDisplay = useMemo(
     () => selectedCustomBoardSnapshot || selectedCustomBoard,
     [selectedCustomBoard, selectedCustomBoardSnapshot],
@@ -3478,7 +3471,10 @@ function App() { // NOSONAR
   );
 
   const selectedBoardActionPermissions = useMemo(
-    () => Object.fromEntries(BOARD_PERMISSION_ACTIONS.map((item) => [item.id, canDoBoardAction(currentUser, selectedCustomBoard) && canDoAction(currentUser, item.id, normalizedPermissions)])),
+    () => Object.fromEntries(BOARD_PERMISSION_ACTIONS.map((item) => [
+      item.id,
+      canDoBoardActionForUser(currentUser, selectedCustomBoard, item.id, normalizedPermissions),
+    ])),
     [currentUser, normalizedPermissions, selectedCustomBoard],
   );
 
@@ -3487,8 +3483,8 @@ function App() { // NOSONAR
       return false;
     }
 
-    return canDoAction(currentUser, "boardWorkflow", normalizedPermissions)
-      || canDoAction(currentUser, "saveBoard", normalizedPermissions);
+    return canDoBoardActionForUser(currentUser, selectedCustomBoard, "boardWorkflow", normalizedPermissions)
+      || canDoBoardActionForUser(currentUser, selectedCustomBoard, "saveBoard", normalizedPermissions);
   }, [currentUser, normalizedPermissions, selectedCustomBoard]);
 
   const extraSystemBoardTemplates = useMemo(() => EXTRA_SYSTEM_BOARD_TEMPLATES, []);
@@ -4037,13 +4033,18 @@ function App() { // NOSONAR
   }
 
   function openBoardPauseModal(boardId, rowId) {
-    const board = (state.controlBoards || []).find((item) => item.id === boardId);
+    const permissionBoard = selectedCustomBoard?.id === boardId ? selectedCustomBoard : resolveBoardMutationBoard(boardId);
+    const board = resolveBoardMutationBoard(boardId);
     const row = board?.rows?.find((item) => item.id === rowId);
-    if (!board || !row || !canOperateBoardRowRecord(currentUser, board, row, normalizedPermissions) || row.status !== STATUS_RUNNING) return;
+    if (!board || !row || !canOperateBoardRowRecord(currentUser, permissionBoard, row, normalizedPermissions) || row.status !== STATUS_RUNNING) return;
+    const historySnapshotId = isHistoricalCustomBoardView && selectedCustomBoardSnapshot?.boardId === boardId
+      ? selectedCustomBoardSnapshot.id
+      : null;
     setBoardPauseState({
       open: true,
       boardId,
       rowId,
+      historySnapshotId,
       reason: pauseReasonOptions[0] || "",
       customReason: "",
       error: "",
@@ -4058,7 +4059,10 @@ function App() { // NOSONAR
     if (boardPauseState.completed) {
       if (!boardPauseState.continueReady) return;
       // Reanudar fila al presionar Continuar
-      requestJson(`/warehouse/boards/${boardPauseState.boardId}/rows/${boardPauseState.rowId}`, {
+      const resumeEndpoint = boardPauseState.historySnapshotId
+        ? `/warehouse/board-history/${boardPauseState.historySnapshotId}/rows/${boardPauseState.rowId}`
+        : `/warehouse/boards/${boardPauseState.boardId}/rows/${boardPauseState.rowId}`;
+      requestJson(resumeEndpoint, {
         method: "PATCH",
         body: JSON.stringify({ status: STATUS_RUNNING }),
       }).then((remoteState) => {
@@ -4069,6 +4073,7 @@ function App() { // NOSONAR
         open: false,
         boardId: null,
         rowId: null,
+        historySnapshotId: null,
         reason: "",
         customReason: "",
         error: "",
@@ -4090,7 +4095,10 @@ function App() { // NOSONAR
       return;
     }
 
-    requestJson(`/warehouse/boards/${boardPauseState.boardId}/rows/${boardPauseState.rowId}`, {
+    const pauseEndpoint = boardPauseState.historySnapshotId
+      ? `/warehouse/board-history/${boardPauseState.historySnapshotId}/rows/${boardPauseState.rowId}`
+      : `/warehouse/boards/${boardPauseState.boardId}/rows/${boardPauseState.rowId}`;
+    requestJson(pauseEndpoint, {
       method: "PATCH",
       body: JSON.stringify({
         status: STATUS_PAUSED,
@@ -4098,7 +4106,9 @@ function App() { // NOSONAR
       }),
     }).then((remoteState) => {
       const normalizedState = applyRemoteWarehouseState(remoteState, setState, setLoginDirectory, skipNextSyncRef, setSyncStatus);
-      const pausedBoard = (normalizedState?.controlBoards || []).find((board) => board.id === boardPauseState.boardId);
+      const pausedBoard = boardPauseState.historySnapshotId
+        ? (normalizedState?.boardWeekHistory || []).find((snapshot) => snapshot.id === boardPauseState.historySnapshotId)
+        : (normalizedState?.controlBoards || []).find((board) => board.id === boardPauseState.boardId);
       const pausedRow = (pausedBoard?.rows || []).find((row) => row.id === boardPauseState.rowId);
       const pauseRule = findEnabledPauseReasonByLabel(boardPauseReasonValue);
       const startedAtMsCandidate = pausedRow?.pauseStartedAt ? new Date(pausedRow.pauseStartedAt).getTime() : Date.now();
@@ -6553,30 +6563,63 @@ function App() { // NOSONAR
     });
   }
 
-  function updateBoardRowValue(boardId, rowId, field, rawValue) {
-    const board = (state.controlBoards || []).find((item) => item.id === boardId);
-    const row = board?.rows?.find((item) => item.id === rowId);
-    if (!canEditBoardRowRecord(currentUser, board, row, normalizedPermissions)) return;
+  function resolveBoardMutationBoard(boardId) {
+    if (isHistoricalCustomBoardView && selectedCustomBoardSnapshot?.boardId === boardId) {
+      return selectedCustomBoardSnapshot;
+    }
+    return (state.controlBoards || []).find((item) => item.id === boardId) || null;
+  }
 
-    // Keep typing responsive by updating local state immediately.
+  function getBoardRowPatchEndpoint(boardId, rowId) {
+    if (isHistoricalCustomBoardView && selectedCustomBoardSnapshot?.boardId === boardId && selectedCustomBoardSnapshot?.id) {
+      return `/warehouse/board-history/${selectedCustomBoardSnapshot.id}/rows/${rowId}`;
+    }
+    return `/warehouse/boards/${boardId}/rows/${rowId}`;
+  }
+
+  function applyOptimisticBoardRowPatch(boardId, rowId, updater) {
+    if (isHistoricalCustomBoardView && selectedCustomBoardSnapshot) {
+      const snapshotId = selectedCustomBoardSnapshot.id;
+      setState((current) => ({
+        ...current,
+        boardWeekHistory: (current.boardWeekHistory || []).map((snapshot) => {
+          if (snapshot.id !== snapshotId) return snapshot;
+          return {
+            ...snapshot,
+            rows: (snapshot.rows || []).map((boardRow) => (
+              boardRow.id !== rowId ? boardRow : updater(boardRow, snapshot)
+            )),
+          };
+        }),
+      }));
+      return;
+    }
     setState((current) => ({
       ...current,
       controlBoards: (current.controlBoards || []).map((controlBoard) => {
         if (controlBoard.id !== boardId) return controlBoard;
         return {
           ...controlBoard,
-          rows: (controlBoard.rows || []).map((boardRow) => {
-            if (boardRow.id !== rowId) return boardRow;
-            return {
-              ...boardRow,
-              values: {
-                ...(boardRow.values || {}),
-                [field.id]: rawValue,
-              },
-            };
-          }),
+          rows: (controlBoard.rows || []).map((boardRow) => (
+            boardRow.id !== rowId ? boardRow : updater(boardRow, controlBoard)
+          )),
         };
       }),
+    }));
+  }
+
+  function updateBoardRowValue(boardId, rowId, field, rawValue) {
+    const permissionBoard = selectedCustomBoard?.id === boardId ? selectedCustomBoard : resolveBoardMutationBoard(boardId);
+    const board = resolveBoardMutationBoard(boardId);
+    const row = board?.rows?.find((item) => item.id === rowId);
+    if (!canEditBoardRowRecord(currentUser, permissionBoard, row, normalizedPermissions)) return;
+
+    applyOptimisticBoardRowPatch(boardId, rowId, (boardRow) => ({
+      ...boardRow,
+      values: {
+        ...(boardRow.values || {}),
+        [field.id]: rawValue,
+      },
     }));
 
     const saveKey = `${boardId}:${rowId}:${field.id}`;
@@ -6595,7 +6638,7 @@ function App() { // NOSONAR
 
     const timerId = globalThis.setTimeout(() => {
       boardCellSaveTimersRef.current.delete(saveKey);
-      requestJson(`/warehouse/boards/${boardId}/rows/${rowId}`, {
+      requestJson(getBoardRowPatchEndpoint(boardId, rowId), {
         method: "PATCH",
         body: JSON.stringify({
           values: {
@@ -6620,25 +6663,14 @@ function App() { // NOSONAR
   }
 
   function updateBoardRowTimeOverride(boardId, rowId, overrides) {
-    const board = (state.controlBoards || []).find((item) => item.id === boardId);
+    const permissionBoard = selectedCustomBoard?.id === boardId ? selectedCustomBoard : resolveBoardMutationBoard(boardId);
+    const board = resolveBoardMutationBoard(boardId);
     const row = board?.rows?.find((item) => item.id === rowId);
-    if (!canEditBoardRowRecord(currentUser, board, row, normalizedPermissions)) return;
+    if (!canEditBoardRowRecord(currentUser, permissionBoard, row, normalizedPermissions)) return;
 
-    setState((current) => ({
-      ...current,
-      controlBoards: (current.controlBoards || []).map((controlBoard) => {
-        if (controlBoard.id !== boardId) return controlBoard;
-        return {
-          ...controlBoard,
-          rows: (controlBoard.rows || []).map((boardRow) => {
-            if (boardRow.id !== rowId) return boardRow;
-            return { ...boardRow, ...overrides };
-          }),
-        };
-      }),
-    }));
+    applyOptimisticBoardRowPatch(boardId, rowId, (boardRow) => ({ ...boardRow, ...overrides }));
 
-    requestJson(`/warehouse/boards/${boardId}/rows/${rowId}`, {
+    requestJson(getBoardRowPatchEndpoint(boardId, rowId), {
       method: "PATCH",
       body: JSON.stringify(overrides),
     }).then((remoteState) => {
@@ -6709,9 +6741,10 @@ function App() { // NOSONAR
   }
 
   function changeBoardRowStatus(boardId, rowId, status, options = {}) {
-    const board = (state.controlBoards || []).find((item) => item.id === boardId);
+    const permissionBoard = selectedCustomBoard?.id === boardId ? selectedCustomBoard : resolveBoardMutationBoard(boardId);
+    const board = resolveBoardMutationBoard(boardId);
     const row = board?.rows?.find((item) => item.id === rowId);
-    if (!board || !row || !canOperateBoardRowRecord(currentUser, board, row, normalizedPermissions)) return false;
+    if (!board || !row || !canOperateBoardRowRecord(currentUser, permissionBoard, row, normalizedPermissions)) return false;
 
     // Control de permiso para pausar/finalizar:
     // - El botón de inicio puede accionarlo cualquier persona con permiso de operación sobre la fila.
@@ -6785,25 +6818,14 @@ function App() { // NOSONAR
   }
 
   function applyOptimisticBoardRowStatus(boardId, rowId, updater) {
-    setState((current) => ({
-      ...current,
-      controlBoards: (current.controlBoards || []).map((controlBoard) => {
-        if (controlBoard.id !== boardId) return controlBoard;
-        return {
-          ...controlBoard,
-          rows: (controlBoard.rows || []).map((boardRow) => {
-            if (boardRow.id !== rowId) return boardRow;
-            return updater(boardRow, controlBoard);
-          }),
-        };
-      }),
-    }));
+    applyOptimisticBoardRowPatch(boardId, rowId, updater);
   }
 
   function executeBoardRowStatusChange(boardId, rowId, status) {
-    const board = (state.controlBoards || []).find((item) => item.id === boardId);
+    const permissionBoard = selectedCustomBoard?.id === boardId ? selectedCustomBoard : resolveBoardMutationBoard(boardId);
+    const board = resolveBoardMutationBoard(boardId);
     const row = board?.rows?.find((item) => item.id === rowId);
-    if (!board || !row || !canOperateBoardRowRecord(currentUser, board, row, normalizedPermissions)) return;
+    if (!board || !row || !canOperateBoardRowRecord(currentUser, permissionBoard, row, normalizedPermissions)) return;
 
     const nowTime = new Date().toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
     const autoTimeValues = (board.fields || []).reduce((accumulator, field) => {
@@ -6909,7 +6931,7 @@ function App() { // NOSONAR
       // ignore
     }
 
-    requestJson(`/warehouse/boards/${boardId}/rows/${rowId}`, {
+    requestJson(getBoardRowPatchEndpoint(boardId, rowId), {
       method: "PATCH",
       body: JSON.stringify({
         status,
@@ -6948,9 +6970,10 @@ function App() { // NOSONAR
   }
 
   function openFinishBoardRowConfirm(boardId, rowId) {
-    const board = (state.controlBoards || []).find((item) => item.id === boardId);
+    const permissionBoard = selectedCustomBoard?.id === boardId ? selectedCustomBoard : resolveBoardMutationBoard(boardId);
+    const board = resolveBoardMutationBoard(boardId);
     const row = board?.rows?.find((item) => item.id === rowId);
-    if (!board || !row || !canOperateBoardRowRecord(currentUser, board, row, normalizedPermissions)) return;
+    if (!board || !row || !canOperateBoardRowRecord(currentUser, permissionBoard, row, normalizedPermissions)) return;
     setBoardFinishConfirm({
       open: true,
       boardId,
@@ -7874,6 +7897,8 @@ function App() { // NOSONAR
     inventoryTransferDestinationsByWarehouse,
     isDemoMode,
     isHistoricalCustomBoardView,
+    isHistoricalBoardReadOnly,
+    canEditHistoricalBoardWeeks,
     isRootLead,
     LayoutDashboard,
     lowStockInventoryItems,
@@ -8025,6 +8050,7 @@ function App() { // NOSONAR
     updateBoardOperationalContext,
     updateBoardRowTimeOverride,
     updateBoardRowValue,
+    getBoardRowPatchEndpoint,
     updateDocumentacionRecord,
     updatePermissionEntry,
     updateSystemOperationalSettings,
@@ -8258,7 +8284,7 @@ function App() { // NOSONAR
         </div>
       </Modal>
 
-      <Modal open={boardPauseState.open} title="Pausar fila" confirmLabel={boardPauseState.completed ? (boardPauseState.continueReady ? "Continuar" : "Espera un momento...") : "Confirmar pausa"} cancelLabel="Cancelar" hideCancel={boardPauseState.completed} confirmDisabled={boardPauseState.completed && !boardPauseState.continueReady} onClose={() => { if (boardPauseContinueTimerRef.current) clearTimeout(boardPauseContinueTimerRef.current); setBoardPauseState({ open: false, boardId: null, rowId: null, reason: "", customReason: "", error: "", completed: false, continueReady: false, authorizedPauseSeconds: 0, pauseStartedAtMs: 0 }); }} onConfirm={handleConfirmBoardPause} className="board-pause-reason-modal">
+      <Modal open={boardPauseState.open} title="Pausar fila" confirmLabel={boardPauseState.completed ? (boardPauseState.continueReady ? "Continuar" : "Espera un momento...") : "Confirmar pausa"} cancelLabel="Cancelar" hideCancel={boardPauseState.completed} confirmDisabled={boardPauseState.completed && !boardPauseState.continueReady} onClose={() => { if (boardPauseContinueTimerRef.current) clearTimeout(boardPauseContinueTimerRef.current); setBoardPauseState({ open: false, boardId: null, rowId: null, historySnapshotId: null, reason: "", customReason: "", error: "", completed: false, continueReady: false, authorizedPauseSeconds: 0, pauseStartedAtMs: 0 }); }} onConfirm={handleConfirmBoardPause} className="board-pause-reason-modal">
         <div className="modal-form-grid">
           {boardPauseState.completed ? (
             <>

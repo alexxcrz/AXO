@@ -1820,7 +1820,7 @@ warehouseRouter.delete("/boards/:boardId/rows/:rowId", (req, res) => {
   res.json(result.state);
 });
 
-warehouseRouter.patch("/board-history/:snapshotId/rows/:rowId", requireWarehouseAction("editHistoryRecords"), (req, res) => {
+warehouseRouter.patch("/board-history/:snapshotId/rows/:rowId", requireAuth, (req, res) => {
   const result = patchBoardHistoryRow(req.auth, req.params.snapshotId, req.params.rowId, req.body || {});
   if (!result.ok) {
     const status = result.reason === "auth_required"

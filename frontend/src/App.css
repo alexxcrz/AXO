@@ -3727,6 +3727,7 @@ html[data-ui-theme] .app-notification-badge {
 .mis-tableros-shell .card-header-row,
 .mis-tableros-shell .card-header-row > div,
 .mis-tableros-shell .toolbar-actions,
+.mis-tableros-shell .custom-board-header-controls,
 .mis-tableros-shell .custom-board-toolbar-actions,
 .mis-tableros-shell .board-context-inline-filters,
 .mis-tableros-shell .board-top-select {
@@ -3751,26 +3752,43 @@ html[data-ui-theme] .app-notification-badge {
   justify-content: flex-start;
 }
 
-.mis-tableros-shell .custom-board-toolbar-actions {
+.mis-tableros-shell .custom-board-header-controls {
   display: flex;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   align-items: flex-end;
   justify-content: flex-end;
   gap: 0.55rem;
   width: 100%;
   max-width: 100%;
   margin-left: auto;
-  overflow-x: auto;
-  overflow-y: visible;
-  -webkit-overflow-scrolling: touch;
+  min-width: 0;
+}
+
+.mis-tableros-shell .custom-board-toolbar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: flex-end;
+  gap: 0.55rem;
+  width: auto;
+  max-width: 100%;
+  min-width: 0;
+  flex: 1 1 320px;
 }
 
 .mis-tableros-shell .custom-board-toolbar-actions .board-top-select,
 .mis-tableros-shell .custom-board-toolbar-actions .board-top-select.min-width,
 .mis-tableros-shell .custom-board-toolbar-actions .min-width {
   width: auto;
-  min-width: 170px;
+  min-width: 140px;
   max-width: 240px;
+  flex: 1 1 140px;
+}
+
+.mis-tableros-shell .custom-board-toolbar-actions .board-board-select-inline {
+  min-width: 170px;
+  max-width: 280px;
+  flex: 1 1 170px;
 }
 
 .mis-tableros-shell .custom-board-toolbar-actions .board-top-select select {
@@ -3779,58 +3797,116 @@ html[data-ui-theme] .app-notification-badge {
 
 .mis-tableros-shell .board-context-inline-filters {
   width: auto;
-  max-width: none;
-  flex: 0 0 auto;
+  max-width: 100%;
+  flex: 1 1 280px;
   display: flex;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   align-items: flex-end;
   gap: 0.55rem;
 }
 
+.mis-tableros-shell .board-context-inline-filters .board-top-select {
+  flex: 1 1 120px;
+  min-width: 0;
+}
+
 .mis-tableros-shell .board-context-inline-filters .board-week-select-inline {
   min-width: 130px;
-  max-width: 180px;
+  max-width: 200px;
 }
 
 .mis-tableros-shell .board-context-inline-filters .board-cleaning-site-select-inline,
 .mis-tableros-shell .board-context-inline-filters .board-day-select-inline {
   min-width: 110px;
-  max-width: 120px;
+  max-width: 160px;
 }
 
-@media (max-width: 900px) {
+@media (min-width: 721px) and (max-width: 1100px) {
+  .mis-tableros-shell .custom-board-header-controls {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
   .mis-tableros-shell .custom-board-toolbar-actions {
     width: 100%;
-    align-items: flex-end;
-    flex-wrap: nowrap;
-    justify-content: flex-end;
+    justify-content: flex-start;
+  }
+
+  .mis-tableros-shell .board-context-inline-filters {
+    width: 100%;
+  }
+}
+
+@media (max-width: 720px) {
+  .mis-tableros-shell .card-header-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.75rem;
+  }
+
+  .mis-tableros-shell .card-header-row > div:first-child {
+    width: 100%;
+  }
+
+  .mis-tableros-shell .custom-board-header-controls {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.55rem;
+    width: 100%;
+    margin-left: 0;
+    justify-content: stretch;
+  }
+
+  .mis-tableros-shell .custom-board-toolbar-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+    gap: 0.5rem;
+    overflow: visible;
+    justify-content: stretch;
   }
 
   .mis-tableros-shell .custom-board-toolbar-actions .board-top-select,
   .mis-tableros-shell .custom-board-toolbar-actions .board-top-select.min-width,
-  .mis-tableros-shell .custom-board-toolbar-actions .min-width {
-    width: auto;
-    min-width: 170px;
-    max-width: 240px;
+  .mis-tableros-shell .custom-board-toolbar-actions .min-width,
+  .mis-tableros-shell .custom-board-toolbar-actions .board-board-select-inline {
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+    flex: none;
+  }
+
+  .mis-tableros-shell .custom-board-toolbar-actions .board-board-select-inline {
+    grid-column: 1 / -1;
   }
 
   .mis-tableros-shell .board-context-inline-filters {
-    width: auto;
-    display: flex;
-    flex-wrap: nowrap;
-    align-items: flex-end;
-    gap: 0.55rem;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+    gap: 0.5rem;
+    flex: none;
+    grid-column: 1 / -1;
   }
 
-  .mis-tableros-shell .board-context-inline-filters .board-week-select-inline {
-    min-width: 130px;
-    max-width: 180px;
-  }
-
+  .mis-tableros-shell .board-context-inline-filters .board-top-select,
+  .mis-tableros-shell .board-context-inline-filters .board-week-select-inline,
   .mis-tableros-shell .board-context-inline-filters .board-cleaning-site-select-inline,
   .mis-tableros-shell .board-context-inline-filters .board-day-select-inline {
-    min-width: 110px;
-    max-width: 120px;
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+  }
+
+  .mis-tableros-shell .custom-board-actions-menu-shell {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  .mis-tableros-shell .custom-board-toolbar-actions .board-top-select select,
+  .mis-tableros-shell .board-context-inline-filters .board-top-select select {
+    width: 100%;
+    min-height: 2.8rem;
   }
 }
 
