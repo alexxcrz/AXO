@@ -123,8 +123,6 @@ import {
 import { normalizeOperationalInspectionTemplate } from "./utils/operationalInspectionTemplate";
 import { isDeprecatedDynamicArea, migrateDeprecatedAreaValue } from "./config/deprecatedAreas.js";
 import { isMobileShellActive } from "./app/mobileAppShell.js";
-import MobileBottomNav from "./components/MobileBottomNav.jsx";
-import PullToRefresh from "./components/PullToRefresh.jsx";
 
 // â”€â”€ Constantes globales â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
@@ -6533,11 +6531,6 @@ function App() { // NOSONAR
     }
   }
 
-  async function handleMobilePullRefresh() {
-    scheduleWarehouseStateRefresh();
-    await new Promise((resolve) => globalThis.setTimeout(resolve, 650));
-  }
-
   async function handleLogout() {
       if (socketRef.current) {
         try {
@@ -8381,7 +8374,7 @@ function App() { // NOSONAR
           </div>
         </header>
 
-        <PullToRefresh className="content-scroll-region" onRefresh={handleMobilePullRefresh} disabled={!isMobileShellActive()}>
+        <div className="content-scroll-region">
         <div key={mobilePageTransitionKey} className="page-transition-shell">
         <Suspense fallback={<PageFallback />}>
           {page === PAGE_BOARD || page === PAGE_ADMIN ? <TablerosCreados contexto={paginasContexto} /> : null}
@@ -8408,34 +8401,8 @@ function App() { // NOSONAR
           {page === PAGE_NOT_FOUND ? <PaginaNoEncontrada contexto={paginasContexto} /> : null}
         </Suspense>
         </div>
-        </PullToRefresh>
+        </div>
       </section>
-
-      <MobileBottomNav
-        activePage={page}
-        onNavigate={(nextPage) => {
-          if (!nextPage) return;
-          const landing = currentUser
-            ? (resolveAreaLandingForPage(currentUser, normalizedPermissions, areaNavSections, nextPage)
-              || resolveFirstAccessibleAreaLanding(currentUser, normalizedPermissions, areaNavSections))
-            : null;
-          if (landing?.areaSectionId) {
-            applyAreaLandingState({ ...landing, page: nextPage }, {
-              setSelectedAreaSectionId,
-              setPage,
-              setNavTransportSection,
-              setNavTransportTab,
-              setNavRetailTab,
-              setAuditShortcutPreset,
-              setNavAuditTab,
-            });
-          } else {
-            setPage(nextPage);
-          }
-          setIsSidebarOpen(false);
-        }}
-        onOpenMenu={openMobileSidebar}
-      />
 
       <Modal open={pauseState.open} title="Actividad en pausa" confirmLabel={pauseState.completed ? (pauseState.continueReady ? "Continuar" : "Espera un momento...") : "Confirmar pausa"} cancelLabel="Cancelar" hideCancel={pauseState.completed} confirmDisabled={pauseState.completed && !pauseState.continueReady} onClose={() => { if (pauseContinueTimerRef.current) clearTimeout(pauseContinueTimerRef.current); setPauseState({ open: false, activityId: null, reason: "", customReason: "", error: "", completed: false, continueReady: false, pauseLogId: null }); }} onConfirm={handleConfirmPause}>
         <div className="modal-form-grid">

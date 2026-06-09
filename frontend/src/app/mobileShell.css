@@ -1,4 +1,4 @@
-/* ?? PWA / mobile shell ??????????????????????????????????????????????????? */
+/* PWA / mobile shell */
 
 html.standalone-app {
   min-height: 100%;
@@ -10,12 +10,19 @@ html.mobile-shell {
 }
 
 html.mobile-shell body {
-  overscroll-behavior-y: none;
   min-height: 100dvh;
   padding: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 html.mobile-shell #root {
+  min-height: 100dvh;
+}
+
+html.mobile-shell .warehouse-app {
   min-height: 100dvh;
 }
 
@@ -50,6 +57,7 @@ html.mobile-shell .warehouse-app {
   padding-top: env(safe-area-inset-top, 0px);
   padding-left: env(safe-area-inset-left, 0px);
   padding-right: env(safe-area-inset-right, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 html.mobile-shell .content-header {
@@ -61,131 +69,15 @@ html.mobile-shell .content-header {
 
 html.mobile-shell .content-shell {
   min-height: 0;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-html.mobile-shell .content-scroll-region,
-html.mobile-shell .ptr-root.content-scroll-region {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow: auto;
-  overscroll-behavior-y: contain;
-  -webkit-overflow-scrolling: touch;
-  scroll-behavior: smooth;
-}
-
-html.mobile-shell.standalone-app .content-scroll-region {
-  padding-bottom: calc(4.6rem + env(safe-area-inset-bottom, 0px));
-}
-
-/* Bottom navigation */
-.mobile-bottom-nav {
-  display: none;
-}
-
-html.mobile-shell.standalone-app .mobile-bottom-nav {
+  height: auto;
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 40;
-  gap: 0.15rem;
-  padding: 0.35rem 0.4rem calc(0.45rem + env(safe-area-inset-bottom, 0px));
-  background: rgba(18, 24, 32, 0.96);
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  user-select: none;
-  -webkit-user-select: none;
-  touch-action: manipulation;
+  overflow: visible;
 }
 
-html.android-standalone-dark .mobile-bottom-nav {
-  background: rgba(12, 16, 22, 0.98);
-}
-
-.mobile-bottom-nav__item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 0.12rem;
-  min-height: 44px;
-  border: none;
-  border-radius: 12px;
-  background: transparent;
-  color: rgba(232, 237, 244, 0.72);
-  font-size: 0.62rem;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  cursor: pointer;
-  touch-action: manipulation;
-  transition: background 140ms ease, color 140ms ease, transform 100ms ease;
-}
-
-.mobile-bottom-nav__item svg {
-  width: 20px;
-  height: 20px;
-}
-
-.mobile-bottom-nav__item:active {
-  transform: scale(0.96);
-}
-
-.mobile-bottom-nav__item.is-active {
-  color: #ffffff;
-  background: rgba(99, 102, 241, 0.22);
-}
-
-/* Pull to refresh */
-.ptr-root {
-  position: relative;
-  min-height: 100%;
-}
-
-.ptr-indicator {
-  position: absolute;
-  top: 0;
-  left: 50%;
-  transform: translate(-50%, -120%);
-  z-index: 5;
-  display: flex;
-  align-items: center;
-  gap: 0.45rem;
-  padding: 0.35rem 0.75rem;
-  border-radius: 999px;
-  background: rgba(49, 77, 105, 0.92);
-  color: #fff;
-  font-size: 0.72rem;
-  font-weight: 600;
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 120ms ease;
-}
-
-.ptr-indicator.is-visible {
-  opacity: 1;
-}
-
-.ptr-indicator.is-refreshing .ptr-spinner {
-  animation: ptrSpin 700ms linear infinite;
-}
-
-@keyframes ptrSpin {
-  to { transform: rotate(360deg); }
-}
-
-.ptr-spinner {
-  width: 14px;
-  height: 14px;
-  border: 2px solid rgba(255, 255, 255, 0.35);
-  border-top-color: #fff;
-  border-radius: 50%;
+html.mobile-shell .content-scroll-region {
+  min-height: 0;
+  overflow: visible;
+  -webkit-overflow-scrolling: touch;
 }
 
 /* Page transitions */
@@ -225,17 +117,17 @@ html.mobile-shell .primary-button {
 }
 
 html.mobile-shell .content-header,
-html.mobile-shell .mobile-bottom-nav,
 html.mobile-shell .mobile-nav-toggle {
   -webkit-user-select: none;
   user-select: none;
   -webkit-touch-callout: none;
 }
 
-/* Sticky toolbars inside scroll region */
 html.mobile-shell .table-wrap,
-html.mobile-shell .admin-tab-bar {
-  overscroll-behavior: contain;
+html.mobile-shell .board-table-wrap,
+html.mobile-shell .custom-board-table-wrap,
+html.mobile-shell .dashboard-table-wrap {
+  -webkit-overflow-scrolling: touch;
 }
 
 html.mobile-shell .admin-tab-bar {
@@ -248,9 +140,5 @@ html.mobile-shell .admin-tab-bar {
 @media (prefers-reduced-motion: reduce) {
   html.mobile-shell .page-transition-shell {
     animation: none;
-  }
-
-  .mobile-bottom-nav__item {
-    transition: none;
   }
 }
