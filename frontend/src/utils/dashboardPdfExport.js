@@ -1,5 +1,4 @@
 import { createDashboardPdfContext, DASHBOARD_PDF_THEME, getDashboardPdfAreaAccent } from "./dashboardPdfTheme.js";
-import { loadJsPdfWithAutoTable } from "./jspdfLoader.js";
 
 export function kpiCardsToPdfGridItems(cards = []) {
   return (Array.isArray(cards) ? cards : []).map((card) => ({
@@ -57,6 +56,7 @@ export async function exportAreaPanelDashboardPdf({
 }) {
   if (!panel?.section) return;
 
+  const { loadJsPdfWithAutoTable } = await import("./jspdfLoader.js");
   const { jsPDF, autoTable } = await loadJsPdfWithAutoTable();
   const pdf = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
   const areaLabel = panel.section.label;

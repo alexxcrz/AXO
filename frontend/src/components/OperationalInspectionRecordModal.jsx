@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from "react";
 import { Modal } from "./Modal";
 import { isImageMedia, isVideoMedia, MediaLightbox } from "./MediaLightbox.jsx";
 import { normalizeOperationalInspectionTemplate } from "../utils/operationalInspectionTemplate";
-import { loadJsPdfWithAutoTable } from "../utils/jspdfLoader.js";
 
 function normalizeInspectionRecord(record) {
   const safeRecord = record && typeof record === "object" ? record : {};
@@ -78,6 +77,7 @@ export default function OperationalInspectionRecordModal({
 
   async function handleExportPdf() {
     const { template, completedAt, completedByName } = resolvedRecord;
+    const { loadJsPdfWithAutoTable } = await import("../utils/jspdfLoader.js");
     const { jsPDF, autoTable } = await loadJsPdfWithAutoTable();
     const pdf = new jsPDF({ orientation: "portrait", unit: "pt", format: "a4" });
     pdf.setFontSize(15);

@@ -1,4 +1,3 @@
-import { loadJsPdf } from "../utils/jspdfLoader.js";
 import { loadJsBarcode, loadQRCode } from "./barcodeLoader.js";
 
 const JSBARCODE_FORMAT = {
@@ -70,6 +69,7 @@ async function barcodeDataUrl(el, value) {
 }
 
 export async function buildHuellaPdf(elements, ctx = {}, size = { widthMm: 100, heightMm: 150 }) {
+  const { loadJsPdf } = await import("../utils/jspdfLoader.js");
   const jsPDF = await loadJsPdf();
   const widthMm = size.widthMm || 100;
   const heightMm = size.heightMm || 150;

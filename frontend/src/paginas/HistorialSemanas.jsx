@@ -10,7 +10,6 @@ import {
   isBoardActivityListField,
   resolveBoardRowHistoryTimeDisplay,
 } from "../utils/utilidades";
-import { loadJsPdfWithAutoTable } from "../utils/jspdfLoader.js";
 
 // Fallback defaults for operational week settings used by the history views
 const HISTORY_WORK_WEEK_DEFAULTS = {};
@@ -1313,6 +1312,7 @@ export default function HistorialSemanas({ contexto }) {
 
     try {
       setIsExportingHistoryPdf(true);
+      const { loadJsPdfWithAutoTable } = await import("../utils/jspdfLoader.js");
       const { jsPDF, autoTable } = await loadJsPdfWithAutoTable();
       const pdf = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
 
@@ -1421,6 +1421,7 @@ export default function HistorialSemanas({ contexto }) {
     }
     try {
       setIsExportingChecklistPdf(true);
+      const { loadJsPdfWithAutoTable } = await import("../utils/jspdfLoader.js");
       const { jsPDF, autoTable } = await loadJsPdfWithAutoTable();
       const pdf = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
 
