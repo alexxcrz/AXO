@@ -34,6 +34,7 @@ import {
   getResponsibleVisual,
   resolveDashboardInventoryRowMetrics,
 } from "../utils/utilidades.jsx";
+import { enrichBoardRowNavigationMeta } from "../utils/boardNavigationFocus.js";
 
 export function useDashboardMetrics({
   state,
@@ -340,10 +341,15 @@ export function useDashboardMetrics({
       const limitMinutes = getBoardRowTimeLimitMinutes(board, row, catalogMap);
       const pauseSummary = buildBoardRowPauseSummary(row);
       const rowActivityLabel = getBoardRowActivityLabel(board, row);
+      const navigationMeta = enrichBoardRowNavigationMeta(board, row);
       return {
         id: `board-${board.id}-${row.id}`,
         rawId: row.id,
         boardId: board.id,
+        rowId: navigationMeta.rowId,
+        cleaningSite: navigationMeta.cleaningSite,
+        operationalDate: navigationMeta.operationalDate,
+        historySnapshotId: navigationMeta.historySnapshotId,
         source: "board",
         sourceLabel: "Tablero operativo",
         label: rowActivityLabel || board.name,
@@ -365,7 +371,14 @@ export function useDashboardMetrics({
         pauseCount: pauseSummary.count,
         pauseSeconds: pauseSummary.totalSeconds,
         pauseReasons: pauseSummary.reasons,
-        pauseLogEntries: pauseSummary.logs.map((entry) => ({ ...entry, rowId: row.id, boardId: board.id })),
+        pauseLogEntries: pauseSummary.logs.map((entry) => ({
+          ...entry,
+          rowId: row.id,
+          boardId: board.id,
+          cleaningSite: navigationMeta.cleaningSite,
+          operationalDate: navigationMeta.operationalDate,
+          historySnapshotId: navigationMeta.historySnapshotId,
+        })),
       };
     }));
 
@@ -384,10 +397,15 @@ export function useDashboardMetrics({
       const limitMinutes = getBoardRowTimeLimitMinutes(snapshot, row, catalogMap);
       const pauseSummary = buildBoardRowPauseSummary(row);
       const rowActivityLabel = getBoardRowActivityLabel(snapshot, row);
+      const navigationMeta = enrichBoardRowNavigationMeta(snapshot, row, snapshot.id);
       return {
         id: `board-history-${snapshot.id}-${row.id}`,
         rawId: `${snapshot.id}-${row.id}`,
         boardId: resolvedSnapshotBoardId,
+        rowId: navigationMeta.rowId,
+        cleaningSite: navigationMeta.cleaningSite,
+        operationalDate: navigationMeta.operationalDate,
+        historySnapshotId: navigationMeta.historySnapshotId,
         source: "board",
         sourceLabel: "Histórico de tablero",
         label: rowActivityLabel || snapshot.boardName,
@@ -409,7 +427,14 @@ export function useDashboardMetrics({
         pauseCount: pauseSummary.count,
         pauseSeconds: pauseSummary.totalSeconds,
         pauseReasons: pauseSummary.reasons,
-        pauseLogEntries: pauseSummary.logs.map((entry) => ({ ...entry, rowId: row.id, boardId: resolvedSnapshotBoardId })),
+        pauseLogEntries: pauseSummary.logs.map((entry) => ({
+          ...entry,
+          rowId: row.id,
+          boardId: resolvedSnapshotBoardId,
+          cleaningSite: navigationMeta.cleaningSite,
+          operationalDate: navigationMeta.operationalDate,
+          historySnapshotId: navigationMeta.historySnapshotId,
+        })),
       };
     }));
 

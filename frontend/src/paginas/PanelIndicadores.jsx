@@ -85,6 +85,10 @@ import {
 } from "../utils/generalAreaDashboardPanels";
 import { getAreaDashboardSections } from "../utils/areaDashboardThemes";
 import { PAGE_CUSTOM_BOARDS, STATUS_FINISHED } from "../utils/constantes";
+import {
+  buildBoardNavigationFocusFromDashboardRecord,
+  pauseReasonsMatch,
+} from "../utils/boardNavigationFocus.js";
 import { DashboardRecordStatusCell, formatDashboardRecordStatusSummary } from "../components/ComponentesDashboard";
 import "./PanelIndicadores.css";
 
@@ -315,6 +319,7 @@ export default function PanelIndicadores({ contexto }) {
     setSelectedCustomBoardId,
     setSelectedCustomBoardViewId,
     setSelectedCustomBoardRowId,
+    navigateToBoardFocus,
   } = contexto;
 
   const dashboardVisibleControlBoards = useMemo(() => rawDashboardVisibleControlBoards ?? filteredVisibleControlBoards ?? [], [rawDashboardVisibleControlBoards, filteredVisibleControlBoards]);
@@ -339,24 +344,81 @@ export default function PanelIndicadores({ contexto }) {
   const [pauseModalOpen, setPauseModalOpen] = useState(false);
   const [pauseModalData, setPauseModalData] = useState(null);
 
+  function resolvePauseLogsForBoardReason(board, reasonEntry) {
+    const records = (filteredDashboardRecords || []).filter((record) => {
+      if (record.source !== "board") return false;
+      const sameBoard = board?.boardId
+        ? String(record.boardId) === String(board.boardId)
+        : String(record.boardName || "") === String(board.boardName || "");
+      if (!sameBoard) return false;
+      const logs = Array.isArray(record.pauseLogEntries) ? record.pauseLogEntries : [];
+      if (logs.length) {
+        return logs.some((log) => pauseReasonsMatch(log.reason, reasonEntry?.reason));
+      }
+      const reasons = Array.isArray(record.pauseReasons) ? record.pauseReasons : [];
+      return reasons.some((reason) => pauseReasonsMatch(reason, reasonEntry?.reason));
+    });
+
+    const logs = records.flatMap((record) => (
+      (Array.isArray(record.pauseLogEntries) ? record.pauseLogEntries : [])
+        .filter((log) => pauseReasonsMatch(log.reason, reasonEntry?.reason))
+        .map((log) => ({ ...log, sourceRecord: record }))
+    ));
+
+    return { records, logs };
+  }
+
   function openPauseDetailsForReason(board, reasonEntry) {
-    const allLogs = Array.isArray(dashboardPauseLogs) ? dashboardPauseLogs : [];
-    const logs = allLogs.filter((log) => String(log.boardId) === String(board.boardId) && String((log.reason || "")).toLowerCase().includes(String(reasonEntry.reason || "").toLowerCase()));
-    setPauseModalData({ board, reasonEntry, logs });
+    const { records, logs } = resolvePauseLogsForBoardReason(board, reasonEntry);
+    setPauseModalData({ board, reasonEntry, logs, records });
     setPauseModalOpen(true);
   }
 
-  function goToBoardFromPause(boardId, rowId) {
-    try {
-      setSelectedCustomBoardId && setSelectedCustomBoardId(boardId);
-      setSelectedCustomBoardViewId && setSelectedCustomBoardViewId("current");
-      setSelectedCustomBoardRowId && setSelectedCustomBoardRowId(rowId || "");
-      setPage && setPage(PAGE_CUSTOM_BOARDS);
-    } catch {
-      /* ignore */
+  function goToBoardFromDashboardRecord(record, options = {}) {
+    const focus = buildBoardNavigationFocusFromDashboardRecord(record, options);
+    if (!focus?.boardId) {
+      pushAppToast?.("No se pudo ubicar el tablero de esta actividad.", "warning");
+      return;
     }
+    navigateToBoardFocus?.(focus);
     setPauseModalOpen(false);
   }
+
+  function goToBoardFromPauseModal() {
+    const data = pauseModalData;
+    if (!data) return;
+    const log = data.logs?.[0];
+    const record = log?.sourceRecord || data.records?.[0];
+    if (record) {
+      goToBoardFromDashboardRecord(record, {
+        rowId: log?.rowId || record.rowId,
+        operationalDate: log?.operationalDate || record.operationalDate,
+        cleaningSite: log?.cleaningSite || record.cleaningSite,
+        boardViewId: log?.historySnapshotId || record.historySnapshotId || "current",
+        openPauseDetails: true,
+      });
+      return;
+    }
+    if (data.board?.boardId) {
+      navigateToBoardFocus?.({
+        boardId: data.board.boardId,
+        rowId: "",
+        operationalDate: "",
+        cleaningSite: "",
+        boardViewId: "current",
+        openPauseDetails: false,
+      });
+      setPauseModalOpen(false);
+      return;
+    }
+    pushAppToast?.("No hay una actividad vinculada para abrir en el tablero.", "warning");
+  }
+
+  const boardSlaExceededRecords = useMemo(
+    () => (Array.isArray(dashboardMetrics?.exceeded) ? dashboardMetrics.exceeded : [])
+      .filter((record) => record?.source === "board" && record?.boardId),
+    [dashboardMetrics?.exceeded],
+  );
 
   const hasDashboardSection = useCallback((sectionType) => visibleDashboardSections.has(sectionType), [visibleDashboardSections]);
 
@@ -3346,6 +3408,62 @@ export default function PanelIndicadores({ contexto }) {
             </div>
           </article>
 
+          <article className="dashboard-panel dashboard-panel-wide">
+            <div className="dashboard-panel-header with-badge">
+              <div>
+                <h3>Actividades fuera de tiempo (SLA)</h3>
+                <p>Registros individuales que rebasaron el límite. Abre el tablero en la fecha y nave exactas.</p>
+              </div>
+              <span className="dashboard-alert-pill">{boardSlaExceededRecords.length} alerta(s)</span>
+            </div>
+            <div className="dashboard-table-wrap">
+              <table className="dashboard-table-clean">
+                <thead>
+                  <tr>
+                    <th>Actividad / Tablero</th>
+                    <th>Player</th>
+                    <th>Fecha</th>
+                    <th>Nave</th>
+                    <th>Real</th>
+                    <th>Límite</th>
+                    <th>Exceso</th>
+                    <th />
+                  </tr>
+                </thead>
+                <tbody>
+                  {boardSlaExceededRecords.length ? boardSlaExceededRecords.map((record) => (
+                    <tr key={record.id}>
+                      <td>
+                        <strong>{record.label || record.boardName}</strong>
+                        <br />
+                        <small>{record.boardName}</small>
+                      </td>
+                      <td>{record.responsibleName || "-"}</td>
+                      <td>{record.operationalDate || "-"}</td>
+                      <td>{record.cleaningSite || record.operationalContextValue || "-"}</td>
+                      <td>{formatMinutes((record.durationSeconds || 0) / 60)}</td>
+                      <td>{record.limitMinutes} min</td>
+                      <td className="dashboard-number-warning">{formatMinutes((record.excessSeconds || 0) / 60)}</td>
+                      <td>
+                        <button
+                          type="button"
+                          style={{ background: "none", border: "none", padding: 0, color: "#0366d6", cursor: "pointer", textDecoration: "underline" }}
+                          onClick={() => goToBoardFromDashboardRecord(record, { rowId: record.rowId })}
+                        >
+                          Ver en tablero
+                        </button>
+                      </td>
+                    </tr>
+                  )) : (
+                    <tr>
+                      <td colSpan={8}>No hay actividades de tablero fuera de SLA en el periodo.</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </article>
+
           <aside className="dashboard-panel dashboard-panel-rank dashboard-pause-panel">
             <div className="dashboard-panel-header">
               <div>
@@ -3448,7 +3566,7 @@ export default function PanelIndicadores({ contexto }) {
               </div>
               <div style={{ display: "flex", gap: "0.5rem" }}>
                 <button type="button" style={{ padding: "0.4rem 0.8rem", borderRadius: "0.6rem", border: "1px solid #ddd", background: "#f3f4f6" }} onClick={() => setPauseModalOpen(false)}>Cerrar</button>
-                <button type="button" style={{ padding: "0.4rem 0.8rem", borderRadius: "0.6rem", border: "none", background: "#314d69", color: "#fff" }} onClick={() => goToBoardFromPause(pauseModalData.board.boardId, pauseModalData.logs?.[0]?.rowId)}>
+                <button type="button" style={{ padding: "0.4rem 0.8rem", borderRadius: "0.6rem", border: "none", background: "#314d69", color: "#fff" }} onClick={goToBoardFromPauseModal}>
                   Ver en tablero
                 </button>
               </div>

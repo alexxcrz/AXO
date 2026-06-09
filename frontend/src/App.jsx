@@ -724,6 +724,7 @@ function App() { // NOSONAR
   const [pendingOpenIncidenciaId, setPendingOpenIncidenciaId] = useState("");
   const [pendingOpenBibliotecaFileId, setPendingOpenBibliotecaFileId] = useState("");
   const [pendingOpenTransportRecordId, setPendingOpenTransportRecordId] = useState("");
+  const [boardNavigationFocus, setBoardNavigationFocus] = useState(null);
   const [customBoardActionsMenuOpen, setCustomBoardActionsMenuOpen] = useState(false);
   const [uiTheme, setUiTheme] = useState("copmec-bosque");
   const [uiFont, setUiFont] = useState("bahnschrift");
@@ -1138,6 +1139,19 @@ function App() { // NOSONAR
       return "documentacion";
     }
     return "registros-envios";
+  }
+
+  function navigateToBoardFocus(focus) {
+    if (!focus?.boardId) return;
+    setBoardNavigationFocus(focus);
+    setSelectedCustomBoardId(String(focus.boardId));
+    setSelectedCustomBoardViewId(String(focus.boardViewId || "current"));
+    setSelectedCustomBoardRowId(String(focus.rowId || ""));
+    setPage(PAGE_CUSTOM_BOARDS);
+  }
+
+  function clearBoardNavigationFocus() {
+    setBoardNavigationFocus(null);
   }
 
   function handleOpenNotification(notification) {
@@ -8129,6 +8143,9 @@ function App() { // NOSONAR
     setSelectedAreaSectionId,
     setSelectedCustomBoardId,
     setSelectedCustomBoardRowId,
+    boardNavigationFocus,
+    navigateToBoardFocus,
+    clearBoardNavigationFocus,
     pendingOpenIncidenciaId,
     setPendingOpenIncidenciaId,
     pendingOpenTransportRecordId,

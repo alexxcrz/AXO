@@ -6,6 +6,7 @@ import { SpanishDateInput } from "../components/SpanishDateInput";
 import OperationalInspectionRecordModal from "../components/OperationalInspectionRecordModal.jsx";
 import { BoardEditableInventoryPropertyInput, BoardEvidenceCell, BoardMultiSelectDetailCell } from "../components/BoardRuntimeFieldCells.jsx";
 import { downloadBoardAsJson, parseBoardImportJson } from "../utils/boardImportExport";
+import { resolveWeekdayOffsetForOperationalDate } from "../utils/boardNavigationFocus.js";
 import { normalizeOperationalInspectionTemplate } from "../utils/operationalInspectionTemplate";
 import {
   formatBoardMultiSelectDetailValue,
@@ -358,6 +359,9 @@ export default function MisTableros({ contexto }) {
     selectedCustomBoardViewId,
     setSelectedCustomBoardViewId,
     selectedCustomBoardRowId,
+    setSelectedCustomBoardRowId,
+    boardNavigationFocus,
+    clearBoardNavigationFocus,
     isHistoricalCustomBoardView,
     isHistoricalBoardReadOnly,
     canEditHistoricalBoardWeeks,
@@ -981,6 +985,79 @@ export default function MisTableros({ contexto }) {
     if (!activityValue) return true;
     return activityOptionNames.has(activityValue);
   });
+
+  useEffect(() => {
+    const focus = boardNavigationFocus;
+    if (!focus?.boardId) return;
+    if (String(focus.boardId) !== String(selectedCustomBoardId || "")) return;
+    if (String(selectedCustomBoardViewId || "current") !== String(focus.boardViewId || "current")) return;
+
+    let cancelled = false;
+
+    (async () => {
+      const isHistorical = String(focus.boardViewId || "current") !== "current";
+      const weekKeyForDate = isHistorical
+        ? String(selectedCustomBoardSnapshot?.weekKey || "").trim()
+        : String(state?.boardWeeklyCycle?.activeWeekKey || "").trim();
+
+      if (focus.cleaningSite) {
+        if (isHistorical) {
+          setHistViewNave(focus.cleaningSite);
+        } else if (showCleaningNaveSelector && selectedCustomBoard?.id) {
+          try {
+            await updateBoardOperationalContext(selectedCustomBoard.id, focus.cleaningSite, "cleaningSite");
+          } catch {
+            /* ignore */
+          }
+        }
+      }
+
+      if (focus.operationalDate && weekKeyForDate) {
+        const weekdayOffset = resolveWeekdayOffsetForOperationalDate(focus.operationalDate, weekKeyForDate);
+        if (weekdayOffset !== null) {
+          setSelectedWeekdayFilter(String(weekdayOffset));
+        }
+      }
+
+      if (focus.rowId) {
+        for (let attempt = 0; attempt < 25; attempt += 1) {
+          await new Promise((resolve) => setTimeout(resolve, 100));
+          if (cancelled) return;
+          const rowElement = document.querySelector(`[data-board-row-id="${focus.rowId}"]`);
+          if (rowElement) break;
+        }
+      }
+
+      if (cancelled) return;
+
+      if (focus.rowId) {
+        setSelectedCustomBoardRowId?.(focus.rowId);
+      }
+
+      if (focus.openPauseDetails && focus.rowId) {
+        const targetRow = (boardView?.rows || []).find((row) => String(row.id) === String(focus.rowId));
+        if (targetRow) {
+          setPauseDetailsRow(targetRow);
+        }
+      }
+
+      clearBoardNavigationFocus?.();
+    })();
+
+    return () => { cancelled = true; };
+  }, [
+    boardNavigationFocus,
+    boardView?.rows,
+    clearBoardNavigationFocus,
+    selectedCustomBoard?.id,
+    selectedCustomBoardId,
+    selectedCustomBoardSnapshot?.weekKey,
+    selectedCustomBoardViewId,
+    setSelectedCustomBoardRowId,
+    showCleaningNaveSelector,
+    state?.boardWeeklyCycle?.activeWeekKey,
+    updateBoardOperationalContext,
+  ]);
 
   function getRowActivityLabel(rowRecord) {
     if (!activityListField?.id) return "";
