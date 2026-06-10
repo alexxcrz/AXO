@@ -269,7 +269,7 @@ export function initSocket(httpServer) {
       // Actualizar historial: registrar aceptación
       try {
         prisma.chatLlamada?.updateMany({
-          where: { room, estado: { in: ["perdida", "activa"] } },
+          where: { room, estado: { in: ["pendiente", "perdida", "activa"] } },
           data: { estado: "activa", aceptadaEn: new Date() },
         }).catch(() => {});
       } catch (_) {}

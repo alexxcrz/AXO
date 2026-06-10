@@ -562,7 +562,7 @@ function normalizeWeekdayOffsets(value) {
   source.forEach((entry) => {
     const numeric = Number(entry);
     if (!Number.isInteger(numeric)) return;
-    if (numeric < 0 || numeric > 5) return;
+    if (numeric < 0 || numeric > 6) return;
     unique.add(numeric);
   });
   return Array.from(unique).sort((left, right) => left - right);
@@ -5341,13 +5341,15 @@ function doesBoardMatchWarehouseUserArea(board, user) {
 }
 
 function buildAreaCatalogEntries(users = [], catalog = []) {
-  const entries = (catalog || [])
+  const safeCatalog = Array.isArray(catalog) ? catalog : [];
+  const safeUsers = Array.isArray(users) ? users : [];
+  const entries = safeCatalog
     .map((entry) => migrateDeprecatedAreaValue(entry))
-    .concat((users || []).map((user) => migrateDeprecatedAreaValue(user.area || user.department || "")))
+    .concat(safeUsers.map((user) => migrateDeprecatedAreaValue(user?.area || user?.department || "")))
     .filter(Boolean);
   return Array.from(new Set(entries))
     .filter((entry) => !isDeprecatedDynamicArea(entry))
-    .sort((a, b) => a.localeCompare(b));
+    .sort((a, b) => String(a).localeCompare(String(b)));
 }
 
 function migrateBoardAreaFields(board = {}) {

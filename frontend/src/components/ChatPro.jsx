@@ -12,6 +12,63 @@ import { syncNotificationPrefsToServiceWorker } from "../utils/pushBridge.js";
 // COPMEC: removed ReunionesPerfilUsuario
 
 // Componente estable para cada video remoto — evita parpadeo al reasignar srcObject
+const CpMenuIcon = ({ type }) => {
+  const svgProps = {
+    width: 16,
+    height: 16,
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: 2,
+    strokeLinecap: "round",
+    strokeLinejoin: "round",
+    "aria-hidden": true,
+    className: "cp-menu-svg",
+  };
+  switch (type) {
+    case "chat":
+      return <svg {...svgProps}><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>;
+    case "user":
+      return <svg {...svgProps}><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>;
+    case "users":
+      return <svg {...svgProps}><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg>;
+    case "plus":
+      return <svg {...svgProps}><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>;
+    case "folder":
+      return <svg {...svgProps}><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" /></svg>;
+    case "remove":
+      return <svg {...svgProps}><polyline points="9 14 4 9 9 4" /><path d="M20 20v-7a4 4 0 0 0-4-4H4" /></svg>;
+    case "reply":
+      return <svg {...svgProps}><polyline points="9 17 4 12 9 7" /><path d="M20 18v-2a4 4 0 0 0-4-4H4" /></svg>;
+    case "copy":
+      return <svg {...svgProps}><rect x="9" y="9" width="13" height="13" rx="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></svg>;
+    case "forward":
+      return <svg {...svgProps}><polyline points="15 17 20 12 15 7" /><path d="M4 18v-2a4 4 0 0 1 4-4h12" /></svg>;
+    case "pin":
+      return <svg {...svgProps}><path d="M12 17v5" /><path d="M9 3h6l1 7h4l-5 6v-4H9v4L4 10h4z" /></svg>;
+    case "star":
+      return <svg {...svgProps}><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>;
+    case "select":
+      return <svg {...svgProps}><polyline points="9 11 12 14 22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" /></svg>;
+    case "edit":
+      return <svg {...svgProps}><path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z" /></svg>;
+    case "download":
+      return <svg {...svgProps}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>;
+    case "info":
+      return <svg {...svgProps}><circle cx="12" cy="12" r="10" /><line x1="12" y1="16" x2="12" y2="12" /><line x1="12" y1="8" x2="12.01" y2="8" /></svg>;
+    case "trash":
+      return <svg {...svgProps}><polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /><path d="M10 11v6" /><path d="M14 11v6" /><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" /></svg>;
+    case "check":
+      return <svg {...svgProps}><polyline points="20 6 9 17 4 12" /></svg>;
+    case "rename":
+      return <svg {...svgProps}><path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z" /></svg>;
+    case "admin":
+      return <svg {...svgProps}><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c.26.6.77 1.05 1.41 1.1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg>;
+    default:
+      return null;
+  }
+};
+
 const VideoTile = React.memo(function VideoTile({ stream, nickname }) {
   const videoRef = useRef(null);
   useEffect(() => {
@@ -196,6 +253,18 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
   const [grupos, setGrupos] = useState([]);
   const [historialLlamadas, setHistorialLlamadas] = useState([]);
   const [historialCargando, setHistorialCargando] = useState(false);
+  const refrescarHistorialRef = useRef(null);
+  const [sinLeerGrupos, setSinLeerGrupos] = useState([]);
+  const [sinLeerCargando, setSinLeerCargando] = useState(false);
+  const [sinLeerColapsados, setSinLeerColapsados] = useState({});
+  const scrollToMensajeRef = useRef(null);
+  const [sidebarNavVisible, setSidebarNavVisible] = useState(() => {
+    try {
+      return localStorage.getItem("chatSidebarNavVisible") !== "0";
+    } catch {
+      return true;
+    }
+  });
 
   const [mensajesGeneral, setMensajesGeneral] = useState([]);
   const [mensajesPrivado, setMensajesPrivado] = useState({});
@@ -226,9 +295,15 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
   const [busquedaMiembros, setBusquedaMiembros] = useState("");
   const [filtroMiembros, setFiltroMiembros] = useState("todos"); // todos, admins, miembros
   const [editandoTema, setEditandoTema] = useState(false);
+  const [editandoNombreGrupo, setEditandoNombreGrupo] = useState(false);
   const [editandoDescripcion, setEditandoDescripcion] = useState(false);
   const [nuevoTema, setNuevoTema] = useState("");
+  const [nuevoNombreGrupo, setNuevoNombreGrupo] = useState("");
   const [nuevaDescripcion, setNuevaDescripcion] = useState("");
+  const [guardandoGrupoPerfil, setGuardandoGrupoPerfil] = useState(false);
+  const [gestionandoAdminsGrupo, setGestionandoAdminsGrupo] = useState(false);
+  const [subiendoFotoGrupo, setSubiendoFotoGrupo] = useState(false);
+  const grupoFotoInputRef = useRef(null);
   // eslint-disable-next-line no-unused-vars
   const [usuarioRestringido, setUsuarioRestringido] = useState(false);
   // eslint-disable-next-line no-unused-vars
@@ -257,8 +332,10 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
   const [gruposGruposCollapsed, setGruposGruposCollapsed] = useState({}); // { nombreGrupo: true/false }
   const [chatGroups, setChatGroups] = useState({}); // { chatId: "nombreGrupo" }
   const [grupoGroups, setGrupoGroups] = useState({}); // { grupoId: "nombreGrupo" }
-  const [menuGrupoChat, setMenuGrupoChat] = useState(null); // ID del chat con menú abierto
-  const [menuGrupoGrupo, setMenuGrupoGrupo] = useState(null); // ID del grupo con menú abierto
+  const [menuLateralContextual, setMenuLateralContextual] = useState(null);
+  const [sidebarChatSections, setSidebarChatSections] = useState([]); // orden de secciones — mensajes directos
+  const [sidebarGrupoSections, setSidebarGrupoSections] = useState([]); // orden de secciones — canales y grupos
+  const [modalAdminSeccion, setModalAdminSeccion] = useState(null);
   const [modalGrupoNombre, setModalGrupoNombre] = useState(""); // Nombre del grupo a crear/renombrar
   const [modalGrupoAccion, setModalGrupoAccion] = useState(null); // { tipo: 'crear'|'renombrar', itemId, itemTipo: 'chat'|'grupo' }
   // eslint-disable-next-line no-unused-vars
@@ -286,6 +363,7 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
   const recTimerRef = useRef(null);
   const recAnimRef = useRef(null);
   const recAnalyserRef = useRef(null);
+  const autoEnviarAudioRef = useRef(false);
   const [isRecordingVideo, setIsRecordingVideo] = useState(false);
   const [videoPreviewStream, setVideoPreviewStream] = useState(null);
   const [videoGrabado, setVideoGrabado] = useState(null); // { url, file } tras detener grabación
@@ -358,6 +436,7 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
   const videoInputRef = useRef(null);
   const gifInputRef = useRef(null);
   const mediaRecorderRef = useRef(null);
+  const audioStreamRef = useRef(null);
   const audioChunksRef = useRef([]);
   const longPressTimeoutRef = useRef(null);
   const touchMovedRef = useRef(false);
@@ -845,6 +924,65 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
   const makeGeneralAvatar = () => {
     const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='36' height='36' viewBox='0 0 36 36'><rect width='36' height='36' rx='18' ry='18' fill='%23032121'/><circle cx='18' cy='18' r='9' stroke='rgba(255, 255, 255, 0.9)' stroke-width='1.5' fill='none'/><line x1='9' y1='18' x2='27' y2='18' stroke='rgba(255, 255, 255, 0.9)' stroke-width='1.5'/><path d='M18 9c-3 3-5 5.8-5 9s2 6 5 9' stroke='rgba(255, 255, 255, 0.9)' stroke-width='1.5' fill='none'/><path d='M18 9c3 3 5 5.8 5 9s-2 6-5 9' stroke='rgba(255, 255, 255, 0.9)' stroke-width='1.5' fill='none'/></svg>`;
     return `data:image/svg+xml,${encodeURIComponent(svg)}`;
+  };
+
+  const makeGrupoAvatarFallback = () => {
+    const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='56' height='56' viewBox='0 0 56 56'><rect width='56' height='56' rx='14' ry='14' fill='%23e8edf2'/><circle cx='22' cy='24' r='6' fill='%23314d69'/><circle cx='34' cy='24' r='6' fill='%23314d69'/><path d='M14 40c2-6 8-9 14-9s12 3 14 9' fill='%23314d69' opacity='0.85'/></svg>`;
+    return `data:image/svg+xml,${encodeURIComponent(svg)}`;
+  };
+
+  const getGrupoFotoUrl = (grupo) => {
+    const raw = String(grupo?.foto || "").trim();
+    if (!raw || raw === "null") return null;
+    if (raw.startsWith("http") || raw.startsWith("data:")) return raw;
+    const path = raw.startsWith("/") ? raw : `/${raw}`;
+    return `${SERVER_URL}${path}`;
+  };
+
+  const obtenerAdminsGrupoVisibles = (perfil) => {
+    const creador = perfil?.creado_por;
+    const delegados = Array.isArray(perfil?.administradores) ? perfil.administradores : [];
+    const lista = [];
+    if (creador) lista.push(creador);
+    delegados.forEach((admin) => {
+      if (admin && admin !== creador && !lista.includes(admin)) lista.push(admin);
+    });
+    return lista;
+  };
+
+  const renderGrupoAvatar = (grupo, { className = "grupo-icon", onClick } = {}) => {
+    const fotoUrl = getGrupoFotoUrl(grupo);
+    const contenido = fotoUrl ? (
+      <img
+        src={fotoUrl}
+        alt={grupo?.nombre || "Grupo"}
+        onError={(event) => {
+          const fallback = makeGrupoAvatarFallback();
+          if (event.currentTarget.src !== fallback) {
+            event.currentTarget.src = fallback;
+          }
+        }}
+      />
+    ) : (
+      <span className="grupo-icon-fallback" aria-hidden="true">👥</span>
+    );
+
+    return (
+      <span
+        className={className}
+        onClick={onClick}
+        role={onClick ? "button" : undefined}
+        tabIndex={onClick ? 0 : undefined}
+        onKeyDown={onClick ? (e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            onClick(e);
+          }
+        } : undefined}
+      >
+        {contenido}
+      </span>
+    );
   };
 
   const getAvatarUrl = (usuarioObj) => {
@@ -1588,24 +1726,39 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, tabPrincipal]);
 
+  const cargarHistorialLlamadas = async (mostrarLoader = false) => {
+    if (mostrarLoader) setHistorialCargando(true);
+    try {
+      const data = await authFetch(`${SERVER_URL}/api/chat/calls/historial`);
+      setHistorialLlamadas(Array.isArray(data) ? data : []);
+    } catch (_) {
+      setHistorialLlamadas([]);
+    } finally {
+      if (mostrarLoader) setHistorialCargando(false);
+    }
+  };
+
+  refrescarHistorialRef.current = cargarHistorialLlamadas;
+
   // 📞 Cargar historial de llamadas
   useEffect(() => {
     if (!open || tabPrincipal !== "historial") return;
     let cancelado = false;
-    const cargarHistorial = async (mostrarLoader = false) => {
-      if (mostrarLoader) setHistorialCargando(true);
+    const cargar = async (loader) => {
+      if (cancelado) return;
+      if (loader) setHistorialCargando(true);
       try {
         const data = await authFetch(`${SERVER_URL}/api/chat/calls/historial`);
         if (!cancelado) setHistorialLlamadas(Array.isArray(data) ? data : []);
       } catch (_) {
         if (!cancelado) setHistorialLlamadas([]);
       } finally {
-        if (mostrarLoader && !cancelado) setHistorialCargando(false);
+        if (loader && !cancelado) setHistorialCargando(false);
       }
     };
 
-    cargarHistorial(true);
-    const interval = setInterval(() => cargarHistorial(false), 45000);
+    cargar(true);
+    const interval = setInterval(() => cargar(false), 20000);
 
     return () => {
       cancelado = true;
@@ -1613,6 +1766,55 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, tabPrincipal, SERVER_URL]);
+
+  const toggleSidebarNav = () => {
+    setSidebarNavVisible((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem("chatSidebarNavVisible", next ? "1" : "0");
+      } catch { /* noop */ }
+      return next;
+    });
+  };
+
+  const cargarSinLeer = async (mostrarLoader = true) => {
+    if (mostrarLoader) setSinLeerCargando(true);
+    try {
+      const data = await authFetch(`${SERVER_URL}/api/chat/sin-leer`);
+      setSinLeerGrupos(Array.isArray(data) ? data : []);
+    } catch (_) {
+      setSinLeerGrupos([]);
+    } finally {
+      if (mostrarLoader) setSinLeerCargando(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!open || tabPrincipal !== "no-leidos") return;
+    cargarSinLeer(true);
+    const interval = setInterval(() => cargarSinLeer(false), 25000);
+    return () => clearInterval(interval);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, tabPrincipal, SERVER_URL]);
+
+  useEffect(() => {
+    if (!scrollToMensajeRef.current || !open || !tipoChat) return;
+    const mensajeId = scrollToMensajeRef.current;
+    const intentarScroll = () => {
+      const el = document.getElementById(`msg-${mensajeId}`);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+        el.classList.add("msg-resaltado-prioritario");
+        setTimeout(() => el.classList.remove("msg-resaltado-prioritario"), 2400);
+        scrollToMensajeRef.current = null;
+        return true;
+      }
+      return false;
+    };
+    if (intentarScroll()) return undefined;
+    const t = setTimeout(intentarScroll, 400);
+    return () => clearTimeout(t);
+  }, [open, tipoChat, chatActual, mensajesPrivado, mensajesGrupal, mensajesGeneral]);
 
   useEffect(() => {
     if (!open) return;
@@ -3537,6 +3739,7 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
         return;
       }
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      audioStreamRef.current = stream;
       const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus'
         : MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm'
         : MediaRecorder.isTypeSupported('audio/ogg;codecs=opus') ? 'audio/ogg;codecs=opus'
@@ -3550,14 +3753,21 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
         const ext = mimeType.includes('ogg') ? 'ogg' : mimeType.includes('mp4') ? 'mp4' : 'webm';
         const blob = new Blob(audioChunksRef.current, { type: mimeType });
         const file = new File([blob], `nota-voz-${Date.now()}.${ext}`, { type: mimeType });
-        setArchivoAdjunto(file);
-        stream.getTracks().forEach((t) => t.stop());
-        // Limpiar visualizador
+        const debeEnviar = autoEnviarAudioRef.current;
+        autoEnviarAudioRef.current = false;
+        audioStreamRef.current?.getTracks?.().forEach((t) => t.stop());
+        audioStreamRef.current = null;
         clearInterval(recTimerRef.current);
         cancelAnimationFrame(recAnimRef.current);
         setRecTime(0);
         setRecBars(new Array(30).fill(2));
         setIsRecording(false);
+        mediaRecorderRef.current = null;
+        if (debeEnviar && file.size > 0) {
+          enviarArchivoDirecto(file);
+        } else if (file.size > 0) {
+          setArchivoAdjunto(file);
+        }
       };
       mediaRecorderRef.current = recorder;
 
@@ -3588,19 +3798,51 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
       recTimerRef.current = setInterval(() => setRecTime((t) => t + 1), 1000);
 
       setIsRecording(true);
-      recorder.start();
+      recorder.start(200);
     } catch (_err) {
+      audioStreamRef.current?.getTracks?.().forEach((t) => t.stop());
+      audioStreamRef.current = null;
       setIsRecording(false);
       showAlert("No se pudo iniciar la grabación de voz.", "error");
     }
   };
 
-  const detenerGrabacionVoz = () => {
+  const detenerGrabacionVoz = (autoEnviar = false) => {
+    autoEnviarAudioRef.current = Boolean(autoEnviar);
     clearInterval(recTimerRef.current);
     cancelAnimationFrame(recAnimRef.current);
-    if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.stop();
+    const recorder = mediaRecorderRef.current;
+    if (recorder && recorder.state !== "inactive") {
+      try {
+        if (typeof recorder.requestData === "function") {
+          recorder.requestData();
+        }
+      } catch (_) { /* noop */ }
+      recorder.stop();
+      return;
     }
+    autoEnviarAudioRef.current = false;
+    setIsRecording(false);
+  };
+
+  const cancelarGrabacionVoz = () => {
+    autoEnviarAudioRef.current = false;
+    clearInterval(recTimerRef.current);
+    cancelAnimationFrame(recAnimRef.current);
+    const recorder = mediaRecorderRef.current;
+    if (recorder) {
+      recorder.onstop = null;
+      if (recorder.state !== "inactive") {
+        recorder.stop();
+      }
+    }
+    audioStreamRef.current?.getTracks?.().forEach((t) => t.stop());
+    audioStreamRef.current = null;
+    mediaRecorderRef.current = null;
+    audioChunksRef.current = [];
+    setRecTime(0);
+    setRecBars(new Array(30).fill(2));
+    setIsRecording(false);
   };
 
   const iniciarGrabacionVideo = async () => {
@@ -3690,7 +3932,7 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
     }
   };
 
-  const emojiReacciones = ["👍", "❤️", "😂", "😮", "😢", "🎉"];
+  const emojiReacciones = ["👍", "❤️", "😂", "😮", "😢", "🙏"];
   
   // Catálogo completo de emojis por categorías
   const emojiCategorias = {
@@ -3979,10 +4221,11 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
     const isMobile = window.innerWidth <= 767;
     const baseX = event?.clientX ?? window.innerWidth / 2;
     const baseY = event?.clientY ?? window.innerHeight / 2;
-    const maxX = window.innerWidth - 260;
-    const maxY = window.innerHeight - 360;
-    const x = isMobile ? window.innerWidth / 2 : Math.max(12, Math.min(baseX, maxX));
-    const y = isMobile ? window.innerHeight / 2 : Math.max(12, Math.min(baseY, maxY));
+    const pos = isMobile
+      ? { x: window.innerWidth / 2, y: window.innerHeight / 2 }
+      : calcPosicionMenu(baseX, baseY, 248, 420);
+    const x = pos.x;
+    const y = pos.y;
     setMenuMensaje({
       ...payload,
       x,
@@ -4284,7 +4527,6 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
     }
   };
 
-  // eslint-disable-next-line no-unused-vars
   const toggleDestacarMensaje = async (mensaje) => {
     if (!mensaje?.id) return;
     const chatId = getChatIdActual();
@@ -4498,10 +4740,101 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
     }
   };
 
+  const enviarArchivoDirecto = async (file, texto = "") => {
+    if (!file || !tipoChat) return;
+    const userDisplayName = user?.nickname || user?.name;
+    if (!userDisplayName) {
+      showAlert("No se puede enviar sin nickname o nombre.", "warning");
+      return;
+    }
+    const archivoSubido = await subirArchivo(file);
+    if (!archivoSubido) return;
+
+    const menciones = detectarMenciones(texto);
+    const menciona = menciones.length > 0 ? menciones[0] : null;
+    const enlaceCompartido = detectarEnlacesApp(texto);
+    const replyInfo = respondiendoMensaje
+      ? {
+          reply_to_id: respondiendoMensaje.id || null,
+          reply_to_user: respondiendoMensaje.usuario || null,
+          reply_to_text: respondiendoMensaje.texto || null,
+        }
+      : {};
+
+    const bodyData = {
+      mensaje: texto || file.name || "Archivo",
+      tipo_mensaje: "archivo",
+      archivo_id: archivoSubido.id,
+      menciona,
+      enlace_compartido: enlaceCompartido,
+      ...replyInfo,
+    };
+
+    setRespondiendoMensaje(null);
+
+    try {
+      let respuesta;
+      if (tipoChat === "general") {
+        respuesta = await authFetch(`${SERVER_URL}/api/chat/general`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(bodyData),
+        });
+        if (respuesta?.mensaje) {
+          setMensajesGeneral((prev) => {
+            const existe = prev.some((m) => m.id === respuesta.mensaje.id);
+            if (existe) return prev;
+            return [...prev, respuesta.mensaje].sort((a, b) => new Date(a.fecha || 0) - new Date(b.fecha || 0));
+          });
+        }
+      } else if (tipoChat === "privado") {
+        respuesta = await authFetch(`${SERVER_URL}/api/chat/privado`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ...bodyData, para_nickname: chatActual }),
+        });
+        if (respuesta?.mensaje) {
+          setMensajesPrivado((prev) => {
+            const mensajesExistentes = prev[chatActual] || [];
+            const existe = mensajesExistentes.some((m) => m.id === respuesta.mensaje.id);
+            if (existe) return prev;
+            return {
+              ...prev,
+              [chatActual]: [...mensajesExistentes, respuesta.mensaje].sort((a, b) => new Date(a.fecha || 0) - new Date(b.fecha || 0)),
+            };
+          });
+        }
+      } else if (tipoChat === "grupal") {
+        respuesta = await authFetch(`${SERVER_URL}/api/chat/grupos/${chatActual}/mensajes`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(bodyData),
+        });
+        if (respuesta?.mensaje) {
+          setMensajesGrupal((prev) => {
+            const mensajesExistentes = prev[chatActual] || [];
+            const existe = mensajesExistentes.some((m) => m.id === respuesta.mensaje.id);
+            if (existe) return prev;
+            return {
+              ...prev,
+              [chatActual]: [...mensajesExistentes, respuesta.mensaje].sort((a, b) => new Date(a.fecha || 0) - new Date(b.fecha || 0)),
+            };
+          });
+        }
+      }
+    } catch (e) {
+      showAlert(e?.message || "No se pudo enviar la nota de voz.", "error");
+    }
+  };
+
   // ============================
   // ➤ Enviar mensaje
   // ============================
   const enviarMensaje = async () => {
+    if (isRecording) {
+      detenerGrabacionVoz(true);
+      return;
+    }
     const texto = mensajeInput.trim();
     if (!texto && !archivoAdjunto) return;
 
@@ -4997,49 +5330,189 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
     }
   };
 
-  const abrirPerfilGrupo = async (grupoId) => {
+  const obtenerGrupoPerfilId = () => perfilData?.id ?? chatActual;
+
+  const recargarListaGrupos = async () => {
+    const data = await authFetch("/api/chat/grupos");
+    const lista = Array.isArray(data) ? data : [];
+    setGrupos(lista);
+    return lista;
+  };
+
+  const aplicarDatosPerfilGrupo = (perfil, grupoId) => {
+    setPerfilData(perfil || null);
+    setPerfilGrupoMiembros(perfil?.miembros || []);
+    setPerfilGrupoAdmins(perfil?.administradores || []);
+    setPerfilGrupoRestricciones(perfil?.restricciones || {});
+    setNuevoNombreGrupo(perfil?.nombre || "");
+    setNuevaDescripcion(perfil?.descripcion || "");
+    setEditandoNombreGrupo(false);
+    setEditandoDescripcion(false);
+
+    if (tipoChat === "grupal" && String(chatActual) === String(grupoId)) {
+      const userDisplayName = user?.nickname || user?.name;
+      const restriccionUsuario = perfil?.restricciones?.[userDisplayName];
+      if (restriccionUsuario) {
+        setUsuarioRestringido(true);
+        setRestriccionInfo(restriccionUsuario);
+      } else {
+        setUsuarioRestringido(false);
+        setRestriccionInfo(null);
+      }
+    }
+  };
+
+  const cargarDatosPerfilGrupo = async (grupoId) => {
+    const perfil = await authFetch(`${SERVER_URL}/api/chat/grupos/${grupoId}/perfil`);
+    aplicarDatosPerfilGrupo(perfil, grupoId);
+    const compartidos = await authFetch(`${SERVER_URL}/api/chat/grupos/${grupoId}/compartidos`);
+    setPerfilCompartidos(Array.isArray(compartidos) ? compartidos : []);
+    return perfil;
+  };
+
+  const abrirPerfilGrupo = async (grupoId, tabInicial = "acerca") => {
     if (!grupoId) return;
     setPerfilTipo("grupo");
     setPerfilAbierto(true);
-    setPerfilTab("acerca");
+    setPerfilTab(tabInicial);
     setPerfilData(null);
     setPerfilCompartidos([]);
-      setPerfilGrupoMiembros([]);
-      setPerfilGrupoAdmins([]);
-      setPerfilGrupoRestricciones({});
-      setMenuMiembroAbierto(null);
-      setSubmenuRestriccionAbierto(null);
-      setPerfilError(null);
+    setPerfilGrupoMiembros([]);
+    setPerfilGrupoAdmins([]);
+    setPerfilGrupoRestricciones({});
+    setMenuMiembroAbierto(null);
+    setSubmenuRestriccionAbierto(null);
+    setPerfilError(null);
+    setBusquedaMiembros("");
+    setFiltroMiembros("todos");
+    setGestionandoAdminsGrupo(false);
     setPerfilCargando(true);
 
     try {
-      const perfil = await authFetch(`${SERVER_URL}/api/chat/grupos/${grupoId}/perfil`);
-      setPerfilData(perfil || null);
-      setPerfilGrupoMiembros(perfil?.miembros || []);
-      setPerfilGrupoAdmins(perfil?.administradores || []);
-      setPerfilGrupoRestricciones(perfil?.restricciones || {});
-      
-      // Verificar si el usuario actual está restringido (solo si estamos viendo este grupo en el chat)
-      if (tipoChat === "grupal" && String(chatActual) === String(grupoId)) {
-        const userDisplayName = user?.nickname || user?.name;
-        const restriccionUsuario = perfil?.restricciones?.[userDisplayName];
-        if (restriccionUsuario) {
-          setUsuarioRestringido(true);
-          setRestriccionInfo(restriccionUsuario);
-        } else {
-          setUsuarioRestringido(false);
-          setRestriccionInfo(null);
-        }
-      }
-      
-      // Cargar compartidos (todos los tipos)
-      const compartidos = await authFetch(`${SERVER_URL}/api/chat/grupos/${grupoId}/compartidos`);
-      setPerfilCompartidos(Array.isArray(compartidos) ? compartidos : []);
+      await cargarDatosPerfilGrupo(grupoId);
     } catch (err) {
       setPerfilError(err?.message || "Error cargando información del grupo");
     } finally {
       setPerfilCargando(false);
     }
+  };
+
+  const guardarGrupoPerfil = async (grupoId, payload, mensaje = "Grupo actualizado") => {
+    if (!grupoId) return false;
+    setGuardandoGrupoPerfil(true);
+    try {
+      await authFetch(`${SERVER_URL}/api/chat/grupos/${grupoId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      await recargarListaGrupos();
+      await cargarDatosPerfilGrupo(grupoId);
+      showAlert(mensaje, "success");
+      return true;
+    } catch (err) {
+      showAlert(err?.message || "Error actualizando el grupo", "error");
+      return false;
+    } finally {
+      setGuardandoGrupoPerfil(false);
+    }
+  };
+
+  const subirFotoGrupo = async (archivo) => {
+    if (!archivo) return;
+    if (!archivo.type?.startsWith("image/")) {
+      showAlert("Selecciona una imagen válida", "warning");
+      return;
+    }
+    const grupoId = obtenerGrupoPerfilId();
+    if (!grupoId) return;
+
+    setSubiendoFotoGrupo(true);
+    try {
+      const formData = new FormData();
+      formData.append("foto", archivo);
+      await authFetch(`${SERVER_URL}/api/chat/grupos/${grupoId}/foto`, {
+        method: "POST",
+        body: formData,
+      });
+      await recargarListaGrupos();
+      await cargarDatosPerfilGrupo(grupoId);
+      showAlert("Foto del grupo actualizada", "success");
+    } catch (err) {
+      showAlert(err?.message || "Error subiendo la foto del grupo", "error");
+    } finally {
+      setSubiendoFotoGrupo(false);
+      if (grupoFotoInputRef.current) grupoFotoInputRef.current.value = "";
+    }
+  };
+
+  const quitarFotoGrupo = async () => {
+    const grupoId = obtenerGrupoPerfilId();
+    if (!grupoId || !perfilData?.foto) return;
+    if (await showConfirm("Quitar foto", "¿Quitar la foto de perfil del grupo?") !== true) return;
+
+    setSubiendoFotoGrupo(true);
+    try {
+      await authFetch(`${SERVER_URL}/api/chat/grupos/${grupoId}/foto`, { method: "DELETE" });
+      await recargarListaGrupos();
+      await cargarDatosPerfilGrupo(grupoId);
+      showAlert("Foto del grupo eliminada", "success");
+    } catch (err) {
+      showAlert(err?.message || "Error quitando la foto del grupo", "error");
+    } finally {
+      setSubiendoFotoGrupo(false);
+    }
+  };
+
+  const toggleAdminGrupoMiembro = async (nickname, hacerAdmin) => {
+    const grupoId = obtenerGrupoPerfilId();
+    if (!grupoId || !nickname) return;
+    try {
+      await authFetch(`${SERVER_URL}/api/chat/grupos/${grupoId}/miembros/${nickname}/admin`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ es_admin: hacerAdmin }),
+      });
+      await cargarDatosPerfilGrupo(grupoId);
+      showAlert(hacerAdmin ? "Administrador agregado" : "Administrador removido", "success");
+    } catch (err) {
+      showAlert(err?.message || "Error gestionando administrador", "error");
+    }
+  };
+
+  const eliminarGrupo = async () => {
+    const grupoId = obtenerGrupoPerfilId();
+    if (!grupoId) return;
+    if (!perfilData?.es_creador && !esAdmin) {
+      showAlert("Solo el creador del grupo puede eliminarlo", "warning");
+      return;
+    }
+
+    const confirmado = await showConfirm(
+      "Eliminar grupo",
+      `¿Eliminar permanentemente el grupo "${perfilData?.nombre || "este grupo"}"? Esta acción no se puede deshacer.`,
+    );
+    if (!confirmado) return;
+
+    try {
+      await authFetch(`${SERVER_URL}/api/chat/grupos/${grupoId}`, { method: "DELETE" });
+      showAlert("Grupo eliminado", "success");
+      cerrarPerfilUsuario();
+      await recargarListaGrupos();
+      if (tipoChat === "grupal" && String(chatActual) === String(grupoId)) {
+        setTipoChat(null);
+        setChatActual(null);
+        setTabPrincipal("grupos");
+      }
+    } catch (err) {
+      showAlert(err?.message || "Error eliminando el grupo", "error");
+    }
+  };
+
+  const abrirModalAgregarMiembros = (grupoId) => {
+    if (!grupoId) return;
+    setGrupoAgregarMiembros(grupoId);
+    setMostrarAgregarMiembros(true);
   };
 
   const cerrarPerfilUsuario = () => {
@@ -5650,6 +6123,7 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
       }).catch(() => {});
     }
     limpiarLlamada();
+    setTimeout(() => refrescarHistorialRef.current?.(false), 800);
   };
 
   const toggleMute = () => {
@@ -5901,11 +6375,13 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
       
       // Mostrar mensaje de éxito (el modal se actualizará automáticamente)
       
-      // Recargar grupos para actualizar la lista de miembros
-      const data = await authFetch("/api/chat/grupos");
-      setGrupos(data || []);
-      
-      // Si estamos viendo ese grupo, recargar también los mensajes
+      await recargarListaGrupos();
+      showAlert(`${usuarioNickname} agregado al grupo`, "success");
+
+      if (perfilAbierto && perfilTipo === "grupo" && String(obtenerGrupoPerfilId()) === String(grupoId)) {
+        await cargarDatosPerfilGrupo(grupoId);
+      }
+
       if (tipoChat === "grupal" && String(chatActual) === String(grupoId)) {
         const mensajesData = await authFetch(`/api/chat/grupos/${grupoId}/mensajes`);
         setMensajesGrupal((prev) => ({
@@ -5913,8 +6389,6 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
           [grupoId]: mensajesData || [],
         }));
       }
-      
-      // NO cerrar el modal, permitir agregar más usuarios
     } catch (e) {
       showAlert("Error agregando miembro: " + (e.message || "Error desconocido"), "error");
     }
@@ -5923,11 +6397,613 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
   // ============================
   // 🎯 Abrir chat
   // ============================
-  const abrirChat = async (tipo, destino) => {
+  const previewTextoSinLeer = (mensaje) => {
+    if (!mensaje) return "";
+    if (mensaje.tipo_mensaje === "archivo" || mensaje.archivo_url) {
+      const tipo = String(mensaje.archivo_tipo || "").toLowerCase();
+      if (tipo.startsWith("image/")) return "Imagen";
+      if (tipo.startsWith("audio/")) return "Nota de voz";
+      if (tipo.startsWith("video/")) return "Video";
+      return mensaje.archivo_nombre || mensaje.mensaje || "Archivo adjunto";
+    }
+    return String(mensaje.mensaje || "").trim() || "Mensaje";
+  };
+
+  const formatoHoraSinLeer = (fechaIso) => {
+    if (!fechaIso) return "";
+    const d = new Date(fechaIso);
+    if (Number.isNaN(d.getTime())) return "";
+    const hoy = new Date();
+    if (d.toDateString() === hoy.toDateString()) {
+      return d.toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" });
+    }
+    return d.toLocaleDateString("es-MX", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+  };
+
+  const claveSinLeerGrupo = (grupo) => `${grupo.tipo}-${grupo.conversacion_id}`;
+
+  const toggleSinLeerGrupo = (clave) => {
+    setSinLeerColapsados((prev) => ({ ...prev, [clave]: !prev[clave] }));
+  };
+
+  const marcarConversacionSinLeer = async (grupo) => {
+    try {
+      if (grupo.tipo === "privado") {
+        await authFetch(`${SERVER_URL}/api/chat/privado/${grupo.conversacion_id}/leer`, { method: "POST" });
+        setChatsActivos((prev) =>
+          prev.map((c) => (c.otro_usuario === grupo.conversacion_id ? { ...c, mensajes_no_leidos: 0 } : c)),
+        );
+      } else if (grupo.tipo === "grupal") {
+        await authFetch(`${SERVER_URL}/api/chat/grupos/${grupo.conversacion_id}/leer`, { method: "POST" });
+      }
+      await cargarSinLeer(false);
+      const data = await authFetch(`${SERVER_URL}/api/chat/activos`);
+      setChatsActivos(data || []);
+    } catch (_) { /* noop */ }
+  };
+
+  const marcarTodosSinLeer = async () => {
+    for (const grupo of sinLeerGrupos) {
+      try {
+        if (grupo.tipo === "privado") {
+          await authFetch(`${SERVER_URL}/api/chat/privado/${grupo.conversacion_id}/leer`, { method: "POST" });
+        } else if (grupo.tipo === "grupal") {
+          await authFetch(`${SERVER_URL}/api/chat/grupos/${grupo.conversacion_id}/leer`, { method: "POST" });
+        }
+      } catch (_) { /* noop */ }
+    }
+    setChatsActivos((prev) => prev.map((c) => ({ ...c, mensajes_no_leidos: 0 })));
+    await cargarSinLeer(false);
+    try {
+      const data = await authFetch(`${SERVER_URL}/api/chat/activos`);
+      setChatsActivos(data || []);
+    } catch (_) { /* noop */ }
+  };
+
+  const abrirMensajeSinLeer = async (grupo, mensaje) => {
+    const mensajeId = mensaje?.id;
+    scrollToMensajeRef.current = mensajeId || null;
+    if (grupo.tipo === "privado") {
+      await abrirChat("privado", grupo.conversacion_id, { irATabChats: true });
+    } else if (grupo.tipo === "grupal") {
+      await abrirChat("grupal", grupo.conversacion_id, { irATabChats: true });
+    }
+    setTimeout(() => cargarSinLeer(false), 1200);
+  };
+
+  const formatoFechaLlamada = (valor, conHora = true) => {
+    if (!valor) return "—";
+    const d = new Date(valor);
+    if (Number.isNaN(d.getTime())) return "—";
+    if (conHora) {
+      return d.toLocaleString("es-MX", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    }
+    return d.toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric" });
+  };
+
+  const formatoDuracionLlamada = (segundos) => {
+    if (segundos == null || segundos <= 0) return null;
+    const m = Math.floor(segundos / 60);
+    const s = segundos % 60;
+    if (m >= 60) {
+      const h = Math.floor(m / 60);
+      const rm = m % 60;
+      return `${h}h ${rm}m`;
+    }
+    return m > 0 ? `${m}m ${s}s` : `${s}s`;
+  };
+
+  const eliminarRegistroLlamada = async (id) => {
+    const confirmado = await showConfirm(
+      "¿Eliminar este registro de videollamada del historial?",
+      "Eliminar registro",
+    );
+    if (!confirmado) return;
+    try {
+      await authFetch(`${SERVER_URL}/api/chat/calls/historial/${id}`, { method: "DELETE" });
+      setHistorialLlamadas((prev) => prev.filter((ll) => ll.id !== id));
+      showAlert("Registro eliminado", "success");
+    } catch (e) {
+      showAlert(e?.message || "No se pudo eliminar el registro", "error");
+    }
+  };
+
+  const eliminarTodoHistorial = async () => {
+    const confirmado = await showConfirm(
+      "¿Eliminar todo tu historial de videollamadas? Esta acción no se puede deshacer.",
+      "Limpiar historial",
+    );
+    if (!confirmado) return;
+    try {
+      await authFetch(`${SERVER_URL}/api/chat/calls/historial`, { method: "DELETE" });
+      setHistorialLlamadas([]);
+      showAlert("Historial limpiado", "success");
+    } catch (e) {
+      showAlert(e?.message || "No se pudo limpiar el historial", "error");
+    }
+  };
+
+  const volverDesdePanel = () => setTabPrincipal("chats");
+
+  const renderPanelHeaderBar = (titulo, extras = null) => (
+    <div className="cp-panel-header-bar">
+      <button
+        type="button"
+        className="cp-panel-header-back"
+        onClick={volverDesdePanel}
+        aria-label="Volver"
+      >
+        ←
+      </button>
+      <div className="cp-panel-header-main">
+        <div className="cp-panel-header-title-row">
+          <h3 className="cp-panel-header-title">{titulo}</h3>
+          {extras}
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderVistaHistorial = () => (
+    <div className="cp-panel-vista cp-call-history cp-call-history-main">
+      {renderPanelHeaderBar(
+        "Historial de llamadas",
+        historialLlamadas.length > 0 ? (
+          <span className="cp-panel-vista-count">{historialLlamadas.length}</span>
+        ) : null,
+      )}
+      <div className="cp-panel-vista-header cp-panel-subheader">
+        <div className="cp-sidebar-actions cp-panel-subheader-actions">
+          <button
+            type="button"
+            className="cp-sidebar-action-btn"
+            onClick={() => cargarHistorialLlamadas(true)}
+            title="Actualizar"
+          >
+            ↻ Actualizar
+          </button>
+          {historialLlamadas.length > 0 ? (
+            <button
+              type="button"
+              className="cp-sidebar-action-btn cp-sidebar-action-btn--danger"
+              onClick={eliminarTodoHistorial}
+            >
+              Limpiar historial
+            </button>
+          ) : null}
+        </div>
+      </div>
+      <div className="cp-panel-vista-scroll">
+        {historialCargando ? (
+          <div className="chat-empty-pro">Cargando historial...</div>
+        ) : historialLlamadas.length === 0 ? (
+          <div className="cp-panel-vista-empty">
+            <div className="cp-call-history-empty-icon">📹</div>
+            <p>Sin videollamadas registradas</p>
+            <span>Tus llamadas y videollamadas aparecerán aquí</span>
+          </div>
+        ) : (
+          historialLlamadas.map((ll) => {
+            const contraparte = ll.fueIniciador
+              ? (Array.isArray(ll.receptores) ? ll.receptores : []).join(", ")
+              : ll.iniciador;
+            const primerContacto = String(contraparte || "").split(",")[0]?.trim();
+            const durStr = formatoDuracionLlamada(ll.duracionSegundos);
+            const estadoLabel = {
+              finalizada: "Finalizada",
+              activa: "En curso",
+              pendiente: "Sin respuesta",
+              rechazada: "Rechazada",
+              perdida: "Perdida",
+            }[ll.estado] || ll.estado;
+            return (
+              <article
+                key={ll.id}
+                className={`cp-call-history-item cp-call-history-item-main estado-${ll.estado || "desconocido"}`}
+              >
+                <div className="cp-call-history-item-main-left">
+                  {primerContacto && ll.tipo !== "grupal" ? (
+                    <img
+                      src={getAvatarUrl(primerContacto)}
+                      alt={primerContacto}
+                      className="cp-call-history-avatar"
+                      onError={(e) => { e.target.src = makeInitialsAvatar(primerContacto); }}
+                    />
+                  ) : (
+                    <span className="cp-call-history-icon" aria-hidden="true">📹</span>
+                  )}
+                  <div className="cp-call-history-body">
+                    <div className="cp-call-history-row">
+                      <span className="cp-call-history-name">
+                        {ll.fueIniciador ? "Saliente" : "Entrante"}
+                        {" · "}
+                        {contraparte || "Desconocido"}
+                      </span>
+                      <span className={`cp-call-history-badge estado-${ll.estado || "desconocido"}`}>
+                        {estadoLabel}
+                      </span>
+                    </div>
+                    <div className="cp-call-history-meta">
+                      <span>{ll.tipo === "grupal" ? "Videollamada grupal" : "Videollamada privada"}</span>
+                      {durStr ? <><span>·</span><span>Duración {durStr}</span></> : null}
+                    </div>
+                    <div className="cp-call-history-dates">
+                      <span><strong>Inicio:</strong> {formatoFechaLlamada(ll.iniciadaEn)}</span>
+                      {ll.aceptadaEn ? (
+                        <span><strong>Aceptada:</strong> {formatoFechaLlamada(ll.aceptadaEn)}</span>
+                      ) : null}
+                      {ll.finalizadaEn ? (
+                        <span><strong>Fin:</strong> {formatoFechaLlamada(ll.finalizadaEn)}</span>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+                <div className="cp-call-history-item-actions">
+                  {primerContacto && ll.tipo !== "grupal" ? (
+                    <button
+                      type="button"
+                      className="cp-sidebar-action-btn"
+                      onClick={() => abrirChat("privado", primerContacto)}
+                    >
+                      Abrir chat
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    className="cp-sidebar-action-btn cp-sidebar-action-btn--danger"
+                    onClick={() => eliminarRegistroLlamada(ll.id)}
+                    title="Eliminar registro"
+                  >
+                    Eliminar
+                  </button>
+                </div>
+              </article>
+            );
+          })
+        )}
+      </div>
+    </div>
+  );
+
+  const renderVistaAjustes = () => {
+    const emojiSonido = (id) => {
+      const found = NOTIFICATION_SOUNDS.find((s) => s.id === id);
+      if (found) return found.emoji;
+      if (id === "ringIncoming") return "📲";
+      if (id === "ringOutgoing") return "📤";
+      return "🔊";
+    };
+
+    const renderChipsSonido = (opciones, valorActivo, onSelect) => (
+      <div className="cp-ajustes-sound-grid" role="listbox" aria-label="Seleccionar sonido">
+        {opciones.map((s) => {
+          const activo = valorActivo === s.id;
+          const emoji = s.emoji || emojiSonido(s.id);
+          return (
+            <button
+              key={s.id}
+              type="button"
+              role="option"
+              aria-selected={activo}
+              className={`cp-ajustes-sound-chip ${activo ? "active" : ""}`}
+              onClick={() => onSelect(s.id)}
+            >
+              <span className="cp-ajustes-sound-chip-emoji" aria-hidden="true">{emoji}</span>
+              <span className="cp-ajustes-sound-chip-label">{s.label}</span>
+              {activo ? <span className="cp-ajustes-sound-chip-check" aria-hidden="true">✓</span> : null}
+            </button>
+          );
+        })}
+      </div>
+    );
+
+    const renderSlider = (valor, onChange, id) => {
+      const pct = Math.round(valor * 100);
+      return (
+        <div className="cp-ajustes-volume-block">
+          <div className="cp-ajustes-volume-label">
+            <span>Volumen</span>
+            <strong>{pct}%</strong>
+          </div>
+          <input
+            id={id}
+            type="range"
+            className="cp-ajustes-range"
+            min="0"
+            max="1"
+            step="0.05"
+            value={valor}
+            style={{ "--range-pct": `${pct}%` }}
+            onChange={(e) => onChange(Number(e.target.value))}
+          />
+        </div>
+      );
+    };
+
+    return (
+      <div className="cp-panel-vista cp-ajustes-main">
+        {renderPanelHeaderBar("Ajustes")}
+        <div className="cp-ajustes-hero cp-panel-subheader">
+          <div className="cp-ajustes-hero-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="3" />
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+            </svg>
+          </div>
+          <div className="cp-ajustes-hero-text">
+            <p className="cp-ajustes-hero-sub">Notificaciones y tonos de videollamada</p>
+          </div>
+        </div>
+
+        <div className="cp-panel-vista-scroll cp-ajustes-scroll">
+          <div className="cp-ajustes-content">
+
+            <section className="cp-ajustes-card">
+              <header className="cp-ajustes-card-header">
+                <span className="cp-ajustes-card-icon" aria-hidden="true">💬</span>
+                <div>
+                  <h4 className="cp-ajustes-card-title">Mensajes</h4>
+                  <p className="cp-ajustes-card-desc">Alerta cuando llega un mensaje nuevo</p>
+                </div>
+              </header>
+              {renderChipsSonido(
+                NOTIFICATION_SOUNDS,
+                audioSettings.msgSound,
+                (id) => saveAudioSetting("msgSound", id),
+              )}
+              {renderSlider(
+                audioSettings.msgVolume,
+                (v) => saveAudioSetting("msgVolume", v),
+                "ajustes-msg-volume",
+              )}
+              <button type="button" className="cp-ajustes-preview-btn" onClick={playIncomingMessageSound}>
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+                Probar sonido de mensaje
+              </button>
+            </section>
+
+            <section className="cp-ajustes-card">
+              <header className="cp-ajustes-card-header">
+                <span className="cp-ajustes-card-icon" aria-hidden="true">📹</span>
+                <div>
+                  <h4 className="cp-ajustes-card-title">Videollamadas</h4>
+                  <p className="cp-ajustes-card-desc">Tonos al recibir o iniciar una llamada</p>
+                </div>
+              </header>
+
+              <div className="cp-ajustes-subsection">
+                <span className="cp-ajustes-subsection-label">Tono entrante</span>
+                {renderChipsSonido(
+                  CALL_SOUND_OPTIONS,
+                  audioSettings.callIncomingSound,
+                  (id) => saveAudioSetting("callIncomingSound", id),
+                )}
+              </div>
+
+              <div className="cp-ajustes-subsection">
+                <span className="cp-ajustes-subsection-label">Tono saliente</span>
+                {renderChipsSonido(
+                  CALL_SOUND_OPTIONS,
+                  audioSettings.callOutgoingSound,
+                  (id) => saveAudioSetting("callOutgoingSound", id),
+                )}
+              </div>
+
+              {renderSlider(
+                audioSettings.callVolume,
+                (v) => saveAudioSetting("callVolume", v),
+                "ajustes-call-volume",
+              )}
+
+              <div className="cp-ajustes-preview-row">
+                <button type="button" className="cp-ajustes-preview-btn" onClick={playIncomingCallTone}>
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+                  Probar entrante
+                </button>
+                <button type="button" className="cp-ajustes-preview-btn cp-ajustes-preview-btn-secondary" onClick={playOutgoingCallTone}>
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+                  Probar saliente
+                </button>
+              </div>
+            </section>
+
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderSidebarRail = () => (
+    <nav className="cp-sidebar-rail" aria-label="Navegación del chat">
+      <button
+        type="button"
+        className={`cp-sidebar-rail-btn ${tabPrincipal === "no-leidos" ? "active" : ""}`}
+        title="Sin leer"
+        aria-label="Sin leer"
+        onClick={() => {
+          setTabPrincipal("no-leidos");
+          setTipoChat(null);
+          setChatActual(null);
+          setPerfilAbierto(false);
+        }}
+      >
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 12h-6l-2 3H10l-2-3H2"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>
+        {totalChatsNoLeidos > 0 ? (
+          <span className="cp-sidebar-rail-badge">{totalChatsNoLeidos > 99 ? "99+" : totalChatsNoLeidos}</span>
+        ) : null}
+      </button>
+      <button
+        type="button"
+        className={`cp-sidebar-rail-btn ${tabPrincipal === "chats" ? "active" : ""}`}
+        title="Mensajes directos"
+        aria-label="Mensajes directos"
+        onClick={() => setTabPrincipal("chats")}
+      >
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      </button>
+      <button
+        type="button"
+        className={`cp-sidebar-rail-btn ${tabPrincipal === "grupos" ? "active" : ""}`}
+        title="Canales y grupos"
+        aria-label="Canales y grupos"
+        onClick={() => setTabPrincipal("grupos")}
+      >
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      </button>
+      <button
+        type="button"
+        className={`cp-sidebar-rail-btn ${tabPrincipal === "usuarios" ? "active" : ""}`}
+        title="Players"
+        aria-label="Players"
+        onClick={() => {
+          setTabPrincipal("usuarios");
+          setTipoChat(null);
+          setChatActual(null);
+        }}
+      >
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+      </button>
+      <div className="cp-sidebar-rail-spacer" aria-hidden="true" />
+      <button
+        type="button"
+        className={`cp-sidebar-rail-btn ${tabPrincipal === "historial" ? "active" : ""}`}
+        title="Llamadas"
+        aria-label="Llamadas"
+        onClick={() => {
+          setTabPrincipal("historial");
+          setTipoChat(null);
+          setChatActual(null);
+          setPerfilAbierto(false);
+        }}
+      >
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.65 3.4 2 2 0 0 1 3.62 1h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.8a16 16 0 0 0 7.29 7.29l1.06-1.06a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+      </button>
+      <button
+        type="button"
+        className={`cp-sidebar-rail-btn ${tabPrincipal === "ajustes" ? "active" : ""}`}
+        title="Ajustes"
+        aria-label="Ajustes"
+        onClick={() => {
+          setTabPrincipal("ajustes");
+          setTipoChat(null);
+          setChatActual(null);
+          setPerfilAbierto(false);
+        }}
+      >
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51h.01a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      </button>
+    </nav>
+  );
+
+  const renderVistaSinLeer = () => (
+    <div className="cp-sin-leer cp-sin-leer-main">
+      {renderPanelHeaderBar(
+        "Sin leer",
+        sinLeerGrupos.length > 0 ? (
+          <span className="cp-sin-leer-total">
+            {sinLeerGrupos.reduce((t, g) => t + (g.mensajes?.length || 0), 0)}
+          </span>
+        ) : null,
+      )}
+      {sinLeerGrupos.length > 0 ? (
+        <div className="cp-sin-leer-header cp-panel-subheader">
+          <div className="cp-sidebar-actions cp-panel-subheader-actions">
+            <button type="button" className="cp-sidebar-action-btn cp-sidebar-action-btn--primary" onClick={marcarTodosSinLeer}>
+              Marcar todos como leídos
+            </button>
+          </div>
+        </div>
+      ) : null}
+      <div className="cp-sin-leer-scroll">
+        {sinLeerCargando ? (
+          <div className="chat-empty-pro">Cargando mensajes sin leer...</div>
+        ) : sinLeerGrupos.length === 0 ? (
+          <div className="cp-sin-leer-empty">
+            <div className="cp-sin-leer-empty-icon">✓</div>
+            <p>Estás al día</p>
+            <span>No tienes mensajes pendientes por leer</span>
+          </div>
+        ) : (
+          sinLeerGrupos.map((grupo) => {
+            const clave = claveSinLeerGrupo(grupo);
+            const colapsado = sinLeerColapsados[clave] === true;
+            const cantidad = grupo.mensajes?.length || 0;
+            const esPrivado = grupo.tipo === "privado";
+            return (
+              <section key={clave} className="cp-sin-leer-grupo">
+                <div className="cp-sin-leer-grupo-header">
+                  <button
+                    type="button"
+                    className="cp-sin-leer-grupo-toggle"
+                    onClick={() => toggleSinLeerGrupo(clave)}
+                    aria-expanded={!colapsado}
+                  >
+                    <svg className={`cp-sin-leer-chevron ${colapsado ? "collapsed" : ""}`} viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M9 6l6 6-6 6"/></svg>
+                    <span className="cp-sin-leer-grupo-icon">{esPrivado ? "💬" : "👥"}</span>
+                    <span className="cp-sin-leer-grupo-nombre">{grupo.conversacion_nombre}</span>
+                    <span className="cp-sin-leer-grupo-count">{cantidad} mensaje{cantidad !== 1 ? "s" : ""}</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="cp-sidebar-action-btn"
+                    onClick={() => marcarConversacionSinLeer(grupo)}
+                  >
+                    Marcar como leído
+                  </button>
+                </div>
+                {!colapsado && (grupo.mensajes || []).map((mensaje) => {
+                  const autor = mensaje.de_nickname || mensaje.usuario_nickname || "Usuario";
+                  const yo = user?.nickname || user?.name;
+                  const texto = previewTextoSinLeer(mensaje);
+                  return (
+                    <article key={`${clave}-${mensaje.id}`} className="cp-sin-leer-mensaje">
+                      <img
+                        src={getAvatarUrl(autor)}
+                        alt={autor}
+                        className="cp-sin-leer-avatar"
+                        onError={(e) => { e.target.src = makeInitialsAvatar(autor); }}
+                      />
+                      <div className="cp-sin-leer-mensaje-body">
+                        <div className="cp-sin-leer-mensaje-meta">
+                          <strong style={{ color: getColorForName(autor) }}>{autor === yo ? "Tú" : autor}</strong>
+                          <span>{formatoHoraSinLeer(mensaje.fecha)}</span>
+                        </div>
+                        <p className="cp-sin-leer-mensaje-texto">{texto}</p>
+                        {mensaje.reply_to_text ? (
+                          <p className="cp-sin-leer-mensaje-reply">↳ {mensaje.reply_to_text}</p>
+                        ) : null}
+                        <button
+                          type="button"
+                          className="cp-sidebar-action-btn cp-sidebar-action-btn--primary"
+                          onClick={() => abrirMensajeSinLeer(grupo, mensaje)}
+                        >
+                          Ver mensaje
+                        </button>
+                      </div>
+                    </article>
+                  );
+                })}
+              </section>
+            );
+          })
+        )}
+      </div>
+    </div>
+  );
+
+  const abrirChat = async (tipo, destino, opts = {}) => {
+    const { irATabChats = true, mensajeId = null } = opts;
     salirSeleccion();
     setTipoChat(tipo);
     setChatActual(destino);
-    setTabPrincipal("chats");
+    if (irATabChats) setTabPrincipal("chats");
+    if (mensajeId) scrollToMensajeRef.current = mensajeId;
     setNoLeidos(0);
     setMostrarAgregarMiembros(false);
     setGrupoMenuAbierto(null);
@@ -5991,42 +7067,128 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
       [groupName]: !prev[groupName]
     }));
   };
+
+  const persistChatSections = (sections) => {
+    try { localStorage.setItem("chatSidebarChatSections", JSON.stringify(sections)); } catch { /* noop */ }
+  };
+
+  const persistGrupoSections = (sections) => {
+    try { localStorage.setItem("chatSidebarGrupoSections", JSON.stringify(sections)); } catch { /* noop */ }
+  };
+
+  const obtenerNombresSeccionesChats = () => {
+    const nombres = new Set(sidebarChatSections);
+    Object.values(chatGroups).forEach((n) => n && nombres.add(n));
+    const ordenados = sidebarChatSections.filter((n) => nombres.has(n));
+    [...nombres].forEach((n) => {
+      if (!ordenados.includes(n)) ordenados.push(n);
+    });
+    return ordenados;
+  };
+
+  const obtenerNombresSeccionesGrupos = () => {
+    const nombres = new Set(sidebarGrupoSections);
+    Object.values(grupoGroups).forEach((n) => n && nombres.add(n));
+    const ordenados = sidebarGrupoSections.filter((n) => nombres.has(n));
+    [...nombres].forEach((n) => {
+      if (!ordenados.includes(n)) ordenados.push(n);
+    });
+    return ordenados;
+  };
+
+  const ordenarClavesSeccion = (keys, alcance = "chat") => [...keys].sort((a, b) => {
+    if (a === "__sin_grupo__") return 1;
+    if (b === "__sin_grupo__") return -1;
+    const order = alcance === "grupo" ? obtenerNombresSeccionesGrupos() : obtenerNombresSeccionesChats();
+    const ia = order.indexOf(a);
+    const ib = order.indexOf(b);
+    if (ia >= 0 && ib >= 0) return ia - ib;
+    if (ia >= 0) return -1;
+    if (ib >= 0) return 1;
+    return String(a).localeCompare(String(b), "es");
+  });
+
+  const calcPosicionMenu = (clientX, clientY, anchoEst = 248, altoEst = 360) => {
+    const margin = 10;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    let x = clientX;
+    let y = clientY;
+    if (x + anchoEst > vw - margin) x = Math.max(margin, vw - anchoEst - margin);
+    if (y + altoEst > vh - margin) y = Math.max(margin, vh - altoEst - margin);
+    if (x < margin) x = margin;
+    if (y < margin) y = margin;
+    return { x, y };
+  };
+
+  const cerrarMenuLateral = () => setMenuLateralContextual(null);
+
+  const abrirMenuLateral = (event, payload) => {
+    event?.preventDefault?.();
+    event?.stopPropagation?.();
+    const { x, y } = calcPosicionMenu(event?.clientX ?? 0, event?.clientY ?? 0);
+    setMenuLateralContextual({ ...payload, x, y });
+  };
+
+  const marcarChatComoLeido = async (otroUsuario) => {
+    setChatsActivos((prev) =>
+      prev.map((c) => (c.otro_usuario === otroUsuario ? { ...c, mensajes_no_leidos: 0 } : c)),
+    );
+    try {
+      await authFetch(`${SERVER_URL}/api/chat/privado/${otroUsuario}/leer`, { method: "POST" });
+    } catch (_) { /* noop */ }
+    cerrarMenuLateral();
+  };
+
+  const marcarSeccionComoLeida = async (nombreSeccion) => {
+    const chatsEnSeccion = chatsActivos.filter((c) => chatGroups[c.otro_usuario] === nombreSeccion);
+    setChatsActivos((prev) =>
+      prev.map((c) => (chatGroups[c.otro_usuario] === nombreSeccion ? { ...c, mensajes_no_leidos: 0 } : c)),
+    );
+    await Promise.all(
+      chatsEnSeccion.map((c) =>
+        authFetch(`${SERVER_URL}/api/chat/privado/${c.otro_usuario}/leer`, { method: "POST" }).catch(() => {}),
+      ),
+    );
+    cerrarMenuLateral();
+  };
   
-  const agruparChats = () => {
+  const totalChatsNoLeidos = chatsActivos.reduce((t, c) => t + (c.mensajes_no_leidos || 0), 0);
+
+  const agruparChats = (lista = chatsActivos, soloPlano = false) => {
+    if (soloPlano) {
+      return lista.length > 0 ? { __sin_grupo__: lista } : {};
+    }
     const grouped = {};
-    chatsActivos.forEach(chat => {
+    obtenerNombresSeccionesChats().forEach((name) => {
+      grouped[name] = [];
+    });
+    lista.forEach((chat) => {
       const groupName = chatGroups[chat.otro_usuario];
       if (groupName) {
-        if (!grouped[groupName]) {
-          grouped[groupName] = [];
-        }
+        if (!grouped[groupName]) grouped[groupName] = [];
         grouped[groupName].push(chat);
       }
     });
-    // Agregar chats sin grupo al final, sin etiqueta
-    const sinGrupo = chatsActivos.filter(chat => !chatGroups[chat.otro_usuario]);
-    if (sinGrupo.length > 0) {
-      grouped['__sin_grupo__'] = sinGrupo;
-    }
+    const sinGrupo = lista.filter((chat) => !chatGroups[chat.otro_usuario]);
+    if (sinGrupo.length > 0) grouped.__sin_grupo__ = sinGrupo;
     return grouped;
   };
-  
+
   const agruparGrupos = () => {
     const grouped = {};
-    grupos.forEach(grupo => {
+    obtenerNombresSeccionesGrupos().forEach((name) => {
+      grouped[name] = [];
+    });
+    grupos.forEach((grupo) => {
       const groupName = grupoGroups[grupo.id];
       if (groupName) {
-        if (!grouped[groupName]) {
-          grouped[groupName] = [];
-        }
+        if (!grouped[groupName]) grouped[groupName] = [];
         grouped[groupName].push(grupo);
       }
     });
-    // Agregar grupos sin carpeta al final, sin etiqueta
-    const sinGrupo = grupos.filter(grupo => !grupoGroups[grupo.id]);
-    if (sinGrupo.length > 0) {
-      grouped['__sin_grupo__'] = sinGrupo;
-    }
+    const sinGrupo = grupos.filter((grupo) => !grupoGroups[grupo.id]);
+    if (sinGrupo.length > 0) grouped.__sin_grupo__ = sinGrupo;
     return grouped;
   };
   
@@ -6044,27 +7206,74 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
   
   // Funciones para gestionar carpetas/grupos desplegables
   const asignarACarpeta = (itemId, itemTipo, carpetaNombre) => {
-    if (itemTipo === 'chat') {
-      setChatGroups(prev => ({
-        ...prev,
-        [itemId]: carpetaNombre
-      }));
-      // Guardar en localStorage
-      const saved = JSON.parse(localStorage.getItem('chatGroups') || '{}');
-      saved[itemId] = carpetaNombre;
-      localStorage.setItem('chatGroups', JSON.stringify(saved));
-    } else if (itemTipo === 'grupo') {
-      setGrupoGroups(prev => ({
-        ...prev,
-        [itemId]: carpetaNombre
-      }));
-      // Guardar en localStorage
-      const saved = JSON.parse(localStorage.getItem('grupoGroups') || '{}');
-      saved[itemId] = carpetaNombre;
-      localStorage.setItem('grupoGroups', JSON.stringify(saved));
+    const nombre = String(carpetaNombre || "").trim();
+    if (itemTipo === "chat") {
+      setChatGroups((prev) => {
+        const next = { ...prev };
+        if (!nombre) delete next[itemId];
+        else next[itemId] = nombre;
+        localStorage.setItem("chatGroups", JSON.stringify(next));
+        return next;
+      });
+    } else if (itemTipo === "grupo") {
+      setGrupoGroups((prev) => {
+        const next = { ...prev };
+        if (!nombre) delete next[itemId];
+        else next[itemId] = nombre;
+        localStorage.setItem("grupoGroups", JSON.stringify(next));
+        return next;
+      });
     }
-    setMenuGrupoChat(null);
-    setMenuGrupoGrupo(null);
+    if (nombre) {
+      if (itemTipo === "chat") {
+        setSidebarChatSections((prev) => {
+          if (prev.includes(nombre)) return prev;
+          const next = [...prev, nombre];
+          persistChatSections(next);
+          return next;
+        });
+      } else if (itemTipo === "grupo") {
+        setSidebarGrupoSections((prev) => {
+          if (prev.includes(nombre)) return prev;
+          const next = [...prev, nombre];
+          persistGrupoSections(next);
+          return next;
+        });
+      }
+    }
+    cerrarMenuLateral();
+  };
+
+  const crearSeccionVacia = (alcance = "chat") => {
+    setModalGrupoAccion({ tipo: "crear-seccion", alcance });
+    setModalGrupoNombre("");
+  };
+
+  const eliminarSeccion = (nombreSeccion, alcance = "chat") => {
+    const nombre = String(nombreSeccion || "").trim();
+    if (!nombre) return;
+    if (alcance === "grupo") {
+      const newGrupoGroups = { ...grupoGroups };
+      Object.keys(newGrupoGroups).forEach((key) => {
+        if (newGrupoGroups[key] === nombre) delete newGrupoGroups[key];
+      });
+      const newSections = sidebarGrupoSections.filter((s) => s !== nombre);
+      setGrupoGroups(newGrupoGroups);
+      setSidebarGrupoSections(newSections);
+      localStorage.setItem("grupoGroups", JSON.stringify(newGrupoGroups));
+      persistGrupoSections(newSections);
+    } else {
+      const newChatGroups = { ...chatGroups };
+      Object.keys(newChatGroups).forEach((key) => {
+        if (newChatGroups[key] === nombre) delete newChatGroups[key];
+      });
+      const newSections = sidebarChatSections.filter((s) => s !== nombre);
+      setChatGroups(newChatGroups);
+      setSidebarChatSections(newSections);
+      localStorage.setItem("chatGroups", JSON.stringify(newChatGroups));
+      persistChatSections(newSections);
+    }
+    cerrarMenuLateral();
   };
   
   const crearYAsignarCarpeta = (itemId, itemTipo) => {
@@ -6072,8 +7281,8 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
     setModalGrupoNombre('');
   };
   
-  const renombrarCarpeta = (carpetaNombreAntiguo) => {
-    setModalGrupoAccion({ tipo: 'renombrar', carpetaNombreAntiguo });
+  const renombrarCarpeta = (carpetaNombreAntiguo, alcance = "chat") => {
+    setModalGrupoAccion({ tipo: "renombrar", carpetaNombreAntiguo, alcance });
     setModalGrupoNombre(carpetaNombreAntiguo);
   };
   
@@ -6083,55 +7292,137 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
       return;
     }
     
-    if (modalGrupoAccion.tipo === 'crear') {
+    if (modalGrupoAccion.tipo === "crear-seccion") {
+      const nombre = modalGrupoNombre.trim();
+      const alcance = modalGrupoAccion.alcance || "chat";
+      if (alcance === "grupo") {
+        setSidebarGrupoSections((prev) => {
+          if (prev.includes(nombre)) return prev;
+          const next = [...prev, nombre];
+          persistGrupoSections(next);
+          return next;
+        });
+      } else {
+        setSidebarChatSections((prev) => {
+          if (prev.includes(nombre)) return prev;
+          const next = [...prev, nombre];
+          persistChatSections(next);
+          return next;
+        });
+      }
+    } else if (modalGrupoAccion.tipo === "crear") {
       asignarACarpeta(modalGrupoAccion.itemId, modalGrupoAccion.itemTipo, modalGrupoNombre.trim());
-    } else if (modalGrupoAccion.tipo === 'renombrar') {
+    } else if (modalGrupoAccion.tipo === "renombrar") {
       const nombreAntiguo = modalGrupoAccion.carpetaNombreAntiguo;
       const nombreNuevo = modalGrupoNombre.trim();
-      
-      // Renombrar en chatGroups
-      const newChatGroups = { ...chatGroups };
-      Object.keys(newChatGroups).forEach(key => {
-        if (newChatGroups[key] === nombreAntiguo) {
-          newChatGroups[key] = nombreNuevo;
-        }
-      });
-      setChatGroups(newChatGroups);
-      localStorage.setItem('chatGroups', JSON.stringify(newChatGroups));
-      
-      // Renombrar en grupoGroups
-      const newGrupoGroups = { ...grupoGroups };
-      Object.keys(newGrupoGroups).forEach(key => {
-        if (newGrupoGroups[key] === nombreAntiguo) {
-          newGrupoGroups[key] = nombreNuevo;
-        }
-      });
-      setGrupoGroups(newGrupoGroups);
-      localStorage.setItem('grupoGroups', JSON.stringify(newGrupoGroups));
+      const alcance = modalGrupoAccion.alcance || "chat";
+
+      if (alcance === "grupo") {
+        const newGrupoGroups = { ...grupoGroups };
+        Object.keys(newGrupoGroups).forEach((key) => {
+          if (newGrupoGroups[key] === nombreAntiguo) {
+            newGrupoGroups[key] = nombreNuevo;
+          }
+        });
+        setGrupoGroups(newGrupoGroups);
+        localStorage.setItem("grupoGroups", JSON.stringify(newGrupoGroups));
+        setSidebarGrupoSections((prev) => {
+          const next = prev.map((s) => (s === nombreAntiguo ? nombreNuevo : s));
+          persistGrupoSections(next);
+          return next;
+        });
+      } else {
+        const newChatGroups = { ...chatGroups };
+        Object.keys(newChatGroups).forEach((key) => {
+          if (newChatGroups[key] === nombreAntiguo) {
+            newChatGroups[key] = nombreNuevo;
+          }
+        });
+        setChatGroups(newChatGroups);
+        localStorage.setItem("chatGroups", JSON.stringify(newChatGroups));
+        setSidebarChatSections((prev) => {
+          const next = prev.map((s) => (s === nombreAntiguo ? nombreNuevo : s));
+          persistChatSections(next);
+          return next;
+        });
+      }
     }
-    
+
     setModalGrupoAccion(null);
-    setModalGrupoNombre('');
+    setModalGrupoNombre("");
   };
-  
-  // Cargar grupos desde localStorage al inicio
+
+  // Cargar secciones desde localStorage al inicio
   React.useEffect(() => {
-    const savedChatGroups = localStorage.getItem('chatGroups');
-    const savedGrupoGroups = localStorage.getItem('grupoGroups');
+    const savedChatGroups = localStorage.getItem("chatGroups");
+    const savedGrupoGroups = localStorage.getItem("grupoGroups");
+    let parsedChatGroups = {};
+    let parsedGrupoGroups = {};
     if (savedChatGroups) {
       try {
-        setChatGroups(JSON.parse(savedChatGroups));
-      } catch (_e) {
-        /* noop */
-      }
+        parsedChatGroups = JSON.parse(savedChatGroups);
+        setChatGroups(parsedChatGroups);
+      } catch (_e) { /* noop */ }
     }
     if (savedGrupoGroups) {
       try {
-        setGrupoGroups(JSON.parse(savedGrupoGroups));
-      } catch (_e) {
-        /* noop */
-      }
+        parsedGrupoGroups = JSON.parse(savedGrupoGroups);
+        setGrupoGroups(parsedGrupoGroups);
+      } catch (_e) { /* noop */ }
     }
+
+    const savedChatSections = localStorage.getItem("chatSidebarChatSections");
+    const savedGrupoSections = localStorage.getItem("chatSidebarGrupoSections");
+    if (savedChatSections && savedGrupoSections) {
+      try {
+        setSidebarChatSections(JSON.parse(savedChatSections));
+        setSidebarGrupoSections(JSON.parse(savedGrupoSections));
+      } catch (_e) { /* noop */ }
+      return;
+    }
+
+    // Migrar lista unificada antigua a listas separadas
+    const legacySections = JSON.parse(localStorage.getItem("chatSidebarSections") || "[]");
+    const chatNames = new Set(Object.values(parsedChatGroups).filter(Boolean));
+    const grupoNames = new Set(Object.values(parsedGrupoGroups).filter(Boolean));
+    const chatSections = [];
+    const grupoSections = [];
+    const seenChat = new Set();
+    const seenGrupo = new Set();
+
+    legacySections.forEach((name) => {
+      if (chatNames.has(name) && !seenChat.has(name)) {
+        chatSections.push(name);
+        seenChat.add(name);
+      }
+      if (grupoNames.has(name) && !seenGrupo.has(name)) {
+        grupoSections.push(name);
+        seenGrupo.add(name);
+      }
+    });
+    chatNames.forEach((n) => {
+      if (!seenChat.has(n)) {
+        chatSections.push(n);
+        seenChat.add(n);
+      }
+    });
+    grupoNames.forEach((n) => {
+      if (!seenGrupo.has(n)) {
+        grupoSections.push(n);
+        seenGrupo.add(n);
+      }
+    });
+    legacySections.forEach((name) => {
+      if (!seenChat.has(name) && !chatNames.has(name) && !grupoNames.has(name)) {
+        chatSections.push(name);
+        seenChat.add(name);
+      }
+    });
+
+    setSidebarChatSections(chatSections);
+    setSidebarGrupoSections(grupoSections);
+    persistChatSections(chatSections);
+    persistGrupoSections(grupoSections);
   }, []);
 
   // Obtener mensajes actuales
@@ -6169,6 +7460,8 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
     ? "archivo"
     : null;
 
+  const vistaPanelPrincipal = tabPrincipal === "no-leidos" || tabPrincipal === "historial" || tabPrincipal === "ajustes";
+
   return (
     <>
       {/* BOTÓN FLOTANTE - OCULTAR si viene del menú inferior */}
@@ -6194,8 +7487,8 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
 
       {/* PANEL */}
       {open && (
-        <div className={`chat-pro-ventana ${tipoChat && window.innerWidth <= 980 ? 'mobile-chat-open' : ''}`}>
-          {/* Botón volver en móvil */}
+        <div className={`chat-pro-ventana ${(tipoChat || vistaPanelPrincipal) && window.innerWidth <= 980 ? 'mobile-chat-open' : ''}`}>
+          {/* Botón volver en móvil — solo al abrir un chat */}
           {tipoChat && window.innerWidth <= 980 && (
             <button 
               className="chat-back-button"
@@ -6212,18 +7505,32 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
           {/* CONTENEDOR PRINCIPAL CON VISTA DIVIDIDA */}
           <div className="chat-container-main">
             {/* SIDEBAR IZQUIERDO - LISTA DE CHATS */}
-            {(!tipoChat || window.innerWidth > 767) && (
-              <div className="chat-sidebar">
+            {((!tipoChat && !vistaPanelPrincipal) || window.innerWidth > 767) && (
+              <div className={`chat-sidebar ${sidebarNavVisible ? "rail-visible" : "rail-hidden"}`}>
                 {/* HEADER DEL SIDEBAR */}
                 <div className="chat-sidebar-header ui-surface-dark">
                   <h2 className="chat-sidebar-title">Mensajes</h2>
-                  <button 
-                    className="chat-close-btn"
-                    onClick={closeChatPanel}
-                    title="Cerrar chat"
-                  >
-                    ✕
-                  </button>
+                  <div className="chat-sidebar-header-actions">
+                    <button
+                      type="button"
+                      className="chat-sidebar-nav-toggle"
+                      onClick={toggleSidebarNav}
+                      title={sidebarNavVisible ? "Ocultar navegación" : "Mostrar navegación"}
+                    >
+                      {sidebarNavVisible ? (
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="15 18 9 12 15 6"/></svg>
+                      ) : (
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="9 18 15 12 9 6"/></svg>
+                      )}
+                    </button>
+                    <button
+                      className="chat-close-btn"
+                      onClick={closeChatPanel}
+                      title="Cerrar chat"
+                    >
+                      ✕
+                    </button>
+                  </div>
                 </div>
                 
                 {/* HEADER DEL USUARIO ACTUAL */}
@@ -6286,72 +7593,9 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
                   </div>
                 </div>
                 
-                {/* TABS PRINCIPALES */}
-                <div className="chat-tabs">
-            <div
-              className={`tab tab-circular ${tabPrincipal === "chats" ? "active" : ""}`}
-              onClick={() => setTabPrincipal("chats")}
-              title="Chats"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="15" height="15"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-              Chats
-              {(() => {
-                const totalNoLeidos = chatsActivos.reduce((total, chat) => {
-                  return total + (chat.mensajes_no_leidos || 0);
-                }, 0);
-                return totalNoLeidos > 0 ? (
-                  <span className="tab-badge-count">{totalNoLeidos > 99 ? "99+" : totalNoLeidos}</span>
-                ) : null;
-              })()}
-            </div>
-            <div
-              className={`tab tab-circular ${tabPrincipal === "grupos" ? "active" : ""}`}
-              onClick={() => setTabPrincipal("grupos")}
-              title="Grupos"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="15" height="15"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-              Grupos
-            </div>
-            <div
-              className={`tab tab-circular ${tabPrincipal === "usuarios" ? "active" : ""}`}
-              onClick={() => {
-                setTabPrincipal("usuarios");
-                setTipoChat(null);
-                setChatActual(null);
-              }}
-              title="Players"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="15" height="15"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
-              Players
-            </div>
-            <div
-              className={`tab tab-circular ${tabPrincipal === "historial" ? "active" : ""}`}
-              onClick={() => {
-                setTabPrincipal("historial");
-                setTipoChat(null);
-                setChatActual(null);
-              }}
-              title="Historial de llamadas"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="15" height="15"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.65 3.4 2 2 0 0 1 3.62 1h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.8a16 16 0 0 0 7.29 7.29l1.06-1.06a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
-              Llamadas
-            </div>
-            <div
-              className={`tab tab-circular ${tabPrincipal === "ajustes" ? "active" : ""}`}
-              onClick={() => {
-                setTabPrincipal("ajustes");
-                setTipoChat(null);
-                setChatActual(null);
-              }}
-              title="Ajustes"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="15" height="15"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51h.01a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-              Ajustes
-            </div>
-                </div>
-                
-                {/* CONTENIDO DEL SIDEBAR */}
-                <div className="chat-sidebar-content">
+                <div className="chat-sidebar-body">
+                  {sidebarNavVisible ? renderSidebarRail() : null}
+                  <div className="chat-sidebar-content">
                   {/* REUNIONES PRÓXIMAS */}
                   {tipoChat && obtenerReunionesChatActual().length > 0 && (
                     <div className="reuniones-proximas-sidebar">
@@ -6480,160 +7724,6 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
                     </div>
                   )}
 
-                  {tabPrincipal === "historial" && (
-                    <div className="usuarios-list-pro">
-                      <div className="chat-audio-settings-title" style={{ marginBottom: 8 }}>
-                        Historial de Llamadas
-                      </div>
-                      {historialCargando ? (
-                        <div style={{ textAlign: "center", padding: "20px", opacity: 0.5 }}>Cargando...</div>
-                      ) : historialLlamadas.length === 0 ? (
-                        <div style={{ textAlign: "center", padding: "24px 12px", opacity: 0.5, fontSize: 13 }}>
-                          <div style={{ fontSize: 28, marginBottom: 8 }}>📞</div>
-                          Sin llamadas registradas
-                        </div>
-                      ) : (
-                        historialLlamadas.map((ll) => {
-                          const _yo = user?.nickname || user?.name || "";
-                          const contraparte = ll.fueIniciador
-                            ? (ll.receptores || []).join(", ")
-                            : ll.iniciador;
-                          const fecha = new Date(ll.iniciadaEn);
-                          const fechaStr = fecha.toLocaleDateString("es-MX", { day: "2-digit", month: "short" });
-                          const horaStr = fecha.toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" });
-                          let durStr = "";
-                          if (ll.duracionSegundos != null) {
-                            const m = Math.floor(ll.duracionSegundos / 60);
-                            const s = ll.duracionSegundos % 60;
-                            durStr = m > 0 ? `${m}m ${s}s` : `${s}s`;
-                          }
-                          const estadoIcon = {
-                            finalizada: "✅",
-                            activa: "🔴",
-                            pendiente: "🕓",
-                            rechazada: "❌",
-                            perdida: "📵",
-                          }[ll.estado] || "📞";
-                          return (
-                            <div key={ll.id} className="usuario-item-pro" style={{ cursor: "default", flexDirection: "column", alignItems: "flex-start", gap: 2, padding: "8px 12px" }}>
-                              <div style={{ display: "flex", alignItems: "center", gap: 6, width: "100%" }}>
-                                <span style={{ fontSize: 15 }}>{estadoIcon}</span>
-                                <span style={{ fontWeight: 600, fontSize: 13, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                                  {ll.fueIniciador ? "📤 " : "📥 "}{contraparte || "Desconocido"}
-                                </span>
-                                <span style={{ fontSize: 11, opacity: 0.5, whiteSpace: "nowrap" }}>{fechaStr} {horaStr}</span>
-                              </div>
-                              <div style={{ fontSize: 11, opacity: 0.55, paddingLeft: 21, display: "flex", gap: 10 }}>
-                                <span>{ll.tipo === "grupal" ? "Grupal" : "Privada"}</span>
-                                <span style={{ textTransform: "capitalize" }}>{ll.estado}</span>
-                                {durStr && <span>⏱ {durStr}</span>}
-                              </div>
-                            </div>
-                          );
-                        })
-                      )}
-                    </div>
-                  )}
-
-                  {tabPrincipal === "ajustes" && (
-                    <div className="usuarios-list-pro chat-audio-settings">
-                      <div className="chat-audio-settings-title">
-                        Sonidos del chat
-                      </div>
-
-                      <label className="chat-audio-field">
-                        <span className="chat-audio-label">Sonido de mensaje</span>
-                        <select
-                          value={audioSettings.msgSound}
-                          onChange={(e) => saveAudioSetting("msgSound", e.target.value)}
-                        >
-                          {NOTIFICATION_SOUNDS.map((s) => (
-                            <option key={s.id} value={s.id}>{s.emoji} {s.label}</option>
-                          ))}
-                        </select>
-                      </label>
-
-                      <label className="chat-audio-field">
-                        <span className="chat-audio-label">
-                          Volumen mensaje ({Math.round(audioSettings.msgVolume * 100)}%)
-                        </span>
-                        <input
-                          type="range"
-                          min="0"
-                          max="1"
-                          step="0.05"
-                          value={audioSettings.msgVolume}
-                          onChange={(e) => saveAudioSetting("msgVolume", Number(e.target.value))}
-                        />
-                      </label>
-
-                      <label className="chat-audio-field">
-                        <span className="chat-audio-label">Tono entrante</span>
-                        <select
-                          value={audioSettings.callIncomingSound}
-                          onChange={(e) => saveAudioSetting("callIncomingSound", e.target.value)}
-                        >
-                          {CALL_SOUND_OPTIONS.map((s) => (
-                            <option key={s.id} value={s.id}>{s.label}</option>
-                          ))}
-                        </select>
-                      </label>
-
-                      <label className="chat-audio-field">
-                        <span className="chat-audio-label">Tono saliente</span>
-                        <select
-                          value={audioSettings.callOutgoingSound}
-                          onChange={(e) => saveAudioSetting("callOutgoingSound", e.target.value)}
-                        >
-                          {CALL_SOUND_OPTIONS.map((s) => (
-                            <option key={s.id} value={s.id}>{s.label}</option>
-                          ))}
-                        </select>
-                      </label>
-
-                      <label className="chat-audio-field">
-                        <span className="chat-audio-label">
-                          Volumen llamada ({Math.round(audioSettings.callVolume * 100)}%)
-                        </span>
-                        <input
-                          type="range"
-                          min="0"
-                          max="1"
-                          step="0.05"
-                          value={audioSettings.callVolume}
-                          onChange={(e) => saveAudioSetting("callVolume", Number(e.target.value))}
-                        />
-                      </label>
-
-                      <div className="chat-audio-actions">
-                        <button
-                          type="button"
-                          className="chat-audio-test-btn"
-                          onClick={playIncomingMessageSound}
-                          title="Probar sonido de mensaje"
-                        >
-                          Probar mensaje
-                        </button>
-                        <button
-                          type="button"
-                          className="chat-audio-test-btn"
-                          onClick={playIncomingCallTone}
-                          title="Probar tono de llamada"
-                        >
-                          Probar llamada
-                        </button>
-                        <button
-                          type="button"
-                          className="chat-audio-test-btn"
-                          onClick={playOutgoingCallTone}
-                          title="Probar tono saliente"
-                        >
-                          Probar salida
-                        </button>
-                      </div>
-                    </div>
-                  )}
-
                   {/* CHATS ACTIVOS */}
                   {tabPrincipal === "chats" && (
                     <div className="usuarios-list-pro">
@@ -6646,15 +7736,15 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
                         </div>
                         <span>Chat General</span>
                       </div>
-                      
+                      <div className="cp-sidebar-actions">
+                        <button type="button" className="cp-sidebar-action-btn" onClick={() => crearSeccionVacia("chat")}>
+                          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                          Sección
+                        </button>
+                      </div>
                       {(() => {
                         const chatsPorGrupo = agruparChats();
-                        const gruposOrdenados = Object.keys(chatsPorGrupo).sort((a, b) => {
-                          // "__sin_grupo__" siempre al final
-                          if (a === "__sin_grupo__") return 1;
-                          if (b === "__sin_grupo__") return -1;
-                          return a.localeCompare(b);
-                        });
+                        const gruposOrdenados = ordenarClavesSeccion(Object.keys(chatsPorGrupo), "chat");
                         
                         return gruposOrdenados.map((groupName) => {
                           const chatsEnGrupo = chatsPorGrupo[groupName];
@@ -6695,6 +7785,13 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
                                 <div
                                   key={chat.otro_usuario}
                                   className={`usuario-item-pro chat-activo-item ${chat.mensajes_no_leidos > 0 ? "chat-con-mensajes-no-leidos" : ""}`}
+                                  onContextMenu={(e) => abrirMenuLateral(e, {
+                                    tipo: "chat",
+                                    itemId: chat.otro_usuario,
+                                    nombre: chat.otro_usuario,
+                                    seccionActual: chatGroups[chat.otro_usuario] || null,
+                                    noLeidos: chat.mensajes_no_leidos || 0,
+                                  })}
                                 >
                                   <div 
                                     className={`avatar-container status-${estado} chat-activo-avatar-wrap`} 
@@ -6740,36 +7837,6 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
                                       </div>
                                     ) : null}
                                   </div>
-                                  <div className="chat-item-menu-container">
-                                    <span
-                                      className="chat-item-menu-btn"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setMenuGrupoChat(menuGrupoChat === chat.otro_usuario ? null : chat.otro_usuario);
-                                      }}
-                                      title="Opciones"
-                                    >
-                                      ⋮
-                                    </span>
-                                    {menuGrupoChat === chat.otro_usuario && (
-                                      <div className="chat-item-menu-dropdown" onClick={(e) => e.stopPropagation()}>
-                                        <button onClick={() => crearYAsignarCarpeta(chat.otro_usuario, 'chat')}>
-                                          ➕ Nueva carpeta
-                                        </button>
-                                        <hr />
-                                        <div className="chat-item-menu-carpetas">
-                                          {Object.keys(agruparChats()).filter(k => k !== '__sin_grupo__').map(carpeta => (
-                                            <button
-                                              key={carpeta}
-                                              onClick={() => asignarACarpeta(chat.otro_usuario, 'chat', carpeta)}
-                                            >
-                                              📁 {carpeta}
-                                            </button>
-                                          ))}
-                                        </div>
-                                      </div>
-                                    )}
-                                  </div>
                                 </div>
                               );
                             });
@@ -6777,40 +7844,19 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
                           
                           // Para grupos con nombre, mostrar header desplegable
                           return (
-                            <div key={groupName} className="chat-group-section">
-                              <div 
-                                className={`chat-group-header ${tieneNoLeidos && isCollapsed ? 'has-unread' : ''}`}
+                            <div key={groupName} className="chat-group-section cp-section">
+                              <div
+                                className={`cp-section-header ${isCollapsed ? "collapsed" : ""} ${tieneNoLeidos && isCollapsed ? "has-unread" : ""}`}
+                                onContextMenu={(e) => abrirMenuLateral(e, { tipo: "seccion", nombre: groupName, alcance: "chat" })}
                               >
-                                <span 
-                                  className="chat-group-toggle"
-                                  onClick={() => toggleChatGroupCollapse(groupName)}
-                                >
-                                  {isCollapsed ? '▶' : '▼'}
-                                </span>
-                                <span 
-                                  className={`chat-group-name ${tieneNoLeidos && isCollapsed ? 'unread-group' : ''}`}
-                                  onClick={() => toggleChatGroupCollapse(groupName)}
-                                >
-                                  📁 {groupName}
-                                </span>
-                                <span 
-                                  className="chat-group-count"
-                                  onClick={() => toggleChatGroupCollapse(groupName)}
-                                >
-                                  ({chatsEnGrupo.length})
-                                </span>
-                                <button
-                                  className="chat-group-rename-btn"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    renombrarCarpeta(groupName);
-                                  }}
-                                  title="Renombrar carpeta"
-                                >
-                                  ✏️
+                                <button type="button" className="cp-section-toggle" onClick={() => toggleChatGroupCollapse(groupName)} aria-expanded={!isCollapsed}>
+                                  <svg className="cp-section-chevron" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M9 6l6 6-6 6"/></svg>
                                 </button>
+                                <button type="button" className={`cp-section-title ${tieneNoLeidos && isCollapsed ? "unread-group" : ""}`} onClick={() => toggleChatGroupCollapse(groupName)}>
+                                  {groupName}
+                                </button>
+                                <span className="cp-section-count">{chatsEnGrupo.length}</span>
                               </div>
-                              
                               {!isCollapsed && chatsEnGrupo.sort((a, b) => {
                                 const userDisplayName = user?.nickname || user?.name;
                                 const aEsMio = a.otro_usuario === userDisplayName;
@@ -6843,6 +7889,13 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
                                   <div
                                     key={chat.otro_usuario}
                                     className={`usuario-item-pro chat-activo-item chat-grouped ${chat.mensajes_no_leidos > 0 ? "chat-con-mensajes-no-leidos" : ""}`}
+                                    onContextMenu={(e) => abrirMenuLateral(e, {
+                                      tipo: "chat",
+                                      itemId: chat.otro_usuario,
+                                      nombre: chat.otro_usuario,
+                                      seccionActual: chatGroups[chat.otro_usuario] || null,
+                                      noLeidos: chat.mensajes_no_leidos || 0,
+                                    })}
                                   >
                                     <div 
                                       className={`avatar-container status-${estado} chat-activo-avatar-wrap`} 
@@ -6887,44 +7940,6 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
                                           <span className="chat-mensaje-texto">{chat.ultimo_mensaje}</span>
                                         </div>
                                       ) : null}
-                                    </div>
-                                    <div className="chat-item-menu-container">
-                                      <span
-                                        className="chat-item-menu-btn"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          setMenuGrupoChat(menuGrupoChat === chat.otro_usuario ? null : chat.otro_usuario);
-                                        }}
-                                        title="Opciones"
-                                      >
-                                        ⋮
-                                      </span>
-                                      {menuGrupoChat === chat.otro_usuario && (
-                                        <div className="chat-item-menu-dropdown" onClick={(e) => e.stopPropagation()}>
-                                          <button onClick={() => crearYAsignarCarpeta(chat.otro_usuario, 'chat')}>
-                                            ➕ Nueva carpeta
-                                          </button>
-                                          <hr />
-                                          <div className="chat-item-menu-carpetas">
-                                            {Object.keys(agruparChats()).filter(k => k !== '__sin_grupo__').map(carpeta => (
-                                              <button
-                                                key={carpeta}
-                                                onClick={() => asignarACarpeta(chat.otro_usuario, 'chat', carpeta)}
-                                              >
-                                                📁 {carpeta}
-                                              </button>
-                                            ))}
-                                          </div>
-                                          {chatGroups[chat.otro_usuario] && (
-                                            <>
-                                              <hr />
-                                              <button onClick={() => asignarACarpeta(chat.otro_usuario, 'chat', null)}>
-                                                ❌ Quitar de carpeta
-                                              </button>
-                                            </>
-                                          )}
-                                        </div>
-                                      )}
                                     </div>
                                   </div>
                                 );
@@ -6994,24 +8009,25 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
                           </div>
                         </div>
                       ) : (
-                        <button
-                          className="cp-crear-grupo-trigger"
-                          onClick={() => setMostrarCrearGrupo(true)}
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" width="13" height="13"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                          Nuevo grupo
-                        </button>
+                        <div className="cp-sidebar-actions">
+                          <button
+                            type="button"
+                            className="cp-sidebar-action-btn cp-sidebar-action-btn--primary"
+                            onClick={() => setMostrarCrearGrupo(true)}
+                          >
+                            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                            Nuevo grupo
+                          </button>
+                          <button type="button" className="cp-sidebar-action-btn" onClick={() => crearSeccionVacia("grupo")}>
+                            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                            Sección
+                          </button>
+                        </div>
                       )}
-                      
                       {/* Grupos agrupados */}
                       {(() => {
                         const agrupados = agruparGrupos(grupos);
-                        const gruposOrdenados = Object.keys(agrupados).sort((a, b) => {
-                          // "__sin_grupo__" siempre al final
-                          if (a === "__sin_grupo__") return 1;
-                          if (b === "__sin_grupo__") return -1;
-                          return a.localeCompare(b);
-                        });
+                        const gruposOrdenados = ordenarClavesSeccion(Object.keys(agrupados), "grupo");
                         
                         return gruposOrdenados.map((nombreGrupo) => {
                           const gruposEnGrupo = agrupados[nombreGrupo];
@@ -7027,16 +8043,20 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
                                 <div
                                   key={g.id}
                                   className={`usuario-item-pro grupo-item ${!esMiembro ? "grupo-no-miembro" : ""}`}
+                                  onContextMenu={(e) => abrirMenuLateral(e, {
+                                    tipo: "grupo",
+                                    itemId: g.id,
+                                    nombre: g.nombre,
+                                    seccionActual: grupoGroups[g.id] || null,
+                                    esMiembro,
+                                  })}
                                 >
-                                  <span 
-                                    className="grupo-icon"
-                                    onClick={() => {
+                                  {renderGrupoAvatar(g, {
+                                    onClick: () => {
                                       if (!esMiembro) return;
                                       abrirChat("grupal", g.id);
-                                    }}
-                                  >
-                                    👥
-                                  </span>
+                                    },
+                                  })}
                                   <div 
                                     className="grupo-info"
                                     onClick={() => {
@@ -7057,74 +8077,24 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
                                       {g.miembros?.length || 0} miembros
                                     </div>
                                   </div>
-                                  <div className="grupo-actions">
-                                    <span
-                                      className="chat-item-menu-btn"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setMenuGrupoGrupo(menuGrupoGrupo === g.id ? null : g.id);
-                                      }}
-                                      title="Opciones"
-                                    >
-                                      ⋮
-                                    </span>
-                                    {menuGrupoGrupo === g.id && (
-                                      <div className="chat-item-menu-dropdown" onClick={(e) => e.stopPropagation()}>
-                                        <button onClick={() => crearYAsignarCarpeta(g.id, 'grupo')}>
-                                          ➕ Nueva carpeta
-                                        </button>
-                                        <hr />
-                                        <div className="chat-item-menu-carpetas">
-                                          {Object.keys(agruparGrupos()).filter(k => k !== '__sin_grupo__').map(carpeta => (
-                                            <button
-                                              key={carpeta}
-                                              onClick={() => asignarACarpeta(g.id, 'grupo', carpeta)}
-                                            >
-                                              📁 {carpeta}
-                                            </button>
-                                          ))}
-                                        </div>
-                                      </div>
-                                    )}
-                                  </div>
                                 </div>
                               );
                             });
                           }
                           
                           return (
-                            <div key={nombreGrupo} className="chat-group-section">
+                            <div key={nombreGrupo} className="chat-group-section cp-section">
                               <div
-                                className={`chat-group-header ${estaColapsado ? "collapsed" : ""} ${tieneNoLeidos ? "has-unread" : ""}`}
+                                className={`cp-section-header ${estaColapsado ? "collapsed" : ""} ${tieneNoLeidos ? "has-unread" : ""}`}
+                                onContextMenu={(e) => abrirMenuLateral(e, { tipo: "seccion", nombre: nombreGrupo, alcance: "grupo" })}
                               >
-                                <span 
-                                  className="chat-group-toggle"
-                                  onClick={() => toggleGrupoGroupCollapse(nombreGrupo)}
-                                >
-                                  {estaColapsado ? '▶' : '▼'}
-                                </span>
-                                <span 
-                                  className={`chat-group-name ${tieneNoLeidos && estaColapsado ? "unread-group" : ""}`}
-                                  onClick={() => toggleGrupoGroupCollapse(nombreGrupo)}
-                                >
-                                  📁 {nombreGrupo}
-                                </span>
-                                <span 
-                                  className="chat-group-count"
-                                  onClick={() => toggleGrupoGroupCollapse(nombreGrupo)}
-                                >
-                                  ({gruposEnGrupo.length})
-                                </span>
-                                <button
-                                  className="chat-group-rename-btn"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    renombrarCarpeta(nombreGrupo);
-                                  }}
-                                  title="Renombrar carpeta"
-                                >
-                                  ✏️
+                                <button type="button" className="cp-section-toggle" onClick={() => toggleGrupoGroupCollapse(nombreGrupo)} aria-expanded={!estaColapsado}>
+                                  <svg className="cp-section-chevron" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M9 6l6 6-6 6"/></svg>
                                 </button>
+                                <button type="button" className={`cp-section-title ${tieneNoLeidos && estaColapsado ? "unread-group" : ""}`} onClick={() => toggleGrupoGroupCollapse(nombreGrupo)}>
+                                  {nombreGrupo}
+                                </button>
+                                <span className="cp-section-count">{gruposEnGrupo.length}</span>
                               </div>
                               {!estaColapsado && (
                                 <div className="chat-group-items">
@@ -7135,16 +8105,20 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
                                       <div
                                         key={g.id}
                                         className={`usuario-item-pro grupo-item chat-grouped ${!esMiembro ? "grupo-no-miembro" : ""}`}
+                                        onContextMenu={(e) => abrirMenuLateral(e, {
+                                          tipo: "grupo",
+                                          itemId: g.id,
+                                          nombre: g.nombre,
+                                          seccionActual: grupoGroups[g.id] || null,
+                                          esMiembro,
+                                        })}
                                       >
-                                        <span 
-                                          className="grupo-icon"
-                                          onClick={() => {
+                                        {renderGrupoAvatar(g, {
+                                          onClick: () => {
                                             if (!esMiembro) return;
                                             abrirChat("grupal", g.id);
-                                          }}
-                                        >
-                                          👥
-                                        </span>
+                                          },
+                                        })}
                                         <div 
                                           className="grupo-info"
                                           onClick={() => {
@@ -7165,53 +8139,6 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
                                             {g.miembros?.length || 0} miembros
                                           </div>
                                         </div>
-                                        <div className="grupo-actions">
-                                          <span
-                                            className="chat-item-menu-btn"
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              setMenuGrupoGrupo(menuGrupoGrupo === g.id ? null : g.id);
-                                            }}
-                                            title="Opciones"
-                                          >
-                                            ⋮
-                                          </span>
-                                          {menuGrupoGrupo === g.id && (
-                                            <div className="chat-item-menu-dropdown" onClick={(e) => e.stopPropagation()}>
-                                              <button
-                                                onClick={() => {
-                                                  abrirPerfilGrupo(g.id);
-                                                  setMenuGrupoGrupo(null);
-                                                }}
-                                              >
-                                                ℹ️ Ver info
-                                              </button>
-                                              <hr />
-                                              <button onClick={() => crearYAsignarCarpeta(g.id, 'grupo')}>
-                                                ➕ Nueva carpeta
-                                              </button>
-                                              <hr />
-                                              <div className="chat-item-menu-carpetas">
-                                                {Object.keys(agruparGrupos()).filter(k => k !== '__sin_grupo__').map(carpeta => (
-                                                  <button
-                                                    key={carpeta}
-                                                    onClick={() => asignarACarpeta(g.id, 'grupo', carpeta)}
-                                                  >
-                                                    📁 {carpeta}
-                                                  </button>
-                                                ))}
-                                              </div>
-                                              {grupoGroups[g.id] && (
-                                                <>
-                                                  <hr />
-                                                  <button onClick={() => asignarACarpeta(g.id, 'grupo', null)}>
-                                                    ❌ Quitar de carpeta
-                                                  </button>
-                                                </>
-                                              )}
-                                            </div>
-                                          )}
-                                        </div>
                                       </div>
                                     );
                                   })}
@@ -7227,12 +8154,13 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
                       )}
                     </div>
                   )}
+                  </div>
                 </div>
               </div>
             )}
 
-            {/* PANEL PRINCIPAL - CHAT ABIERTO O PERFIL ABIERTO */}
-            {(tipoChat || perfilAbierto) && (
+            {/* PANEL PRINCIPAL - CHAT, PERFIL O VISTAS DEL MENÚ */}
+            {(tipoChat || perfilAbierto || vistaPanelPrincipal) && (
               <div className="chat-main-panel">
                 {tipoChat === "grupal" && modalSolicitud && (
                   <div className="chat-modal-solicitud-overlay">
@@ -7318,7 +8246,11 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
                         >
                           ←
                         </button>
-                        <span style={{ flex: 1, textAlign: "center" }}>Perfil</span>
+                        <span style={{ flex: 1, textAlign: "center" }}>
+                          {perfilTipo === "grupo"
+                            ? (perfilData?.nombre || "Perfil del grupo")
+                            : "Perfil"}
+                        </span>
                         <button
                           className="chat-profile-share-btn"
                           onClick={async () => {
@@ -7413,6 +8345,12 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
                               Miembros {perfilGrupoMiembros.length > 0 && ` ${perfilGrupoMiembros.length}`}
                             </button>
                             <button
+                              className={`chat-profile-tab ${perfilTab === "archivos" ? "active" : ""}`}
+                              onClick={() => setPerfilTab("archivos")}
+                            >
+                              Compartidos
+                            </button>
+                            <button
                               className={`chat-profile-tab ${perfilTab === "configuracion" ? "active" : ""}`}
                               onClick={() => setPerfilTab("configuracion")}
                             >
@@ -7457,134 +8395,264 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
                         )}
                         {!perfilCargando && !perfilError && perfilTab === "acerca" && perfilTipo === "grupo" && (
                           <div className="chat-profile-info" style={{ padding: "16px" }}>
-                            {/* Tema */}
-                            <div style={{ marginBottom: "24px", borderBottom: "1px solid var(--chat-border)", paddingBottom: "16px" }}>
-                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
-                                <div style={{ fontWeight: 600, fontSize: "0.9rem", color: "var(--chat-text)" }}>Tema</div>
-                                {perfilData?.es_admin && (
-                                  <button
-                                    onClick={() => {
-                                      if (editandoTema) {
-                                        // Guardar tema
-                                        // TODO: Implementar endpoint para actualizar tema
-                                        setEditandoTema(false);
-                                      } else {
-                                        setNuevoTema(perfilData?.tema || "");
-                                        setEditandoTema(true);
+                            <div className="chat-group-profile-hero">
+                              <div className="chat-group-profile-avatar-wrap">
+                                {getGrupoFotoUrl(perfilData) ? (
+                                  <img
+                                    src={getGrupoFotoUrl(perfilData)}
+                                    alt={perfilData?.nombre || "Grupo"}
+                                    className="chat-group-profile-avatar-img"
+                                    onError={(event) => {
+                                      const fallback = makeGrupoAvatarFallback();
+                                      if (event.currentTarget.src !== fallback) {
+                                        event.currentTarget.src = fallback;
                                       }
                                     }}
-                                    style={{
-                                      background: "transparent",
-                                      border: "none",
-                                      color: "var(--azul-primario)",
-                                      cursor: "pointer",
-                                      fontSize: "0.85rem"
+                                  />
+                                ) : (
+                                  <div className="chat-group-profile-avatar" aria-hidden="true">👥</div>
+                                )}
+                                {perfilData?.es_admin && (
+                                  <div className="chat-group-profile-avatar-actions">
+                                    <input
+                                      ref={grupoFotoInputRef}
+                                      type="file"
+                                      accept="image/*"
+                                      className="chat-group-profile-foto-input"
+                                      onChange={(e) => {
+                                        const archivo = e.target.files?.[0];
+                                        if (archivo) subirFotoGrupo(archivo);
+                                      }}
+                                    />
+                                    <button
+                                      type="button"
+                                      className="chat-group-profile-avatar-change"
+                                      disabled={subiendoFotoGrupo}
+                                      onClick={() => grupoFotoInputRef.current?.click()}
+                                    >
+                                      {subiendoFotoGrupo ? "Subiendo…" : "Cambiar foto"}
+                                    </button>
+                                    {perfilData?.foto && (
+                                      <button
+                                        type="button"
+                                        className="chat-group-profile-avatar-remove"
+                                        disabled={subiendoFotoGrupo}
+                                        onClick={quitarFotoGrupo}
+                                      >
+                                        Quitar
+                                      </button>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                              <div className="chat-group-profile-hero-body">
+                                <div className="chat-group-profile-badges">
+                                  <span className={`grupo-badge ${perfilData?.es_publico ? "publico" : "privado"}`}>
+                                    {perfilData?.es_publico ? "Público" : "Privado"}
+                                  </span>
+                                  <span className="chat-group-profile-count">
+                                    {perfilGrupoMiembros.length} miembro{perfilGrupoMiembros.length === 1 ? "" : "s"}
+                                  </span>
+                                </div>
+                                <button
+                                  type="button"
+                                  className="chat-group-profile-members-link"
+                                  onClick={() => setPerfilTab("miembros")}
+                                >
+                                  Ver miembros
+                                </button>
+                              </div>
+                            </div>
+
+                            <div style={{ marginBottom: "24px", borderBottom: "1px solid var(--chat-border)", paddingBottom: "16px" }}>
+                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+                                <div style={{ fontWeight: 600, fontSize: "0.9rem", color: "var(--chat-text)" }}>Nombre del grupo</div>
+                                {perfilData?.es_admin && !editandoNombreGrupo && (
+                                  <button
+                                    type="button"
+                                    className="chat-group-profile-edit-btn"
+                                    onClick={() => {
+                                      setNuevoNombreGrupo(perfilData?.nombre || "");
+                                      setEditandoNombreGrupo(true);
                                     }}
                                   >
-                                    {editandoTema ? "Guardar" : "Editar"}
+                                    Editar
                                   </button>
                                 )}
                               </div>
-                              {editandoTema ? (
-                                <input
-                                  type="text"
-                                  value={nuevoTema}
-                                  onChange={(e) => setNuevoTema(e.target.value)}
-                                  placeholder="Agregar un tema"
-                                  style={{
-                                    width: "100%",
-                                    padding: "8px",
-                                    background: "var(--fondo-input)",
-                                    border: "1px solid var(--chat-border)",
-                                    borderRadius: "6px",
-                                    color: "var(--chat-text)",
-                                    fontSize: "0.9rem"
-                                  }}
-                                  onBlur={() => {
-                                    setEditandoTema(false);
-                                    // TODO: Guardar tema
-                                  }}
-                                  autoFocus
-                                />
+                              {editandoNombreGrupo ? (
+                                <div className="chat-group-profile-edit-row">
+                                  <input
+                                    type="text"
+                                    value={nuevoNombreGrupo}
+                                    onChange={(e) => setNuevoNombreGrupo(e.target.value)}
+                                    placeholder="Nombre del grupo"
+                                    className="chat-group-profile-input"
+                                    autoFocus
+                                  />
+                                  <button
+                                    type="button"
+                                    className="chat-group-profile-save-btn"
+                                    disabled={guardandoGrupoPerfil || !nuevoNombreGrupo.trim()}
+                                    onClick={async () => {
+                                      const grupoId = obtenerGrupoPerfilId();
+                                      const nombre = nuevoNombreGrupo.trim();
+                                      if (!nombre || nombre === perfilData?.nombre) {
+                                        setEditandoNombreGrupo(false);
+                                        return;
+                                      }
+                                      const ok = await guardarGrupoPerfil(grupoId, { nombre }, "Nombre actualizado");
+                                      if (ok) setEditandoNombreGrupo(false);
+                                    }}
+                                  >
+                                    Guardar
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="chat-group-profile-cancel-btn"
+                                    onClick={() => {
+                                      setNuevoNombreGrupo(perfilData?.nombre || "");
+                                      setEditandoNombreGrupo(false);
+                                    }}
+                                  >
+                                    Cancelar
+                                  </button>
+                                </div>
                               ) : (
-                                <div style={{ fontSize: "0.9rem", color: "var(--chat-muted)" }}>
-                                  {perfilData?.tema || "Agregar un tema"}
+                                <div style={{ fontSize: "1rem", fontWeight: 700, color: "var(--chat-text)" }}>
+                                  {perfilData?.nombre || "Sin nombre"}
                                 </div>
                               )}
                             </div>
 
-                            {/* Descripción */}
                             <div style={{ marginBottom: "24px", borderBottom: "1px solid var(--chat-border)", paddingBottom: "16px" }}>
                               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
                                 <div style={{ fontWeight: 600, fontSize: "0.9rem", color: "var(--chat-text)" }}>Descripción</div>
-                                {perfilData?.es_admin && (
+                                {perfilData?.es_admin && !editandoDescripcion && (
                                   <button
+                                    type="button"
+                                    className="chat-group-profile-edit-btn"
                                     onClick={() => {
-                                      if (editandoDescripcion) {
-                                        // Guardar descripción
-                                        // TODO: Implementar endpoint para actualizar descripción
-                                        setEditandoDescripcion(false);
-                                      } else {
-                                        setNuevaDescripcion(perfilData?.descripcion || "");
-                                        setEditandoDescripcion(true);
-                                      }
-                                    }}
-                                    style={{
-                                      background: "transparent",
-                                      border: "none",
-                                      color: "var(--azul-primario)",
-                                      cursor: "pointer",
-                                      fontSize: "0.85rem"
+                                      setNuevaDescripcion(perfilData?.descripcion || "");
+                                      setEditandoDescripcion(true);
                                     }}
                                   >
-                                    {editandoDescripcion ? "Guardar" : "Editar"}
+                                    Editar
                                   </button>
                                 )}
                               </div>
                               {editandoDescripcion ? (
-                                <textarea
-                                  value={nuevaDescripcion}
-                                  onChange={(e) => setNuevaDescripcion(e.target.value)}
-                                  placeholder="Agregar una descripción"
-                                  style={{
-                                    width: "100%",
-                                    padding: "8px",
-                                    background: "var(--fondo-input)",
-                                    border: "1px solid var(--chat-border)",
-                                    borderRadius: "6px",
-                                    color: "var(--chat-text)",
-                                    fontSize: "0.9rem",
-                                    minHeight: "80px",
-                                    resize: "vertical"
-                                  }}
-                                  onBlur={() => {
-                                    setEditandoDescripcion(false);
-                                    // TODO: Guardar descripción
-                                  }}
-                                  autoFocus
-                                />
+                                <div className="chat-group-profile-edit-col">
+                                  <textarea
+                                    value={nuevaDescripcion}
+                                    onChange={(e) => setNuevaDescripcion(e.target.value)}
+                                    placeholder="Agregar una descripción"
+                                    className="chat-group-profile-textarea"
+                                    autoFocus
+                                  />
+                                  <div className="chat-group-profile-edit-actions">
+                                    <button
+                                      type="button"
+                                      className="chat-group-profile-save-btn"
+                                      disabled={guardandoGrupoPerfil}
+                                      onClick={async () => {
+                                        const grupoId = obtenerGrupoPerfilId();
+                                        const descripcion = nuevaDescripcion.trim();
+                                        if (descripcion === (perfilData?.descripcion || "")) {
+                                          setEditandoDescripcion(false);
+                                          return;
+                                        }
+                                        const ok = await guardarGrupoPerfil(
+                                          grupoId,
+                                          { descripcion: descripcion || null },
+                                          "Descripción actualizada",
+                                        );
+                                        if (ok) setEditandoDescripcion(false);
+                                      }}
+                                    >
+                                      Guardar
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className="chat-group-profile-cancel-btn"
+                                      onClick={() => {
+                                        setNuevaDescripcion(perfilData?.descripcion || "");
+                                        setEditandoDescripcion(false);
+                                      }}
+                                    >
+                                      Cancelar
+                                    </button>
+                                  </div>
+                                </div>
                               ) : (
-                                <div style={{ fontSize: "0.9rem", color: "var(--chat-muted)" }}>
-                                  {perfilData?.descripcion || "Agregar una descripción"}
+                                <div style={{ fontSize: "0.9rem", color: "var(--chat-muted)", lineHeight: 1.5 }}>
+                                  {perfilData?.descripcion || "Sin descripción"}
                                 </div>
                               )}
                             </div>
 
                             {/* Administrado por */}
                             <div style={{ marginBottom: "24px", borderBottom: "1px solid var(--chat-border)", paddingBottom: "16px" }}>
-                              <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "8px" }}>
-                                <div style={{ fontWeight: 600, fontSize: "0.9rem", color: "var(--chat-text)" }}>Administrado por</div>
-                                <span style={{ fontSize: "0.75rem", color: "var(--chat-muted)", cursor: "help" }} title="Los administradores pueden gestionar el grupo">ⓘ</span>
+                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                                  <div style={{ fontWeight: 600, fontSize: "0.9rem", color: "var(--chat-text)" }}>Administrado por</div>
+                                  <span style={{ fontSize: "0.75rem", color: "var(--chat-muted)", cursor: "help" }} title="Los administradores pueden editar nombre, descripción y foto del grupo">ⓘ</span>
+                                </div>
+                                {perfilData?.es_admin && (
+                                  <button
+                                    type="button"
+                                    className="chat-group-profile-edit-btn"
+                                    onClick={() => setGestionandoAdminsGrupo((prev) => !prev)}
+                                  >
+                                    {gestionandoAdminsGrupo ? "Cerrar" : "Gestionar"}
+                                  </button>
+                                )}
                               </div>
-                              <div style={{ fontSize: "0.9rem", color: "var(--azul-primario)" }}>
-                                {perfilGrupoAdmins.length > 0 
-                                  ? perfilGrupoAdmins.map((admin, idx) => (
-                                      <span key={admin}>
-                                        {admin}{idx < perfilGrupoAdmins.length - 1 ? ", " : ""}
-                                      </span>
-                                    ))
-                                  : perfilData?.creado_por || "Sin administradores"}
+                              <div style={{ fontSize: "0.9rem", color: "var(--azul-primario)", lineHeight: 1.5 }}>
+                                {obtenerAdminsGrupoVisibles(perfilData).map((admin, idx, lista) => (
+                                  <span key={admin}>
+                                    {admin}
+                                    {admin === perfilData?.creado_por ? " (creador)" : ""}
+                                    {idx < lista.length - 1 ? ", " : ""}
+                                  </span>
+                                ))}
                               </div>
+                              {gestionandoAdminsGrupo && perfilData?.es_admin && (
+                                <div className="chat-group-profile-admins-manage">
+                                  <div className="chat-group-profile-admins-hint">
+                                    Los administradores delegados pueden editar las opciones del grupo.
+                                  </div>
+                                  {perfilGrupoMiembros
+                                    .filter((nickname) => nickname !== perfilData?.creado_por)
+                                    .map((nickname) => {
+                                      const esAdminDelegado = perfilGrupoAdmins.includes(nickname);
+                                      const usuario = usuariosCOPMEC.find((u) => (u.nickname || u.name) === nickname);
+                                      return (
+                                        <div key={nickname} className="chat-group-profile-admin-row">
+                                          <div className="chat-group-profile-admin-info">
+                                            <img
+                                              src={getAvatarUrl(usuario)}
+                                              alt={nickname}
+                                              className="chat-avatar"
+                                              style={{ width: "32px", height: "32px" }}
+                                            />
+                                            <span>{nickname}</span>
+                                          </div>
+                                          <button
+                                            type="button"
+                                            className={`chat-group-profile-admin-toggle ${esAdminDelegado ? "is-admin" : ""}`}
+                                            onClick={() => toggleAdminGrupoMiembro(nickname, !esAdminDelegado)}
+                                          >
+                                            {esAdminDelegado ? "Quitar admin" : "Hacer admin"}
+                                          </button>
+                                        </div>
+                                      );
+                                    })}
+                                  {perfilGrupoMiembros.filter((nickname) => nickname !== perfilData?.creado_por).length === 0 && (
+                                    <div className="chat-empty-pro">No hay otros miembros para delegar</div>
+                                  )}
+                                </div>
+                              )}
                             </div>
 
                             {/* Creado por */}
@@ -7599,36 +8667,39 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
                               </div>
                             </div>
 
-                            {/* Dejar el grupo */}
-                            <div style={{ marginTop: "24px" }}>
+                            {/* Acciones del grupo */}
+                            <div className="chat-group-profile-actions">
+                              {(perfilData?.es_creador || esAdmin) && (
+                                <button
+                                  type="button"
+                                  className="chat-group-profile-danger-btn chat-group-profile-danger-btn--solid"
+                                  onClick={eliminarGrupo}
+                                >
+                                  Eliminar grupo
+                                </button>
+                              )}
                               <button
+                                type="button"
+                                className="chat-group-profile-danger-btn"
                                 onClick={async () => {
                                   if (await showConfirm("Dejar el grupo", `¿Estás seguro de que quieres dejar el grupo "${perfilData?.nombre}"?`) === true) {
                                     try {
                                       const userDisplayName = user?.nickname || user?.name;
-                                      await authFetch(`${SERVER_URL}/api/chat/grupos/${chatActual}/miembros/${userDisplayName}`, {
+                                      const grupoId = obtenerGrupoPerfilId();
+                                      await authFetch(`${SERVER_URL}/api/chat/grupos/${grupoId}/miembros/${userDisplayName}`, {
                                         method: "DELETE",
                                       });
                                       showAlert("Has dejado el grupo", "success");
                                       cerrarPerfilUsuario();
-                                      // Recargar grupos
-                                      const data = await authFetch("/api/chat/grupos");
-                                      setGrupos(data || []);
+                                      await recargarListaGrupos();
+                                      if (tipoChat === "grupal" && String(chatActual) === String(grupoId)) {
+                                        setTipoChat(null);
+                                        setChatActual(null);
+                                      }
                                     } catch (_err) {
                                       showAlert("Error al dejar el grupo", "error");
                                     }
                                   }
-                                }}
-                                style={{
-                                  width: "100%",
-                                  padding: "12px",
-                                  background: "transparent",
-                                  border: "1px solid #ef4444",
-                                  borderRadius: "8px",
-                                  color: "#ef4444",
-                                  cursor: "pointer",
-                                  fontSize: "0.9rem",
-                                  fontWeight: 600
                                 }}
                               >
                                 Dejar el grupo
@@ -7767,7 +8838,7 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
                                 </div>
                           </div>
                         )}
-                        {!perfilCargando && !perfilError && perfilTab === "archivos" && (
+                        {!perfilCargando && !perfilError && perfilTab === "archivos" && (perfilTipo === "usuario" || perfilTipo === "grupo") && (
                           <div className="chat-profile-files">
                             <div className="chat-profile-subtabs">
                               <button
@@ -7917,6 +8988,21 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
                         })()}
                         {!perfilCargando && !perfilError && perfilTab === "miembros" && perfilTipo === "grupo" && (
                           <div className="chat-profile-files" style={{ padding: "16px" }}>
+                            <div className="chat-group-members-toolbar">
+                              <div>
+                                <strong>{perfilGrupoMiembros.length}</strong>
+                                <span> miembro{perfilGrupoMiembros.length === 1 ? "" : "s"}</span>
+                              </div>
+                              {perfilData?.es_admin ? (
+                                <button
+                                  type="button"
+                                  className="chat-group-add-member-btn"
+                                  onClick={() => abrirModalAgregarMiembros(obtenerGrupoPerfilId())}
+                                >
+                                  + Agregar miembro
+                                </button>
+                              ) : null}
+                            </div>
                             {/* Búsqueda y filtros - Sticky */}
                             <div style={{ 
                               display: "flex", 
@@ -8412,18 +9498,13 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
                                   </div>
                                   <button
                                     onClick={async () => {
-                                      try {
-                                        const nuevoEstado = !perfilData?.es_publico;
-                                        await authFetch(`${SERVER_URL}/api/chat/grupos/${chatActual}`, {
-                                          method: "PUT",
-                                          headers: { "Content-Type": "application/json" },
-                                          body: JSON.stringify({ es_publico: nuevoEstado }),
-                                        });
-                                        abrirPerfilGrupo(chatActual);
-                                        showAlert(`Grupo ${nuevoEstado ? "público" : "privado"}`, "success");
-                                      } catch (_err) {
-                                        showAlert("Error cambiando visibilidad del grupo", "error");
-                                      }
+                                      const grupoId = obtenerGrupoPerfilId();
+                                      const nuevoEstado = !perfilData?.es_publico;
+                                      await guardarGrupoPerfil(
+                                        grupoId,
+                                        { es_publico: nuevoEstado },
+                                        `Grupo ${nuevoEstado ? "público" : "privado"}`,
+                                      );
                                     }}
                                     style={{
                                       background: "transparent",
@@ -8637,7 +9718,13 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
                         )}
                       </div>
                     </div>
-                  ) : (
+                  ) : tabPrincipal === "no-leidos" ? (
+                    renderVistaSinLeer()
+                  ) : tabPrincipal === "historial" ? (
+                    renderVistaHistorial()
+                  ) : tabPrincipal === "ajustes" ? (
+                    renderVistaAjustes()
+                  ) : tipoChat ? (
                     <div className="chat-panel-body">
                       <div className="chat-header-pro">
                         {tipoChat === "general" ? (
@@ -8711,18 +9798,38 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
                               </button>
                             </div>
                           </>
-                        ) : tipoChat === "grupal" ? (
+                        ) : tipoChat === "grupal" ? (() => {
+                          const grupoActivo = Array.isArray(grupos)
+                            ? grupos.find((g) => String(g.id) === String(chatActual))
+                            : null;
+                          const puedeGestionarGrupo = Boolean(grupoActivo?.es_admin);
+                          return (
                           <>
                             <div className="chat-header-left">
-                              <span className="grupo-icon">👥</span>
+                              {renderGrupoAvatar(grupoActivo, { className: "grupo-icon grupo-icon-header" })}
                               <span className="chat-header-title">
-                                <strong style={{ color: getColorForName(chatActual || "Grupo") }}>
-                                  {(Array.isArray(grupos) && grupos.find((g) => String(g.id) === String(chatActual))?.nombre) ||
-                                    "Grupo"}
-                                </strong>
+                                <button
+                                  type="button"
+                                  className="chat-header-name-button"
+                                  onClick={() => abrirPerfilGrupo(chatActual, "acerca")}
+                                  title="Ver perfil del grupo"
+                                >
+                                  <strong style={{ color: getColorForName(chatActual || "Grupo") }}>
+                                    {(Array.isArray(grupos) && grupos.find((g) => String(g.id) === String(chatActual))?.nombre) ||
+                                      "Grupo"}
+                                  </strong>
+                                </button>
                               </span>
                             </div>
                             <div className="chat-header-actions">
+                              <button
+                                type="button"
+                                className="chat-header-icon-btn"
+                                onClick={() => abrirPerfilGrupo(chatActual, "miembros")}
+                                title="Miembros del grupo"
+                              >
+                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                              </button>
                               <button
                                 className="chat-header-icon-btn"
                                 onClick={abrirVideollamada}
@@ -8730,19 +9837,19 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
                               >
                                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
                               </button>
-                              <button
-                                className="chat-add-member-btn"
-                                onClick={() => {
-                                  setGrupoAgregarMiembros(chatActual);
-                                  setMostrarAgregarMiembros(true);
-                                }}
-                                title="Agregar miembro"
-                              >
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
-                              </button>
+                              {puedeGestionarGrupo ? (
+                                <button
+                                  className="chat-add-member-btn"
+                                  onClick={() => abrirModalAgregarMiembros(chatActual)}
+                                  title="Agregar miembro"
+                                >
+                                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
+                                </button>
+                              ) : null}
                             </div>
                           </>
-                        ) : null}
+                          );
+                        })() : null}
                       </div>
                       {mensajeFijado && (
                         <div className="chat-pinned-bar">
@@ -9314,19 +10421,7 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
                                 <span key={i} className="audio-rec-bar" style={{ height: h + 'px' }} />
                               ))}
                             </div>
-                            <button className="audio-rec-stop" onClick={detenerGrabacionVoz} title="Detener y adjuntar">
-                              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>
-                              Detener
-                            </button>
-                            <button className="audio-rec-cancel" onClick={() => {
-                              clearInterval(recTimerRef.current);
-                              cancelAnimationFrame(recAnimRef.current);
-                              if (mediaRecorderRef.current) {
-                                mediaRecorderRef.current.onstop = null;
-                                mediaRecorderRef.current.stop();
-                              }
-                              setRecTime(0); setRecBars(new Array(30).fill(2)); setIsRecording(false);
-                            }} title="Cancelar">
+                            <button className="audio-rec-cancel" onClick={cancelarGrabacionVoz} title="Cancelar">
                               <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                             </button>
                           </div>
@@ -9474,8 +10569,8 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
                           {/* Nota de voz */}
                           <button
                             className={`chat-btn-quick ${isRecording ? "grabando" : ""}`}
-                            onClick={isRecording ? detenerGrabacionVoz : iniciarGrabacionVoz}
-                            title={isRecording ? "Detener nota de voz" : "Nota de voz"}
+                            onClick={isRecording ? () => detenerGrabacionVoz(true) : iniciarGrabacionVoz}
+                            title={isRecording ? "Detener y enviar nota de voz" : "Nota de voz"}
                           >
                             {isRecording
                               ? <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="none"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
@@ -9695,7 +10790,13 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
                             className="chat-input-textarea"
                             rows={2}
                           />
-                          <button onClick={enviarMensaje} className="chat-btn-enviar">➤</button>
+                          <button
+                            onClick={enviarMensaje}
+                            className={`chat-btn-enviar ${isRecording ? "grabando" : ""}`}
+                            title={isRecording ? "Detener y enviar nota de voz" : "Enviar"}
+                          >
+                            ➤
+                          </button>
                         </div>
                         {mostrarSugerenciasMencion && sugerenciasMencion.length > 0 && (
                           <div className="sugerencias-mention">
@@ -9726,7 +10827,7 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
                         )}
                       </div>
                     </div>
-                  )}
+                  ) : null}
                 </div>
               </div>
             )}
@@ -10241,6 +11342,7 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
       )}
 
       {menuMiembroAbierto && menuMiembroPosicion && perfilTab === "miembros" && perfilTipo === "grupo" && (() => {
+        const grupoPerfilId = obtenerGrupoPerfilId();
         const nickname = menuMiembroAbierto;
         const esAdmin = perfilGrupoAdmins.includes(nickname);
         const esCreador = perfilData?.creado_por === nickname;
@@ -10264,12 +11366,12 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
                       e.stopPropagation();
                       cerrarMenuMiembro();
                       try {
-                        await authFetch(`${SERVER_URL}/api/chat/grupos/${chatActual}/miembros/${nickname}/admin`, {
+                        await authFetch(`${SERVER_URL}/api/chat/grupos/${grupoPerfilId}/miembros/${nickname}/admin`, {
                           method: "POST",
                           headers: { "Content-Type": "application/json" },
                           body: JSON.stringify({ es_admin: !esAdmin }),
                         });
-                        abrirPerfilGrupo(chatActual);
+                        abrirPerfilGrupo(grupoPerfilId, "miembros");
                         showAlert(esAdmin ? "Administrador removido" : "Administrador agregado", "success");
                       } catch (_err) {
                         showAlert("Error gestionando administrador", "error");
@@ -10296,12 +11398,12 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
                             e.stopPropagation();
                             cerrarMenuMiembro();
                             try {
-                              await authFetch(`${SERVER_URL}/api/chat/grupos/${chatActual}/miembros/${nickname}/restringir`, {
+                              await authFetch(`${SERVER_URL}/api/chat/grupos/${grupoPerfilId}/miembros/${nickname}/restringir`, {
                                 method: "POST",
                                 headers: { "Content-Type": "application/json" },
                                 body: JSON.stringify({ duracion_minutos: null, remover: true }),
                               });
-                              abrirPerfilGrupo(chatActual);
+                              abrirPerfilGrupo(grupoPerfilId, "miembros");
                               showAlert("Restricción removida", "success");
                             } catch (_err) {
                               showAlert("Error removiendo restricción", "error");
@@ -10322,12 +11424,12 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
                                   e.stopPropagation();
                                   cerrarMenuMiembro();
                                   try {
-                                    await authFetch(`${SERVER_URL}/api/chat/grupos/${chatActual}/miembros/${nickname}/restringir`, {
+                                    await authFetch(`${SERVER_URL}/api/chat/grupos/${grupoPerfilId}/miembros/${nickname}/restringir`, {
                                       method: "POST",
                                       headers: { "Content-Type": "application/json" },
                                       body: JSON.stringify({ duracion_minutos: minutos }),
                                     });
-                                    abrirPerfilGrupo(chatActual);
+                                    abrirPerfilGrupo(grupoPerfilId, "miembros");
                                     showAlert(`Restricción aplicada: ${opcion}`, "success");
                                   } catch (_err) {
                                     showAlert("Error aplicando restricción", "error");
@@ -10347,8 +11449,8 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
                       cerrarMenuMiembro();
                       if (await showConfirm("Eliminar miembro", `¿Eliminar a ${nickname} del grupo?`) === true) {
                         try {
-                          await authFetch(`${SERVER_URL}/api/chat/grupos/${chatActual}/miembros/${nickname}`, { method: "DELETE" });
-                          abrirPerfilGrupo(chatActual);
+                          await authFetch(`${SERVER_URL}/api/chat/grupos/${grupoPerfilId}/miembros/${nickname}`, { method: "DELETE" });
+                          abrirPerfilGrupo(grupoPerfilId, "miembros");
                           showAlert("Miembro eliminado del grupo", "success");
                         } catch (_err) {
                           showAlert("Error eliminando miembro", "error");
@@ -10369,12 +11471,12 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
                     cerrarMenuMiembro();
                     if (await showConfirm("Transferir propiedad", `¿Transferir la propiedad del grupo a ${nickname}?`) === true) {
                       try {
-                        await authFetch(`${SERVER_URL}/api/chat/grupos/${chatActual}/transferir`, {
+                        await authFetch(`${SERVER_URL}/api/chat/grupos/${grupoPerfilId}/transferir`, {
                           method: "POST",
                           headers: { "Content-Type": "application/json" },
                           body: JSON.stringify({ nuevo_creador: nickname }),
                         });
-                        abrirPerfilGrupo(chatActual);
+                        abrirPerfilGrupo(grupoPerfilId, "miembros");
                         showAlert("Propiedad transferida", "success");
                       } catch (_err) {
                         showAlert("Error transfiriendo propiedad", "error");
@@ -10420,27 +11522,23 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
             onClick={(e) => e.stopPropagation()}
           >
             <div className="msg-menu-reacciones">
-              {emojiOrdenados.map((emoji) => {
-                const twUrl = getTwemojiUrl(emoji);
-                return (
-                  <button
-                    key={`menu-${menuMensaje.msgKey}-${emoji}`}
-                    className={`msg-reaccion-btn ${reacciones[menuMensaje.msgKey]?.[emoji] ? "active" : ""}`}
-                    onClick={() => { toggleReaccion(menuMensaje.msgKey, emoji); cerrarMenuMensaje(); }}
-                    title={emoji}
-                  >
-                    {twUrl
-                      ? <img src={twUrl} alt={emoji} className="cpep-twemoji" onError={(e) => { e.target.style.display='none'; e.target.nextSibling.style.display='inline'; }} />
-                      : null}
-                    <span style={{display: twUrl ? 'none' : 'inline'}}>{emoji}</span>
-                  </button>
-                );
-              })}
+              {emojiReacciones.map((emoji) => (
+                <button
+                  key={`menu-${menuMensaje.msgKey}-${emoji}`}
+                  className={`msg-reaccion-btn ${reacciones[menuMensaje.msgKey]?.[emoji] ? "active" : ""}`}
+                  onClick={() => { toggleReaccion(menuMensaje.msgKey, emoji); cerrarMenuMensaje(); }}
+                  title={emoji}
+                >
+                  <span className="cp-emoji-native" role="img" aria-label={emoji}>{emoji}</span>
+                </button>
+              ))}
               <button
-                className="msg-reaccion-btn"
+                type="button"
+                className="msg-reaccion-btn msg-reaccion-btn-more"
                 onClick={() => { setMenuEmojiAbierto((prev) => !prev); }}
+                title="Más emojis"
               >
-                ➕
+                <CpMenuIcon type="plus" />
               </button>
             </div>
             {menuEmojiAbierto && (
@@ -10517,75 +11615,52 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
                 </div>
               </div>
             )}
-            <div className="msg-menu-list">
-              <button
-                className="msg-menu-item"
-                onClick={() => {
-                  mostrarInfoMensaje(menuMensaje.mensaje);
-                  cerrarMenuMensaje();
-                }}
-              >
-                ℹ️ Info. del mensaje
+            <div className="msg-menu-list cp-msg-menu-list">
+              <button type="button" className="cp-menu-row" onClick={() => { responderMensaje(menuMensaje.mensaje, menuMensaje.otroNickname); cerrarMenuMensaje(); }}>
+                <span className="cp-menu-row-icon"><CpMenuIcon type="reply" /></span>
+                <span className="cp-menu-row-label">Responder</span>
               </button>
-              <button
-                className="msg-menu-item"
-                onClick={() => {
-                  responderMensaje(menuMensaje.mensaje, menuMensaje.otroNickname);
-                  cerrarMenuMensaje();
-                }}
-              >
-                ↩️ Responder
+              <button type="button" className="cp-menu-row" onClick={() => { copiarMensaje(menuMensaje.mensaje?.mensaje || menuMensaje.mensaje?.archivo_nombre || ""); cerrarMenuMensaje(); }}>
+                <span className="cp-menu-row-icon"><CpMenuIcon type="copy" /></span>
+                <span className="cp-menu-row-label">Copiar</span>
               </button>
-              {menuMensaje.esMio && !editandoMensaje && (
-                <button
-                  className="msg-menu-item"
-                  onClick={() => {
-                    iniciarEdicion(menuMensaje.mensaje);
-                    cerrarMenuMensaje();
-                  }}
-                >
-                  ✏️ Editar
+              <button type="button" className="cp-menu-row" onClick={() => { setReenviarMensaje(menuMensaje.mensaje); setMostrarReenvio(true); cerrarMenuMensaje(); }}>
+                <span className="cp-menu-row-icon"><CpMenuIcon type="forward" /></span>
+                <span className="cp-menu-row-label">Reenviar</span>
+              </button>
+              <button type="button" className="cp-menu-row" onClick={() => { if (mensajeFijado?.id === menuMensaje.mensaje?.id) desfijarMensaje(); else fijarMensaje(menuMensaje.mensaje); cerrarMenuMensaje(); }}>
+                <span className="cp-menu-row-icon cp-menu-row-icon-pin"><CpMenuIcon type="pin" /></span>
+                <span className="cp-menu-row-label">{mensajeFijado?.id === menuMensaje.mensaje?.id ? "Desfijar" : "Fijar"}</span>
+              </button>
+              <button type="button" className="cp-menu-row" onClick={() => { toggleDestacarMensaje(menuMensaje.mensaje); cerrarMenuMensaje(); }}>
+                <span className="cp-menu-row-icon"><CpMenuIcon type="star" /></span>
+                <span className="cp-menu-row-label">Destacar</span>
+              </button>
+              <div className="cp-context-menu-divider" />
+              <button type="button" className="cp-menu-row" onClick={() => { activarSeleccion(menuMensaje.mensaje); cerrarMenuMensaje(); }}>
+                <span className="cp-menu-row-icon"><CpMenuIcon type="select" /></span>
+                <span className="cp-menu-row-label">Seleccionar</span>
+              </button>
+              {menuMensaje.esMio && !editandoMensaje ? (
+                <button type="button" className="cp-menu-row" onClick={() => { iniciarEdicion(menuMensaje.mensaje); cerrarMenuMensaje(); }}>
+                  <span className="cp-menu-row-icon"><CpMenuIcon type="edit" /></span>
+                  <span className="cp-menu-row-label">Editar</span>
                 </button>
-              )}
-              <button
-                className="msg-menu-item"
-                onClick={() => {
-                  copiarMensaje(menuMensaje.mensaje?.mensaje || "");
-                  cerrarMenuMensaje();
-                }}
-              >
-                📋 Copiar
+              ) : null}
+              {menuMensaje.mensaje?.archivo_url ? (
+                <button type="button" className="cp-menu-row" onClick={() => { abrirArchivoPrivado(menuMensaje.mensaje); cerrarMenuMensaje(); }}>
+                  <span className="cp-menu-row-icon"><CpMenuIcon type="download" /></span>
+                  <span className="cp-menu-row-label">Guardar como</span>
+                </button>
+              ) : null}
+              <button type="button" className="cp-menu-row" onClick={() => { mostrarInfoMensaje(menuMensaje.mensaje); cerrarMenuMensaje(); }}>
+                <span className="cp-menu-row-icon"><CpMenuIcon type="info" /></span>
+                <span className="cp-menu-row-label">Info del mensaje</span>
               </button>
-              <button
-                className="msg-menu-item"
-                onClick={() => {
-                  if (mensajeFijado?.id === menuMensaje.mensaje?.id) {
-                    desfijarMensaje();
-                  } else {
-                    fijarMensaje(menuMensaje.mensaje);
-                  }
-                  cerrarMenuMensaje();
-                }}
-              >
-                {mensajeFijado?.id === menuMensaje.mensaje?.id ? "📌 Desfijar" : "📌 Fijar"}
-              </button>
-              <button
-                className="msg-menu-item"
-                onClick={() => {
-                  activarSeleccion(menuMensaje.mensaje);
-                  cerrarMenuMensaje();
-                }}
-              >
-                ✅ Seleccionar
-              </button>
-              <button
-                className="msg-menu-item danger"
-                onClick={() => {
-                  eliminarMensaje(menuMensaje.mensaje);
-                  cerrarMenuMensaje();
-                }}
-              >
-                🗑️ Eliminar
+              <div className="cp-context-menu-divider" />
+              <button type="button" className="cp-menu-row danger" onClick={() => { eliminarMensaje(menuMensaje.mensaje); cerrarMenuMensaje(); }}>
+                <span className="cp-menu-row-icon"><CpMenuIcon type="trash" /></span>
+                <span className="cp-menu-row-label">Eliminar</span>
               </button>
             </div>
           </div>
@@ -10740,7 +11815,15 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
             <div className="modal-agregar-miembros">
               <div className="modal-agregar-miembros-content">
                 <div className="modal-agregar-miembros-header">
-                  <h3>Agregar miembros al grupo</h3>
+                  <h3>
+                    Agregar miembros
+                    {(() => {
+                      const grupo = Array.isArray(grupos)
+                        ? grupos.find((g) => String(g.id) === String(grupoAgregarMiembros))
+                        : null;
+                      return grupo?.nombre ? ` · ${grupo.nombre}` : "";
+                    })()}
+                  </h3>
                   <button
                     className="modal-close-btn"
                     onClick={() => {
@@ -11021,14 +12104,167 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
         </div>
       )}
 
-      {/* Modal para crear/renombrar carpetas */}
+      {menuLateralContextual && (
+        <div className="cp-menu-backdrop" onClick={cerrarMenuLateral}>
+          <div
+            className="cp-context-menu cp-context-menu-floating"
+            style={{ left: menuLateralContextual.x, top: menuLateralContextual.y }}
+            onClick={(e) => e.stopPropagation()}
+            onContextMenu={(e) => e.preventDefault()}
+          >
+            {menuLateralContextual.tipo === "seccion" && (
+              <>
+                <div className="cp-context-menu-label">{menuLateralContextual.nombre}</div>
+                {menuLateralContextual.alcance !== "grupo" ? (
+                  <button type="button" className="cp-menu-row" onClick={() => { marcarSeccionComoLeida(menuLateralContextual.nombre); }}>
+                    <span className="cp-menu-row-icon"><CpMenuIcon type="check" /></span>
+                    <span className="cp-menu-row-label">Marcar todo como leído</span>
+                  </button>
+                ) : null}
+                {menuLateralContextual.alcance !== "grupo" ? <div className="cp-context-menu-divider" /> : null}
+                <div className="cp-context-menu-label">Administrar sección</div>
+                <button type="button" className="cp-menu-row" onClick={() => { renombrarCarpeta(menuLateralContextual.nombre, menuLateralContextual.alcance); cerrarMenuLateral(); }}>
+                  <span className="cp-menu-row-icon"><CpMenuIcon type="rename" /></span>
+                  <span className="cp-menu-row-label">Cambiar nombre</span>
+                </button>
+                <button type="button" className="cp-menu-row" onClick={() => { crearSeccionVacia(menuLateralContextual.alcance); cerrarMenuLateral(); }}>
+                  <span className="cp-menu-row-icon"><CpMenuIcon type="plus" /></span>
+                  <span className="cp-menu-row-label">Crear una nueva sección</span>
+                </button>
+                <button type="button" className="cp-menu-row" onClick={() => { setModalAdminSeccion({ nombre: menuLateralContextual.nombre, alcance: menuLateralContextual.alcance }); cerrarMenuLateral(); }}>
+                  <span className="cp-menu-row-icon"><CpMenuIcon type="admin" /></span>
+                  <span className="cp-menu-row-label">Administrar conversaciones</span>
+                </button>
+                <div className="cp-context-menu-divider" />
+                <button
+                  type="button"
+                  className="cp-menu-row danger"
+                  onClick={async () => {
+                    const nombre = menuLateralContextual.nombre;
+                    cerrarMenuLateral();
+                    if (await showConfirm(`¿Eliminar la sección "${nombre}"? Los ${menuLateralContextual.alcance === "grupo" ? "grupos" : "chats"} no se borran.`, "Eliminar sección") === true) {
+                      eliminarSeccion(nombre, menuLateralContextual.alcance);
+                    }
+                  }}
+                >
+                  <span className="cp-menu-row-icon"><CpMenuIcon type="trash" /></span>
+                  <span className="cp-menu-row-label">Eliminar sección</span>
+                </button>
+              </>
+            )}
+            {menuLateralContextual.tipo === "chat" && (
+              <>
+                <div className="cp-context-menu-label">{menuLateralContextual.nombre}</div>
+                <button type="button" className="cp-menu-row" onClick={() => { abrirChat("privado", menuLateralContextual.itemId); cerrarMenuLateral(); }}>
+                  <span className="cp-menu-row-icon"><CpMenuIcon type="chat" /></span>
+                  <span className="cp-menu-row-label">Abrir chat</span>
+                </button>
+                <button type="button" className="cp-menu-row" onClick={() => { abrirPerfilUsuario(menuLateralContextual.itemId); cerrarMenuLateral(); }}>
+                  <span className="cp-menu-row-icon"><CpMenuIcon type="user" /></span>
+                  <span className="cp-menu-row-label">Ver perfil</span>
+                </button>
+                {menuLateralContextual.noLeidos > 0 ? (
+                  <button type="button" className="cp-menu-row" onClick={() => marcarChatComoLeido(menuLateralContextual.itemId)}>
+                    <span className="cp-menu-row-icon"><CpMenuIcon type="check" /></span>
+                    <span className="cp-menu-row-label">Marcar como leído</span>
+                  </button>
+                ) : null}
+                <div className="cp-context-menu-divider" />
+                <div className="cp-context-menu-label">Organizar</div>
+                <button type="button" className="cp-menu-row" onClick={() => { crearYAsignarCarpeta(menuLateralContextual.itemId, "chat"); cerrarMenuLateral(); }}>
+                  <span className="cp-menu-row-icon"><CpMenuIcon type="plus" /></span>
+                  <span className="cp-menu-row-label">Crear sección</span>
+                </button>
+                {obtenerNombresSeccionesChats().map((seccion) => (
+                  <button key={`ctx-chat-${menuLateralContextual.itemId}-${seccion}`} type="button" className="cp-menu-row" onClick={() => asignarACarpeta(menuLateralContextual.itemId, "chat", seccion)}>
+                    <span className="cp-menu-row-icon"><CpMenuIcon type="folder" /></span>
+                    <span className="cp-menu-row-label">Mover a {seccion}</span>
+                  </button>
+                ))}
+                {menuLateralContextual.seccionActual ? (
+                  <button type="button" className="cp-menu-row" onClick={() => asignarACarpeta(menuLateralContextual.itemId, "chat", null)}>
+                    <span className="cp-menu-row-icon"><CpMenuIcon type="remove" /></span>
+                    <span className="cp-menu-row-label">Quitar de sección</span>
+                  </button>
+                ) : null}
+              </>
+            )}
+            {menuLateralContextual.tipo === "grupo" && (
+              <>
+                <div className="cp-context-menu-label">Grupo</div>
+                {menuLateralContextual.esMiembro ? (
+                  <button type="button" className="cp-menu-row" onClick={() => { abrirChat("grupal", menuLateralContextual.itemId); cerrarMenuLateral(); }}>
+                    <span className="cp-menu-row-icon"><CpMenuIcon type="chat" /></span>
+                    <span className="cp-menu-row-label">Abrir grupo</span>
+                  </button>
+                ) : null}
+                <button type="button" className="cp-menu-row" onClick={() => { abrirPerfilGrupo(menuLateralContextual.itemId, "acerca"); cerrarMenuLateral(); }}>
+                  <span className="cp-menu-row-icon"><CpMenuIcon type="users" /></span>
+                  <span className="cp-menu-row-label">Perfil del grupo</span>
+                </button>
+                <div className="cp-context-menu-divider" />
+                <div className="cp-context-menu-label">Organizar</div>
+                <button type="button" className="cp-menu-row" onClick={() => { crearYAsignarCarpeta(menuLateralContextual.itemId, "grupo"); cerrarMenuLateral(); }}>
+                  <span className="cp-menu-row-icon"><CpMenuIcon type="plus" /></span>
+                  <span className="cp-menu-row-label">Crear sección</span>
+                </button>
+                {obtenerNombresSeccionesGrupos().map((seccion) => (
+                  <button key={`ctx-grupo-${menuLateralContextual.itemId}-${seccion}`} type="button" className="cp-menu-row" onClick={() => asignarACarpeta(menuLateralContextual.itemId, "grupo", seccion)}>
+                    <span className="cp-menu-row-icon"><CpMenuIcon type="folder" /></span>
+                    <span className="cp-menu-row-label">Mover a {seccion}</span>
+                  </button>
+                ))}
+                {menuLateralContextual.seccionActual ? (
+                  <button type="button" className="cp-menu-row" onClick={() => asignarACarpeta(menuLateralContextual.itemId, "grupo", null)}>
+                    <span className="cp-menu-row-icon"><CpMenuIcon type="remove" /></span>
+                    <span className="cp-menu-row-label">Quitar de sección</span>
+                  </button>
+                ) : null}
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {modalAdminSeccion && (
+        <div className="cp-menu-backdrop" onClick={() => setModalAdminSeccion(null)}>
+          <div className="cp-admin-seccion-modal" onClick={(e) => e.stopPropagation()}>
+            <h3>Sección · {modalAdminSeccion.nombre}</h3>
+            <p className="cp-admin-seccion-hint">
+              {modalAdminSeccion.alcance === "grupo" ? "Grupos en esta sección" : "Chats en esta sección"}
+            </p>
+            <div className="cp-admin-seccion-list">
+              {modalAdminSeccion.alcance !== "grupo" && chatsActivos.filter((c) => chatGroups[c.otro_usuario] === modalAdminSeccion.nombre).map((c) => (
+                <div key={`admin-chat-${c.otro_usuario}`} className="cp-admin-seccion-item">
+                  <span>{c.otro_usuario}</span>
+                  <button type="button" onClick={() => asignarACarpeta(c.otro_usuario, "chat", null)}>Quitar</button>
+                </div>
+              ))}
+              {modalAdminSeccion.alcance === "grupo" && grupos.filter((g) => grupoGroups[g.id] === modalAdminSeccion.nombre).map((g) => (
+                <div key={`admin-grupo-${g.id}`} className="cp-admin-seccion-item">
+                  <span>{g.nombre}</span>
+                  <button type="button" onClick={() => asignarACarpeta(g.id, "grupo", null)}>Quitar</button>
+                </div>
+              ))}
+            </div>
+            <button type="button" className="cp-admin-seccion-close" onClick={() => setModalAdminSeccion(null)}>Cerrar</button>
+          </div>
+        </div>
+      )}
+
       {modalGrupoAccion && (
         <div className="modal-carpeta-overlay" onClick={() => setModalGrupoAccion(null)}>
           <div className="modal-carpeta-content" onClick={(e) => e.stopPropagation()}>
-            <h3>{modalGrupoAccion.tipo === 'crear' ? '📁 Nueva carpeta' : '✏️ Renombrar carpeta'}</h3>
+            <h3>
+              {modalGrupoAccion.tipo === "crear-seccion"
+                ? (modalGrupoAccion.alcance === "grupo" ? "Nueva sección de grupos" : "Nueva sección de chats")
+                : modalGrupoAccion.tipo === "crear"
+                  ? (modalGrupoAccion.itemTipo === "grupo" ? "Nueva sección de grupos" : "Nueva sección de chats")
+                  : (modalGrupoAccion.alcance === "grupo" ? "Renombrar sección de grupos" : "Renombrar sección de chats")}
+            </h3>
             <input
               type="text"
-              placeholder="Nombre de la carpeta"
+              placeholder="Nombre de la sección"
               value={modalGrupoNombre}
               onChange={(e) => setModalGrupoNombre(e.target.value)}
               onKeyPress={(e) => {
@@ -11041,7 +12277,7 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
             <div className="modal-carpeta-buttons">
               <button onClick={() => setModalGrupoAccion(null)}>Cancelar</button>
               <button onClick={confirmarAccionCarpeta}>
-                {modalGrupoAccion.tipo === 'crear' ? 'Crear' : 'Renombrar'}
+                {modalGrupoAccion.tipo === "renombrar" ? "Renombrar" : "Crear"}
               </button>
             </div>
           </div>

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import bibliotecaWelcome from "../assets/biblioteca-welcome.jpeg";
+import bibliotecaWelcome from "../assets/biblioteca-welcome.png";
 import {
   BookOpen,
   Download,

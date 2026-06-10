@@ -722,6 +722,7 @@ export default function MisTableros({ contexto }) {
     { value: "3", label: "J" },
     { value: "4", label: "V" },
     { value: "5", label: "S" },
+    { value: "6", label: "D" },
   ];
   const effectiveWeekdayOffset = selectedWeekdayFilter === "auto"
     ? currentWeekdayOffset

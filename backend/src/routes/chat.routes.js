@@ -48,7 +48,23 @@ const uploadGrupo = multer({ storage: grupoStorage, limits: { fileSize: 10 * 102
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function getNombre(req) {
-  return req.auth?.user?.name || null;
+  return req.auth?.user?.name || req.auth?.user?.nickname || null;
+}
+
+function findAuthUser(req) {
+  const auth = req.auth?.user;
+  if (!auth) return null;
+  const users = getAllUsers();
+  if (auth.id != null) {
+    const byId = users.find((u) => String(u.id) === String(auth.id));
+    if (byId) return byId;
+  }
+  const authAliases = buildUserAliases(auth);
+  const authNorm = new Set(authAliases.map((a) => normalizeNick(a)).filter(Boolean));
+  return users.find((u) => {
+    const aliases = buildUserAliases(u);
+    return aliases.some((a) => authNorm.has(normalizeNick(a)));
+  }) || users.find((u) => u.name === auth.name) || null;
 }
 
 function getAllUsers() {
@@ -275,12 +291,12 @@ chatRouter.post("/calls/signal", requireAuth, async (req, res) => {
             iniciador: senderName,
             receptores: JSON.stringify(requestedNicknames),
             tipo: requestedNicknames.length > 1 ? "grupal" : "privado",
-            estado: "perdida",
+            estado: "pendiente",
           },
         }).catch(() => {});
       } else if (type === "join") {
         prisma.chatLlamada?.updateMany({
-          where: { room, estado: { in: ["perdida", "activa"] } },
+          where: { room, estado: { in: ["pendiente", "perdida", "activa"] } },
           data: { estado: "activa", aceptadaEn: new Date() },
         }).catch(() => {});
       } else if (type === "reject") {
@@ -345,10 +361,12 @@ chatRouter.get("/calls/historial", requireAuth, async (req, res) => {
 
     if (!prisma.chatLlamada) return res.json([]);
 
-    // Obtener aliases del usuario autenticado para búsqueda flexible
-    const users = getAllUsers();
-    const currentUser = users.find((u) => u.name === nombre);
-    const userAliases = Array.from(new Set(currentUser ? buildUserAliases(currentUser) : [nombre]));
+    const currentUser = findAuthUser(req);
+    const userAliases = Array.from(new Set([
+      nombre,
+      ...(currentUser ? buildUserAliases(currentUser) : []),
+      ...buildUserAliases(req.auth?.user || {}),
+    ]));
     const userAliasNorm = new Set(userAliases.map((alias) => normalizeNick(alias)).filter(Boolean));
     userAliasNorm.add(normalizeNick(nombre));
 
@@ -415,6 +433,79 @@ chatRouter.get("/calls/historial", requireAuth, async (req, res) => {
     console.error("[historial] Error:", e?.message);
     // Si la tabla no existe aún en producción, devolver array vacío
     res.json([]);
+  }
+});
+
+function obtenerAliasUsuarioLlamadas(req) {
+  const nombre = getNombre(req);
+  if (!nombre) return null;
+  const currentUser = findAuthUser(req);
+  const userAliases = Array.from(new Set([
+    nombre,
+    ...(currentUser ? buildUserAliases(currentUser) : []),
+    ...buildUserAliases(req.auth?.user || {}),
+  ]));
+  const userAliasNorm = new Set(userAliases.map((alias) => normalizeNick(alias)).filter(Boolean));
+  userAliasNorm.add(normalizeNick(nombre));
+  return { nombre, userAliasNorm };
+}
+
+function usuarioParticipaEnLlamada(ll, userAliasNorm) {
+  let receptoresArr = [];
+  try {
+    receptoresArr = Array.isArray(ll.receptores)
+      ? ll.receptores
+      : JSON.parse(ll.receptores || "[]");
+  } catch (_) {}
+
+  const iniciadorNorm = normalizeNick(ll.iniciador);
+  if (iniciadorNorm && userAliasNorm.has(iniciadorNorm)) return true;
+  return receptoresArr.some((r) => userAliasNorm.has(normalizeNick(r)));
+}
+
+chatRouter.delete("/calls/historial/:id", requireAuth, async (req, res) => {
+  try {
+    const aliasInfo = obtenerAliasUsuarioLlamadas(req);
+    if (!aliasInfo) return res.status(401).json({ error: "No autenticado" });
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id) || id <= 0) return res.status(400).json({ error: "ID inválido" });
+    if (!prisma.chatLlamada) return res.json({ ok: true });
+
+    const ll = await prisma.chatLlamada.findUnique({ where: { id } });
+    if (!ll) return res.status(404).json({ error: "Registro no encontrado" });
+    if (!usuarioParticipaEnLlamada(ll, aliasInfo.userAliasNorm)) {
+      return res.status(403).json({ error: "No autorizado" });
+    }
+
+    await prisma.chatLlamada.delete({ where: { id } });
+    res.json({ ok: true });
+  } catch (e) {
+    console.error("[historial] Error al eliminar:", e?.message);
+    res.status(500).json({ error: "Error al eliminar el registro" });
+  }
+});
+
+chatRouter.delete("/calls/historial", requireAuth, async (req, res) => {
+  try {
+    const aliasInfo = obtenerAliasUsuarioLlamadas(req);
+    if (!aliasInfo) return res.status(401).json({ error: "No autenticado" });
+    if (!prisma.chatLlamada) return res.json({ ok: true, eliminados: 0 });
+
+    const todas = await prisma.chatLlamada.findMany({
+      orderBy: { iniciadaEn: "desc" },
+      take: 2000,
+    });
+    const ids = todas
+      .filter((ll) => usuarioParticipaEnLlamada(ll, aliasInfo.userAliasNorm))
+      .map((ll) => ll.id);
+
+    if (ids.length === 0) return res.json({ ok: true, eliminados: 0 });
+
+    await prisma.chatLlamada.deleteMany({ where: { id: { in: ids } } });
+    res.json({ ok: true, eliminados: ids.length });
+  } catch (e) {
+    console.error("[historial] Error al limpiar:", e?.message);
+    res.status(500).json({ error: "Error al limpiar el historial" });
   }
 });
 
@@ -872,6 +963,104 @@ chatRouter.get("/activos", requireAuth, async (req, res) => {
   }
 });
 
+chatRouter.get("/sin-leer", requireAuth, async (req, res) => {
+  try {
+    const nombre = getNombre(req);
+    if (!nombre) return res.status(401).json({ error: "No autenticado" });
+    const limitPorConversacion = Math.min(Number(req.query.limit) || 25, 50);
+    const conversaciones = [];
+
+    const privados = await prisma.$queryRaw`
+      SELECT DISTINCT
+        CASE WHEN cp."deNickname" = ${nombre} THEN cp."paraNickname" ELSE cp."deNickname" END AS otro_usuario
+      FROM chat_privado cp
+      WHERE cp."paraNickname" = ${nombre}
+        AND cp."deNickname" <> ${nombre}
+        AND NOT EXISTS (
+          SELECT 1 FROM chat_privado_leidos cpl
+          WHERE cpl."mensajeId" = cp.id AND cpl."usuarioNickname" = ${nombre}
+        )
+    `.catch(() => []);
+
+    for (const row of privados || []) {
+      const otro = row?.otro_usuario;
+      if (!otro) continue;
+
+      const borrado = await prisma.chatPrivadoBorrado.findUnique({
+        where: {
+          usuarioNickname_otroNickname: { usuarioNickname: nombre, otroNickname: otro },
+        },
+      }).catch(() => null);
+
+      const mensajes = await prisma.chatPrivado.findMany({
+        where: {
+          deNickname: otro,
+          paraNickname: nombre,
+          ...(borrado ? { fecha: { gt: borrado.borradoEn } } : {}),
+          leidos: { none: { usuarioNickname: nombre } },
+        },
+        orderBy: { fecha: "asc" },
+        take: limitPorConversacion,
+      });
+
+      if (!mensajes.length) continue;
+
+      conversaciones.push({
+        tipo: "privado",
+        conversacion_id: otro,
+        conversacion_nombre: otro,
+        mensajes_no_leidos: mensajes.length,
+        ultima_fecha: mensajes[mensajes.length - 1].fecha?.toISOString?.() || null,
+        mensajes: mensajes.map((m) => serializarMensaje(m)),
+      });
+    }
+
+    const membresias = await prisma.chatGrupoMiembro.findMany({
+      where: { usuarioNickname: nombre },
+      select: { grupoId: true },
+    }).catch(() => []);
+
+    for (const { grupoId } of membresias) {
+      const grupo = await prisma.chatGrupo.findUnique({
+        where: { id: grupoId },
+        select: { id: true, nombre: true },
+      });
+      if (!grupo) continue;
+
+      const mensajes = await prisma.chatGrupal.findMany({
+        where: {
+          grupoId,
+          leidos: { none: { usuarioNickname: nombre } },
+        },
+        orderBy: { fecha: "asc" },
+        take: limitPorConversacion,
+      });
+
+      if (!mensajes.length) continue;
+
+      conversaciones.push({
+        tipo: "grupal",
+        conversacion_id: grupo.id,
+        conversacion_nombre: grupo.nombre,
+        mensajes_no_leidos: mensajes.length,
+        ultima_fecha: mensajes[mensajes.length - 1].fecha?.toISOString?.() || null,
+        mensajes: mensajes.map((m) => serializarMensaje(m)),
+      });
+    }
+
+    conversaciones.sort((a, b) => {
+      const fa = a.ultima_fecha ? new Date(a.ultima_fecha).getTime() : 0;
+      const fb = b.ultima_fecha ? new Date(b.ultima_fecha).getTime() : 0;
+      return fb - fa;
+    });
+
+    res.json(conversaciones);
+  } catch (e) {
+    console.error("Error obteniendo sin-leer:", e?.message);
+    res.json([]);
+  }
+});
+
 // ═════════════════════════════════════════════════════════════════════════════
 // GRUPOS
 // ═════════════════════════════════════════════════════════════════════════════
@@ -882,15 +1071,20 @@ chatRouter.get("/grupos", requireAuth, async (req, res) => {
     const grupos = await prisma.chatGrupo.findMany({
       include: {
         miembros: { select: { usuarioNickname: true } },
+        admins: { select: { usuarioNickname: true } },
       },
       orderBy: { fechaCreacion: "desc" },
     });
 
-    res.json(grupos.map((g) => ({
-      ...serializarGrupo(g),
-      miembros: g.miembros.map((m) => m.usuarioNickname),
-      es_miembro: g.miembros.some((m) => m.usuarioNickname === nombre),
-    })));
+    res.json(grupos.map((g) => {
+      const esAdmin = g.creadoPor === nombre || g.admins.some((a) => a.usuarioNickname === nombre);
+      return {
+        ...serializarGrupo(g),
+        miembros: g.miembros.map((m) => m.usuarioNickname),
+        es_miembro: g.miembros.some((m) => m.usuarioNickname === nombre),
+        es_admin: esAdmin,
+      };
+    }));
   } catch (e) {
     console.error("Error obteniendo grupos:", e);
     res.json([]);
@@ -1093,10 +1287,26 @@ chatRouter.delete("/grupos/:id", requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
     const nombre = getNombre(req);
+    if (!nombre) return res.status(400).json({ error: "Usuario sin nombre" });
+
+    const grupo = await prisma.chatGrupo.findUnique({ where: { id: Number(id) } });
+    if (!grupo) return res.status(404).json({ error: "Grupo no encontrado" });
+
     const user = getAllUsers().find((u) => u.name === nombre);
-    if (!user || user.role !== "Lead") {
-      return res.status(403).json({ error: "Solo administradores pueden borrar grupos" });
+    const esLead = user?.role === "Lead";
+    const esCreador = grupo.creadoPor === nombre;
+    if (!esLead && !esCreador) {
+      return res.status(403).json({ error: "Solo el creador del grupo puede eliminarlo" });
     }
+
+    if (grupo.foto?.startsWith("/api/chat/grupo-foto/")) {
+      const filename = grupo.foto.replace("/api/chat/grupo-foto/", "");
+      const filePath = path.join(gruposUploadsDir, filename);
+      if (fs.existsSync(filePath)) {
+        try { fs.unlinkSync(filePath); } catch { /* ignore */ }
+      }
+    }
+
     await prisma.chatGrupo.delete({ where: { id: Number(id) } });
     getIO().emit("chat_grupo_borrado", { grupo_id: Number(id) });
     res.json({ ok: true });
@@ -1176,11 +1386,103 @@ chatRouter.put("/grupos/:id", requireAuth, async (req, res) => {
   }
 });
 
+chatRouter.post("/grupos/:id/foto", requireAuth, uploadGrupo.single("foto"), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: "No se proporcionó imagen" });
+
+    const { id } = req.params;
+    const nombre = getNombre(req);
+    if (!nombre) {
+      fs.unlinkSync(req.file.path);
+      return res.status(400).json({ error: "Usuario sin nombre" });
+    }
+
+    const grupoId = Number(id);
+    const esAdmin = await esAdminDeGrupo(grupoId, nombre);
+    if (!esAdmin) {
+      fs.unlinkSync(req.file.path);
+      return res.status(403).json({ error: "Solo los administradores pueden cambiar la foto" });
+    }
+
+    if (!req.file.mimetype.startsWith("image/")) {
+      fs.unlinkSync(req.file.path);
+      return res.status(400).json({ error: "Solo se permiten imágenes" });
+    }
+
+    const grupo = await prisma.chatGrupo.findUnique({ where: { id: grupoId } });
+    if (!grupo) {
+      fs.unlinkSync(req.file.path);
+      return res.status(404).json({ error: "Grupo no encontrado" });
+    }
+
+    if (grupo.foto?.startsWith("/api/chat/grupo-foto/")) {
+      const oldFilename = grupo.foto.replace("/api/chat/grupo-foto/", "");
+      const oldPath = path.join(gruposUploadsDir, oldFilename);
+      if (fs.existsSync(oldPath)) {
+        try { fs.unlinkSync(oldPath); } catch { /* ignore */ }
+      }
+    }
+
+    const fotoUrl = `/api/chat/grupo-foto/${req.file.filename}`;
+    const updated = await prisma.chatGrupo.update({
+      where: { id: grupoId },
+      data: { foto: fotoUrl },
+    });
+    const out = serializarGrupo(updated);
+    getIO().emit("chat_grupo_actualizado", out);
+    res.json({ ok: true, foto: fotoUrl, grupo: out });
+  } catch (e) {
+    console.error("Error subiendo foto de grupo:", e);
+    if (req.file?.path) {
+      try { fs.unlinkSync(req.file.path); } catch { /* ignore */ }
+    }
+    res.status(500).json({ error: "Error subiendo foto de grupo" });
+  }
+});
+
+chatRouter.delete("/grupos/:id/foto", requireAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const nombre = getNombre(req);
+    if (!nombre) return res.status(400).json({ error: "Usuario sin nombre" });
+
+    const grupoId = Number(id);
+    const esAdmin = await esAdminDeGrupo(grupoId, nombre);
+    if (!esAdmin) return res.status(403).json({ error: "Solo los administradores pueden quitar la foto" });
+
+    const grupo = await prisma.chatGrupo.findUnique({ where: { id: grupoId } });
+    if (!grupo) return res.status(404).json({ error: "Grupo no encontrado" });
+
+    if (grupo.foto?.startsWith("/api/chat/grupo-foto/")) {
+      const filename = grupo.foto.replace("/api/chat/grupo-foto/", "");
+      const filePath = path.join(gruposUploadsDir, filename);
+      if (fs.existsSync(filePath)) {
+        try { fs.unlinkSync(filePath); } catch { /* ignore */ }
+      }
+    }
+
+    const updated = await prisma.chatGrupo.update({
+      where: { id: grupoId },
+      data: { foto: null },
+    });
+    const out = serializarGrupo(updated);
+    getIO().emit("chat_grupo_actualizado", out);
+    res.json({ ok: true, grupo: out });
+  } catch (e) {
+    res.status(500).json({ error: "Error quitando foto de grupo" });
+  }
+});
+
 chatRouter.post("/grupos/:id/miembros", requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
     const { usuario_nickname } = req.body;
+    const nombre = getNombre(req);
+    if (!nombre) return res.status(400).json({ error: "Usuario sin nombre" });
     if (!usuario_nickname) return res.status(400).json({ error: "Nickname requerido" });
+
+    const esAdmin = await esAdminDeGrupo(Number(id), nombre);
+    if (!esAdmin) return res.status(403).json({ error: "Solo los administradores pueden agregar miembros" });
 
     await prisma.chatGrupoMiembro.upsert({
       where: { grupoId_usuarioNickname: { grupoId: Number(id), usuarioNickname: usuario_nickname } },
@@ -1226,6 +1528,12 @@ chatRouter.post("/grupos/:id/miembros/:nickname/admin", requireAuth, async (req,
 
     const esAdmin = await esAdminDeGrupo(Number(id), nombre);
     if (!esAdmin) return res.status(403).json({ error: "Solo los administradores pueden gestionar admins" });
+
+    const grupo = await prisma.chatGrupo.findUnique({ where: { id: Number(id) } });
+    if (!grupo) return res.status(404).json({ error: "Grupo no encontrado" });
+    if (grupo.creadoPor === nickname) {
+      return res.status(400).json({ error: "El creador siempre es administrador" });
+    }
 
     if (es_admin) {
       await prisma.chatGrupoAdmin.upsert({
@@ -1552,6 +1860,14 @@ chatRouter.get("/archivo-local/:filename", requireAuth, (req, res) => {
   if (/[/\\]/.test(filename)) return res.status(400).json({ error: "Nombre inválido" });
   const filePath = path.join(chatUploadsDir, filename);
   if (!fs.existsSync(filePath)) return res.status(404).json({ error: "Archivo no encontrado" });
+  res.sendFile(path.resolve(filePath));
+});
+
+chatRouter.get("/grupo-foto/:filename", requireAuth, (req, res) => {
+  const { filename } = req.params;
+  if (/[/\\]/.test(filename)) return res.status(400).json({ error: "Nombre inválido" });
+  const filePath = path.join(gruposUploadsDir, filename);
+  if (!fs.existsSync(filePath)) return res.status(404).json({ error: "Foto no encontrada" });
   res.sendFile(path.resolve(filePath));
 });
 

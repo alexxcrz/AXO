@@ -217,6 +217,31 @@ html.mobile-shell .chat-pro-ventana input[type="range"] {
   -webkit-text-fill-color: var(--cp-text, #24384a) !important;
 }
 
+/* Botones del chat: texto legible y tamano compacto */
+html.mobile-shell .chat-pro-ventana .cp-ajustes-preview-btn:not(.cp-ajustes-preview-btn-secondary) {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+html.mobile-shell .chat-pro-ventana .cp-ajustes-preview-btn-secondary {
+  color: #314d69 !important;
+  -webkit-text-fill-color: #314d69 !important;
+}
+
+html.mobile-shell .chat-pro-ventana .cp-ajustes-preview-btn,
+html.mobile-shell .chat-pro-ventana .cp-panel-vista-btn,
+html.mobile-shell .chat-pro-ventana .cp-call-history-action-btn,
+html.mobile-shell .chat-pro-ventana .cp-sin-leer-mark-all,
+html.mobile-shell .chat-pro-ventana .cp-sin-leer-ver,
+html.mobile-shell .chat-pro-ventana .cp-sidebar-action-btn {
+  min-height: 26px;
+}
+
+html.mobile-shell .chat-pro-ventana .cp-sidebar-action-btn--danger {
+  color: #dc2626 !important;
+  -webkit-text-fill-color: #dc2626 !important;
+}
+
 /* Sidebar active item */
 html.mobile-shell .sidebar-shell .nav-item.active {
   background: rgba(255, 255, 255, 0.26) !important;

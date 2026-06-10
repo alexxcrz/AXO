@@ -7,6 +7,7 @@ const CATALOG_WEEKDAY_OPTIONS = [
   { value: 3, short: "J", label: "Jueves" },
   { value: 4, short: "V", label: "Viernes" },
   { value: 5, short: "S", label: "Sabado" },
+  { value: 6, short: "D", label: "Domingo" },
 ];
 
 function serializeCatalogScheduledDaysBySite(value) {

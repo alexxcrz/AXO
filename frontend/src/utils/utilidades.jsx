@@ -4536,7 +4536,7 @@ function normalizeWeekdayOffsetsList(value) {
   source.forEach((entry) => {
     const numeric = Number(entry);
     if (!Number.isInteger(numeric)) return;
-    if (numeric < 0 || numeric > 5) return;
+    if (numeric < 0 || numeric > 6) return;
     unique.add(numeric);
   });
   return Array.from(unique).sort((left, right) => left - right);
