@@ -91,11 +91,12 @@ function parseMarkdownToJSX(text) {
 // ─── Sugerencias rápidas ──────────────────────────────────────────────────────
 const QUICK_SUGGESTIONS = [
   "Resumen del sistema",
+  "Qué módulos tiene AXO",
   "Stock bajo",
   "Tableros pausados",
   "Incidencias abiertas",
+  "Catálogo de actividades",
   "Predicciones",
-  "Estado del equipo",
   "Genera reporte en PDF",
   "Genera reporte en XLSX",
 ];
@@ -212,13 +213,13 @@ export default function CopmecAIWidget({ canUseAI, isOpen, onClose, sidebarColla
   if (!canUseAI || !isOpen) return null;
 
   return (
-    <div className={`copmec-ai-panel${sidebarCollapsed ? " copmec-ai-panel--sidebar-collapsed" : ""}`} role="dialog" aria-label="COPMEC AI — Cerebro Operativo">
+    <div className={`copmec-ai-panel${sidebarCollapsed ? " copmec-ai-panel--sidebar-collapsed" : ""}`} role="dialog" aria-label="AXO AI — Cerebro Operativo">
           {/* Header */}
           <div className="copmec-ai-header">
             <div className="copmec-ai-header-info">
-              <img src={logoIA} alt="COPMEC AI" className="copmec-ai-header-logo" />
+              <img src={logoIA} alt="AXO AI" className="copmec-ai-header-logo" />
               <div>
-                <div className="copmec-ai-header-title">COPMEC AI</div>
+                <div className="copmec-ai-header-title">AXO AI</div>
                 <div className="copmec-ai-header-subtitle">Cerebro Operativo • En línea</div>
               </div>
             </div>
@@ -236,9 +237,9 @@ export default function CopmecAIWidget({ canUseAI, isOpen, onClose, sidebarColla
           <div className="copmec-ai-messages">
             {messages.length === 0 && (
               <div className="copmec-ai-empty">
-                <img src={logoIA} alt="COPMEC AI" className="copmec-ai-empty-logo" />
-                <p>Soy el <strong>Cerebro Operativo de COPMEC</strong>.</p>
-                <p>Analizo tu sistema en tiempo real y respondo con datos operativos precisos.</p>
+                <img src={logoIA} alt="AXO AI" className="copmec-ai-empty-logo" />
+                <p>Soy el <strong>Cerebro Operativo de AXO</strong>.</p>
+                <p>Analizo AXIS ORDO en tiempo real: tableros, inventario, incidencias, catálogo, transporte y más.</p>
               </div>
             )}
 
@@ -262,7 +263,7 @@ export default function CopmecAIWidget({ canUseAI, isOpen, onClose, sidebarColla
                             <span className="copmec-ai-report-label">📥 Descargar reporte:</span>
                             {(Array.isArray(msg.availableFormats) && msg.availableFormats.length > 0
                               ? msg.availableFormats
-                              : ["pdf", "cop"]
+                              : ["pdf"]
                             ).map((fmt) => (
                               <button
                                 key={`${msg.reportToken}-${fmt}`}

@@ -1,5 +1,5 @@
 /**
- * COPMEC AI — Cerebro Operativo y Guardián de Datos
+ * AXO AI — Cerebro Operativo y Guardián de Datos
  * Motor de inteligencia local: conversacional, contextual y orientado a datos reales.
  */
 
@@ -28,11 +28,55 @@ try {
   });
 } catch {}
 
-// ─── Constantes ──────────────────────────────────────────────────────────────
-const STATUS_PENDING  = "pending";
-const STATUS_RUNNING  = "running";
-const STATUS_PAUSED   = "paused";
-const STATUS_FINISHED = "finished";
+// ─── Estados de filas (AXIS ORDO usa español en producción) ───────────────────
+const ROW_STATUS_PENDING  = "pending";
+const ROW_STATUS_RUNNING  = "running";
+const ROW_STATUS_PAUSED   = "paused";
+const ROW_STATUS_FINISHED = "finished";
+
+function normalizeRowStatus(value) {
+  const key = norm(String(value || ""));
+  if (["en curso", "running", "activo", "activa"].includes(key)) return ROW_STATUS_RUNNING;
+  if (["pausado", "pausada", "paused", "detenido", "detenida"].includes(key)) return ROW_STATUS_PAUSED;
+  if (["terminado", "terminada", "finalizado", "finalizada", "finished", "completado", "completada"].includes(key)) return ROW_STATUS_FINISHED;
+  if (["pendiente", "pending"].includes(key)) return ROW_STATUS_PENDING;
+  return null;
+}
+
+function rowMatchesStatus(row, bucket) {
+  return normalizeRowStatus(row?.status) === bucket;
+}
+
+function rowStatusLabel(row) {
+  const labels = {
+    [ROW_STATUS_RUNNING]:  "▶️ En curso",
+    [ROW_STATUS_PAUSED]:   "⏸️ Pausada",
+    [ROW_STATUS_FINISHED]: "✅ Terminada",
+    [ROW_STATUS_PENDING]:  "⏳ Pendiente",
+  };
+  return labels[normalizeRowStatus(row?.status)] || row?.status || "—";
+}
+
+/** Inventario base es catálogo de referencia; no tiene control de existencias. */
+function isStockTrackedInventoryItem(item) {
+  return norm(item?.domain || "base") !== "base";
+}
+
+function getStockTrackedInventory(items) {
+  return (Array.isArray(items) ? items : []).filter(isStockTrackedInventoryItem);
+}
+
+function isInventoryItemLowStock(item) {
+  if (!isStockTrackedInventoryItem(item)) return false;
+  const s = Number(item.stockUnits || 0);
+  const m = Number(item.minStockUnits || 0);
+  return m > 0 && s <= m;
+}
+
+function isInventoryItemOutOfStock(item) {
+  if (!isStockTrackedInventoryItem(item)) return false;
+  return Number(item.stockUnits || 0) === 0;
+}
 
 // ─── Utilidades ─────────────────────────────────────────────────────────────
 function norm(text) {
@@ -82,6 +126,8 @@ function buildSnap() {
   const incidencias = Array.isArray(state.incidencias)       ? state.incidencias      : [];
   const catalog     = Array.isArray(state.catalog)           ? state.catalog          : [];
   const weekHistory = Array.isArray(state.boardWeekHistory)  ? state.boardWeekHistory : [];
+  const transport = state.transport && typeof state.transport === "object" ? state.transport : {};
+  const retail = state.retail && typeof state.retail === "object" ? state.retail : {};
 
   const allRows = boards.flatMap((b) =>
     (Array.isArray(b.rows) ? b.rows : []).map((row) => ({
@@ -92,7 +138,9 @@ function buildSnap() {
     }))
   );
 
-  return { state, boards, users, inventory, incidencias, catalog, weekHistory, allRows };
+  const stockInventory = getStockTrackedInventory(inventory);
+
+  return { state, boards, users, inventory, stockInventory, incidencias, catalog, weekHistory, transport, retail, allRows };
 }
 
 function getHistoryFilePath(userId) {
@@ -120,8 +168,14 @@ function detectRequestedFormats(msg) {
   const t = norm(msg);
   const formats = [];
   if (t.includes("pdf")) formats.push("pdf");
-  if (t.includes(".doc") || t.includes("word") || t.includes("documento")) formats.push("doc");
-  if (t.includes(".xlsx") || t.includes(".xslxs") || t.includes("excel") || t.includes("hoja de calculo") || t.includes("hoja de cálculo")) formats.push("xlsx");
+  if (t.includes("doc") || t.includes("word") || t.includes("documento")) formats.push("doc");
+  if (
+    t.includes("xlsx") || t.includes("xslx") || t.includes("xslxs") ||
+    t.includes("xlsly") || t.includes("xlsy") ||
+    t.includes("excel") || t.includes("spreadsheet") ||
+    t.includes("hoja de calculo") ||
+    /\bxls\b/.test(t)
+  ) formats.push("xlsx");
   return [...new Set(formats)];
 }
 
@@ -221,6 +275,12 @@ function classifyIntent(msg) {
   if (has(t, ["prediccion", "prevenir", "riesgo", "anticipa", "alerta", "futuro", "que puede pasar"])) return "prediction";
   if (has(t, ["auditoria", "cumplimiento", "normativa", "calidad", "revision"])) return "audit";
   if (has(t, ["catalogo", "frecuencia", "tarea programada", "actividad programada"])) return "catalog";
+  if (has(t, ["transporte", "unidad", "ruta", "camion", "camión", "flota"])) return "transport";
+  if (has(t, ["retail", "tienda", "venta", "punto de venta"])) return "retail";
+  if (has(t, ["historial", "semana", "semanas", "cierre semanal"])) return "week_history";
+  if (has(t, ["biblioteca", "documento", "archivo", "manual"])) return "biblioteca";
+  if (has(t, ["chat", "mensaje", "grupo", "comunicacion", "comunicación"])) return "chat";
+  if (has(t, ["axo", "axis ordo", "sistema", "modulos", "módulos", "que es", "qué es", "plataforma"])) return "system_overview";
 
   if (has(t, ["arregla", "corrige", "corrije", "corregir", "arreglar", "fix", "reparar", "soluciona"]) &&
       has(t, ["dashboard", "panel", "tablero", "datos", "informacion", "muestra", "display"])) return "dashboard_fix";
@@ -237,10 +297,10 @@ function handleGreeting(snap, user) {
   const saludo = hour < 12 ? "Buenos días" : hour < 19 ? "Buenas tardes" : "Buenas noches";
   const nombre = user?.name ? `, ${user.name.split(" ")[0]}` : "";
 
-  const running   = snap.allRows.filter((r) => r.status === STATUS_RUNNING).length;
-  const paused    = snap.allRows.filter((r) => r.status === STATUS_PAUSED).length;
+  const running   = snap.allRows.filter((r) => rowMatchesStatus(r, ROW_STATUS_RUNNING)).length;
+  const paused    = snap.allRows.filter((r) => rowMatchesStatus(r, ROW_STATUS_PAUSED)).length;
   const openInc   = snap.incidencias.filter((i) => i.status !== "cerrada" && i.status !== "resuelta").length;
-  const lowStock  = snap.inventory.filter((i) => Number(i.stockUnits||0) <= Number(i.minStockUnits||0) && Number(i.minStockUnits||0) > 0).length;
+  const lowStock  = snap.stockInventory.filter(isInventoryItemLowStock).length;
 
   const estado = [];
   if (running > 0)  estado.push(`${running} proceso(s) activo(s)`);
@@ -250,7 +310,7 @@ function handleGreeting(snap, user) {
   if (lowStock > 0) estado.push(`**📦 ${lowStock} artículo(s) con stock bajo**`);
 
   const intro = randomOf([
-    `${saludo}${nombre}! Aquí el Cerebro Operativo de COPMEC. En este momento: ${estado.join(", ")}.`,
+    `${saludo}${nombre}! Aquí el Cerebro Operativo de AXO. En este momento: ${estado.join(", ")}.`,
     `${saludo}${nombre}! Listo para ayudarte. Resumen rápido: ${estado.join(", ")}.`,
     `${saludo}${nombre}! Monitoreando el sistema. Estado actual: ${estado.join(", ")}.`,
   ]);
@@ -259,11 +319,11 @@ function handleGreeting(snap, user) {
 }
 
 function handleHelp() {
-  return `Claro, te cuento qué puedo hacer por ti:\n\n**📊 Reportes y estado**\n- *"dame un resumen"* → Panorama completo del sistema\n- *"estado de los tableros"* → Ver todos los tableros con su actividad\n- *"informe detallado de los tableros"* → Ver cada tablero con sus filas y estados\n\n**📦 Inventario**\n- *"qué tenemos en inventario"* → Resumen por categoría\n- *"qué está con stock bajo"* → Solo los artículos críticos\n- *"qué está agotado"* → Artículos con cero existencia\n\n**⏸️ Procesos**\n- *"qué está pausado"* → Procesos detenidos con detalle\n- *"hay cuellos de botella"* → Detectar tableros con flujo bloqueado\n\n**👥 Equipo**\n- *"cómo está el equipo"* → Usuarios activos y roles\n\n**⚠️ Incidencias**\n- *"qué incidencias hay"* → Las que siguen abiertas\n\n**🔮 Análisis**\n- *"qué riesgos hay"* → Alertas preventivas basadas en el estado actual\n\nTambién puedes mencionar el nombre de un tablero o artículo específico y te doy el detalle.`;
+  return `Soy **AXO AI**, el cerebro operativo de AXIS ORDO. Puedo analizar datos reales del sistema y generar reportes.\n\n**📊 Reportes y estado**\n- *"dame un resumen"* → Panorama completo del sistema\n- *"estado de los tableros"* → Ver todos los tableros con su actividad\n- *"informe detallado de los tableros"* → Ver cada tablero con sus filas y estados\n\n**📦 Inventario**\n- *"qué tenemos en inventario"* → Resumen por categoría\n- *"qué está con stock bajo"* → Solo los artículos críticos\n- *"qué está agotado"* → Artículos con cero existencia\n\n**⏸️ Procesos**\n- *"qué está pausado"* → Procesos detenidos con detalle\n- *"hay cuellos de botella"* → Detectar tableros con flujo bloqueado\n\n**👥 Equipo y operación**\n- *"cómo está el equipo"* → Usuarios activos y roles\n- *"catálogo de actividades"* → Tareas programadas por frecuencia\n- *"qué riesgos hay"* → Alertas preventivas\n\n**⚠️ Incidencias**\n- *"qué incidencias hay"* → Las que siguen abiertas\n\n**📥 Exportación**\n- *"genera reporte en PDF"* o *"en Excel"* → Archivo descargable\n\nTambién puedes mencionar el nombre de un tablero, artículo o módulo (chat, biblioteca, transporte, retail) y te doy el detalle.`;
 }
 
 function handleInventoryNoStock(snap) {
-  const zero = snap.inventory.filter((i) => Number(i.stockUnits || 0) === 0);
+  const zero = snap.stockInventory.filter(isInventoryItemOutOfStock);
   if (zero.length === 0) return `Buenas noticias: no hay ningún artículo completamente agotado en este momento. Todos tienen al menos algo de existencia.`;
 
   const lines = [`Encontré **${zero.length} artículo(s) completamente agotados** — sin ninguna unidad disponible:\n`];
@@ -276,11 +336,8 @@ function handleInventoryNoStock(snap) {
 }
 
 function handleLowStock(snap) {
-  const low = snap.inventory.filter((i) => {
-    const s = Number(i.stockUnits || 0); const m = Number(i.minStockUnits || 0);
-    return m > 0 && s <= m;
-  });
-  if (low.length === 0) return `Todo bien con el inventario. Ningún artículo está por debajo de su mínimo. Hay ${snap.inventory.length} artículos monitoreados en total.`;
+  const low = snap.stockInventory.filter(isInventoryItemLowStock);
+  if (low.length === 0) return `Todo bien con el inventario operativo. Ningún artículo con control de stock está por debajo de su mínimo. Hay ${snap.stockInventory.length} artículo(s) monitoreados (${snap.inventory.length - snap.stockInventory.length} en catálogo base sin control de existencias).`;
 
   const zero     = low.filter((i) => Number(i.stockUnits||0) === 0);
   const critical = low.filter((i) => { const s = Number(i.stockUnits||0); const m = Number(i.minStockUnits||0); return s > 0 && s <= m * 0.5; });
@@ -311,29 +368,35 @@ function handleInventory(snap) {
   const domains = {};
   snap.inventory.forEach((i) => {
     const d = i.domain || "base";
-    if (!domains[d]) domains[d] = { total: 0, low: 0, zero: 0 };
+    if (!domains[d]) domains[d] = { total: 0, low: 0, zero: 0, tracked: isStockTrackedInventoryItem(i) };
     domains[d].total++;
+    if (!isStockTrackedInventoryItem(i)) return;
     const s = Number(i.stockUnits||0); const m = Number(i.minStockUnits||0);
     if (s === 0) domains[d].zero++;
     else if (m > 0 && s <= m) domains[d].low++;
   });
 
-  const lowTotal  = snap.inventory.filter((i) => Number(i.stockUnits||0) <= Number(i.minStockUnits||0) && Number(i.minStockUnits||0) > 0).length;
-  const zeroTotal = snap.inventory.filter((i) => Number(i.stockUnits||0) === 0).length;
-  const domainLabel = { base: "Productos base", cleaning: "Insumos de limpieza", orders: "Insumos de pedidos" };
+  const lowTotal  = snap.stockInventory.filter(isInventoryItemLowStock).length;
+  const zeroTotal = snap.stockInventory.filter(isInventoryItemOutOfStock).length;
+  const baseCount = snap.inventory.length - snap.stockInventory.length;
+  const domainLabel = { base: "Productos base (catálogo)", cleaning: "Insumos de limpieza", orders: "Insumos de pedidos" };
 
   const lines = [`Aquí tienes el inventario con sus **${snap.inventory.length} artículos**:\n`,
     `| Categoría | Total | Con alerta | Agotados |`,
     `|-----------|-------|------------|----------|`];
 
   Object.entries(domains).forEach(([key, d]) => {
-    lines.push(`| ${domainLabel[key] || key} | ${d.total} | ${d.low} | ${d.zero} |`);
+    const alertCol = key === "base" ? "—" : String(d.low);
+    const zeroCol = key === "base" ? "—" : String(d.zero);
+    lines.push(`| ${domainLabel[key] || key} | ${d.total} | ${alertCol} | ${zeroCol} |`);
   });
 
   lines.push("");
-  if (zeroTotal > 0)       lines.push(`🔴 **${zeroTotal} artículo(s) agotados** — urgente. Escríbeme *"agotados"* para el detalle.`);
+  if (baseCount > 0) lines.push(`ℹ️ **${baseCount} artículo(s) de inventario base** son catálogo de referencia y no se evalúan como agotados.`);
+  if (zeroTotal > 0)       lines.push(`🔴 **${zeroTotal} artículo(s) agotados** (inventario operativo) — urgente. Escríbeme *"agotados"* para el detalle.`);
   else if (lowTotal > 0)   lines.push(`🟡 **${lowTotal} artículo(s) bajo el mínimo.** Escríbeme *"stock bajo"* para ver cuáles.`);
-  else                     lines.push(`✅ Todo el inventario está en niveles saludables.`);
+  else if (snap.stockInventory.length > 0) lines.push(`✅ El inventario operativo está en niveles saludables.`);
+  else                     lines.push(`✅ Sin alertas de stock en inventario operativo.`);
 
   return lines.join("\n");
 }
@@ -353,9 +416,9 @@ function handleBoardsDetail(snap, msg) {
   boardsToShow.forEach((board) => {
     const rows     = Array.isArray(board.rows) ? board.rows : [];
     const area     = board.settings?.area || board.area || "sin área";
-    const running  = rows.filter((r) => r.status === STATUS_RUNNING).length;
-    const paused   = rows.filter((r) => r.status === STATUS_PAUSED).length;
-    const finished = rows.filter((r) => r.status === STATUS_FINISHED).length;
+    const running  = rows.filter((r) => rowMatchesStatus(r, ROW_STATUS_RUNNING)).length;
+    const paused   = rows.filter((r) => rowMatchesStatus(r, ROW_STATUS_PAUSED)).length;
+    const finished = rows.filter((r) => rowMatchesStatus(r, ROW_STATUS_FINISHED)).length;
 
     lines.push(`---`);
     lines.push(`**📋 ${board.name}** *(${area})* — ${rows.length} filas · ${running} en curso · ${paused} pausadas · ${finished} terminadas`);
@@ -366,12 +429,7 @@ function handleBoardsDetail(snap, msg) {
       lines.push(`\n| # | SKU / Producto | Estado | Inicio | Pausa |`);
       lines.push(`|---|----------------|--------|--------|-------|`);
       rows.slice(0, 30).forEach((row, idx) => {
-        const statusLabel = {
-          [STATUS_RUNNING]:  "▶️ En curso",
-          [STATUS_PAUSED]:   "⏸️ Pausada",
-          [STATUS_FINISHED]: "✅ Terminada",
-          [STATUS_PENDING]:  "⏳ Pendiente",
-        }[row.status] || row.status || "—";
+        const statusLabel = rowStatusLabel(row);
         const sku     = row.sku || row.product || row.name || row.label || `Fila ${idx+1}`;
         const started = row.startedAt ? timeAgo(row.startedAt) : "—";
         const pausedA = row.pausedAt  ? timeAgo(row.pausedAt)  : "—";
@@ -382,7 +440,7 @@ function handleBoardsDetail(snap, msg) {
     lines.push("");
   });
 
-  const totalPaused = boardsToShow.flatMap((b) => b.rows || []).filter((r) => r.status === STATUS_PAUSED).length;
+  const totalPaused = boardsToShow.flatMap((b) => b.rows || []).filter((r) => rowMatchesStatus(r, ROW_STATUS_PAUSED)).length;
   if (totalPaused > 0) lines.push(`⚠️ Hay **${totalPaused} fila(s) pausada(s)**. Revísalas en el tablero para reanudar o cerrar.`);
 
   return lines.join("\n");
@@ -399,17 +457,17 @@ function handleBoardsStatus(snap, msg) {
 
   snap.boards.forEach((board) => {
     const rows     = Array.isArray(board.rows) ? board.rows : [];
-    const running  = rows.filter((r) => r.status === STATUS_RUNNING).length;
-    const paused   = rows.filter((r) => r.status === STATUS_PAUSED).length;
-    const finished = rows.filter((r) => r.status === STATUS_FINISHED).length;
-    const pending  = rows.filter((r) => r.status === STATUS_PENDING).length;
+    const running  = rows.filter((r) => rowMatchesStatus(r, ROW_STATUS_RUNNING)).length;
+    const paused   = rows.filter((r) => rowMatchesStatus(r, ROW_STATUS_PAUSED)).length;
+    const finished = rows.filter((r) => rowMatchesStatus(r, ROW_STATUS_FINISHED)).length;
+    const pending  = rows.filter((r) => rowMatchesStatus(r, ROW_STATUS_PENDING)).length;
     const area     = board.settings?.area || board.area || "sin área";
     const issues   = paused > 0 ? ` ⚠️ ${paused} pausado(s)` : "";
     lines.push(`**📋 ${board.name}** *(${area})*`);
     lines.push(`  - ${rows.length} filas: ${running} en curso · ${paused} pausadas · ${finished} terminadas · ${pending} pendientes${issues}`);
   });
 
-  const totalPaused = snap.allRows.filter((r) => r.status === STATUS_PAUSED).length;
+  const totalPaused = snap.allRows.filter((r) => rowMatchesStatus(r, ROW_STATUS_PAUSED)).length;
   if (totalPaused > 0) lines.push(`\n⚠️ **${totalPaused} proceso(s) pausado(s)** en total. Escríbeme *"qué está pausado"* para el detalle.`);
   else                 lines.push(`\n✅ Sin pausas activas. Todo fluye bien.`);
   lines.push(`\n¿Quieres el detalle de un tablero específico? Dime el nombre.`);
@@ -417,7 +475,7 @@ function handleBoardsStatus(snap, msg) {
 }
 
 function handlePausedBoards(snap) {
-  const paused = snap.allRows.filter((r) => r.status === STATUS_PAUSED);
+  const paused = snap.allRows.filter((r) => rowMatchesStatus(r, ROW_STATUS_PAUSED));
   if (paused.length === 0) return `No hay ningún proceso pausado ahora mismo. Todo está corriendo sin interrupciones.`;
 
   const byBoard = new Map();
@@ -486,15 +544,15 @@ function handleIncidencias(snap) {
 
 function handleReport(snap) {
   const now      = new Date();
-  const running  = snap.allRows.filter((r) => r.status === STATUS_RUNNING).length;
-  const paused   = snap.allRows.filter((r) => r.status === STATUS_PAUSED).length;
-  const finished = snap.allRows.filter((r) => r.status === STATUS_FINISHED).length;
-  const pending  = snap.allRows.filter((r) => r.status === STATUS_PENDING).length;
+  const running  = snap.allRows.filter((r) => rowMatchesStatus(r, ROW_STATUS_RUNNING)).length;
+  const paused   = snap.allRows.filter((r) => rowMatchesStatus(r, ROW_STATUS_PAUSED)).length;
+  const finished = snap.allRows.filter((r) => rowMatchesStatus(r, ROW_STATUS_FINISHED)).length;
+  const pending  = snap.allRows.filter((r) => rowMatchesStatus(r, ROW_STATUS_PENDING)).length;
   const total    = snap.allRows.length;
   const closePct = total > 0 ? ((finished / total) * 100).toFixed(1) : "0.0";
 
-  const lowStock  = snap.inventory.filter((i) => Number(i.stockUnits||0) <= Number(i.minStockUnits||0) && Number(i.minStockUnits||0) > 0).length;
-  const zeroStock = snap.inventory.filter((i) => Number(i.stockUnits||0) === 0).length;
+  const lowStock  = snap.stockInventory.filter(isInventoryItemLowStock).length;
+  const zeroStock = snap.stockInventory.filter(isInventoryItemOutOfStock).length;
   const openInc   = snap.incidencias.filter((i) => i.status !== "cerrada" && i.status !== "resuelta").length;
   const activeU   = snap.users.filter((u) => u.isActive !== false).length;
 
@@ -519,8 +577,8 @@ function handleReport(snap) {
     `- ${snap.boards.length} tablero(s) en el sistema`,
     `- ${total} fila(s): ${running} en curso · ${paused} pausadas · ${finished} terminadas · ${pending} pendientes`,
     `- Tasa de cierre: **${closePct}%**`, "",
-    `**📦 Inventario** (${snap.inventory.length} artículos)`,
-    zeroStock > 0 ? `- 🔴 ${zeroStock} agotado(s)` : `- ✅ Sin agotados`,
+    `**📦 Inventario** (${snap.inventory.length} artículos, ${snap.stockInventory.length} con control de stock)`,
+    zeroStock > 0 ? `- 🔴 ${zeroStock} agotado(s) operativo(s)` : `- ✅ Sin agotados operativos`,
     lowStock  > 0 ? `- 🟡 ${lowStock} bajo el mínimo` : `- ✅ Todos sobre el mínimo`, "",
     `**👥 Equipo** — ${activeU} de ${snap.users.length} activos`, "",
     `**⚠️ Incidencias**`,
@@ -541,9 +599,9 @@ function handleReport(snap) {
 function handleBottleneck(snap) {
   const metrics = snap.boards.map((board) => {
     const rows     = Array.isArray(board.rows) ? board.rows : [];
-    const paused   = rows.filter((r) => r.status === STATUS_PAUSED).length;
-    const running  = rows.filter((r) => r.status === STATUS_RUNNING).length;
-    const finished = rows.filter((r) => r.status === STATUS_FINISHED).length;
+    const paused   = rows.filter((r) => rowMatchesStatus(r, ROW_STATUS_PAUSED)).length;
+    const running  = rows.filter((r) => rowMatchesStatus(r, ROW_STATUS_RUNNING)).length;
+    const finished = rows.filter((r) => rowMatchesStatus(r, ROW_STATUS_FINISHED)).length;
     const total    = rows.length;
     return { name: board.name, area: board.settings?.area || "—", total, paused, running, finished, pauseRate: total > 0 ? paused/total : 0 };
   }).filter((m) => m.total > 0).sort((a, b) => b.pauseRate - a.pauseRate);
@@ -577,10 +635,10 @@ function handleBottleneck(snap) {
 function handlePrediction(snap) {
   const alerts = [];
 
-  const stockRisk = snap.inventory.filter((i) => { const s = Number(i.stockUnits||0); const m = Number(i.minStockUnits||0); return m > 0 && s <= m * 0.5; });
+  const stockRisk = snap.stockInventory.filter((i) => { const s = Number(i.stockUnits||0); const m = Number(i.minStockUnits||0); return m > 0 && s <= m * 0.5; });
   if (stockRisk.length > 0) alerts.push({ level: "🔴 ALTA", titulo: `Riesgo de desabasto — ${stockRisk.length} artículo(s)`, detalle: stockRisk.slice(0,3).map((i) => i.name).join(", ") + (stockRisk.length > 3 ? `... y ${stockRisk.length-3} más` : ""), accion: "Gestiona reabastecimiento en Inventario de inmediato" });
 
-  const stuckBoards = snap.boards.filter((b) => { const rows = b.rows||[]; return rows.length > 0 && rows.filter((r) => r.status === STATUS_PAUSED).length / rows.length > 0.5; });
+  const stuckBoards = snap.boards.filter((b) => { const rows = b.rows||[]; return rows.length > 0 && rows.filter((r) => rowMatchesStatus(r, ROW_STATUS_PAUSED)).length / rows.length > 0.5; });
   if (stuckBoards.length > 0) alerts.push({ level: "🟡 MEDIA", titulo: `Procesos estancados — ${stuckBoards.length} tablero(s)`, detalle: stuckBoards.map((b) => b.name).join(", "), accion: "Revisa y reanuda los procesos pausados" });
 
   const oldInc = snap.incidencias.filter((i) => { if (i.status === "cerrada" || i.status === "resuelta") return false; return i.createdAt && (Date.now() - new Date(i.createdAt).getTime()) > 3*86400000; });
@@ -601,10 +659,10 @@ function handlePrediction(snap) {
 
 function handleAudit(snap) {
   const total    = snap.allRows.length;
-  const finished = snap.allRows.filter((r) => r.status === STATUS_FINISHED).length;
-  const paused   = snap.allRows.filter((r) => r.status === STATUS_PAUSED).length;
+  const finished = snap.allRows.filter((r) => rowMatchesStatus(r, ROW_STATUS_FINISHED)).length;
+  const paused   = snap.allRows.filter((r) => rowMatchesStatus(r, ROW_STATUS_PAUSED)).length;
   const closePct = total > 0 ? (finished/total*100).toFixed(1) : "0.0";
-  const lowStock = snap.inventory.filter((i) => Number(i.stockUnits||0) < Number(i.minStockUnits||0) && Number(i.minStockUnits||0)>0).length;
+  const lowStock = snap.stockInventory.filter(isInventoryItemLowStock).length;
   const openInc  = snap.incidencias.filter((i) => i.status !== "cerrada" && i.status !== "resuelta").length;
   const cumple   = Number(closePct) >= 85;
 
@@ -638,6 +696,73 @@ function handleCatalog(snap) {
   return lines.join("\n");
 }
 
+function handleSystemOverview(snap) {
+  const running = snap.allRows.filter((r) => rowMatchesStatus(r, ROW_STATUS_RUNNING)).length;
+  const paused = snap.allRows.filter((r) => rowMatchesStatus(r, ROW_STATUS_PAUSED)).length;
+  const openInc = snap.incidencias.filter((i) => i.status !== "cerrada" && i.status !== "resuelta").length;
+  const transportUnits = Array.isArray(snap.transport?.transportUnits) ? snap.transport.transportUnits.length : 0;
+  const retailStores = Array.isArray(snap.retail?.stores) ? snap.retail.stores.length : 0;
+
+  return [
+    "**AXIS ORDO — Cerebro operativo AXO AI**",
+    "",
+    "Módulos conectados en tiempo real:",
+    `- **Tableros:** ${snap.boards.length} tablero(s), ${snap.allRows.length} fila(s) (${running} en curso, ${paused} pausadas)`,
+    `- **Inventario:** ${snap.inventory.length} artículo(s)`,
+    `- **Catálogo:** ${snap.catalog.length} actividad(es) programadas`,
+    `- **Incidencias abiertas:** ${openInc}`,
+    `- **Usuarios activos:** ${snap.users.filter((u) => u.isActive !== false).length}`,
+    `- **Historial semanal:** ${snap.weekHistory.length} semana(s) registradas`,
+    `- **Transporte:** ${transportUnits} unidad(es)`,
+    `- **Retail:** ${retailStores} punto(s)`,
+    "",
+    "Puedo generar resúmenes, detectar riesgos, revisar pausas, exportar PDF/Excel y corregir datos del dashboard.",
+    'Escribe **"ayuda"** para ver comandos o **"dame un resumen"** para el panorama completo.',
+  ].join("\n");
+}
+
+function handleTransport(snap) {
+  const units = Array.isArray(snap.transport?.transportUnits) ? snap.transport.transportUnits : [];
+  const expenses = Array.isArray(snap.transport?.transportExpenses) ? snap.transport.transportExpenses : [];
+  if (!units.length && !expenses.length) {
+    return "No hay datos de transporte registrados todavía. Configúralos en el módulo **Transporte**.";
+  }
+  const lines = [`**Transporte** — ${units.length} unidad(es), ${expenses.length} gasto(s) registrados:\n`];
+  units.slice(0, 10).forEach((unit) => {
+    lines.push(`- **${unit.name || unit.plate || unit.id || "Unidad"}**${unit.status ? ` · ${unit.status}` : ""}`);
+  });
+  if (units.length > 10) lines.push(`- *...y ${units.length - 10} más*`);
+  return lines.join("\n");
+}
+
+function handleRetail(snap) {
+  const stores = Array.isArray(snap.retail?.stores) ? snap.retail.stores : [];
+  if (!stores.length) return "No hay puntos retail registrados. Configúralos en el módulo **Retail**.";
+  const lines = [`**Retail** — ${stores.length} punto(s) registrados:\n`];
+  stores.slice(0, 12).forEach((store) => {
+    lines.push(`- **${store.name || store.code || store.id || "Punto"}**`);
+  });
+  if (stores.length > 12) lines.push(`- *...y ${stores.length - 12} más*`);
+  return lines.join("\n");
+}
+
+function handleWeekHistory(snap) {
+  if (!snap.weekHistory.length) return "Aún no hay semanas cerradas en el historial.";
+  const lines = [`**Historial semanal** — ${snap.weekHistory.length} semana(s):\n`];
+  snap.weekHistory.slice(-8).reverse().forEach((week) => {
+    lines.push(`- **${week.weekKey || week.id || "Semana"}**${week.closedAt ? ` · cerrada ${new Date(week.closedAt).toLocaleDateString("es-MX")}` : ""}`);
+  });
+  return lines.join("\n");
+}
+
+function handleBiblioteca() {
+  return "La **Biblioteca** centraliza documentos y manuales del sistema. Desde ahí puedes subir, buscar y descargar archivos por área. Si necesitas un reporte operativo en PDF o Excel, pídemelo directamente aquí.";
+}
+
+function handleChatModule() {
+  return "El **Chat** de AXIS ORDO incluye mensajes privados, grupos, llamadas, historial y **AXO AI** como asistente operativo. Los avisos del sistema pueden llegar como mensajes del asistente.";
+}
+
 function handleUnknown(snap, msg) {
   const t = norm(msg);
 
@@ -649,11 +774,14 @@ function handleUnknown(snap, msg) {
   const item = snap.inventory.find((i) => t.includes(norm(i.name)) || (i.code && t.includes(norm(i.code))));
   if (item) {
     const s = Number(item.stockUnits||0); const m = Number(item.minStockUnits||0);
-    const status = s === 0 ? "🔴 Agotado" : (m > 0 && s <= m ? "🟡 Bajo mínimo" : "✅ En stock");
+    const tracked = isStockTrackedInventoryItem(item);
+    const status = !tracked
+      ? "📋 Catálogo base (sin control de existencias)"
+      : s === 0 ? "🔴 Agotado" : (m > 0 && s <= m ? "🟡 Bajo mínimo" : "✅ En stock");
     return `Encontré **${item.name}** *(${item.code||item.id})*:\n\n- Stock actual: **${fmt(s)} ${item.unitLabel||"uds"}**\n- Mínimo requerido: **${fmt(m)} ${item.unitLabel||"uds"}**\n- Estado: **${status}**${item.domain ? `\n- Categoría: *${item.domain}*` : ""}`;
   }
 
-  return `No entendí bien tu pregunta: *"${msg.slice(0,80)}${msg.length>80?"...":""}"*\n\nPuedes preguntarme:\n- *"cómo están los tableros"*\n- *"informe detallado de tableros"*\n- *"qué tenemos en stock"*\n- *"qué está pausado"*\n- *"dame un resumen"*\n\nEscríbeme **"ayuda"** para ver todo lo que puedo hacer.`;
+  return `No identifiqué una consulta exacta sobre *"${msg.slice(0, 80)}${msg.length > 80 ? "..." : ""}"*, pero aquí va un panorama rápido del sistema:\n\n${handleSystemOverview(snap)}\n\nPrueba también:\n- *"ayuda"* → Ver todo lo que puedo hacer\n- *"dame un resumen"* → Reporte general\n- *"qué está pausado"* → Procesos detenidos\n- *"stock bajo"* → Alertas de inventario`;
 }
 
 // ─── Generación de reportes ──────────────────────────────────────────────────
@@ -665,23 +793,24 @@ function buildReportData(snap, context = {}) {
   const filteredInventory = inventoryDomain
     ? snap.inventory.filter((i) => norm(i.domain || "base") === norm(inventoryDomain))
     : snap.inventory;
+  const stockInventoryForReport = getStockTrackedInventory(filteredInventory);
 
   const boardsForReport = scope === "boards" ? snap.boards : snap.boards;
   const allRowsForReport = boardsForReport.flatMap((b) => Array.isArray(b.rows) ? b.rows : []);
 
-  const running  = allRowsForReport.filter((r) => r.status === STATUS_RUNNING).length;
-  const paused   = allRowsForReport.filter((r) => r.status === STATUS_PAUSED).length;
-  const finished = allRowsForReport.filter((r) => r.status === STATUS_FINISHED).length;
-  const pending  = allRowsForReport.filter((r) => r.status === STATUS_PENDING).length;
-  const lowStock = filteredInventory.filter((i) => Number(i.stockUnits||0) <= Number(i.minStockUnits||0) && Number(i.minStockUnits||0) > 0);
+  const running  = allRowsForReport.filter((r) => rowMatchesStatus(r, ROW_STATUS_RUNNING)).length;
+  const paused   = allRowsForReport.filter((r) => rowMatchesStatus(r, ROW_STATUS_PAUSED)).length;
+  const finished = allRowsForReport.filter((r) => rowMatchesStatus(r, ROW_STATUS_FINISHED)).length;
+  const pending  = allRowsForReport.filter((r) => rowMatchesStatus(r, ROW_STATUS_PENDING)).length;
+  const lowStock = stockInventoryForReport.filter(isInventoryItemLowStock);
   const openInc  = snap.incidencias.filter((i) => i.status !== "cerrada" && i.status !== "resuelta");
 
   return {
     meta: {
-      format: "COPMEC-OPS-REPORT",
+      format: "AXO-OPS-REPORT",
       version: "1.0",
       generatedAt: now.toISOString(),
-      generatedBy: "COPMEC AI — Cerebro Operativo",
+      generatedBy: "AXO AI — Cerebro Operativo",
       scope,
       inventoryDomain: inventoryDomain || "all",
     },
@@ -695,7 +824,7 @@ function buildReportData(snap, context = {}) {
       tasaCierre: allRowsForReport.length > 0 ? ((finished / allRowsForReport.length) * 100).toFixed(1) + "%" : "0%",
       totalInventario: filteredInventory.length,
       articulosBajoMinimo: lowStock.length,
-      articulosAgotados: lowStock.filter((i) => Number(i.stockUnits||0) === 0).length,
+      articulosAgotados: lowStock.filter(isInventoryItemOutOfStock).length,
       incidenciasAbiertas: openInc.length,
       totalUsuarios: snap.users.length,
       usuariosActivos: snap.users.filter((u) => u.isActive !== false).length,
@@ -703,10 +832,10 @@ function buildReportData(snap, context = {}) {
     tableros: boardsForReport.map((board) => {
       const rows     = Array.isArray(board.rows) ? board.rows : [];
       const area     = board.settings?.area || board.area || "sin área";
-      const running  = rows.filter((r) => r.status === STATUS_RUNNING).length;
-      const paused   = rows.filter((r) => r.status === STATUS_PAUSED).length;
-      const finished = rows.filter((r) => r.status === STATUS_FINISHED).length;
-      const pending  = rows.filter((r) => r.status === STATUS_PENDING).length;
+      const running  = rows.filter((r) => rowMatchesStatus(r, ROW_STATUS_RUNNING)).length;
+      const paused   = rows.filter((r) => rowMatchesStatus(r, ROW_STATUS_PAUSED)).length;
+      const finished = rows.filter((r) => rowMatchesStatus(r, ROW_STATUS_FINISHED)).length;
+      const pending  = rows.filter((r) => rowMatchesStatus(r, ROW_STATUS_PENDING)).length;
       return {
         id: board.id,
         nombre: board.name,
@@ -773,7 +902,7 @@ function generatePdfBuffer(snap, context = {}) {
 
     // Encabezado
     doc.rect(0, 0, doc.page.width, 80).fill(DARK);
-    doc.fillColor("#ffffff").fontSize(20).font("Helvetica-Bold").text("COPMEC — Reporte Operativo", 50, 25);
+    doc.fillColor("#ffffff").fontSize(20).font("Helvetica-Bold").text("AXO — Reporte Operativo", 50, 25);
     doc.fillColor(GREEN).fontSize(11).font("Helvetica").text(`Generado: ${fecha}`, 50, 52);
     doc.moveDown(2);
 
@@ -802,7 +931,7 @@ function generatePdfBuffer(snap, context = {}) {
         doc.moveDown(0.2);
         board.filas.slice(0, 20).forEach((row) => {
           const statusMap = { running: "▶ En curso", paused: "⏸ Pausada", finished: "✔ Terminada", pending: "… Pendiente" };
-          const st = statusMap[row.estado] || row.estado;
+          const st = statusMap[normalizeRowStatus(row.estado)] || row.estado;
           doc.fillColor("#333").fontSize(8).font("Helvetica")
             .text(`    ${row.numero}. ${row.sku} — ${st}${row.motivo ? `  (Motivo: ${row.motivo})` : ""}`);
         });
@@ -819,7 +948,7 @@ function generatePdfBuffer(snap, context = {}) {
       doc.fillColor(GREEN).fontSize(10).font("Helvetica").text(`${data.inventarioDetalle.length} artículo(s)`, 50, 48);
       doc.moveDown(2.5);
       data.inventarioDetalle.forEach((item) => {
-        const agotado = item.stockActual === 0;
+        const agotado = item.categoria !== "base" && item.stockActual === 0;
         doc.fillColor(agotado ? "#dc2626" : "#0f172a").fontSize(10).font("Helvetica-Bold")
           .text(`${agotado ? "🔴" : "•"} ${item.nombre}  (${item.codigo})`);
         doc.fillColor(GRAY).fontSize(9).font("Helvetica")
@@ -858,7 +987,7 @@ function generatePdfBuffer(snap, context = {}) {
 
     // Pie
     const pageCount = doc.bufferedPageRange ? doc.bufferedPageRange().count : 1;
-    doc.fillColor(GRAY).fontSize(8).text(`Generado por COPMEC AI — ${data.meta.generatedAt}  |  Formato: ${data.meta.format} v${data.meta.version}`, 50, doc.page.height - 40, { align: "center" });
+    doc.fillColor(GRAY).fontSize(8).text(`Generado por AXO AI — ${data.meta.generatedAt}  |  Formato: ${data.meta.format} v${data.meta.version}`, 50, doc.page.height - 40, { align: "center" });
     doc.end();
   });
 }
@@ -880,7 +1009,7 @@ function generateDocBuffer(snap, context = {}) {
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>COPMEC Reporte</title>
+  <title>AXO Reporte</title>
   <style>
     body { font-family: Calibri, Arial, sans-serif; color: #1f2937; padding: 28px; }
     h1 { color: #032121; margin-bottom: 4px; }
@@ -891,7 +1020,7 @@ function generateDocBuffer(snap, context = {}) {
   </style>
 </head>
 <body>
-  <h1>COPMEC - Reporte Operativo</h1>
+  <h1>AXO - Reporte Operativo</h1>
   <div class="sub">Generado ${new Date(data.meta.generatedAt).toLocaleString("es-MX")} | Alcance: ${data.meta.scope}${data.meta.inventoryDomain !== "all" ? `/${data.meta.inventoryDomain}` : ""}</div>
 
   <h2>Resumen</h2>
@@ -925,7 +1054,7 @@ function generateDocBuffer(snap, context = {}) {
 async function generateXlsxBuffer(snap, context = {}) {
   const data = buildReportData(snap, context);
   const wb = new ExcelJS.Workbook();
-  wb.creator = "COPMEC AI";
+  wb.creator = "AXO AI";
   wb.created = new Date();
 
   const wsResumen = wb.addWorksheet("Resumen");
@@ -987,14 +1116,13 @@ async function generateXlsxBuffer(snap, context = {}) {
   return Buffer.from(buff);
 }
 
-async function createReportFiles(snap, formats = ["pdf", "cop"], context = {}) {
+async function createReportFiles(snap, formats = ["pdf"], context = {}) {
   const token = randomUUID();
-  const requestedFormats = [...new Set(formats)].filter((f) => ["pdf", "cop", "doc", "xlsx"].includes(f));
+  const requestedFormats = [...new Set(formats)].filter((f) => ["pdf", "doc", "xlsx"].includes(f));
   const writtenPaths = [];
 
   for (const fmt of requestedFormats) {
     let buf = null;
-    if (fmt === "cop") buf = generateCopBuffer(snap, context);
     if (fmt === "pdf") buf = await generatePdfBuffer(snap, context);
     if (fmt === "doc") buf = generateDocBuffer(snap, context);
     if (fmt === "xlsx") buf = await generateXlsxBuffer(snap, context);
@@ -1040,19 +1168,19 @@ function handleDashboardFix(snap) {
     }
 
     // Fix 3: Normalizar filas con status inválido
-    const validStatuses = new Set([STATUS_PENDING, STATUS_RUNNING, STATUS_PAUSED, STATUS_FINISHED]);
+    const validStatuses = new Set([ROW_STATUS_PENDING, ROW_STATUS_RUNNING, ROW_STATUS_PAUSED, ROW_STATUS_FINISHED]);
     const rows = Array.isArray(b.rows) ? b.rows : [];
     let rowFixed = 0;
     const fixedRows = rows.map((row) => {
-      if (!validStatuses.has(row.status)) {
+      if (!validStatuses.has(normalizeRowStatus(row.status))) {
         rowFixed++;
-        return { ...row, status: STATUS_PENDING };
+        return { ...row, status: "Pendiente" };
       }
       return row;
     });
     if (rowFixed > 0) {
       b.rows = fixedRows;
-      fixes.push(`✅ Tablero **${b.name}**: ${rowFixed} fila(s) con estado inválido corregidas → \`pending\``);
+      fixes.push(`✅ Tablero **${b.name}**: ${rowFixed} fila(s) con estado inválido corregidas → \`Pendiente\``);
       changed = true;
     }
 
@@ -1152,6 +1280,12 @@ export async function processCopmecAIMessage(auth, message) {
     prediction:     () => handlePrediction(snap),
     audit:          () => handleAudit(snap),
     catalog:        () => handleCatalog(snap),
+    transport:      () => handleTransport(snap),
+    retail:         () => handleRetail(snap),
+    week_history:   () => handleWeekHistory(snap),
+    biblioteca:     () => handleBiblioteca(),
+    chat:           () => handleChatModule(),
+    system_overview:() => handleSystemOverview(snap),
     download_report:() => handleReport(snap),
     unknown:        () => handleUnknown(snap, trimmed),
   };
@@ -1164,7 +1298,7 @@ export async function processCopmecAIMessage(auth, message) {
   let availableFormats = [];
   const shouldExport = shouldGenerateFile(trimmed, intent);
   if ((reportIntents.has(intent) || intent === "unknown") && shouldExport) {
-    const formats = requestedFormats.length > 0 ? requestedFormats : ["pdf", "cop"];
+    const formats = requestedFormats.length > 0 ? requestedFormats : ["pdf"];
     try {
       const generated = await createReportFiles(snap, formats, exportContext);
       reportToken = generated.token;
@@ -1173,7 +1307,7 @@ export async function processCopmecAIMessage(auth, message) {
         response = `${response}\n\nListo, ya te generé el archivo en formato: **${availableFormats.map((f) => f.toUpperCase()).join(", ")}**.`;
       }
     } catch (err) {
-      console.error("[COPMEC AI] Error generando reporte:", err);
+      console.error("[AXO AI] Error generando reporte:", err);
     }
   }
 

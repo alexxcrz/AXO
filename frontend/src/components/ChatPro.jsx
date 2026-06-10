@@ -1,8 +1,13 @@
 import React, { useState, useEffect, useRef } from "react";
 // COPMEC: removed authFetch/useAuth
 import "./ChatPro.css";
+import axoAiLogo from "../assets/AXOIA.png";
 // -- COPMEC stubs --
 function ReunionesPerfilUsuario() { return null; }
+
+const AXO_AI_LEGACY_NICK = "COPMEC";
+const isAxoAiChatNick = (value) => String(value || "").trim().toUpperCase() === AXO_AI_LEGACY_NICK;
+const getChatDisplayName = (value) => (isAxoAiChatNick(value) ? "AXO AI" : String(value || "").trim() || "Usuario");
 
 import { useAlert } from "./AlertModal";
 import { SpanishDateInput } from "./SpanishDateInput";
@@ -989,6 +994,10 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
     const resolved = typeof usuarioObj === "string"
       ? resolveUsuarioChat(usuarioObj)
       : usuarioObj;
+    const resolvedNick = resolved?.nickname || resolved?.name || (typeof usuarioObj === "string" ? usuarioObj : "");
+    if (isAxoAiChatNick(resolvedNick) || (typeof usuarioObj === "string" && isAxoAiChatNick(usuarioObj))) {
+      return axoAiLogo;
+    }
     if (!resolved) return makeInitialsAvatar(typeof usuarioObj === "string" ? usuarioObj : '?');
 
     const serverUrl = SERVER_URL;
@@ -1489,19 +1498,19 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
               if (ultimoMensaje && ultimoMensaje.mensaje.includes("código de acceso") && minutosDiferencia < 10) {
                 // Mostrar notificación del navegador
                 if ("Notification" in window && Notification.permission === "granted") {
-                  new Notification("📱 Mensaje de COPMEC", {
-                    body: ultimoMensaje.mensaje || "Tienes un nuevo mensaje de COPMEC",
+                  new Notification("📱 Mensaje de AXO AI", {
+                    body: ultimoMensaje.mensaje || "Tienes un nuevo mensaje de AXO AI",
                     icon: "/android-chrome-192x192.png",
-                    tag: "COPMEC-otp",
+                    tag: "axo-ai-otp",
                     requireInteraction: false
                   });
                 } else if ("Notification" in window && Notification.permission === "default") {
                   Notification.requestPermission().then((permission) => {
                     if (permission === "granted") {
-                      new Notification("📱 Mensaje de COPMEC", {
-                        body: ultimoMensaje.mensaje || "Tienes un nuevo mensaje de COPMEC",
+                      new Notification("📱 Mensaje de AXO AI", {
+                        body: ultimoMensaje.mensaje || "Tienes un nuevo mensaje de AXO AI",
                         icon: "/android-chrome-192x192.png",
-                        tag: "COPMEC-otp"
+                        tag: "axo-ai-otp"
                       });
                     }
                   });
@@ -1991,7 +2000,7 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
         const data = await authFetch(`${SERVER_URL}/api/chat/activos`);
         setChatsActivos(data || []);
         
-        // Si hay un mensaje de COPMEC y el chat está abierto y estamos viendo COPMEC, 
+        // Si hay un mensaje de AXO AI y el chat está abierto y estamos viendo COPMEC, 
         // recargar los mensajes para asegurar que se muestren todos
         const chatCOPMEC = data?.find(c => c.otro_usuario === "COPMEC");
         if (chatCOPMEC && open && tipoChat === "privado" && chatActual === "COPMEC") {
@@ -2088,7 +2097,7 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
         };
       });
 
-      // Si es un mensaje de COPMEC, SIEMPRE recargar chats activos y cambiar a pestaña "chats"
+      // Si es un mensaje de AXO AI, SIEMPRE recargar chats activos y cambiar a pestaña "chats"
       if (mensaje.de_nickname === "COPMEC") {
         // Recargar chats activos para asegurar que COPMEC aparezca en la lista
         if (!cargandoChatsActivosRef.current) {
@@ -2117,20 +2126,20 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
         // SIEMPRE mostrar notificación para mensajes de COPMEC (todos los usuarios)
         // Mostrar notificación del navegador si está disponible
         if ("Notification" in window && Notification.permission === "granted") {
-          new Notification("📱 Mensaje de COPMEC", {
-            body: mensaje.mensaje || "Tienes un nuevo mensaje de COPMEC",
+          new Notification("📱 Mensaje de AXO AI", {
+            body: mensaje.mensaje || "Tienes un nuevo mensaje de AXO AI",
             icon: "/android-chrome-192x192.png",
-            tag: "COPMEC-otp",
+            tag: "axo-ai-otp",
             requireInteraction: false
           });
         } else if ("Notification" in window && Notification.permission === "default") {
           // Solicitar permiso para notificaciones
           Notification.requestPermission().then((permission) => {
             if (permission === "granted") {
-              new Notification("📱 Mensaje de COPMEC", {
-                body: mensaje.mensaje || "Tienes un nuevo mensaje de COPMEC",
+              new Notification("📱 Mensaje de AXO AI", {
+                body: mensaje.mensaje || "Tienes un nuevo mensaje de AXO AI",
                 icon: "/android-chrome-192x192.png",
-                tag: "COPMEC-otp"
+                tag: "axo-ai-otp"
               });
             }
           });
@@ -2149,7 +2158,7 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
         // Mensaje a uno mismo: siempre ya leído, independientemente de userDisplayName
         const esSelfMessage = isSameNickname(mensaje.de_nickname, mensaje.para_nickname);
         const viendoEsteEnLista = open && tipoChat === "privado" && isSameNickname(chatActual, otroUsuario);
-        // Si es mensaje de COPMEC para admin, siempre contar como no leído hasta que se abra
+        // Si es mensaje de AXO AI para admin, siempre contar como no leído hasta que se abra
         const esMensajeCOPMECAdmin = mensaje.de_nickname === "COPMEC" && esAdmin && mensaje.es_admin;
         
         if (existe) {
@@ -2186,7 +2195,7 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
 
       const viendoEste = open && tipoChat === "privado" && isSameNickname(chatActual, otroUsuario);
       // Solo reproducir sonido e incrementar contador si NO estás viendo el chat
-      // Y si es mensaje de COPMEC para admin, siempre notificar
+      // Y si es mensaje de AXO AI para admin, siempre notificar
       const esMensajeCOPMECAdmin = mensaje.de_nickname === "COPMEC" && esAdmin && mensaje.es_admin;
       // Mensaje a uno mismo: nunca notificar
       const esSelfMessageOuter = isSameNickname(mensaje.de_nickname, mensaje.para_nickname);
@@ -4634,7 +4643,7 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
     return (
       <div className={`msg-menu-bubble ${esMio ? "out" : "in"}`}>
         {(tipoChat !== "privado" || !esMio) && (
-          <div className="msg-menu-nombre">{esMio ? "Tú" : otroNickname}</div>
+          <div className="msg-menu-nombre">{esMio ? "Tú" : getChatDisplayName(otroNickname)}</div>
         )}
         <div className="msg-menu-texto">
           {mensaje.menciona && (
@@ -6946,7 +6955,7 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
                   >
                     <svg className={`cp-sin-leer-chevron ${colapsado ? "collapsed" : ""}`} viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M9 6l6 6-6 6"/></svg>
                     <span className="cp-sin-leer-grupo-icon">{esPrivado ? "💬" : "👥"}</span>
-                    <span className="cp-sin-leer-grupo-nombre">{grupo.conversacion_nombre}</span>
+                    <span className="cp-sin-leer-grupo-nombre">{getChatDisplayName(grupo.conversacion_nombre)}</span>
                     <span className="cp-sin-leer-grupo-count">{cantidad} mensaje{cantidad !== 1 ? "s" : ""}</span>
                   </button>
                   <button
@@ -6971,7 +6980,7 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
                       />
                       <div className="cp-sin-leer-mensaje-body">
                         <div className="cp-sin-leer-mensaje-meta">
-                          <strong style={{ color: getColorForName(autor) }}>{autor === yo ? "Tú" : autor}</strong>
+                          <strong style={{ color: getColorForName(autor) }}>{autor === yo ? "Tú" : getChatDisplayName(autor)}</strong>
                           <span>{formatoHoraSinLeer(mensaje.fecha)}</span>
                         </div>
                         <p className="cp-sin-leer-mensaje-texto">{texto}</p>
@@ -7716,7 +7725,7 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
                         />
                       </div>
                       <span style={{ color: getColorForName(displayName) }}>
-                        {displayName}
+                        {getChatDisplayName(displayName)}
                       </span>
                     </div>
                   );
@@ -7818,7 +7827,7 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
                                   >
                                     <div className="chat-activo-header">
                                       <span className="chat-activo-nombre" style={{ color: getColorForName(chat.otro_usuario || "Usuario") }}>
-                                        {chat.otro_usuario}
+                                        {getChatDisplayName(chat.otro_usuario)}
                                       </span>
                                     </div>
                                     {estaEscribiendoClave(chat.otro_usuario) ? (
@@ -7831,7 +7840,7 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
                                         {esMioUltimoMensaje ? (
                                           <span className="chat-mensaje-prefijo">Tú:</span>
                                         ) : (
-                                          <span className="chat-mensaje-prefijo">{chat.otro_usuario}:</span>
+                                          <span className="chat-mensaje-prefijo">{getChatDisplayName(chat.otro_usuario)}:</span>
                                         )}
                                         <span className="chat-mensaje-texto">{chat.ultimo_mensaje}</span>
                                       </div>
@@ -7922,7 +7931,7 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
                                     >
                                       <div className="chat-activo-header">
                                         <span className="chat-activo-nombre" style={{ color: getColorForName(chat.otro_usuario || "Usuario") }}>
-                                          {chat.otro_usuario}
+                                          {getChatDisplayName(chat.otro_usuario)}
                                         </span>
                                       </div>
                                       {estaEscribiendoClave(chat.otro_usuario) ? (
@@ -7935,7 +7944,7 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
                                           {esMioUltimoMensaje ? (
                                             <span className="chat-mensaje-prefijo">Tú:</span>
                                           ) : (
-                                            <span className="chat-mensaje-prefijo">{chat.otro_usuario}:</span>
+                                            <span className="chat-mensaje-prefijo">{getChatDisplayName(chat.otro_usuario)}:</span>
                                           )}
                                           <span className="chat-mensaje-texto">{chat.ultimo_mensaje}</span>
                                         </div>
@@ -9762,7 +9771,7 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
                                   onClick={() => {
                                     // Solo abrir perfil si NO es el usuario actual
                                     const userNickname = user?.nickname || user?.name;
-                                    if (chatActual && chatActual !== userNickname) {
+                                    if (chatActual && chatActual !== userNickname && !isAxoAiChatNick(chatActual)) {
                                       abrirPerfilUsuario(chatActual);
                                     }
                                   }}
@@ -9770,7 +9779,7 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
                                   type="button"
                                 >
                                   <strong style={{ color: getColorForName(chatActual || "Usuario") }}>
-                                    {chatActual}
+                                    {getChatDisplayName(chatActual)}
                                   </strong>
                                 </button>
                                 {estaEscribiendoClave(chatActual) ? (
@@ -9782,6 +9791,7 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
                               </span>
                             </div>
                             <div className="chat-header-actions">
+                              {!isAxoAiChatNick(chatActual) && (
                               <button
                                 className="chat-header-icon-btn"
                                 onClick={abrirVideollamada}
@@ -9789,6 +9799,7 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
                               >
                                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
                               </button>
+                              )}
                               <button
                                 className="chat-delete-btn"
                                 onClick={limpiarChat}
@@ -9929,25 +9940,11 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
                             >
                               {!esMio && (
                                 <img
-                                  src={
-                                    m.usuario_photo
-                                      ? (m.usuario_photo.startsWith("http") || m.usuario_photo.startsWith("/uploads")
-                                          ? (m.usuario_photo.startsWith("http")
-                                              ? m.usuario_photo
-                                              : `${SERVER_URL}${m.usuario_photo}`)
-                                          : `${SERVER_URL}/uploads/perfiles/${m.usuario_photo}`)
-                                      : m.de_photo
-                                      ? (m.de_photo.startsWith("http") || m.de_photo.startsWith("/uploads")
-                                          ? (m.de_photo.startsWith("http")
-                                              ? m.de_photo
-                                              : `${SERVER_URL}${m.de_photo}`)
-                                          : `${SERVER_URL}/uploads/perfiles/${m.de_photo}`)
-                                      : getAvatarUrl({})
-                                  }
-                                  alt=""
+                                  src={getAvatarUrl(otroNickname)}
+                                  alt={getChatDisplayName(otroNickname)}
                                   className="chat-avatar msg-avatar"
                                   onError={(e) => {
-                                    e.target.src = makeInitialsAvatar(e.target.alt || '?');
+                                    e.target.src = makeInitialsAvatar(getChatDisplayName(otroNickname) || '?');
                                   }}
                                 />
                               )}
@@ -10016,12 +10013,12 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
                               >
                                 {tipoChat === "privado" && (
                                   <div className={`msg-usuario-nombre ${esMio ? "msg-yo-label" : "msg-otro-label"}`}>
-                                    {esMio ? "Tú" : otroNickname}
+                                    {esMio ? "Tú" : getChatDisplayName(otroNickname)}
                                   </div>
                                 )}
                                 {tipoChat !== "privado" && !esMio && (
                                   <div className="msg-usuario-nombre">
-                                    {otroNickname}
+                                    {getChatDisplayName(otroNickname)}
                                     {esPrioritario && <span className="msg-prioridad-badge">🔴 Prioridad Alta</span>}
                                   </div>
                                 )}

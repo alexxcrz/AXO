@@ -817,7 +817,7 @@ export const ACTION_DEFINITIONS = [
   { id: "manageProcessAuditTemplates", label: "Gestionar plantillas de auditoría",    category: "Auditorías",          defaultRoles: [ROLE_LEAD, ROLE_SR] },
   { id: "manageSystemSettings",    label: "Configurar parámetros globales del sistema", category: "Configuración",      defaultRoles: [ROLE_LEAD, ROLE_SR] },
   { id: "deleteWeekActivity",      label: "Eliminar actividades de semana",            category: "Operación semanal",   defaultRoles: [ROLE_LEAD] },
-  { id: "useCopmecAI",             label: "Usar COPMEC AI (Cerebro Operativo)",        category: "COPMEC AI",           defaultRoles: [ROLE_LEAD] },
+  { id: "useCopmecAI",             label: "Usar AXO AI (Cerebro Operativo)",        category: "AXO AI",           defaultRoles: [ROLE_LEAD] },
 ];
 
 export const AREA_TAB_SCOPED_ACTION_CONFIG = Object.freeze([

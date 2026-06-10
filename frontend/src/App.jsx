@@ -6517,20 +6517,6 @@ function App() { // NOSONAR
     }
   }
 
-  async function handleDeleteOwnAccount(password) {
-    try {
-      await requestJson("/auth/account", {
-        method: "DELETE",
-        body: JSON.stringify({ password }),
-      });
-      await handleLogout();
-      pushAppToast("Tu cuenta fue eliminada correctamente.", "success");
-      return { ok: true };
-    } catch (error) {
-      return { ok: false, message: error?.message || "No fue posible eliminar tu cuenta." };
-    }
-  }
-
   async function handleLogout() {
       if (socketRef.current) {
         try {
@@ -8995,7 +8981,7 @@ function App() { // NOSONAR
         </AlertModalProvider>
       ) : null}
 
-      {profileModalOpen ? <EmployeeProfileModal currentUser={currentUser} passwordForm={passwordForm} onPasswordChange={setPasswordForm} onSubmit={submitPasswordReset} onUpdateIdentity={updateCurrentUserIdentity} onDeleteAccount={handleDeleteOwnAccount} currentTheme={uiTheme} themeOptions={UI_THEME_OPTIONS} onThemeChange={setUiTheme} currentFont={uiFont} fontOptions={UI_FONT_OPTIONS} onFontChange={setUiFont} currentFontSize={uiFontSize} fontSizeOptions={UI_FONT_SIZE_OPTIONS} onFontSizeChange={setUiFontSize} onClose={() => { setProfileModalOpen(false); setPasswordForm({ password: "", confirmPassword: "", message: "" }); }} onLogout={() => { setProfileModalOpen(false); setPasswordForm({ password: "", confirmPassword: "", message: "" }); handleLogout(); }} /> : null}
+      {profileModalOpen ? <EmployeeProfileModal currentUser={currentUser} passwordForm={passwordForm} onPasswordChange={setPasswordForm} onSubmit={submitPasswordReset} onUpdateIdentity={updateCurrentUserIdentity} currentTheme={uiTheme} themeOptions={UI_THEME_OPTIONS} onThemeChange={setUiTheme} currentFont={uiFont} fontOptions={UI_FONT_OPTIONS} onFontChange={setUiFont} currentFontSize={uiFontSize} fontSizeOptions={UI_FONT_SIZE_OPTIONS} onFontSizeChange={setUiFontSize} onClose={() => { setProfileModalOpen(false); setPasswordForm({ password: "", confirmPassword: "", message: "" }); }} onLogout={() => { setProfileModalOpen(false); setPasswordForm({ password: "", confirmPassword: "", message: "" }); handleLogout(); }} /> : null}
 
       <Modal
         open={excelSheetSelector.open}

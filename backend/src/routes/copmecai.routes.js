@@ -67,7 +67,7 @@ copmecAiRouter.delete("/history", requireAuth, requireWarehouseAction("useCopmec
 /**
  * GET /api/copmec-ai/report/:token/:format
  * Descarga un reporte generado previamente.
- * format: "cop" | "pdf" | "doc" | "xlsx"
+ * format: "pdf" | "doc" | "xlsx"
  */
 copmecAiRouter.get("/report/:token/:format", requireAuth, requireWarehouseAction("useCopmecAI"), (req, res) => {
   const { token, format } = req.params;
@@ -78,8 +78,8 @@ copmecAiRouter.get("/report/:token/:format", requireAuth, requireWarehouseAction
     return;
   }
 
-  if (!["cop", "pdf", "doc", "xlsx"].includes(format)) {
-    res.status(400).json({ ok: false, message: "Formato inválido. Use 'cop', 'pdf', 'doc' o 'xlsx'." });
+  if (!["pdf", "doc", "xlsx"].includes(format)) {
+    res.status(400).json({ ok: false, message: "Formato inválido. Use 'pdf', 'doc' o 'xlsx'." });
     return;
   }
 
@@ -92,11 +92,10 @@ copmecAiRouter.get("/report/:token/:format", requireAuth, requireWarehouseAction
 
   const now = new Date();
   const dateStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}-${String(now.getDate()).padStart(2,"0")}`;
-  const fileName = `COPMEC-Reporte-${dateStr}.${format}`;
+  const fileName = `AXO-Reporte-${dateStr}.${format}`;
 
   const mimeType = {
     pdf: "application/pdf",
-    cop: "application/octet-stream",
     doc: "application/msword",
     xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   }[format] || "application/octet-stream";
