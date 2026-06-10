@@ -4255,6 +4255,22 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
     setSubmenuRestriccionAbierto(null);
   };
 
+  const calcularPosicionMenuMiembro = (rect) => {
+    const menuWidth = 248;
+    const menuMaxHeight = 380;
+    const margin = 10;
+    let x = rect.right - menuWidth;
+    if (x < margin) x = margin;
+    if (x + menuWidth > window.innerWidth - margin) {
+      x = window.innerWidth - menuWidth - margin;
+    }
+    let y = rect.bottom + 6;
+    if (y + menuMaxHeight > window.innerHeight - margin) {
+      y = Math.max(margin, rect.top - menuMaxHeight - 6);
+    }
+    return { x, y };
+  };
+
   const activarSeleccion = (mensaje) => {
     if (!mensaje?.id) return;
     setSeleccionModo(true);
@@ -9104,7 +9120,7 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
                                 
                                 return (
                                   <div key={nickname} className="chat-profile-card" style={{ marginBottom: "8px" }}>
-                                    <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: menuAbierto ? "8px" : "0" }}>
+                                    <div className="chat-member-row">
                                       <img
                                         src={getAvatarUrl(usuario)}
                                         alt={nickname}
@@ -9124,7 +9140,8 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
                                       </div>
                                       {!esYo && (
                                         <button
-                                          className="chat-profile-action-btn"
+                                          type="button"
+                                          className={`chat-member-options-btn${menuAbierto ? " is-open" : ""}`}
                                           onClick={(e) => {
                                             e.stopPropagation();
                                             if (menuAbierto) {
@@ -9133,19 +9150,10 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
                                               setSubmenuRestriccionAbierto(null);
                                             } else {
                                               const rect = e.currentTarget.getBoundingClientRect();
-                                              setMenuMiembroPosicion({ x: rect.left, y: rect.bottom + 4 });
+                                              setMenuMiembroPosicion(calcularPosicionMenuMiembro(rect));
                                               setMenuMiembroAbierto(nickname);
                                               setSubmenuRestriccionAbierto(null);
                                             }
-                                          }}
-                                          style={{ 
-                                            fontSize: "1.1rem", 
-                                            padding: "4px 8px",
-                                            background: menuAbierto ? "var(--fondo-card-hover)" : "transparent",
-                                            color: "var(--texto-principal)",
-                                            border: "1px solid var(--borde-visible)",
-                                            borderRadius: "6px",
-                                            cursor: "pointer"
                                           }}
                                           title="Opciones"
                                         >
@@ -11355,60 +11363,68 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
               style={{ left: menuMiembroPosicion.x, top: menuMiembroPosicion.y }}
               onClick={(e) => e.stopPropagation()}
             >
-              {puedoGestionar && !esCreador && (
-                <>
-                  <button
-                    className="chat-profile-action-btn"
-                    onClick={async (e) => {
-                      e.stopPropagation();
-                      cerrarMenuMiembro();
-                      try {
-                        await authFetch(`${SERVER_URL}/api/chat/grupos/${grupoPerfilId}/miembros/${nickname}/admin`, {
-                          method: "POST",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ es_admin: !esAdmin }),
-                        });
-                        abrirPerfilGrupo(grupoPerfilId, "miembros");
-                        showAlert(esAdmin ? "Administrador removido" : "Administrador agregado", "success");
-                      } catch (_err) {
-                        showAlert("Error gestionando administrador", "error");
-                      }
-                    }}
-                  >
-                    {esAdmin ? "❌ Remover admin" : "⭐ Hacer admin"}
-                  </button>
-                  <div style={{ position: "relative" }}>
+              <div className="chat-member-menu-list">
+                {puedoGestionar && !esCreador && (
+                  <>
                     <button
-                      className="chat-profile-action-btn"
-                      onClick={(e) => {
+                      type="button"
+                      className="chat-member-menu-item"
+                      onClick={async (e) => {
                         e.stopPropagation();
-                        setSubmenuRestriccionAbierto(submenuAbierto ? null : nickname);
+                        cerrarMenuMiembro();
+                        try {
+                          await authFetch(`${SERVER_URL}/api/chat/grupos/${grupoPerfilId}/miembros/${nickname}/admin`, {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ es_admin: !esAdmin }),
+                          });
+                          abrirPerfilGrupo(grupoPerfilId, "miembros");
+                          showAlert(esAdmin ? "Administrador removido" : "Administrador agregado", "success");
+                        } catch (_err) {
+                          showAlert("Error gestionando administrador", "error");
+                        }
                       }}
                     >
-                      <span>{tieneRestriccionIndefinida ? "✅ Permitir" : "🔒 Restringir"}</span>
-                      <span style={{ fontSize: "0.6rem" }}>{submenuAbierto ? "▲" : "▼"}</span>
+                      <span>{esAdmin ? "❌ Remover admin" : "⭐ Hacer admin"}</span>
                     </button>
-                    {submenuAbierto && (
-                      <div style={{ marginTop: "2px", padding: "2px", background: "var(--fondo-input)", borderRadius: "4px", border: "1px solid var(--chat-border)" }} onClick={(e) => e.stopPropagation()}>
-                        {tieneRestriccionIndefinida ? (
-                          <button className="chat-profile-action-btn" onClick={async (e) => {
-                            e.stopPropagation();
-                            cerrarMenuMiembro();
-                            try {
-                              await authFetch(`${SERVER_URL}/api/chat/grupos/${grupoPerfilId}/miembros/${nickname}/restringir`, {
-                                method: "POST",
-                                headers: { "Content-Type": "application/json" },
-                                body: JSON.stringify({ duracion_minutos: null, remover: true }),
-                              });
-                              abrirPerfilGrupo(grupoPerfilId, "miembros");
-                              showAlert("Restricción removida", "success");
-                            } catch (_err) {
-                              showAlert("Error removiendo restricción", "error");
-                            }
-                          }}>✅ Permitir mensaje</button>
-                        ) : (
-                          <>
-                            {["5 min", "10 min", "15 min", "30 min", "1 hora", "24 horas", "Indefinido"].map((opcion) => {
+                    <div className="chat-member-menu-restrict-wrap">
+                      <button
+                        type="button"
+                        className="chat-member-menu-item chat-member-menu-item--submenu-trigger"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSubmenuRestriccionAbierto(submenuAbierto ? null : nickname);
+                        }}
+                      >
+                        <span>{tieneRestriccionIndefinida ? "✅ Permitir" : "🔒 Restringir"}</span>
+                        <span className="chat-member-menu-chevron">{submenuAbierto ? "▲" : "▼"}</span>
+                      </button>
+                      {submenuAbierto && (
+                        <div className="chat-member-menu-submenu" onClick={(e) => e.stopPropagation()}>
+                          {tieneRestriccionIndefinida ? (
+                            <button
+                              type="button"
+                              className="chat-member-menu-item"
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                cerrarMenuMiembro();
+                                try {
+                                  await authFetch(`${SERVER_URL}/api/chat/grupos/${grupoPerfilId}/miembros/${nickname}/restringir`, {
+                                    method: "POST",
+                                    headers: { "Content-Type": "application/json" },
+                                    body: JSON.stringify({ duracion_minutos: null, remover: true }),
+                                  });
+                                  abrirPerfilGrupo(grupoPerfilId, "miembros");
+                                  showAlert("Restricción removida", "success");
+                                } catch (_err) {
+                                  showAlert("Error removiendo restricción", "error");
+                                }
+                              }}
+                            >
+                              <span>✅ Permitir mensaje</span>
+                            </button>
+                          ) : (
+                            ["5 min", "10 min", "15 min", "30 min", "1 hora", "24 horas", "Indefinido"].map((opcion) => {
                               let minutos = null;
                               if (opcion === "5 min") minutos = 5;
                               else if (opcion === "10 min") minutos = 10;
@@ -11417,79 +11433,99 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
                               else if (opcion === "1 hora") minutos = 60;
                               else if (opcion === "24 horas") minutos = 24 * 60;
                               return (
-                                <button key={opcion} className="chat-profile-action-btn" onClick={async (e) => {
-                                  e.stopPropagation();
-                                  cerrarMenuMiembro();
-                                  try {
-                                    await authFetch(`${SERVER_URL}/api/chat/grupos/${grupoPerfilId}/miembros/${nickname}/restringir`, {
-                                      method: "POST",
-                                      headers: { "Content-Type": "application/json" },
-                                      body: JSON.stringify({ duracion_minutos: minutos }),
-                                    });
-                                    abrirPerfilGrupo(grupoPerfilId, "miembros");
-                                    showAlert(`Restricción aplicada: ${opcion}`, "success");
-                                  } catch (_err) {
-                                    showAlert("Error aplicando restricción", "error");
-                                  }
-                                }}>{opcion}</button>
+                                <button
+                                  key={opcion}
+                                  type="button"
+                                  className="chat-member-menu-item"
+                                  onClick={async (e) => {
+                                    e.stopPropagation();
+                                    cerrarMenuMiembro();
+                                    try {
+                                      await authFetch(`${SERVER_URL}/api/chat/grupos/${grupoPerfilId}/miembros/${nickname}/restringir`, {
+                                        method: "POST",
+                                        headers: { "Content-Type": "application/json" },
+                                        body: JSON.stringify({ duracion_minutos: minutos }),
+                                      });
+                                      abrirPerfilGrupo(grupoPerfilId, "miembros");
+                                      showAlert(`Restricción aplicada: ${opcion}`, "success");
+                                    } catch (_err) {
+                                      showAlert("Error aplicando restricción", "error");
+                                    }
+                                  }}
+                                >
+                                  <span>{opcion}</span>
+                                </button>
                               );
-                            })}
-                          </>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                  <button
-                    className="chat-profile-action-btn"
-                    onClick={async (e) => {
-                      e.stopPropagation();
-                      cerrarMenuMiembro();
-                      if (await showConfirm("Eliminar miembro", `¿Eliminar a ${nickname} del grupo?`) === true) {
-                        try {
-                          await authFetch(`${SERVER_URL}/api/chat/grupos/${grupoPerfilId}/miembros/${nickname}`, { method: "DELETE" });
-                          abrirPerfilGrupo(grupoPerfilId, "miembros");
-                          showAlert("Miembro eliminado del grupo", "success");
-                        } catch (_err) {
-                          showAlert("Error eliminando miembro", "error");
+                            })
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      className="chat-member-menu-item danger"
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        cerrarMenuMiembro();
+                        if (await showConfirm("Eliminar miembro", `¿Eliminar a ${nickname} del grupo?`) === true) {
+                          try {
+                            await authFetch(`${SERVER_URL}/api/chat/grupos/${grupoPerfilId}/miembros/${nickname}`, { method: "DELETE" });
+                            abrirPerfilGrupo(grupoPerfilId, "miembros");
+                            showAlert("Miembro eliminado del grupo", "success");
+                          } catch (_err) {
+                            showAlert("Error eliminando miembro", "error");
+                          }
                         }
-                      }
-                    }}
-                    style={{ color: "#ef4444" }}
-                  >
-                    🗑️ Eliminar
-                  </button>
-                </>
-              )}
-              {perfilData?.es_creador && !esCreador && (
+                      }}
+                    >
+                      <span>🗑️ Eliminar</span>
+                    </button>
+                    <div className="chat-member-menu-divider" />
+                  </>
+                )}
+                {perfilData?.es_creador && !esCreador && (
+                  <>
+                    <button
+                      type="button"
+                      className="chat-member-menu-item"
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        cerrarMenuMiembro();
+                        if (await showConfirm("Transferir propiedad", `¿Transferir la propiedad del grupo a ${nickname}?`) === true) {
+                          try {
+                            await authFetch(`${SERVER_URL}/api/chat/grupos/${grupoPerfilId}/transferir`, {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ nuevo_creador: nickname }),
+                            });
+                            abrirPerfilGrupo(grupoPerfilId, "miembros");
+                            showAlert("Propiedad transferida", "success");
+                          } catch (_err) {
+                            showAlert("Error transfiriendo propiedad", "error");
+                          }
+                        }
+                      }}
+                    >
+                      <span>👑 Transferir propiedad</span>
+                    </button>
+                    <div className="chat-member-menu-divider" />
+                  </>
+                )}
                 <button
-                  className="chat-profile-action-btn"
-                  onClick={async (e) => {
-                    e.stopPropagation();
-                    cerrarMenuMiembro();
-                    if (await showConfirm("Transferir propiedad", `¿Transferir la propiedad del grupo a ${nickname}?`) === true) {
-                      try {
-                        await authFetch(`${SERVER_URL}/api/chat/grupos/${grupoPerfilId}/transferir`, {
-                          method: "POST",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ nuevo_creador: nickname }),
-                        });
-                        abrirPerfilGrupo(grupoPerfilId, "miembros");
-                        showAlert("Propiedad transferida", "success");
-                      } catch (_err) {
-                        showAlert("Error transfiriendo propiedad", "error");
-                      }
-                    }
-                  }}
+                  type="button"
+                  className="chat-member-menu-item"
+                  onClick={(e) => { e.stopPropagation(); cerrarMenuMiembro(); abrirPerfilUsuario(nickname); }}
                 >
-                  👑 Transferir propiedad
+                  <span>👤 Ver perfil</span>
                 </button>
-              )}
-              <button className="chat-profile-action-btn" onClick={(e) => { e.stopPropagation(); cerrarMenuMiembro(); abrirPerfilUsuario(nickname); }}>
-                👤 Ver perfil
-              </button>
-              <button className="chat-profile-action-btn" onClick={(e) => { e.stopPropagation(); cerrarMenuMiembro(); abrirChat("privado", nickname); }}>
-                💬 Enviar mensaje
-              </button>
+                <button
+                  type="button"
+                  className="chat-member-menu-item"
+                  onClick={(e) => { e.stopPropagation(); cerrarMenuMiembro(); abrirChat("privado", nickname); }}
+                >
+                  <span>💬 Enviar mensaje</span>
+                </button>
+              </div>
             </div>
           </div>
         );
