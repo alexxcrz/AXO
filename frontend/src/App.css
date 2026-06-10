@@ -3907,6 +3907,13 @@ html[data-ui-theme] .app-notification-badge {
   max-width: 100%;
 }
 
+.mis-tableros-shell .table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  max-width: 100%;
+}
+
 .mis-tableros-shell .card-header-row {
   flex-wrap: wrap;
   align-items: flex-start;
@@ -4805,7 +4812,13 @@ body .primary-button:disabled {
 .board-runtime-table td span,
 .board-runtime-table th span,
 .board-runtime-table td p,
-.board-runtime-table th p,
+.board-runtime-table th p {
+  text-overflow: clip !important;
+  white-space: normal !important;
+  overflow-wrap: normal !important;
+  word-break: normal !important;
+}
+
 .inventory-lookup-selected-copy strong,
 .inventory-lookup-selected-copy span,
 .inventory-lookup-selected-copy small,
@@ -12543,10 +12556,30 @@ html[data-ui-theme] body .switch-thumb {
     border-radius: 0.85rem;
   }
 
+  .table-wrap,
   .board-table-wrap,
-  .custom-board-table-wrap {
+  .custom-board-table-wrap,
+  .board-preview-table-wrap {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+    max-width: 100%;
+  }
+
+  .board-table-clean,
+  .board-runtime-table,
+  .board-preview-table,
+  .admin-table-clean.board-runtime-table {
+    width: max-content !important;
+    min-width: 920px !important;
+    table-layout: fixed !important;
+  }
+
+  .board-runtime-table th,
+  .board-runtime-table td {
+    overflow-wrap: normal !important;
+    word-break: normal !important;
+    white-space: normal;
   }
 
   /* Filtros del tablero: columna */
@@ -14592,44 +14625,35 @@ html[data-ui-theme] body .switch-thumb {
   .table-wrap,
   .board-table-wrap,
   .custom-board-table-wrap,
-  .board-preview-table-wrap {
-    overflow-x: hidden;
+  .board-preview-table-wrap,
+  .dashboard-table-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+    max-width: 100%;
   }
 
   .board-table-clean,
   .board-runtime-table,
   .board-preview-table {
-    width: 100% !important;
-    min-width: 100% !important;
-    table-layout: fixed;
+    width: max-content !important;
+    min-width: 920px !important;
+    table-layout: fixed !important;
   }
 
+  .board-runtime-table th,
+  .board-runtime-table td,
   .board-table-clean th,
   .board-table-clean td,
   .board-preview-table th,
   .board-preview-table td {
-    min-width: 0 !important;
-    width: auto !important;
-    max-width: none;
-    padding: 0.54rem 0.5rem;
-    font-size: 0.78rem;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .board-runtime-table th,
-  .board-runtime-table td {
-    min-width: 0 !important;
-    width: auto !important;
-    max-width: none;
-    padding: 0.54rem 0.5rem;
-    font-size: 0.78rem;
     overflow: visible;
     text-overflow: clip;
     white-space: normal;
     overflow-wrap: normal;
     word-break: normal;
+    padding: 0.54rem 0.5rem;
+    font-size: 0.78rem;
   }
 
   .board-meta-inline {

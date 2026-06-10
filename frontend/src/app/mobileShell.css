@@ -270,16 +270,39 @@ html.mobile-shell .sidebar-shell .sidebar-area-section.is-current-area .nav-sect
   filter: drop-shadow(0 0 6px rgba(125, 211, 252, 0.85));
 }
 
-@media (max-width: 720px) {
-  html.mobile-shell .board-table-clean,
-  html.mobile-shell .board-runtime-table {
-    min-width: 100% !important;
-    width: 100% !important;
-    table-layout: fixed;
-  }
+/* Tableros anchos: scroll horizontal en lugar de aplastar columnas */
+html.mobile-shell .table-wrap,
+html.mobile-shell .board-table-wrap,
+html.mobile-shell .custom-board-table-wrap,
+html.mobile-shell .board-preview-table-wrap,
+html.mobile-shell .dashboard-table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  max-width: 100%;
+}
 
-  html.mobile-shell .board-table-wrap,
-  html.mobile-shell .custom-board-table-wrap {
-    overflow-x: auto;
-  }
+html.mobile-shell .board-table-clean,
+html.mobile-shell .board-runtime-table,
+html.mobile-shell .board-preview-table,
+html.mobile-shell .admin-table-clean.board-runtime-table {
+  width: max-content !important;
+  min-width: 920px !important;
+  table-layout: fixed !important;
+}
+
+html.mobile-shell .board-runtime-table th,
+html.mobile-shell .board-runtime-table td,
+html.mobile-shell .board-table-clean th,
+html.mobile-shell .board-table-clean td {
+  overflow-wrap: normal !important;
+  word-break: normal !important;
+  white-space: normal;
+  min-width: 4.25rem;
+}
+
+html.mobile-shell .board-runtime-table td input,
+html.mobile-shell .board-runtime-table td select,
+html.mobile-shell .board-runtime-table td textarea {
+  min-width: 5.25rem;
 }
