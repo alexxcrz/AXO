@@ -305,7 +305,7 @@ export function normalizeCleaningSite(value, fallback = DEFAULT_CLEANING_SITE) {
   if (key === "c1") return "C1";
   if (key === "c2") return "C2";
   if (["c3", "principal", "main", "default"].includes(key)) return "C3";
-  if (["p", "patio", "ppatio", "p/patio", "patio/p"].includes(key)) return "P";
+  if (["p", "patio", "ppatio", "p/patio", "patio/p"].includes(key)) return "C3";
   return fallback;
 }
 
@@ -643,6 +643,93 @@ export function getInventoryViewActionId(domain) {
   if (domain === INVENTORY_DOMAIN_MAINTENANCE) return "viewMaintenanceInventory";
   if (domain === INVENTORY_DOMAIN_ORDERS) return "viewOrderInventory";
   return "viewBaseInventory";
+}
+
+const INVENTORY_DOMAIN_ACCESS_ACTION_IDS = {
+  [INVENTORY_DOMAIN_BASE]: ["viewBaseInventory", "manageInventory", "deleteInventory", "importInventory"],
+  [INVENTORY_DOMAIN_CLEANING]: ["viewCleaningInventory", "manageCleaningInventory", "deleteCleaningInventory", "importCleaningInventory"],
+  [INVENTORY_DOMAIN_ORDERS]: ["viewOrderInventory", "manageOrderInventory", "deleteOrderInventory", "importOrderInventory"],
+  [INVENTORY_DOMAIN_MAINTENANCE]: ["viewMaintenanceInventory", "manageMaintenanceInventory", "deleteMaintenanceInventory", "importMaintenanceInventory"],
+};
+
+const TRANSPORT_AREA_PERMISSION_ACTION_IDS = {
+  retail: ["viewTransportRetail", "manageTransportRetail"],
+  pedidos: ["viewTransportPedidos", "manageTransportPedidos"],
+  inventario: ["viewTransportInventario", "manageTransportInventario"],
+  foraneas: ["viewTransportLogistics", "manageTransportLogistics", "viewTransportPedidos", "manageTransportPedidos"],
+  documentacion: ["viewTransportDocumentacion", "manageTransportDocumentacion"],
+};
+
+const TRANSPORT_GENERAL_PERMISSION_ACTION_IDS = [
+  "accessNavTransporte",
+  "viewTransportRetail", "manageTransportRetail",
+  "viewTransportPedidos", "manageTransportPedidos",
+  "viewTransportInventario", "manageTransportInventario",
+  "viewTransportDocumentacion", "manageTransportDocumentacion",
+  "viewTransportAssignments", "manageTransportAssignments",
+  "viewTransportPostponed", "manageTransportPostponed",
+  "viewTransportMyRoutes", "manageTransportMyRoutes",
+  "viewTransportLogistics", "manageTransportLogistics",
+  "viewTransportConsolidated", "manageTransportConsolidated",
+];
+
+const TRANSPORT_ASSIGNMENT_PERMISSION_ACTION_IDS = [
+  "viewTransportAssignments", "manageTransportAssignments",
+  "viewTransportMyRoutes", "manageTransportMyRoutes",
+];
+
+export function userHasAnyPermissionAction(user, permissions, actionIds = []) {
+  return (Array.isArray(actionIds) ? actionIds : []).some((actionId) => canDoAction(user, actionId, permissions));
+}
+
+export function canUserAccessInventoryDomain(user, permissions, domain) {
+  const normalizedDomain = normalizeInventoryDomain(domain);
+  const actionIds = INVENTORY_DOMAIN_ACCESS_ACTION_IDS[normalizedDomain] || INVENTORY_DOMAIN_ACCESS_ACTION_IDS[INVENTORY_DOMAIN_BASE];
+  return userHasAnyPermissionAction(user, permissions, actionIds);
+}
+
+export function getInventoryDomainNotificationLabel(domain) {
+  const normalizedDomain = normalizeInventoryDomain(domain);
+  if (normalizedDomain === INVENTORY_DOMAIN_ORDERS) return "Insumos para pedidos";
+  if (normalizedDomain === INVENTORY_DOMAIN_CLEANING) return "Insumos de limpieza";
+  if (normalizedDomain === INVENTORY_DOMAIN_MAINTENANCE) return "Insumos de mantenimiento";
+  if (normalizedDomain === INVENTORY_DOMAIN_BASE) return "Productos";
+  return "Inventario";
+}
+
+export function canUserReceiveBibliotecaNotification(user, permissions) {
+  return canAccessPage(user, PAGE_BIBLIOTECA, permissions);
+}
+
+export function canUserReceiveIncidenciaNotification(user, permissions) {
+  return canAccessPage(user, PAGE_INCIDENCIAS, permissions);
+}
+
+export function canUserReceiveOperationalDashboardNotification(user, permissions) {
+  return canAccessPage(user, PAGE_CUSTOM_BOARDS, permissions)
+    || canAccessPage(user, PAGE_DASHBOARD, permissions);
+}
+
+export function canUserReceiveTransportAreaNotification(user, permissions, options = {}) {
+  if (!user) return false;
+  const notificationType = String(options.type || "").trim().toLowerCase();
+  const mainTab = String(options.targetTransportMainTab || "").trim().toLowerCase();
+  let areaId = String(options.areaId || options.transportAreaId || "").trim().toLowerCase();
+
+  if (!areaId && (mainTab === "documentacion" || notificationType.startsWith("documentacion"))) {
+    areaId = "documentacion";
+  }
+
+  if (notificationType.includes("pending") || notificationType.includes("unassigned") || notificationType.includes("assignment")) {
+    return userHasAnyPermissionAction(user, permissions, TRANSPORT_ASSIGNMENT_PERMISSION_ACTION_IDS);
+  }
+
+  const areaActions = TRANSPORT_AREA_PERMISSION_ACTION_IDS[areaId];
+  if (areaActions?.length) {
+    return userHasAnyPermissionAction(user, permissions, areaActions);
+  }
+
+  return userHasAnyPermissionAction(user, permissions, TRANSPORT_GENERAL_PERMISSION_ACTION_IDS);
 }
 
 export function createInventoryModalState(mode = "create", item = {}, fallbackDomain = INVENTORY_DOMAIN_BASE) {
@@ -4542,7 +4629,7 @@ export function getOperationalDateParts(now = Date.now(), timeZone = "America/Me
   }
 }
 
-const SYSTEM_OPERATIONAL_NAVE_KEYS = ["C1", "C2", "C3", "P"];
+const SYSTEM_OPERATIONAL_NAVE_KEYS = ["C1", "C2", "C3"];
 
 function normalizeWeekdayOffsetsList(value) {
   const source = Array.isArray(value) ? value : [];

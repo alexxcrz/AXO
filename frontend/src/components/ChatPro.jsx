@@ -13,6 +13,14 @@ import { useAlert } from "./AlertModal";
 import { SpanishDateInput } from "./SpanishDateInput";
 import { NOTIFICATION_SOUNDS, playNotificationSound, ensureAudioGestureUnlock } from "../utils/notificationSounds";
 import { syncNotificationPrefsToServiceWorker } from "../utils/pushBridge.js";
+import { SoundGlyph, VibrationRhythmGlyph } from "./SoundGlyph.jsx";
+import {
+  VIBRATION_INTENSITY_OPTIONS,
+  VIBRATION_RHYTHM_OPTIONS,
+  readVibrationPrefs,
+  writeVibrationPref,
+  triggerAppVibration,
+} from "../utils/vibrationPrefs.js";
 // COPMEC: removed getServerUrl
 // COPMEC: removed ReunionesPerfilUsuario
 
@@ -99,15 +107,9 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
     callVolume: "copmec_chat_call_volume",
   };
   const CALL_SOUND_OPTIONS = [
-    { id: "ringIncoming", label: "Ring entrante" },
-    { id: "ringOutgoing", label: "Ring saliente" },
-    { id: "campana", label: "Campana" },
-    { id: "ping", label: "Ping" },
-    { id: "digital", label: "Digital" },
-    { id: "marimba", label: "Marimba" },
-    { id: "chime", label: "Chime" },
-    { id: "cristal", label: "Cristal" },
-    { id: "pulso", label: "Pulso" },
+    { id: "ringIncoming", label: "Ring", icon: "ringIncoming" },
+    { id: "ringOutgoing", label: "Saliente", icon: "ringOutgoing" },
+    ...NOTIFICATION_SOUNDS.filter((s) => !["zen", "soft", "alertSoft"].includes(s.id)),
   ];
   const getStoredVolume = (key, fallback) => {
     const raw = Number(localStorage.getItem(key));
@@ -209,6 +211,7 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
     msgVolume: getStoredVolume(AUDIO_PREF_KEYS.msgVolume, 0.85),
     callVolume: getStoredVolume(AUDIO_PREF_KEYS.callVolume, 0.9),
   }));
+  const [vibrationSettings, setVibrationSettings] = useState(() => readVibrationPrefs());
   const [open, setOpen] = useState(onClose ? true : false); // Si viene del menú, abrir automáticamente
   
   // Si viene del menú, abrir automáticamente
@@ -729,9 +732,27 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
     });
   };
 
+  const saveVibrationSetting = (key, value) => {
+    writeVibrationPref(key, value);
+    setVibrationSettings((prev) => {
+      const next = { ...prev, [key]: value };
+      syncNotificationPrefsToServiceWorker();
+      return next;
+    });
+  };
+
   useEffect(() => {
     syncNotificationPrefsToServiceWorker();
-  }, [audioSettings.msgSound, audioSettings.callIncomingSound]);
+  }, [
+    audioSettings.msgSound,
+    audioSettings.callIncomingSound,
+    vibrationSettings.msgEnabled,
+    vibrationSettings.msgIntensity,
+    vibrationSettings.msgRhythm,
+    vibrationSettings.callEnabled,
+    vibrationSettings.callIntensity,
+    vibrationSettings.callRhythm,
+  ]);
 
   // Toca un sonido de videollamada — patrón idéntico a notificationSounds.js:
   // ctx fresco cada vez, sin async/await, sin estado compartido.
@@ -809,7 +830,7 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
         playCallSound("ringIncoming");
         return;
       }
-      const played = playNotificationSound(audioSettings.callIncomingSound, { volume: audioSettings.callVolume });
+      const played = playNotificationSound(audioSettings.callIncomingSound, { volume: audioSettings.callVolume, kind: "call" });
       if (!played) playCallSound("ringIncoming");
     } catch (_err) {
       console.warn("Error al reproducir tono entrante:", _err);
@@ -823,7 +844,7 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
         playCallSound("ringOutgoing");
         return;
       }
-      const played = playNotificationSound(audioSettings.callOutgoingSound, { volume: audioSettings.callVolume });
+      const played = playNotificationSound(audioSettings.callOutgoingSound, { volume: audioSettings.callVolume, kind: "call" });
       if (!played) playCallSound("ringOutgoing");
     } catch (err) {
       console.warn("Error al reproducir tono saliente:", err);
@@ -841,10 +862,8 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
   const playIncomingMessageSound = () => {
     if (!shouldPlayMessageSound()) return;
     const messageVolume = Number(audioSettings.msgVolume) <= 0 ? 1 : audioSettings.msgVolume;
-    const played = playNotificationSound(audioSettings.msgSound, { volume: messageVolume });
-    if (!played) {
-      playCallSound("accept");
-    }
+    playNotificationSound(audioSettings.msgSound, { volume: messageVolume, kind: "message" });
+    triggerAppVibration("message");
   };
 
   // Evita que errores de Notification interrumpan el flujo de invitación.
@@ -865,6 +884,7 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
                 icon: "/android-chrome-192x192.png",
                 tag,
                 requireInteraction: true,
+                silent: true,
               });
               return;
             }
@@ -876,8 +896,7 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
               tag,
               requireInteraction: true,
               vibrate: [500, 200, 500],
-              silent: false,
-              sound: "/sounds/notification-call.wav",
+              silent: true,
               actions: [
                 { action: "accept", title: "Aceptar" },
                 { action: "reject", title: "Rechazar" },
@@ -898,6 +917,7 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
               icon: "/android-chrome-192x192.png",
               tag,
               requireInteraction: true,
+              silent: true,
             });
           });
         return;
@@ -908,6 +928,7 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
         icon: "/android-chrome-192x192.png",
         tag,
         requireInteraction: true,
+        silent: true,
       });
     } catch (_err) {
       console.warn("[NOTIFICATION] Error mostrando notificación de llamada:", _err?.message || _err);
@@ -1502,16 +1523,20 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
                     body: ultimoMensaje.mensaje || "Tienes un nuevo mensaje de AXO AI",
                     icon: "/android-chrome-192x192.png",
                     tag: "axo-ai-otp",
-                    requireInteraction: false
+                    requireInteraction: false,
+                    silent: true,
                   });
+                  playIncomingMessageSound();
                 } else if ("Notification" in window && Notification.permission === "default") {
                   Notification.requestPermission().then((permission) => {
                     if (permission === "granted") {
                       new Notification("📱 Mensaje de AXO AI", {
                         body: ultimoMensaje.mensaje || "Tienes un nuevo mensaje de AXO AI",
                         icon: "/android-chrome-192x192.png",
-                        tag: "axo-ai-otp"
+                        tag: "axo-ai-otp",
+                        silent: true,
                       });
+                      playIncomingMessageSound();
                     }
                   });
                 }
@@ -2130,8 +2155,10 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
             body: mensaje.mensaje || "Tienes un nuevo mensaje de AXO AI",
             icon: "/android-chrome-192x192.png",
             tag: "axo-ai-otp",
-            requireInteraction: false
+            requireInteraction: false,
+            silent: true,
           });
+          playIncomingMessageSound();
         } else if ("Notification" in window && Notification.permission === "default") {
           // Solicitar permiso para notificaciones
           Notification.requestPermission().then((permission) => {
@@ -2139,8 +2166,10 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
               new Notification("📱 Mensaje de AXO AI", {
                 body: mensaje.mensaje || "Tienes un nuevo mensaje de AXO AI",
                 icon: "/android-chrome-192x192.png",
-                tag: "axo-ai-otp"
+                tag: "axo-ai-otp",
+                silent: true,
               });
+              playIncomingMessageSound();
             }
           });
         }
@@ -2516,9 +2545,7 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
       }
       
       playIncomingCallTone();
-      if (navigator.vibrate) {
-        navigator.vibrate([200, 100, 200, 100, 200]); // Vibración de llamada
-      }
+      triggerAppVibration("call");
 
       showIncomingCallNotification(payload.room, payload.fromNickname || "Usuario");
 
@@ -2717,9 +2744,7 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
         console.log('[REST-SIGNAL] 🟡 Invitación por REST de', payload.fromNickname);
 
         playIncomingCallTone();
-        if (navigator.vibrate) {
-          navigator.vibrate([200, 100, 200, 100, 200]); // Vibración de llamada
-        }
+        triggerAppVibration("call");
 
         showIncomingCallNotification(payload.room, payload.fromNickname || "Usuario");
 
@@ -6697,19 +6722,11 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
   );
 
   const renderVistaAjustes = () => {
-    const emojiSonido = (id) => {
-      const found = NOTIFICATION_SOUNDS.find((s) => s.id === id);
-      if (found) return found.emoji;
-      if (id === "ringIncoming") return "📲";
-      if (id === "ringOutgoing") return "📤";
-      return "🔊";
-    };
-
-    const renderChipsSonido = (opciones, valorActivo, onSelect) => (
+    const renderChipsSonido = (opciones, valorActivo, onSelect, previewOptions = {}) => (
       <div className="cp-ajustes-sound-grid" role="listbox" aria-label="Seleccionar sonido">
         {opciones.map((s) => {
           const activo = valorActivo === s.id;
-          const emoji = s.emoji || emojiSonido(s.id);
+          const glyphId = s.icon || s.id;
           return (
             <button
               key={s.id}
@@ -6717,11 +6734,94 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
               role="option"
               aria-selected={activo}
               className={`cp-ajustes-sound-chip ${activo ? "active" : ""}`}
-              onClick={() => onSelect(s.id)}
+              onClick={() => {
+                onSelect(s.id);
+                const previewKind = s.id === "ringIncoming" || s.id === "ringOutgoing"
+                  ? "message"
+                  : (previewOptions.kind || "message");
+                playNotificationSound(s.id, {
+                  kind: previewKind,
+                  volume: previewOptions.volume ?? 1,
+                });
+                if (previewOptions.vibrateKind) {
+                  triggerAppVibration(previewOptions.vibrateKind);
+                }
+              }}
             >
-              <span className="cp-ajustes-sound-chip-emoji" aria-hidden="true">{emoji}</span>
+              <span className="cp-ajustes-sound-chip-icon" aria-hidden="true">
+                <SoundGlyph id={glyphId} size={15} />
+              </span>
               <span className="cp-ajustes-sound-chip-label">{s.label}</span>
               {activo ? <span className="cp-ajustes-sound-chip-check" aria-hidden="true">✓</span> : null}
+            </button>
+          );
+        })}
+      </div>
+    );
+
+    const renderVibrationToggle = (enabled, onChange, id) => (
+      <label className="cp-ajustes-toggle" htmlFor={id}>
+        <input
+          id={id}
+          type="checkbox"
+          checked={Boolean(enabled)}
+          onChange={(e) => onChange(e.target.checked)}
+        />
+        <span className="cp-ajustes-toggle-track" aria-hidden="true" />
+        <span className="cp-ajustes-toggle-label">Vibracion activa</span>
+      </label>
+    );
+
+    const renderIntensityChips = (valorActivo, onSelect, kind) => (
+      <div className="cp-ajustes-vibration-grid" role="listbox" aria-label="Intensidad de vibracion">
+        {VIBRATION_INTENSITY_OPTIONS.map((option) => {
+          const activo = valorActivo === option.id;
+          return (
+            <button
+              key={option.id}
+              type="button"
+              role="option"
+              aria-selected={activo}
+              className={`cp-ajustes-vibration-chip ${activo ? "active" : ""}`}
+              onClick={() => {
+                onSelect(option.id);
+                triggerAppVibration(kind, { intensity: option.id, enabled: true });
+              }}
+            >
+              <span className="cp-ajustes-vibration-chip-bars" aria-hidden="true">
+                {Array.from({ length: 3 }).map((_, index) => (
+                  <span
+                    key={option.id + index}
+                    className="cp-ajustes-vibration-bar"
+                    style={{ height: `${6 + option.scale * 4 + index * 2}px` }}
+                  />
+                ))}
+              </span>
+              <span className="cp-ajustes-vibration-chip-label">{option.label}</span>
+            </button>
+          );
+        })}
+      </div>
+    );
+
+    const renderRhythmChips = (valorActivo, onSelect, kind, intensityId) => (
+      <div className="cp-ajustes-vibration-grid cp-ajustes-vibration-grid-rhythm" role="listbox" aria-label="Ritmo de vibracion">
+        {VIBRATION_RHYTHM_OPTIONS.map((option) => {
+          const activo = valorActivo === option.id;
+          return (
+            <button
+              key={option.id}
+              type="button"
+              role="option"
+              aria-selected={activo}
+              className={`cp-ajustes-vibration-chip ${activo ? "active" : ""}`}
+              onClick={() => {
+                onSelect(option.id);
+                triggerAppVibration(kind, { rhythm: option.id, intensity: intensityId, enabled: true });
+              }}
+            >
+              <VibrationRhythmGlyph pattern={option.pattern} />
+              <span className="cp-ajustes-vibration-chip-label">{option.label}</span>
             </button>
           );
         })}
@@ -6781,7 +6881,33 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
                 NOTIFICATION_SOUNDS,
                 audioSettings.msgSound,
                 (id) => saveAudioSetting("msgSound", id),
+                { kind: "message", volume: audioSettings.msgVolume, vibrateKind: "message" },
               )}
+              <div className="cp-ajustes-subsection">
+                <span className="cp-ajustes-subsection-label">Vibracion de mensajes</span>
+                {renderVibrationToggle(
+                  vibrationSettings.msgEnabled,
+                  (value) => saveVibrationSetting("msgEnabled", value),
+                  "ajustes-msg-vibration-enabled",
+                )}
+                {vibrationSettings.msgEnabled ? (
+                  <>
+                    <span className="cp-ajustes-mini-label">Intensidad</span>
+                    {renderIntensityChips(
+                      vibrationSettings.msgIntensity,
+                      (id) => saveVibrationSetting("msgIntensity", id),
+                      "message",
+                    )}
+                    <span className="cp-ajustes-mini-label">Ritmo</span>
+                    {renderRhythmChips(
+                      vibrationSettings.msgRhythm,
+                      (id) => saveVibrationSetting("msgRhythm", id),
+                      "message",
+                      vibrationSettings.msgIntensity,
+                    )}
+                  </>
+                ) : null}
+              </div>
               {renderSlider(
                 audioSettings.msgVolume,
                 (v) => saveAudioSetting("msgVolume", v),
@@ -6808,6 +6934,7 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
                   CALL_SOUND_OPTIONS,
                   audioSettings.callIncomingSound,
                   (id) => saveAudioSetting("callIncomingSound", id),
+                  { kind: "call", volume: audioSettings.callVolume },
                 )}
               </div>
 
@@ -6817,7 +6944,34 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
                   CALL_SOUND_OPTIONS,
                   audioSettings.callOutgoingSound,
                   (id) => saveAudioSetting("callOutgoingSound", id),
+                  { kind: "call", volume: audioSettings.callVolume },
                 )}
+              </div>
+
+              <div className="cp-ajustes-subsection">
+                <span className="cp-ajustes-subsection-label">Vibracion de llamadas</span>
+                {renderVibrationToggle(
+                  vibrationSettings.callEnabled,
+                  (value) => saveVibrationSetting("callEnabled", value),
+                  "ajustes-call-vibration-enabled",
+                )}
+                {vibrationSettings.callEnabled ? (
+                  <>
+                    <span className="cp-ajustes-mini-label">Intensidad</span>
+                    {renderIntensityChips(
+                      vibrationSettings.callIntensity,
+                      (id) => saveVibrationSetting("callIntensity", id),
+                      "call",
+                    )}
+                    <span className="cp-ajustes-mini-label">Ritmo</span>
+                    {renderRhythmChips(
+                      vibrationSettings.callRhythm,
+                      (id) => saveVibrationSetting("callRhythm", id),
+                      "call",
+                      vibrationSettings.callIntensity,
+                    )}
+                  </>
+                ) : null}
               </div>
 
               {renderSlider(

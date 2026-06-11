@@ -143,9 +143,10 @@ function dispatchTransportAlert({
   recordId = "",
   excludeUserId = "",
   extraUserIds = [],
+  transportAreaId = "",
 }) {
   try {
-    const recipients = getTransportNotificationRecipients({ excludeUserId });
+    const recipients = getTransportNotificationRecipients({ excludeUserId, transportAreaId, type });
     const extras = (Array.isArray(extraUserIds) ? extraUserIds : [])
       .map((id) => String(id || "").trim())
       .filter(Boolean)
@@ -548,6 +549,7 @@ warehouseRouter.post("/transport/records", requireAuth, (req, res) => {
       alertMode: "sound-vibration",
       recordId: createdRecord.id,
       excludeUserId: req.auth?.userId,
+      transportAreaId: createdRecord.areaId || "",
     });
   }
 
@@ -609,6 +611,7 @@ warehouseRouter.patch("/transport/records/:recordId", requireAuth, (req, res) =>
       alertMode: "vibration-only",
       recordId: updatedRecord.id,
       excludeUserId: req.auth?.userId,
+      transportAreaId: updatedRecord.areaId || "",
     });
   }
 
@@ -656,6 +659,7 @@ warehouseRouter.delete("/transport/records/:recordId", requireAuth, (req, res) =
       alertMode: "sound-vibration",
       recordId: result.record.id,
       excludeUserId: req.auth?.userId,
+      transportAreaId: result.record.areaId || "",
     });
   }
 
@@ -704,6 +708,7 @@ warehouseRouter.post("/transport/records/:recordId/assign", requireAuth, (req, r
       recordId: result.record.id,
       excludeUserId: req.auth?.userId,
       extraUserIds: result.driver?.id ? [result.driver.id] : [],
+      transportAreaId: result.record.areaId || "",
     });
   }
 
@@ -756,6 +761,7 @@ warehouseRouter.post("/transport/records/:recordId/postpone", requireAuth, (req,
       alertMode: "vibration-only",
       recordId: result.record.id,
       excludeUserId: req.auth?.userId,
+      transportAreaId: result.record.areaId || "",
     });
   }
 
@@ -803,6 +809,7 @@ warehouseRouter.post("/transport/records/:recordId/reactivate", requireAuth, (re
       alertMode: "vibration-only",
       recordId: result.record.id,
       excludeUserId: req.auth?.userId,
+      transportAreaId: result.record.areaId || "",
     });
   }
 
@@ -861,6 +868,7 @@ warehouseRouter.patch("/transport/records/:recordId/status", requireAuth, (req, 
       alertMode: "sound-vibration",
       recordId: result.record.id,
       excludeUserId: req.auth?.userId,
+      transportAreaId: result.record.areaId || "",
     });
   }
 
@@ -1011,6 +1019,7 @@ warehouseRouter.post("/documentacion/records", requireAuth, (req, res) => {
       targetPage: "documentacion",
       recordId: createdDocRecord.id,
       excludeUserId: req.auth?.userId,
+      transportAreaId: "documentacion",
     });
   }
 
@@ -1051,6 +1060,7 @@ warehouseRouter.patch("/documentacion/records/:recordId", requireAuth, (req, res
       targetPage: "documentacion",
       recordId: updatedDocRecord.id,
       excludeUserId: req.auth?.userId,
+      transportAreaId: "documentacion",
     });
   }
 
@@ -1096,6 +1106,7 @@ warehouseRouter.post("/documentacion/records/:recordId/assign", requireAuth, (re
       recordId: result.record.id,
       excludeUserId: req.auth?.userId,
       extraUserIds: result.driver?.id ? [result.driver.id] : [],
+      transportAreaId: "documentacion",
     });
   }
 
@@ -1149,6 +1160,7 @@ warehouseRouter.patch("/documentacion/records/:recordId/status", requireAuth, (r
       targetPage: "documentacion",
       recordId: result.record.id,
       excludeUserId: req.auth?.userId,
+      transportAreaId: "documentacion",
     });
   }
 

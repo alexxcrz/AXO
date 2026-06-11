@@ -16,6 +16,7 @@ export function Modal({
   backdropClassName = "",
   footerActions = null,
   confirmDisabled = false,
+  disableBackdropClose = false,
 }) {
   const [modalLayer, setModalLayer] = useState(0);
 
@@ -69,7 +70,12 @@ export function Modal({
   const backdropZIndex = 20000 + (modalLayer * 10);
 
   return (
-    <div className={`sicfla-modal-backdrop ${backdropClassName}`.trim()} style={{ zIndex: backdropZIndex }} role="presentation" onClick={onClose}>
+    <div
+      className={`sicfla-modal-backdrop ${backdropClassName}`.trim()}
+      style={{ zIndex: backdropZIndex }}
+      role="presentation"
+      onClick={disableBackdropClose ? undefined : onClose}
+    >
       <section
         className={`sicfla-modal ${className}`.trim()}
         role="dialog"
@@ -86,7 +92,13 @@ export function Modal({
               {cancelLabel}
             </button>
           )}
-          <button type="button" className="sicfla-button" onClick={onConfirm || onClose} disabled={confirmDisabled}>
+          <button
+            type="button"
+            className="sicfla-button"
+            onClick={onConfirm || onClose}
+            disabled={confirmDisabled}
+            style={{ minHeight: "44px", touchAction: "manipulation" }}
+          >
             {confirmLabel}
           </button>
         </footer>

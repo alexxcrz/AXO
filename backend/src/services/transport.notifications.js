@@ -16,6 +16,14 @@ const TRANSPORT_NOTIFY_ACTIONS = [
   "viewTransportConsolidated", "manageTransportConsolidated",
 ];
 
+const TRANSPORT_AREA_NOTIFY_ACTIONS = {
+  retail: ["viewTransportRetail", "manageTransportRetail"],
+  pedidos: ["viewTransportPedidos", "manageTransportPedidos"],
+  inventario: ["viewTransportInventario", "manageTransportInventario"],
+  foraneas: ["viewTransportLogistics", "manageTransportLogistics", "viewTransportPedidos", "manageTransportPedidos"],
+  documentacion: ["viewTransportDocumentacion", "manageTransportDocumentacion"],
+};
+
 function makeNotificationId(prefix = "tn") {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
@@ -33,6 +41,13 @@ export function resolveTransportRecipientUserIds(users, permissions, canDo, opti
   const restrict = Array.isArray(options?.restrictToUserIds) && options.restrictToUserIds.length
     ? new Set(options.restrictToUserIds.map((id) => String(id || "").trim()).filter(Boolean))
     : null;
+  const transportAreaId = String(options?.transportAreaId || options?.areaId || "").trim().toLowerCase();
+  const notificationType = String(options?.type || "").trim().toLowerCase();
+  let areaActions = transportAreaId ? TRANSPORT_AREA_NOTIFY_ACTIONS[transportAreaId] : null;
+  if (!areaActions?.length && notificationType.startsWith("documentacion")) {
+    areaActions = TRANSPORT_AREA_NOTIFY_ACTIONS.documentacion;
+  }
+  const actionsToCheck = areaActions?.length ? areaActions : TRANSPORT_NOTIFY_ACTIONS;
   const usersList = Array.isArray(users) ? users : [];
   const recipients = [];
   for (const user of usersList) {
@@ -41,7 +56,7 @@ export function resolveTransportRecipientUserIds(users, permissions, canDo, opti
     if (!id) continue;
     if (excludeId && id === excludeId) continue;
     if (restrict && !restrict.has(id)) continue;
-    const isRecipient = TRANSPORT_NOTIFY_ACTIONS.some((actionId) => {
+    const isRecipient = actionsToCheck.some((actionId) => {
       try { return canDo(user, actionId, permissions); }
       catch { return false; }
     });
@@ -155,4 +170,4 @@ export function getTransportNotificationsForUser(list, userId, { limit = 100 } =
   return visible.slice(0, limit);
 }
 
-export { TRANSPORT_NOTIFY_ACTIONS };
+export { TRANSPORT_NOTIFY_ACTIONS, TRANSPORT_AREA_NOTIFY_ACTIONS };

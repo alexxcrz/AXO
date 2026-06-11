@@ -15,7 +15,7 @@ export const EXTRA_SYSTEM_BOARD_TEMPLATES = [
       showDates: true,
       operationalContextType: "cleaningSite",
       operationalContextLabel: "Sede de limpieza",
-      operationalContextOptions: ["C1", "C2", "C3", "P"],
+      operationalContextOptions: ["C1", "C2", "C3"],
       operationalContextValue: "C1",
     },
     columns: [

@@ -53,6 +53,7 @@ export default function OperationalInspectionStartModal({
   incidentSiteOptions = [],
   checklistTemplate,
   existingInspectionRecord,
+  saveConfirmLabel = "",
 }) {
   const resolvedTemplate = useMemo(
     () => normalizeOperationalInspectionTemplate(checklistTemplate || OPERATIONAL_INSPECTION_TEMPLATE),
@@ -86,11 +87,13 @@ export default function OperationalInspectionStartModal({
 
   const saveActionLabel = useMemo(() => {
     if (confirmBusy) return "Guardando...";
+    if (String(saveConfirmLabel || "").trim()) return String(saveConfirmLabel).trim();
     if (!isMultiSiteMode) return "Guardar y finalizar";
     const alreadyCompleted = new Set(completedSites);
     alreadyCompleted.add(currentSiteKey);
-    return alreadyCompleted.size >= normalizedIncidentSiteOptions.length ? "Guardar y finalizar" : "Guardar";
-  }, [completedSites, confirmBusy, currentSiteKey, isMultiSiteMode, normalizedIncidentSiteOptions.length]);
+    if (alreadyCompleted.size >= normalizedIncidentSiteOptions.length) return "Guardar y finalizar";
+    return `Guardar ${currentSiteKey}`;
+  }, [completedSites, confirmBusy, currentSiteKey, isMultiSiteMode, normalizedIncidentSiteOptions.length, saveConfirmLabel]);
 
   function hydrateDraft(rawDraft = null, site = "") {
     const base = buildInitialDraft(resolvedTemplate, currentUser, defaultArea, defaultProcess, requireIncidentSiteSelection);
@@ -267,42 +270,49 @@ export default function OperationalInspectionStartModal({
       currentUser,
     });
 
-    if (isMultiSiteMode) {
-      const nextCompletedSites = Array.from(new Set([...completedSites, currentSiteKey]));
-      const shouldFinalize = nextCompletedSites.length >= normalizedIncidentSiteOptions.length;
+    setFormError("");
+
+    try {
+      if (isMultiSiteMode) {
+        const nextCompletedSites = Array.from(new Set([...completedSites, currentSiteKey]));
+        const shouldFinalize = nextCompletedSites.length >= normalizedIncidentSiteOptions.length;
+        const nextBySiteDrafts = {
+          ...siteDrafts,
+          [currentSiteKey]: currentDraft,
+        };
+        await onConfirm?.({
+          draft: currentDraft,
+          incidencias,
+          shouldFinalize,
+          recordPayload: {
+            activityLabel,
+            template: resolvedTemplate,
+            multiSite: true,
+            siteOptions: normalizedIncidentSiteOptions,
+            bySiteDrafts: nextBySiteDrafts,
+            completedSites: nextCompletedSites,
+            lastSite: currentSiteKey,
+            partialUpdatedAt: new Date().toISOString(),
+            draft: currentDraft,
+          },
+        });
+        return;
+      }
+
       await onConfirm?.({
         draft: currentDraft,
         incidencias,
-        shouldFinalize,
+        shouldFinalize: true,
         recordPayload: {
           activityLabel,
           template: resolvedTemplate,
-          multiSite: true,
-          siteOptions: normalizedIncidentSiteOptions,
-          bySiteDrafts: {
-            ...siteDrafts,
-            [currentSiteKey]: currentDraft,
-          },
-          completedSites: nextCompletedSites,
-          lastSite: currentSiteKey,
-          partialUpdatedAt: new Date().toISOString(),
+          multiSite: false,
           draft: currentDraft,
         },
       });
-      return;
+    } catch (error) {
+      setFormError(error?.message || "No se pudo guardar el checklist.");
     }
-
-    await onConfirm?.({
-      draft: currentDraft,
-      incidencias,
-      shouldFinalize: true,
-      recordPayload: {
-        activityLabel,
-        template: resolvedTemplate,
-        multiSite: false,
-        draft: currentDraft,
-      },
-    });
   }
 
   return (
@@ -315,6 +325,7 @@ export default function OperationalInspectionStartModal({
       confirmLabel={saveActionLabel}
       cancelLabel="Cancelar"
       confirmDisabled={confirmBusy}
+      disableBackdropClose
       className="operational-inspection-modal"
     >
       <div style={{ display: "grid", gap: "0.85rem" }}>

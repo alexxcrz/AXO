@@ -634,7 +634,6 @@ export const CLEANING_SITE_OPTIONS = [
   { value: "C1", label: "C1" },
   { value: "C2", label: "C2" },
   { value: "C3", label: "C3" },
-  { value: "P", label: "P" },
 ];
 
 export const DEFAULT_CLEANING_SITE = "C3";
@@ -643,7 +642,7 @@ export const BOARD_OPERATIONAL_CONTEXT_CLEANING_SITE = "cleaningSite";
 export const BOARD_OPERATIONAL_CONTEXT_CUSTOM = "custom";
 export const BOARD_OPERATIONAL_CONTEXT_OPTIONS = [
   { value: BOARD_OPERATIONAL_CONTEXT_NONE, label: "Sin contexto operativo" },
-  { value: BOARD_OPERATIONAL_CONTEXT_CLEANING_SITE, label: "Sede de limpieza C1/C2/C3/P" },
+  { value: BOARD_OPERATIONAL_CONTEXT_CLEANING_SITE, label: "Sede de limpieza C1/C2/C3" },
   { value: BOARD_OPERATIONAL_CONTEXT_CUSTOM, label: "Estación, nave u opciones manuales" },
 ];
 

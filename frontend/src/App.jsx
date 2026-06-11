@@ -465,6 +465,18 @@ import {
 
   canDoAction,
 
+  canUserAccessInventoryDomain,
+
+  getInventoryDomainNotificationLabel,
+
+  canUserReceiveBibliotecaNotification,
+
+  canUserReceiveIncidenciaNotification,
+
+  canUserReceiveOperationalDashboardNotification,
+
+  canUserReceiveTransportAreaNotification,
+
   canUserAccessTemplate,
 
   canEditBoard,
@@ -1741,20 +1753,12 @@ function App() { // NOSONAR
       : null;
     const sessionPermissions = normalizePermissions(state?.permissions);
     const isLeadSession = normalizeRole(sessionUser?.role) === ROLE_LEAD;
-    const isTransportOperator = Boolean(
-      canDoAction(sessionUser, "viewTransportRetail", sessionPermissions)
-      || canDoAction(sessionUser, "manageTransportRetail", sessionPermissions)
-      || canDoAction(sessionUser, "viewTransportPedidos", sessionPermissions)
-      || canDoAction(sessionUser, "manageTransportPedidos", sessionPermissions)
-      || canDoAction(sessionUser, "viewTransportInventario", sessionPermissions)
-      || canDoAction(sessionUser, "manageTransportInventario", sessionPermissions)
-      || canDoAction(sessionUser, "viewTransportDocumentacion", sessionPermissions)
-      || canDoAction(sessionUser, "manageTransportDocumentacion", sessionPermissions)
-      || canDoAction(sessionUser, "viewTransportAssignments", sessionPermissions)
-      || canDoAction(sessionUser, "manageTransportAssignments", sessionPermissions)
+    const canReceiveTransportAreaNotification = (options = {}) => (
+      canUserReceiveTransportAreaNotification(sessionUser, sessionPermissions, options)
     );
-    const canReceiveTransportBellNotifications = isTransportOperator || isLeadSession;
-    const shouldShowTransportDeviceNotification = isTransportOperator && !isLeadSession;
+    const shouldShowTransportDeviceNotification = (options = {}) => (
+      canReceiveTransportAreaNotification(options) && !isLeadSession
+    );
 
     const queueWarehouseRefresh = (data) => {
       if (ignoreResponse) return;
@@ -1763,9 +1767,11 @@ function App() { // NOSONAR
 
     const handleTransportRecordCreated = async (data) => {
       if (ignoreResponse) return;
+      const areaId = String(data?.record?.areaId || "").trim();
+      const transportNotifyOptions = { areaId, type: "transport_record_created" };
       // Mostrar notificación de nuevo envío
-      if (data?.record && canReceiveTransportBellNotifications) {
-        if (shouldShowTransportDeviceNotification) {
+      if (data?.record && canReceiveTransportAreaNotification(transportNotifyOptions)) {
+        if (shouldShowTransportDeviceNotification(transportNotifyOptions)) {
           showTransportNotificationForNewRecord(data.record, { playAlert: false });
         }
         pushNotificationToInbox({
@@ -1784,9 +1790,11 @@ function App() { // NOSONAR
 
     const handleTransportRouteAssigned = async (data) => {
       if (ignoreResponse) return;
+      const areaId = String(data?.record?.areaId || "").trim();
+      const transportNotifyOptions = { areaId, type: "transport_route_assigned" };
       // Mostrar notificación de asignación
-      if (data?.record && data?.driver && canReceiveTransportBellNotifications) {
-        if (shouldShowTransportDeviceNotification) {
+      if (data?.record && data?.driver && canReceiveTransportAreaNotification(transportNotifyOptions)) {
+        if (shouldShowTransportDeviceNotification(transportNotifyOptions)) {
           showTransportNotificationForAssignment(data.record, data.driver?.name || "Conductor", { playAlert: false });
         }
         pushNotificationToInbox({
@@ -1806,9 +1814,11 @@ function App() { // NOSONAR
 
     const handleTransportStatusUpdated = async (data) => {
       if (ignoreResponse) return;
+      const areaId = String(data?.record?.areaId || "").trim();
+      const transportNotifyOptions = { areaId, type: "transport_status_updated" };
       // Mostrar notificación de cambio de estado
-      if (data?.record && canReceiveTransportBellNotifications) {
-        if (shouldShowTransportDeviceNotification) {
+      if (data?.record && canReceiveTransportAreaNotification(transportNotifyOptions)) {
+        if (shouldShowTransportDeviceNotification(transportNotifyOptions)) {
           showTransportNotificationForStatusUpdate(data.record, data.record?.status, { alertMode: "vibration-only" });
         }
         pushNotificationToInbox({
@@ -1828,8 +1838,10 @@ function App() { // NOSONAR
 
     const handleTransportRecordPostponed = async (data) => {
       if (ignoreResponse) return;
-      if (data?.record && canReceiveTransportBellNotifications) {
-        if (shouldShowTransportDeviceNotification) {
+      const areaId = String(data?.record?.areaId || "").trim();
+      const transportNotifyOptions = { areaId, type: "transport_record_postponed" };
+      if (data?.record && canReceiveTransportAreaNotification(transportNotifyOptions)) {
+        if (shouldShowTransportDeviceNotification(transportNotifyOptions)) {
           showTransportNotification("🗓️ Envío pospuesto", {
             body: `${data.record.destination || "Destino"} reprogramado para ${formatDateTime(data.record.postponedUntil || data.record.updatedAt)}`,
             tag: `transport-postponed-${data.record.id || Date.now()}`,
@@ -1857,8 +1869,9 @@ function App() { // NOSONAR
 
     const handleDocumentacionRecordCreated = async (data) => {
       if (ignoreResponse) return;
-      if (data?.record && canReceiveTransportBellNotifications) {
-        if (shouldShowTransportDeviceNotification) {
+      const transportNotifyOptions = { areaId: "documentacion", type: "documentacion_record_created", targetTransportMainTab: "documentacion" };
+      if (data?.record && canReceiveTransportAreaNotification(transportNotifyOptions)) {
+        if (shouldShowTransportDeviceNotification(transportNotifyOptions)) {
           showTransportNotification("📄 Nuevo registro de documentación", {
             body: `${data.record.area || "Área"} · Dirigido a: ${data.record.dirigidoA || "-"}`,
             tag: `documentacion-record-${data.record.id || Date.now()}`,
@@ -1883,8 +1896,9 @@ function App() { // NOSONAR
 
     const handleDocumentacionRecordUpdated = async (data) => {
       if (ignoreResponse) return;
-      if (data?.record && canReceiveTransportBellNotifications) {
-        if (shouldShowTransportDeviceNotification) {
+      const transportNotifyOptions = { areaId: "documentacion", type: "documentacion_record_updated", targetTransportMainTab: "documentacion" };
+      if (data?.record && canReceiveTransportAreaNotification(transportNotifyOptions)) {
+        if (shouldShowTransportDeviceNotification(transportNotifyOptions)) {
           showTransportNotification("📝 Registro de documentación actualizado", {
             body: `${data.record.area || "Área"} · Dirigido a: ${data.record.dirigidoA || "-"}`,
             tag: `documentacion-record-updated-${data.record.id || Date.now()}`,
@@ -1909,8 +1923,9 @@ function App() { // NOSONAR
 
     const handleDocumentacionRouteAssigned = async (data) => {
       if (ignoreResponse) return;
-      if (data?.record && data?.driver && canReceiveTransportBellNotifications) {
-        if (shouldShowTransportDeviceNotification) {
+      const transportNotifyOptions = { areaId: "documentacion", type: "documentacion_route_assigned", targetTransportMainTab: "documentacion" };
+      if (data?.record && data?.driver && canReceiveTransportAreaNotification(transportNotifyOptions)) {
+        if (shouldShowTransportDeviceNotification(transportNotifyOptions)) {
           showTransportNotification("📄 Ruta de documentación asignada", {
             body: `${data.record.area || "Área"} fue asignada a ${data.driver?.name || "Conductor"}.`,
             tag: `documentacion-route-assigned-${data.record.id || Date.now()}`,
@@ -1935,8 +1950,9 @@ function App() { // NOSONAR
 
     const handleDocumentacionStatusUpdated = async (data) => {
       if (ignoreResponse) return;
-      if (data?.record && canReceiveTransportBellNotifications) {
-        if (shouldShowTransportDeviceNotification) {
+      const transportNotifyOptions = { areaId: "documentacion", type: "documentacion_status_updated", targetTransportMainTab: "documentacion" };
+      if (data?.record && canReceiveTransportAreaNotification(transportNotifyOptions)) {
+        if (shouldShowTransportDeviceNotification(transportNotifyOptions)) {
           showTransportNotification("🧾 Estado de documentación actualizado", {
             body: `${data.record.area || "Área"} ahora está en "${data.record.status || "Pendiente"}".`,
             tag: `documentacion-status-updated-${data.record.id || Date.now()}`,
@@ -1961,9 +1977,10 @@ function App() { // NOSONAR
 
     const handleTransportRoadAlert = async (data) => {
       if (ignoreResponse) return;
-      if (canReceiveTransportBellNotifications) {
+      const transportNotifyOptions = { type: "transport_road_alert" };
+      if (canReceiveTransportAreaNotification(transportNotifyOptions)) {
         const alertCount = Number(data?.newAlerts || 0);
-        if (shouldShowTransportDeviceNotification && alertCount > 0) {
+        if (shouldShowTransportDeviceNotification(transportNotifyOptions) && alertCount > 0) {
           showTransportNotification("Alerta vial en envio activo", {
             body: `${alertCount} posible afectacion detectada en ruta. Revisa Transporte.`,
             tag: `transport-road-alert-${data?.ts || Date.now()}`,
@@ -2019,21 +2036,13 @@ function App() { // NOSONAR
       : null;
     const sessionPermissions = normalizePermissions(state?.permissions);
     const isLeadSession = normalizeRole(sessionUser?.role) === ROLE_LEAD;
-    const isTransportOperator = Boolean(
-      canDoAction(sessionUser, "viewTransportRetail", sessionPermissions)
-      || canDoAction(sessionUser, "manageTransportRetail", sessionPermissions)
-      || canDoAction(sessionUser, "viewTransportPedidos", sessionPermissions)
-      || canDoAction(sessionUser, "manageTransportPedidos", sessionPermissions)
-      || canDoAction(sessionUser, "viewTransportInventario", sessionPermissions)
-      || canDoAction(sessionUser, "manageTransportInventario", sessionPermissions)
-      || canDoAction(sessionUser, "viewTransportDocumentacion", sessionPermissions)
-      || canDoAction(sessionUser, "manageTransportDocumentacion", sessionPermissions)
-      || canDoAction(sessionUser, "viewTransportAssignments", sessionPermissions)
-      || canDoAction(sessionUser, "manageTransportAssignments", sessionPermissions)
+    const canReceiveTransportAreaNotification = (options = {}) => (
+      canUserReceiveTransportAreaNotification(sessionUser, sessionPermissions, options)
     );
-    const canReceiveTransportBellNotifications = isTransportOperator || isLeadSession;
-    const shouldShowTransportDeviceNotification = isTransportOperator && !isLeadSession;
-    if (!canReceiveTransportBellNotifications) return;
+    const shouldShowTransportDeviceNotification = (options = {}) => (
+      canReceiveTransportAreaNotification(options) && !isLeadSession
+    );
+    if (!canReceiveTransportAreaNotification({ type: "transport_pending_reminder" })) return;
 
     const REMINDER_INTERVAL_MS = 15 * 60 * 1000;
     const toLocalDateKey = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
@@ -2086,7 +2095,11 @@ function App() { // NOSONAR
             return;
           }
 
-          if (shouldShowTransportDeviceNotification) {
+          const areaId = String(record?.areaId || "").trim();
+          const transportNotifyOptions = { areaId, type: "transport_pending_reminder" };
+          if (!canReceiveTransportAreaNotification(transportNotifyOptions)) return;
+
+          if (shouldShowTransportDeviceNotification(transportNotifyOptions)) {
             showTransportNotification("⏰ Ruta pendiente de tomar", {
               body: `${record.destination || "Destino"} sigue sin conductor asignado.`,
               tag: `transport-pending-reminder-${recordId}`,
@@ -3238,6 +3251,9 @@ function App() { // NOSONAR
 
     const notifications = [];
     const isOwnRecord = (responsibleId) => responsibleId === currentUser.id;
+    const canSeeOperationalAlerts = canUserReceiveOperationalDashboardNotification(currentUser, normalizedPermissions);
+    const canSeeBibliotecaAlerts = canUserReceiveBibliotecaNotification(currentUser, normalizedPermissions);
+    const canSeeIncidenciaAlerts = canUserReceiveIncidenciaNotification(currentUser, normalizedPermissions);
 
     if (isForcedPasswordChange) {
       notifications.push({
@@ -3267,51 +3283,53 @@ function App() { // NOSONAR
       return { targetPage: PAGE_DASHBOARD };
     };
 
-    dashboardRecords
-      .filter((record) => !String(record.id).startsWith("board-history-") && visibleResponsibleIds.has(record.responsibleId) && record.status === STATUS_PAUSED)
-      .slice(0, 6)
-      .forEach((record) => {
-        const rowLabel = record.source === "board"
-          ? (record.rowValues?.actividad || record.rowValues?.Actividad || record.label || record.boardName)
-          : record.label;
-        notifications.push({
-          id: `paused-${record.id}`,
-          title: isOwnRecord(record.responsibleId)
-            ? "Tienes una actividad pausada"
-            : `${record.responsibleName} pausó una actividad`,
-          message: `${rowLabel} sigue en pausa en ${record.boardName || record.sourceLabel}.`,
-          meta: record.boardName || record.sourceLabel,
-          tone: "danger",
-          timestamp: record.occurredAt || new Date(now).toISOString(),
-          ...buildOperationalRecordNotificationTargets(record),
+    if (canSeeOperationalAlerts) {
+      dashboardRecords
+        .filter((record) => !String(record.id).startsWith("board-history-") && visibleResponsibleIds.has(record.responsibleId) && record.status === STATUS_PAUSED)
+        .slice(0, 6)
+        .forEach((record) => {
+          const rowLabel = record.source === "board"
+            ? (record.rowValues?.actividad || record.rowValues?.Actividad || record.label || record.boardName)
+            : record.label;
+          notifications.push({
+            id: `paused-${record.id}`,
+            title: isOwnRecord(record.responsibleId)
+              ? "Tienes una actividad pausada"
+              : `${record.responsibleName} pausó una actividad`,
+            message: `${rowLabel} sigue en pausa en ${record.boardName || record.sourceLabel}.`,
+            meta: record.boardName || record.sourceLabel,
+            tone: "danger",
+            timestamp: record.occurredAt || new Date(now).toISOString(),
+            ...buildOperationalRecordNotificationTargets(record),
+          });
         });
-      });
 
-    dashboardRecords
-      .filter((record) => !String(record.id).startsWith("board-history-") && visibleResponsibleIds.has(record.responsibleId) && record.status !== STATUS_FINISHED && record.excessSeconds > 0)
-      .sort((left, right) => right.excessSeconds - left.excessSeconds)
-      .slice(0, 6)
-      .forEach((record) => {
-        notifications.push({
-          id: `overdue-${record.id}`,
-          title: isOwnRecord(record.responsibleId) ? "Tu actividad excedió el tiempo" : `${record.responsibleName} tiene retraso`,
-          message: `${record.label} acumula ${formatDurationClock(record.excessSeconds)} extra sobre el tiempo esperado.`,
-          meta: record.boardName,
-          tone: "danger",
-          timestamp: record.occurredAt || new Date(now).toISOString(),
-          ...buildOperationalRecordNotificationTargets(record),
+      dashboardRecords
+        .filter((record) => !String(record.id).startsWith("board-history-") && visibleResponsibleIds.has(record.responsibleId) && record.status !== STATUS_FINISHED && record.excessSeconds > 0)
+        .sort((left, right) => right.excessSeconds - left.excessSeconds)
+        .slice(0, 6)
+        .forEach((record) => {
+          notifications.push({
+            id: `overdue-${record.id}`,
+            title: isOwnRecord(record.responsibleId) ? "Tu actividad excedió el tiempo" : `${record.responsibleName} tiene retraso`,
+            message: `${record.label} acumula ${formatDurationClock(record.excessSeconds)} extra sobre el tiempo esperado.`,
+            meta: record.boardName,
+            tone: "danger",
+            timestamp: record.occurredAt || new Date(now).toISOString(),
+            ...buildOperationalRecordNotificationTargets(record),
+          });
         });
-      });
+    }
 
     actionableLowStockInventoryItems
-      .filter((item) => actionPermissions[getInventoryManageActionId(item.domain)])
+      .filter((item) => canUserAccessInventoryDomain(currentUser, normalizedPermissions, item.domain))
       .slice(0, 8)
       .forEach((item) => {
         notifications.push({
           id: `inventory-low-${item.id}`,
           title: "Stock bajo en inventario",
           message: `${item.name} quedó en ${item.stockUnits} ${item.unitLabel || "pzas"} y su mínimo es ${item.minStockUnits}.`,
-          meta: item.domain === INVENTORY_DOMAIN_ORDERS ? "Insumos para pedidos" : "Insumos de limpieza",
+          meta: getInventoryDomainNotificationLabel(item.domain),
           tone: "danger",
           timestamp: item.updatedAt || item.createdAt || new Date(now).toISOString(),
           targetPage: PAGE_INVENTORY,
@@ -3325,58 +3343,62 @@ function App() { // NOSONAR
       // Eventos de seguridad: solo en logs internos, no en notificaciones visibles
     }
 
-    (state.bibliotecaNotifications || [])
-      .slice(-20)
-      .forEach((notif) => {
-        const toneMap = { alta: "danger", media: "warning", baja: "success" };
-        notifications.push({
-          id: `biblioteca-notif-${notif.id}`,
-          title:
-            notif.priority === "alta"
-              ? "🔴 Documento urgente en Biblioteca"
-              : notif.priority === "media"
-                ? "🟡 Nuevo documento en Biblioteca"
-                : "📄 Documento disponible en Biblioteca",
-          message: `${notif.authorName} subió "${notif.originalName}" en la sección ${notif.area}.`,
-          meta: `Prioridad: ${notif.priority ? notif.priority.charAt(0).toUpperCase() + notif.priority.slice(1) : "Baja"}`,
-          tone: toneMap[notif.priority] || "success",
-          timestamp: notif.createdAt,
-          targetPage: PAGE_BIBLIOTECA,
-          targetBibliotecaFileId: notif.fileId || "",
-          isLocked: notif.priority === "alta",
-          keepUntilResolved: notif.priority === "alta",
+    if (canSeeBibliotecaAlerts) {
+      (state.bibliotecaNotifications || [])
+        .slice(-20)
+        .forEach((notif) => {
+          const toneMap = { alta: "danger", media: "warning", baja: "success" };
+          notifications.push({
+            id: `biblioteca-notif-${notif.id}`,
+            title:
+              notif.priority === "alta"
+                ? "🔴 Documento urgente en Biblioteca"
+                : notif.priority === "media"
+                  ? "🟡 Nuevo documento en Biblioteca"
+                  : "📄 Documento disponible en Biblioteca",
+            message: `${notif.authorName} subió "${notif.originalName}" en la sección ${notif.area}.`,
+            meta: `Prioridad: ${notif.priority ? notif.priority.charAt(0).toUpperCase() + notif.priority.slice(1) : "Baja"}`,
+            tone: toneMap[notif.priority] || "success",
+            timestamp: notif.createdAt,
+            targetPage: PAGE_BIBLIOTECA,
+            targetBibliotecaFileId: notif.fileId || "",
+            isLocked: notif.priority === "alta",
+            keepUntilResolved: notif.priority === "alta",
+          });
         });
-      });
+    }
 
     // Notificaciones de incidencias asignadas al usuario actual
-    (state.incidenciaNotifications || [])
-      .slice(-50)
-      .filter((notif) => notif.assignedToId === currentUser?.id)
-      .forEach((notif) => {
-        const prioTone = { critica: "danger", alta: "danger", media: "warning", baja: "success" };
-        const prioEmoji = { critica: "🔴", alta: "🟠", media: "🟡", baja: "🟢" };
-        notifications.push({
-          id: `incidencia-notif-${notif.id}`,
-          title: `${prioEmoji[notif.priority] || "⚠️"} Incidencia asignada a ti`,
-          message: `"${notif.incidenciaTitle}" fue asignada por ${notif.assignedByName}.`,
-          meta: `Prioridad: ${notif.priority ? notif.priority.charAt(0).toUpperCase() + notif.priority.slice(1) : "Media"}`,
-          tone: prioTone[notif.priority] || "warning",
-          timestamp: notif.createdAt,
-          targetPage: PAGE_INCIDENCIAS,
-          targetIncidenciaId: notif.incidenciaId || "",
-          isLocked: notif.priority === "critica",
+    if (canSeeIncidenciaAlerts) {
+      (state.incidenciaNotifications || [])
+        .slice(-50)
+        .filter((notif) => notif.assignedToId === currentUser?.id)
+        .forEach((notif) => {
+          const prioTone = { critica: "danger", alta: "danger", media: "warning", baja: "success" };
+          const prioEmoji = { critica: "🔴", alta: "🟠", media: "🟡", baja: "🟢" };
+          notifications.push({
+            id: `incidencia-notif-${notif.id}`,
+            title: `${prioEmoji[notif.priority] || "⚠️"} Incidencia asignada a ti`,
+            message: `"${notif.incidenciaTitle}" fue asignada por ${notif.assignedByName}.`,
+            meta: `Prioridad: ${notif.priority ? notif.priority.charAt(0).toUpperCase() + notif.priority.slice(1) : "Media"}`,
+            tone: prioTone[notif.priority] || "warning",
+            timestamp: notif.createdAt,
+            targetPage: PAGE_INCIDENCIAS,
+            targetIncidenciaId: notif.incidenciaId || "",
+            isLocked: notif.priority === "critica",
+          });
         });
-      });
+    }
 
     return notifications.toSorted((left, right) => getComparableDateMs(right.timestamp) - getComparableDateMs(left.timestamp));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     actionableLowStockInventoryItems,
-    actionPermissions,
     currentUser,
     dashboardRecords,
     isForcedPasswordChange,
     managedUserIds,
+    normalizedPermissions,
     now,
     securityEvents,
     state.bibliotecaNotifications,
@@ -5367,7 +5389,7 @@ function App() { // NOSONAR
     const normalizedSettings = withDefaultBoardSettings(board.settings);
     const effectiveContextType = overrideContextType || normalizedSettings.operationalContextType;
     const effectiveContextOptions = overrideContextType === "cleaningSite"
-      ? ["C1", "C2", "C3", "P"]
+      ? ["C1", "C2", "C3"]
       : normalizedSettings.operationalContextOptions;
     const typeChanged = overrideContextType && overrideContextType !== normalizedSettings.operationalContextType;
     try {

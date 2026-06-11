@@ -86,7 +86,7 @@ export const CLEANING_CHECKLIST_TEMPLATE_V2 = {
     { key: "shift", label: "Turno", required: false },
     { key: "process", label: "Proceso/Tablero", required: false },
   ],
-  siteOptions: ["C1", "C2", "C3", "P"],
+  siteOptions: ["C1", "C2", "C3"],
   sections: [
     {
       id: "control-fauna",

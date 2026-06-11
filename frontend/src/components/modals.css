@@ -131,6 +131,15 @@
   min-height: 2.2rem;
 }
 
+.sicfla-modal.operational-inspection-modal .sicfla-modal-actions .sicfla-button {
+  min-height: 44px;
+  touch-action: manipulation;
+}
+
+.sicfla-modal.operational-inspection-modal .sicfla-modal-body button[type="button"] {
+  touch-action: manipulation;
+}
+
 .sicfla-modal.profile-modal .sicfla-modal-actions .primary-button,
 .sicfla-modal.profile-modal .sicfla-modal-actions .icon-button,
 .sicfla-modal.profile-modal .sicfla-button {

@@ -8,7 +8,7 @@ import {
   normalizeOperationalInspectionTemplate,
 } from "../utils/operationalInspectionTemplate";
 
-const CHECKLIST_SITE_OPTIONS = ["C1", "C2", "C3", "P"];
+const CHECKLIST_SITE_OPTIONS = ["C1", "C2", "C3"];
 const CHECKLIST_TEMPLATE_STORAGE_KEY = "copmec:operational-checklist-template:v1";
 
 const CHECKLIST_AREA_OPTIONS = [

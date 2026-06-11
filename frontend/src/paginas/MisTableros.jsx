@@ -19,6 +19,7 @@ import {
   getBoardRowResponsibleIds,
   getOperationalElapsedSeconds,
   normalizeAreaOption,
+  normalizeCleaningSite,
   normalizeSystemOperationalSettings,
   parseBoardWeekKey,
   addDays,
@@ -29,6 +30,23 @@ import {
 import { INVENTORY_DOMAIN_MAINTENANCE, BOARD_SLA_MIN_DURATION_RATIO } from "../utils/constantes.js";
 
 const EDITABLE_INVENTORY_PROPERTIES = new Set(["lot", "expiry", "label"]);
+const CLEANING_BOARD_NAVES = ["C1", "C2", "C3"];
+
+function resolveCleaningBoardNaves(...extraSites) {
+  const normalizedExtras = extraSites
+    .flatMap((entry) => (Array.isArray(entry) ? entry : [entry]))
+    .map((site) => normalizeCleaningSite(site, ""))
+    .filter((site) => CLEANING_BOARD_NAVES.includes(site));
+  return [...new Set([...CLEANING_BOARD_NAVES, ...normalizedExtras])].sort();
+}
+
+function filterChecklistSiteOptions(siteOptions = []) {
+  return Array.from(new Set(
+    (Array.isArray(siteOptions) ? siteOptions : [])
+      .map((site) => String(site || "").trim().toUpperCase())
+      .filter((site) => CLEANING_BOARD_NAVES.includes(site)),
+  )).sort();
+}
 
 function parseInventoryLotHistory(rawValue) {
   if (!rawValue) return [];
@@ -678,11 +696,15 @@ export default function MisTableros({ contexto }) {
   const boardOperationalContextLabel = String(boardView?.settings?.operationalContextLabel || "").trim()
     || (boardOperationalContextType === "cleaningSite" ? "Sede de limpieza" : "Ubicación operativa");
   const boardOperationalContextOptions = boardOperationalContextType === "cleaningSite"
-    ? ["C1", "C2", "C3"]
+    ? [...CLEANING_BOARD_NAVES]
     : Array.isArray(boardView?.settings?.operationalContextOptions)
-      ? boardView.settings.operationalContextOptions.map((option) => String(option || "").trim()).filter(Boolean)
+      ? boardView.settings.operationalContextOptions
+        .map((option) => String(option || "").trim())
+        .filter(Boolean)
       : [];
-  const boardOperationalContextValue = String(boardView?.settings?.operationalContextValue || "").trim();
+  const boardOperationalContextValue = boardOperationalContextType === "cleaningSite"
+    ? normalizeCleaningSite(boardView?.settings?.operationalContextValue, CLEANING_BOARD_NAVES[0] || "C3")
+    : String(boardView?.settings?.operationalContextValue || "").trim();
   const boardNameText = String(boardView?.name || "").toLowerCase();
   const boardCategoryText = String(boardView?.category || "").toLowerCase();
   const boardDescriptionText = String(boardView?.description || "").toLowerCase();
@@ -698,15 +720,22 @@ export default function MisTableros({ contexto }) {
     const cleaningItems = (state.inventoryItems || []).filter(
       (item) => item.domain === "cleaning" && (item.activityConsumptions || []).length > 0
     );
-    return [...new Set(cleaningItems.map((item) => item.cleaningSite).filter(Boolean))].sort();
+    return [...new Set(cleaningItems
+      .map((item) => normalizeCleaningSite(item.cleaningSite, ""))
+      .filter((site) => CLEANING_BOARD_NAVES.includes(site)))].sort();
   })();
 
   const showCleaningNaveSelector = isCleaningRelatedBoard;
-  const BASE_CLEANING_NAVES = ["C1", "C2", "C3", "P"];
-  const effectiveCleaningNaves = cleaningNaveOptions.length > 0
-    ? [...new Set([...BASE_CLEANING_NAVES, ...cleaningNaveOptions])].sort()
-    : BASE_CLEANING_NAVES;
-  const cleaningNaveValue = (isHistoricalCustomBoardView && histViewNave) ? histViewNave : (boardOperationalContextValue || effectiveCleaningNaves[0] || "C3");
+  const effectiveCleaningNaves = resolveCleaningBoardNaves(cleaningNaveOptions);
+  const defaultCleaningNave = effectiveCleaningNaves[0] || "C3";
+  const cleaningNaveValue = (() => {
+    if (isHistoricalCustomBoardView && histViewNave) {
+      const normalizedHistorical = normalizeCleaningSite(histViewNave, defaultCleaningNave);
+      return effectiveCleaningNaves.includes(normalizedHistorical) ? normalizedHistorical : defaultCleaningNave;
+    }
+    const normalizedBoardNave = normalizeCleaningSite(boardOperationalContextValue, defaultCleaningNave);
+    return effectiveCleaningNaves.includes(normalizedBoardNave) ? normalizedBoardNave : defaultCleaningNave;
+  })();
   const effectiveWeekKey = String(
     (isHistoricalCustomBoardView
       ? selectedCustomBoardSnapshot?.weekKey
@@ -766,6 +795,22 @@ export default function MisTableros({ contexto }) {
     const day = String(targetDate.getDate()).padStart(2, "0");
     return `${year}-${month}-${day}`;
   })();
+
+  useEffect(() => {
+    if (isHistoricalCustomBoardView || !showCleaningNaveSelector || !selectedCustomBoard?.id) return undefined;
+    const rawBoardNave = String(selectedCustomBoard?.settings?.operationalContextValue || "").trim().toUpperCase();
+    if (rawBoardNave && !effectiveCleaningNaves.includes(rawBoardNave)) {
+      void updateBoardOperationalContext(selectedCustomBoard.id, cleaningNaveValue, "cleaningSite");
+    }
+  }, [
+    cleaningNaveValue,
+    effectiveCleaningNaves,
+    isHistoricalCustomBoardView,
+    selectedCustomBoard?.id,
+    selectedCustomBoard?.settings?.operationalContextValue,
+    showCleaningNaveSelector,
+    updateBoardOperationalContext,
+  ]);
 
   useEffect(() => {
     if (isHistoricalCustomBoardView || !showCleaningNaveSelector || !selectedCustomBoard?.id) return undefined;
@@ -1164,10 +1209,10 @@ export default function MisTableros({ contexto }) {
       await changeBoardRowStatus(selectedCustomBoard.id, rowRecord.id, STATUS_RUNNING, { skipStartConfirm: true });
     }
 
-    const templateSites = Array.isArray(checklistTemplate?.siteOptions)
-      ? checklistTemplate.siteOptions.map((site) => String(site || "").trim().toUpperCase()).filter(Boolean)
-      : [];
-    const resolvedIncidentSites = templateSites;
+    const templateSites = filterChecklistSiteOptions(checklistTemplate?.siteOptions);
+    const resolvedIncidentSites = templateSites.length
+      ? templateSites
+      : (showCleaningNaveSelector ? [...CLEANING_BOARD_NAVES] : []);
 
     setInspectionModalState({
       open: true,
@@ -1175,7 +1220,7 @@ export default function MisTableros({ contexto }) {
       activityLabel,
       checklistTemplate,
       existingInspectionRecord: getRowInspectionRecord(rowRecord),
-        requireIncidentSiteSelection: resolvedIncidentSites.length > 0,
+      requireIncidentSiteSelection: resolvedIncidentSites.length > 0,
       incidentSiteOptions: resolvedIncidentSites,
     });
   }
@@ -1219,6 +1264,7 @@ export default function MisTableros({ contexto }) {
       if (shouldFinalize) {
         await changeBoardRowStatus(selectedCustomBoard.id, inspectionModalState.rowId, STATUS_FINISHED);
       }
+
       setInspectionModalState({
         open: false,
         rowId: "",
@@ -1228,16 +1274,30 @@ export default function MisTableros({ contexto }) {
         requireIncidentSiteSelection: false,
         incidentSiteOptions: [],
       });
+
+      const savedSite = String(recordPayload?.lastSite || "").trim().toUpperCase();
       if (shouldFinalize) {
-        pushAppToast(`Checklist guardado. ${incidentPayloads.length} incidencia(s) generada(s) y la actividad quedó finalizada.`, "success");
+        pushAppToast(
+          `Checklist guardado. ${incidentPayloads.length} incidencia(s) generada(s) y la actividad quedó finalizada.`,
+          "success",
+        );
+      } else if (savedSite) {
+        pushAppToast(
+          `Nave ${savedSite} guardada. Al volver a abrir el checklist continuarás con la siguiente nave pendiente.`,
+          "success",
+        );
       } else {
-        pushAppToast(`Checklist guardado para la nave actual. ${incidentPayloads.length} incidencia(s) generada(s).`, "success");
+        pushAppToast(
+          `Checklist guardado. ${incidentPayloads.length} incidencia(s) generada(s).`,
+          "success",
+        );
       }
     } catch (error) {
       setBoardRuntimeFeedback({
         tone: "danger",
         message: error?.message || "No se pudo guardar el checklist de inspeccion.",
       });
+      throw error;
     } finally {
       setInspectionSubmitting(false);
     }
@@ -1717,11 +1777,20 @@ export default function MisTableros({ contexto }) {
                     const checklistRecordForRow = getRowInspectionRecord(row);
                     const checklistPendingCompletion = (() => {
                       if (!checklistTemplateForRow || row.status !== STATUS_RUNNING) return false;
+                      if (!checklistRecordForRow) return true;
+
+                      if (showCleaningNaveSelector) {
+                        if (String(checklistRecordForRow?.completedAt || "").trim()) return false;
+                        const completedSites = Array.isArray(checklistRecordForRow?.completedSites)
+                          ? checklistRecordForRow.completedSites.map((site) => String(site || "").trim().toUpperCase())
+                          : [];
+                        return completedSites.length < CLEANING_BOARD_NAVES.length;
+                      }
+
                       const matchedCatalogItem = resolveCatalogItemByActivityLabel(getRowActivityLabel(row));
-                      const matchedSites = normalizeCatalogSites(matchedCatalogItem?.cleaningSites);
-                      const totalSites = Array.isArray(checklistRecordForRow?.siteOptions) && checklistRecordForRow.siteOptions.length
-                        ? checklistRecordForRow.siteOptions.length
-                        : matchedSites.length;
+                      const matchedSites = filterChecklistSiteOptions(matchedCatalogItem?.cleaningSites);
+                      const recordSiteOptions = filterChecklistSiteOptions(checklistRecordForRow?.siteOptions);
+                      const totalSites = recordSiteOptions.length || matchedSites.length;
                       if (totalSites > 1) {
                         const completedCount = Array.isArray(checklistRecordForRow?.completedSites) ? checklistRecordForRow.completedSites.length : 0;
                         return completedCount < totalSites;

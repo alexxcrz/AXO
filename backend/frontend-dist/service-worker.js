@@ -12,6 +12,11 @@ const DEFAULT_CALL_SOUND = "/sounds/notification-call.wav";
 let notificationPrefs = {
   msgSoundUrl: DEFAULT_MSG_SOUND,
   callSoundUrl: DEFAULT_CALL_SOUND,
+  msgVibrationEnabled: true,
+  callVibrationEnabled: true,
+  msgVibratePattern: VIBRATE_MSG,
+  callVibratePattern: VIBRATE_CALL,
+  transportVibratePattern: VIBRATE_TRANSPORT,
 };
 
 const TRANSPORT_PUSH_TYPES = new Set([
@@ -35,8 +40,20 @@ function resolveSoundUrl(data, kind) {
   return notificationPrefs.msgSoundUrl || DEFAULT_MSG_SOUND;
 }
 
-function buildNotificationOptions({ title, body, tag, data, vibrate, soundUrl, actions, requireInteraction }) {
-  const absoluteSound = soundUrl ? new URL(soundUrl, self.location.origin).href : undefined;
+function resolveVibratePattern(kind, fallback) {
+  if (kind === "call") {
+    if (!notificationPrefs.callVibrationEnabled) return [];
+    return notificationPrefs.callVibratePattern || fallback;
+  }
+  if (kind === "transport") {
+    return notificationPrefs.transportVibratePattern || fallback;
+  }
+  if (!notificationPrefs.msgVibrationEnabled) return [];
+  return notificationPrefs.msgVibratePattern || fallback;
+}
+
+function buildNotificationOptions({ title, body, tag, data, vibrate, soundUrl, actions, requireInteraction, vibrateKind = "message" }) {
+  const pattern = Array.isArray(vibrate) && vibrate.length ? vibrate : resolveVibratePattern(vibrateKind, VIBRATE_MSG);
   return {
     body: body || "",
     icon: data?.icon || ICON,
@@ -44,12 +61,20 @@ function buildNotificationOptions({ title, body, tag, data, vibrate, soundUrl, a
     tag,
     renotify: true,
     requireInteraction: Boolean(requireInteraction),
-    vibrate: vibrate || VIBRATE_MSG,
-    silent: false,
-    sound: absoluteSound,
+    vibrate: pattern,
+    silent: true,
     actions: actions || [],
     data: data || {},
   };
+}
+
+async function broadcastAppSound(soundUrl) {
+  const absoluteSound = new URL(soundUrl || DEFAULT_MSG_SOUND, self.location.origin).href;
+  const clientList = await clients.matchAll({ type: "window", includeUncontrolled: true });
+  if (!clientList.length) return;
+  clientList.forEach((client) => {
+    client.postMessage({ type: "PLAY_APP_SOUND", soundUrl: absoluteSound, volume: 1 });
+  });
 }
 
 self.addEventListener("push", (event) => {
@@ -89,12 +114,13 @@ async function showTransportNotification(data) {
   const prev = await self.registration.getNotifications({ tag });
   prev.forEach((n) => n.close());
 
+  const soundUrl = data.soundUrl || DEFAULT_MSG_SOUND;
   await self.registration.showNotification(data.title || "Transporte", buildNotificationOptions({
     title: data.title || "Transporte",
     body: data.body || data.message || "",
     tag,
-    vibrate: VIBRATE_TRANSPORT,
-    soundUrl: data.soundUrl || DEFAULT_MSG_SOUND,
+    vibrateKind: "transport",
+    soundUrl,
     data: {
       type: data.type,
       url: data.url || "/transport",
@@ -102,6 +128,7 @@ async function showTransportNotification(data) {
       notificationId: data.notificationId || "",
     },
   }));
+  await broadcastAppSound(soundUrl);
 }
 
 async function showCallNotification(data) {
@@ -109,13 +136,14 @@ async function showCallNotification(data) {
   const prev = await self.registration.getNotifications({ tag });
   prev.forEach((n) => n.close());
 
+  const soundUrl = resolveSoundUrl(data, "call");
   await self.registration.showNotification("Videollamada entrante", buildNotificationOptions({
     title: "Videollamada entrante",
     body: `${data.callerName || data.caller || "Alguien"} te está llamando`,
     tag,
     requireInteraction: true,
-    vibrate: VIBRATE_CALL,
-    soundUrl: resolveSoundUrl(data, "call"),
+    vibrateKind: "call",
+    soundUrl,
     actions: [
       { action: "accept", title: "Aceptar" },
       { action: "reject", title: "Rechazar" },
@@ -129,6 +157,7 @@ async function showCallNotification(data) {
       url: "/",
     },
   }));
+  await broadcastAppSound(soundUrl);
 }
 
 async function showMessageNotification(data) {
@@ -146,11 +175,12 @@ async function showMessageNotification(data) {
     { action: "reply", title: "Responder", type: "text", placeholder: "Escribe un mensaje…" },
   ];
 
+  const soundUrl = resolveSoundUrl(data, "message");
   await self.registration.showNotification(from, buildNotificationOptions({
     title: from,
     body,
     tag,
-    soundUrl: resolveSoundUrl(data, "message"),
+    soundUrl,
     actions,
     data: {
       type: "message",
@@ -159,6 +189,7 @@ async function showMessageNotification(data) {
       url: "/",
     },
   }));
+  await broadcastAppSound(soundUrl);
 }
 
 async function showGroupMessageNotification(data) {
@@ -170,11 +201,12 @@ async function showGroupMessageNotification(data) {
     ? (data.text.length > 120 ? `${data.text.slice(0, 117)}...` : data.text)
     : "Nuevo mensaje en el grupo";
 
+  const soundUrl = resolveSoundUrl(data, "message");
   await self.registration.showNotification(data.groupName || "Grupo", buildNotificationOptions({
     title: data.groupName || "Grupo",
     body: `${data.fromNickname ? `${data.fromNickname}: ` : ""}${body}`,
     tag,
-    soundUrl: resolveSoundUrl(data, "message"),
+    soundUrl,
     actions: [{ action: "open", title: "Ver grupo" }],
     data: {
       type: "group_message",
@@ -184,6 +216,7 @@ async function showGroupMessageNotification(data) {
       url: "/",
     },
   }));
+  await broadcastAppSound(soundUrl);
 }
 
 async function focusClientAndPost(message) {
@@ -253,6 +286,17 @@ self.addEventListener("message", (event) => {
     notificationPrefs = {
       msgSoundUrl: msg.msgSoundUrl || DEFAULT_MSG_SOUND,
       callSoundUrl: msg.callSoundUrl || DEFAULT_CALL_SOUND,
+      msgVibrationEnabled: msg.msgVibrationEnabled !== false,
+      callVibrationEnabled: msg.callVibrationEnabled !== false,
+      msgVibratePattern: Array.isArray(msg.msgVibratePattern) && msg.msgVibratePattern.length
+        ? msg.msgVibratePattern
+        : VIBRATE_MSG,
+      callVibratePattern: Array.isArray(msg.callVibratePattern) && msg.callVibratePattern.length
+        ? msg.callVibratePattern
+        : VIBRATE_CALL,
+      transportVibratePattern: Array.isArray(msg.transportVibratePattern) && msg.transportVibratePattern.length
+        ? msg.transportVibratePattern
+        : VIBRATE_TRANSPORT,
     };
     return;
   }

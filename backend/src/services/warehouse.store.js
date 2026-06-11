@@ -49,7 +49,7 @@ const DEFAULT_CLEANING_SITE = "C3";
 const BOARD_OPERATIONAL_CONTEXT_NONE = "none";
 const BOARD_OPERATIONAL_CONTEXT_CLEANING_SITE = "cleaningSite";
 const BOARD_OPERATIONAL_CONTEXT_CUSTOM = "custom";
-const BOARD_OPERATIONAL_CONTEXT_CLEANING_SITE_OPTIONS = ["C1", "C2", "C3", "P"];
+const BOARD_OPERATIONAL_CONTEXT_CLEANING_SITE_OPTIONS = ["C1", "C2", "C3"];
 const INVENTORY_SYSTEM_COLUMNS = Object.freeze([
   { id: "invcol-base-lote", domain: "base", label: "Lote", key: "lote", createdAt: "1970-01-01T00:00:00.000Z", isSystem: true },
   { id: "invcol-base-caducidad", domain: "base", label: "Caducidad", key: "caducidad", createdAt: "1970-01-01T00:00:00.000Z", isSystem: true },
@@ -550,7 +550,7 @@ function normalizeBoardOperationalContextValue(value, contextType = BOARD_OPERAT
   return contextOptions.includes(trimmedValue) ? trimmedValue : contextOptions[0] || "";
 }
 
-const SYSTEM_OPERATIONAL_NAVE_KEYS = ["C1", "C2", "C3", "P"];
+const SYSTEM_OPERATIONAL_NAVE_KEYS = ["C1", "C2", "C3"];
 const SYSTEM_OPERATIONAL_DEFAULT_PAUSE_REASONS = [
   { id: "material", label: "Falta de material", enabled: true, affectsTimer: false, authorizedMinutes: 10, dailyUsageLimit: 0 },
   { id: "operativa", label: "Detención operativa", enabled: true, affectsTimer: true, authorizedMinutes: 0, dailyUsageLimit: 0 },
@@ -1302,7 +1302,7 @@ function normalizeCleaningSite(value, fallback = DEFAULT_CLEANING_SITE) {
   if (key === "c1") return "C1";
   if (key === "c2") return "C2";
   if (["c3", "principal", "main", "default"].includes(key)) return "C3";
-  if (["p", "patio"].includes(key)) return "P";
+  if (["p", "patio", "ppatio", "p/patio", "patio/p"].includes(key)) return "C3";
   return fallback;
 }
 
@@ -3624,13 +3624,18 @@ export function sanitizeUserRecord(user) {
 }
 
 // ─── Transport notifications (persistencia server-side + Web Push) ──────────────
-export function getTransportNotificationRecipients({ excludeUserId = "", restrictToUserIds = null } = {}) {
+export function getTransportNotificationRecipients({
+  excludeUserId = "",
+  restrictToUserIds = null,
+  transportAreaId = "",
+  type = "",
+} = {}) {
   const state = getRawWarehouseState();
   return resolveTransportRecipientUserIds(
     state.users || [],
     state.permissions || {},
     canUserDoWarehouseAction,
-    { excludeUserId, restrictToUserIds },
+    { excludeUserId, restrictToUserIds, transportAreaId, type },
   );
 }
 
@@ -5223,7 +5228,7 @@ const SYSTEM_BOARD_DEFAULT_SETTINGS = {
   "actividades-limpieza": {
     operationalContextType: "cleaningSite",
     operationalContextLabel: "Sede de limpieza",
-    operationalContextOptions: ["C1", "C2", "C3", "P"],
+    operationalContextOptions: ["C1", "C2", "C3"],
     operationalContextValue: "C1",
   },
   "devoluciones-reacondicionado": {
@@ -7575,7 +7580,8 @@ export function patchWarehouseBoardRow(auth, boardId, rowId, patch = {}) {
   }
 
   const isWorkflowPatch = hasOwn(patch, "status") || hasOwn(patch, "lastPauseReason");
-  const allowed = isWorkflowPatch
+  const isInspectionRecordPatch = hasOwn(patch, "operationalInspectionRecord");
+  const allowed = isWorkflowPatch || isInspectionRecordPatch
     ? canOperateWarehouseBoardRow(currentUser, board, row, currentState.permissions)
     : canEditWarehouseBoardRow(currentUser, board, row, currentState.permissions);
   if (!allowed) {
@@ -7958,8 +7964,9 @@ function canPatchBoardHistoryRow(user, snapshot, row, permissions, patch = {}) {
 
   const boardLike = buildBoardHistoryBoardLike(snapshot);
   const isWorkflowPatch = hasOwn(patch, "status") || hasOwn(patch, "lastPauseReason");
-  if (isWorkflowPatch) {
-    if (row.status !== "Terminado" || hasOwn(patch, "status")) {
+  const isInspectionRecordPatch = hasOwn(patch, "operationalInspectionRecord");
+  if (isWorkflowPatch || isInspectionRecordPatch) {
+    if (row.status !== "Terminado" || hasOwn(patch, "status") || isInspectionRecordPatch) {
       return canOperateWarehouseBoardRow(user, boardLike, row, permissions);
     }
   }
