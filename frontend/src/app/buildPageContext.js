@@ -24,6 +24,7 @@ export function buildPaginasContexto(d) {
     canDoBoardAction: d.canDoBoardAction,
     canEditBoard: d.canEditBoard,
     canEditBoardRowRecord: d.canEditBoardRowRecord,
+    canDeleteBoardRowRecord: d.canDeleteBoardRowRecord,
     canOperateBoardRowRecord: d.canOperateBoardRowRecord,
     catalogMap: d.catalogMap,
     catalogWeekGroups: d.catalogWeekGroups,

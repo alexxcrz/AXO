@@ -371,6 +371,7 @@ export default function MisTableros({ contexto }) {
     customBoardActionsMenuRef,
     createBoardRow,
     selectedBoardActionPermissions,
+    actionPermissions,
     Plus,
     Menu,
     Modal,
@@ -384,6 +385,7 @@ export default function MisTableros({ contexto }) {
     selectedCustomBoardSections,
     renderBoardFieldLabel,
     canEditBoardRowRecord,
+    canDeleteBoardRowRecord,
     currentUser,
     normalizedPermissions,
     canOperateBoardRowRecord,
@@ -1243,6 +1245,11 @@ export default function MisTableros({ contexto }) {
 
   function updateRowResponsibleAssignments(rowId, nextResponsibleIds) {
     if (!selectedCustomBoard) return;
+    const targetRow = (selectedCustomBoard.rows || []).find((entry) => entry.id === rowId);
+    if (!targetRow || !canEditBoardRowRecord(currentUser, selectedCustomBoard, targetRow, normalizedPermissions)) {
+      setBoardRuntimeFeedback({ tone: "danger", message: "No tienes permiso para asignar responsables en esta fila." });
+      return;
+    }
 
     const normalizedResponsibleIds = Array.from(new Set((Array.isArray(nextResponsibleIds) ? nextResponsibleIds : [])
       .map((userId) => String(userId || "").trim())
@@ -1357,6 +1364,10 @@ export default function MisTableros({ contexto }) {
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) return;
+    if (!actionPermissions?.createBoard) {
+      if (typeof pushAppToast === "function") pushAppToast("No tienes permiso para importar tableros.", "danger");
+      return;
+    }
     const reader = new FileReader();
     reader.onload = async (evt) => {
       try {
@@ -1382,6 +1393,10 @@ export default function MisTableros({ contexto }) {
 
   async function saveCurrentBoardAsTemplate() {
     if (!selectedCustomBoard) return;
+    if (!actionPermissions?.saveTemplate) {
+      setBoardRuntimeFeedback({ tone: "danger", message: "No tienes permiso para guardar plantillas." });
+      return;
+    }
     const columns = Array.isArray(selectedCustomBoard.fields) ? selectedCustomBoard.fields : [];
     if (!columns.length) {
       setBoardRuntimeFeedback({ tone: "danger", message: "Este tablero no tiene componentes para guardar como plantilla." });
@@ -1548,7 +1563,7 @@ export default function MisTableros({ contexto }) {
                     aria-label="Nueva fila"
                     aria-busy={boardRowCreationPending}
                     onClick={() => createBoardRow(selectedCustomBoard.id)}
-                    disabled={isHistoricalCustomBoardView || boardRowCreationPending || (!canManageDashboardState && !selectedBoardActionPermissions.createBoardRow)}
+                    disabled={isHistoricalCustomBoardView || boardRowCreationPending || !selectedBoardActionPermissions.createBoardRow}
                   >
                     <Plus size={16} />
                   </button>
@@ -1575,7 +1590,7 @@ export default function MisTableros({ contexto }) {
                       style={{ position: "fixed", top: dropdownPos.top, left: dropdownPos.left, zIndex: 9999 }}
                       onPointerDown={(e) => e.stopPropagation()}
                     >
-                      <button type="button" className="custom-board-menu-item" onClick={() => { setCustomBoardActionsMenuOpen(false); void saveCurrentBoardAsTemplate(); }}>
+                      <button type="button" className="custom-board-menu-item" onClick={() => { setCustomBoardActionsMenuOpen(false); void saveCurrentBoardAsTemplate(); }} disabled={!actionPermissions?.saveTemplate}>
                         Guardar como plantilla
                       </button>
                       <button type="button" className="custom-board-menu-item" onClick={() => { setCustomBoardActionsMenuOpen(false); void setAsTarimaReviewBoard(); }} disabled={!canChangeSelectedBoardOperationalContext}>
@@ -1594,7 +1609,7 @@ export default function MisTableros({ contexto }) {
                       <button type="button" className="custom-board-menu-item" onClick={() => { setCustomBoardActionsMenuOpen(false); exportCurrentBoardAsJson(); }}>
                         Exportar estructura JSON
                       </button>
-                      <button type="button" className="custom-board-menu-item" disabled={isBoardImporting} onClick={() => { setCustomBoardActionsMenuOpen(false); boardImportInputRef.current?.click(); }}>
+                      <button type="button" className="custom-board-menu-item" disabled={isBoardImporting || !actionPermissions?.createBoard} onClick={() => { setCustomBoardActionsMenuOpen(false); boardImportInputRef.current?.click(); }}>
                         {isBoardImporting ? "Importando..." : "Importar tablero desde JSON"}
                       </button>
                       <input ref={boardImportInputRef} type="file" accept=".json" style={{ display: "none" }} onChange={handleBoardImportFile} />
@@ -1680,21 +1695,21 @@ export default function MisTableros({ contexto }) {
                 </thead>
                 <tbody>
                   {visibleRows.map((row) => {
-                    const isLeadPrincipal = Boolean(canManageDashboardState);
-                    const rowCaptureEnabled = !isHistoricalBoardReadOnly && (isLeadPrincipal || canEditBoardRowRecord(currentUser, selectedCustomBoard, row, normalizedPermissions));
-                    const rowWorkflowEnabled = !isHistoricalBoardReadOnly && (isLeadPrincipal || canOperateBoardRowRecord(currentUser, selectedCustomBoard, row, normalizedPermissions));
-                    const canDeleteBoardRows = Boolean(selectedBoardActionPermissions.deleteBoardRow) || isLeadPrincipal;
+                    const canOverrideRowOperations = Boolean(canManageDashboardState);
+                    const rowCaptureEnabled = !isHistoricalBoardReadOnly && canEditBoardRowRecord(currentUser, selectedCustomBoard, row, normalizedPermissions);
+                    const rowWorkflowEnabled = !isHistoricalBoardReadOnly && canOperateBoardRowRecord(currentUser, selectedCustomBoard, row, normalizedPermissions);
+                    const canDeleteBoardRows = canDeleteBoardRowRecord(currentUser, selectedCustomBoard, row, normalizedPermissions);
                     const rowDeleteEnabled = canDeleteBoardRows
                       && !isHistoricalCustomBoardView
-                      && !isHistoricalBoardReadOnly
-                      && (isLeadPrincipal || (row.status !== STATUS_FINISHED && canEditBoardRowRecord(currentUser, selectedCustomBoard, row, normalizedPermissions)));
+                      && !isHistoricalBoardReadOnly;
                     const isFinishedRow = row.status === STATUS_FINISHED;
                     const rowSlaReferenceNow = isFinishedRow && row.endTime ? new Date(row.endTime).getTime() : realtimeNow;
                     const rowSla = boardShowMetrics
                       ? evaluateBoardRowSla(boardView, row, catalogMap, rowSlaReferenceNow, pauseState)
                       : null;
                     const rowFieldEditable = rowCaptureEnabled;
-                    const rowAssigneeEditable = !isHistoricalBoardReadOnly;
+                    const rowAssigneeEditable = !isHistoricalBoardReadOnly
+                      && canEditBoardRowRecord(currentUser, selectedCustomBoard, row, normalizedPermissions);
                     const rowDisplayReadOnly = isHistoricalBoardReadOnly;
                     const canStartRow = row.status === STATUS_PENDING || row.status === STATUS_PAUSED;
                     const canPauseRow = row.status === STATUS_RUNNING;
@@ -1832,7 +1847,7 @@ export default function MisTableros({ contexto }) {
                             if (column.id === "time") {
                               const effectiveNow = row.status === STATUS_FINISHED && row.endTime ? new Date(row.endTime).getTime() : realtimeNow;
                               const computedSecs = getElapsedSeconds(row, effectiveNow, pauseState);
-                              if (isLeadPrincipal) {
+                              if (canOverrideRowOperations) {
                                 const editKey = `${row.id}-time`;
                                 const editingVal = leadTimeEdits[editKey];
                                 const displayVal = editingVal !== undefined ? editingVal : formatDurationClock(computedSecs);
@@ -1881,7 +1896,7 @@ export default function MisTableros({ contexto }) {
                               const totalSecs = Number.isFinite(overriddenTotalSecs) && overriddenTotalSecs >= 0
                                 ? Math.max(computedTotalSecs, Math.max(0, overriddenTotalSecs))
                                 : computedTotalSecs;
-                              if (isLeadPrincipal) {
+                              if (canOverrideRowOperations) {
                                 const editKey = `${row.id}-totalTime`;
                                 const editingVal = leadTimeEdits[editKey];
                                 const displayVal = editingVal !== undefined ? editingVal : formatDurationClock(totalSecs);
@@ -1969,7 +1984,7 @@ export default function MisTableros({ contexto }) {
                                     </button>
                                   ) : null}
                                   {canDeleteBoardRows ? (
-                                    <button type="button" className={`board-action-button delete icon-only ${rowDeleteEnabled ? "enabled" : "locked"}`.trim()} title={rowDeleteEnabled ? "Eliminar fila" : "Las filas terminadas no se pueden eliminar"} aria-label={rowDeleteEnabled ? "Eliminar fila" : "Las filas terminadas no se pueden eliminar"} onClick={() => {
+                                    <button type="button" className={`board-action-button delete icon-only ${rowDeleteEnabled ? "enabled" : "locked"}`.trim()} title={rowDeleteEnabled ? "Eliminar fila" : "No disponible en esta vista"} aria-label={rowDeleteEnabled ? "Eliminar fila" : "No disponible en esta vista"} onClick={() => {
                                       if (!rowDeleteEnabled) return;
                                       setDeleteBoardRowState({ open: true, boardId: selectedCustomBoard.id, rowId: row.id });
                                     }} disabled={!rowDeleteEnabled}>
@@ -2194,14 +2209,14 @@ export default function MisTableros({ contexto }) {
                             const startTimeMs = row.startTime ? new Date(row.startTime).getTime() : NaN;
                             const hasStartTimeMs = Number.isFinite(startTimeMs);
                             const isAutoManagedTimeField = isStartTimeField || isEndTimeField;
-                            const timeFieldEditable = rowFieldEditable && (!isAutoManagedTimeField || isLeadPrincipal);
+                            const timeFieldEditable = rowFieldEditable && (!isAutoManagedTimeField || canOverrideRowOperations);
 
                             // For Lead editing hora inicio/fin: use local edit buffer or the ISO-derived value.
                             const leadEditKey = `${row.id}-${field.id}`;
                             let displayTimeValue;
-                            if (isLeadPrincipal && isAutoManagedTimeField && leadEditKey in leadTimeEdits) {
+                            if (canOverrideRowOperations && isAutoManagedTimeField && leadEditKey in leadTimeEdits) {
                               displayTimeValue = leadTimeEdits[leadEditKey];
-                            } else if (!isLeadPrincipal && Object.prototype.hasOwnProperty.call(fieldEditDrafts, leadEditKey)) {
+                            } else if (!canOverrideRowOperations && Object.prototype.hasOwnProperty.call(fieldEditDrafts, leadEditKey)) {
                               displayTimeValue = fieldEditDrafts[leadEditKey];
                             } else if (isStartTimeField && hasStartTimeMs) {
                               displayTimeValue = formatTime(startTimeMs);
@@ -2218,7 +2233,7 @@ export default function MisTableros({ contexto }) {
                                   inputMode="numeric"
                                   value={displayTimeValue}
                                   onChange={(event) => {
-                                    if (isLeadPrincipal && isAutoManagedTimeField) {
+                                    if (canOverrideRowOperations && isAutoManagedTimeField) {
                                       setLeadTimeEdits((prev) => ({ ...prev, [leadEditKey]: event.target.value }));
                                     } else {
                                       setFieldEditDrafts((prev) => ({
@@ -2230,7 +2245,7 @@ export default function MisTableros({ contexto }) {
                                   onKeyDown={(event) => {
                                     if (event.key !== "Enter") return;
                                     event.preventDefault();
-                                    if (isLeadPrincipal && isAutoManagedTimeField) {
+                                    if (canOverrideRowOperations && isAutoManagedTimeField) {
                                       const hhmm = normalizeTimeInput24h(event.currentTarget.value, true);
                                       setLeadTimeEdits((prev) => {
                                         const next = { ...prev };
@@ -2280,7 +2295,7 @@ export default function MisTableros({ contexto }) {
                                   }}
                                   onBlur={() => {
                                     if (!timeFieldEditable) return;
-                                    if (isLeadPrincipal && isAutoManagedTimeField) {
+                                    if (canOverrideRowOperations && isAutoManagedTimeField) {
                                       setLeadTimeEdits((prev) => {
                                         const next = { ...prev };
                                         delete next[leadEditKey];

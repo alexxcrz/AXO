@@ -890,6 +890,9 @@ ACTION_DEFINITIONS.push(
   }).filter(Boolean)),
 );
 
+/** Sin auto-concesión: cada acción depende del permiso configurado (rol/usuario/área/tablero). */
+export const BOARD_OPERATIONAL_AUTO_GRANT_ACTION_IDS = new Set();
+
 export const BOARD_PERMISSION_ACTION_IDS = new Set([
   "createBoardRow",
   "deleteBoardRow",

@@ -477,6 +477,8 @@ import {
 
   canEditBoardRowRecord,
 
+  canDeleteBoardRowRecord,
+
   canOperateBoardRowRecord,
 
   buildSelectOptions,
@@ -2297,7 +2299,6 @@ function App() { // NOSONAR
     return leads[0]?.id || null;
   }, [state.users]);
   const isRootLead = Boolean(currentUser?.id && currentUser.id === rootLeadId);
-  const canManageDashboardState = normalizeRole(currentUser?.role) === ROLE_LEAD;
   const managedUserIds = useMemo(
     () => (currentUser ? getManagedUserIds(state.users, currentUser.id) : new Set()),
     [currentUser, state.users],
@@ -3142,6 +3143,11 @@ function App() { // NOSONAR
     [currentUser, normalizedPermissions],
   );
 
+  const canManageDashboardState = useMemo(
+    () => Boolean(baseActionPermissions.manageDashboardState),
+    [baseActionPermissions.manageDashboardState],
+  );
+
   const activeAreaScopePermission = useMemo(() => {
     if (!currentUser || selectedAreaSectionId === "all") return null;
     if (selectedAreaSectionId === "transporte") {
@@ -3548,7 +3554,7 @@ function App() { // NOSONAR
     }
 
     return canDoBoardActionForUser(currentUser, selectedCustomBoard, "boardWorkflow", normalizedPermissions)
-      || canDoBoardActionForUser(currentUser, selectedCustomBoard, "saveBoard", normalizedPermissions);
+      || canDoBoardActionForUser(currentUser, selectedCustomBoard, "editBoard", normalizedPermissions);
   }, [currentUser, normalizedPermissions, selectedCustomBoard]);
 
   const extraSystemBoardTemplates = useMemo(() => EXTRA_SYSTEM_BOARD_TEMPLATES, []);
@@ -6593,8 +6599,10 @@ function App() { // NOSONAR
 
   async function createBoardRow(boardId) {
     const board = (state.controlBoards || []).find((item) => item.id === boardId);
-    if (!canDoBoardAction(currentUser, board)) return;
-    if (!board || !currentUser) return;
+    if (!board || !currentUser || !canDoBoardActionForUser(currentUser, board, "createBoardRow", normalizedPermissions)) {
+      setBoardRuntimeFeedback({ tone: "danger", message: "No tienes permiso para crear filas en este tablero." });
+      return;
+    }
 
     setBoardRowCreationPending(true);
 
@@ -6614,9 +6622,9 @@ function App() { // NOSONAR
   function deleteBoardRow(boardId, rowId) {
     const board = (state.controlBoards || []).find((item) => item.id === boardId);
     const row = board?.rows?.find((item) => item.id === rowId);
-    const isLeadOverride = canManageDashboardState && board && row;
-    if (!board || !row || (!isLeadOverride && row.status === STATUS_FINISHED) || !canEditBoardRowRecord(currentUser, board, row, normalizedPermissions)) {
+    if (!board || !row || !canDeleteBoardRowRecord(currentUser, board, row, normalizedPermissions)) {
       setDeleteBoardRowState({ open: false, boardId: null, rowId: null });
+      setBoardRuntimeFeedback({ tone: "danger", message: "No tienes permiso para eliminar filas en este tablero." });
       return;
     }
 
@@ -6808,8 +6816,13 @@ function App() { // NOSONAR
 
   async function duplicateBoardRecord(board, includeRows = false) {
     if (!board || !currentUser) return;
-    if (!canDoBoardAction(currentUser, board)) return;
-    if (!actionPermissions.duplicateBoardWithRows && !actionPermissions.duplicateBoard) return;
+    const duplicateAction = includeRows ? "duplicateBoardWithRows" : "duplicateBoard";
+    const canDuplicate = canDoBoardActionForUser(currentUser, board, duplicateAction, normalizedPermissions)
+      || (!includeRows && canDoBoardActionForUser(currentUser, board, "duplicateBoardWithRows", normalizedPermissions));
+    if (!canDuplicate) {
+      setBoardRuntimeFeedback({ tone: "danger", message: "No tienes permiso para duplicar este tablero." });
+      return;
+    }
 
     try {
       const result = await requestJson(`/warehouse/boards/${board.id}/duplicate`, {
@@ -7098,7 +7111,10 @@ function App() { // NOSONAR
   }
 
   async function exportSelectedBoardToExcel() {
-    if (!selectedCustomBoard || !canDoBoardAction(currentUser, selectedCustomBoard)) return;
+    if (!selectedCustomBoard || !canDoBoardActionForUser(currentUser, selectedCustomBoard, "exportBoardExcel", normalizedPermissions)) {
+      setBoardRuntimeFeedback({ tone: "danger", message: "No tienes permiso para exportar este tablero a Excel." });
+      return;
+    }
 
     try {
       const ExcelJS = await getExcelJsModule();
@@ -7240,7 +7256,10 @@ function App() { // NOSONAR
   }
 
   async function previewSelectedBoardPdf() {
-    if (!selectedCustomBoard || !canDoBoardAction(currentUser, selectedCustomBoard)) return;
+    if (!selectedCustomBoard || !canDoBoardActionForUser(currentUser, selectedCustomBoard, "previewBoardPdf", normalizedPermissions)) {
+      setBoardRuntimeFeedback({ tone: "danger", message: "No tienes permiso para previsualizar este tablero en PDF." });
+      return;
+    }
 
     const previewWindow = globalThis.open("", "_blank");
 
@@ -7262,7 +7281,10 @@ function App() { // NOSONAR
   }
 
   async function exportSelectedBoardToPdf() {
-    if (!selectedCustomBoard || !canDoBoardAction(currentUser, selectedCustomBoard)) return;
+    if (!selectedCustomBoard || !canDoBoardActionForUser(currentUser, selectedCustomBoard, "exportBoardPdf", normalizedPermissions)) {
+      setBoardRuntimeFeedback({ tone: "danger", message: "No tienes permiso para exportar este tablero a PDF." });
+      return;
+    }
 
     try {
       const fileBaseName = normalizeKey(selectedCustomBoard.name).replaceAll(/\s+/g, "-") || "tablero-operativo";
@@ -7862,6 +7884,7 @@ function App() { // NOSONAR
     canDoBoardAction,
     canEditBoard,
     canEditBoardRowRecord,
+    canDeleteBoardRowRecord,
     canExportDashboardData,
     canManageDashboardControls,
     canManageDashboardState,

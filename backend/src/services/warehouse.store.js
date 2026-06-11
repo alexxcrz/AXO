@@ -246,6 +246,7 @@ const ACTION_PERMISSIONS = {
   deleteTemplate:          [ROLE_LEAD, ROLE_SR],
   createBoardFromTemplate: [ROLE_LEAD, ROLE_SR],
   createBoardRow:          [ROLE_LEAD, ROLE_SR, ROLE_SSR, ROLE_JR],
+  deleteBoardRow:          [ROLE_LEAD, ROLE_SR],
   editFinishedBoardRow:    [ROLE_LEAD],
   boardWorkflow:           [ROLE_LEAD, ROLE_SR, ROLE_SSR, ROLE_JR],
   duplicateBoard:          [ROLE_LEAD, ROLE_SR],
@@ -1607,6 +1608,10 @@ function buildBoardPermissions(basePermissions, board = null) {
   const visibilityUserIds = visibility.visibilityType === "all"
     ? []
     : Array.from(new Set([ownerId, ...visibility.accessUserIds].filter(Boolean)));
+  const myBoardActions = Object.fromEntries(WAREHOUSE_BOARD_MYBOARDS_PERMISSION_ACTION_IDS.map((actionId) => [
+    actionId,
+    normalizePermissionEntry(basePermissions?.actions?.[actionId], ACTION_PERMISSIONS[actionId] || []),
+  ]));
   return {
     isEnabled: false,
     visibility: {
@@ -1615,11 +1620,7 @@ function buildBoardPermissions(basePermissions, board = null) {
       departments: visibility.visibilityType === "department" ? visibility.sharedDepartments : [],
     },
     actions: {
-      createBoardRow: normalizePermissionEntry(basePermissions?.actions?.createBoardRow, ACTION_PERMISSIONS.createBoardRow),
-      boardWorkflow: normalizePermissionEntry(basePermissions?.actions?.boardWorkflow, ACTION_PERMISSIONS.boardWorkflow),
-      exportBoardExcel: normalizePermissionEntry(basePermissions?.actions?.exportBoardExcel, ACTION_PERMISSIONS.exportBoardExcel),
-      previewBoardPdf: normalizePermissionEntry(basePermissions?.actions?.previewBoardPdf, ACTION_PERMISSIONS.previewBoardPdf),
-      exportBoardPdf: normalizePermissionEntry(basePermissions?.actions?.exportBoardPdf, ACTION_PERMISSIONS.exportBoardPdf),
+      ...myBoardActions,
       duplicateBoard: normalizePermissionEntry(basePermissions?.actions?.duplicateBoard, ACTION_PERMISSIONS.duplicateBoard),
       duplicateBoardWithRows: normalizePermissionEntry(basePermissions?.actions?.duplicateBoardWithRows, ACTION_PERMISSIONS.duplicateBoardWithRows),
     },
@@ -1628,15 +1629,15 @@ function buildBoardPermissions(basePermissions, board = null) {
 
 function normalizeBoardPermissions(permissions, basePermissions, board = null) {
   const defaults = buildBoardPermissions(basePermissions, board);
+  const myBoardActions = Object.fromEntries(WAREHOUSE_BOARD_MYBOARDS_PERMISSION_ACTION_IDS.map((actionId) => [
+    actionId,
+    normalizePermissionEntry(permissions?.actions?.[actionId], defaults.actions[actionId]?.roles || ACTION_PERMISSIONS[actionId] || []),
+  ]));
   return {
     isEnabled: Boolean(permissions?.isEnabled),
     visibility: normalizePermissionEntry(permissions?.visibility, defaults.visibility.roles),
     actions: {
-      createBoardRow: normalizePermissionEntry(permissions?.actions?.createBoardRow, defaults.actions.createBoardRow.roles),
-      boardWorkflow: normalizePermissionEntry(permissions?.actions?.boardWorkflow, defaults.actions.boardWorkflow.roles),
-      exportBoardExcel: normalizePermissionEntry(permissions?.actions?.exportBoardExcel, defaults.actions.exportBoardExcel.roles),
-      previewBoardPdf: normalizePermissionEntry(permissions?.actions?.previewBoardPdf, defaults.actions.previewBoardPdf.roles),
-      exportBoardPdf: normalizePermissionEntry(permissions?.actions?.exportBoardPdf, defaults.actions.exportBoardPdf.roles),
+      ...myBoardActions,
       duplicateBoard: normalizePermissionEntry(permissions?.actions?.duplicateBoard, defaults.actions.duplicateBoard.roles),
       duplicateBoardWithRows: normalizePermissionEntry(permissions?.actions?.duplicateBoardWithRows, defaults.actions.duplicateBoardWithRows.roles),
     },
@@ -3902,7 +3903,9 @@ export function findWarehouseUserById(userId) {
   return getRawWarehouseState().users.find((user) => user.id === userId) || null;
 }
 
-const WAREHOUSE_BOARD_OPERATION_ACTION_IDS = new Set([
+const WAREHOUSE_BOARD_OPERATION_AUTO_GRANT_ACTION_IDS = new Set();
+
+const WAREHOUSE_BOARD_MYBOARDS_PERMISSION_ACTION_IDS = [
   "createBoardRow",
   "deleteBoardRow",
   "editFinishedBoardRow",
@@ -3910,7 +3913,7 @@ const WAREHOUSE_BOARD_OPERATION_ACTION_IDS = new Set([
   "exportBoardExcel",
   "previewBoardPdf",
   "exportBoardPdf",
-]);
+];
 
 function hasGrantedWarehouseBoardOperationalAccess(board, user) {
   if (!board || !user) return false;
@@ -4072,7 +4075,7 @@ export function canUserDoBoardAction(user, boardId, actionId) {
   const board = (currentState.controlBoards || []).find((item) => item.id === boardId);
   if (!board) return false;
   if (!canManageWarehouseBoard(user, board)) return false;
-  if (hasGrantedWarehouseBoardOperationalAccess(board, user) && WAREHOUSE_BOARD_OPERATION_ACTION_IDS.has(actionId)) {
+  if (hasGrantedWarehouseBoardOperationalAccess(board, user) && WAREHOUSE_BOARD_OPERATION_AUTO_GRANT_ACTION_IDS.has(actionId)) {
     return true;
   }
   const boardPermissions = board.permissions;
@@ -4081,6 +4084,17 @@ export function canUserDoBoardAction(user, boardId, actionId) {
     if (userMatchesPermissionEntry(user, actionEntry)) return true;
   }
   return canUserDoWarehouseAction(user, actionId, currentState.permissions);
+}
+
+export function canDeleteWarehouseBoardRow(user, board, row, permissions) {
+  if (!user || !board || !row) return false;
+  if (!canManageWarehouseBoard(user, board)) return false;
+  if (!canUserDoBoardAction(user, board.id, "deleteBoardRow")) return false;
+  if (row.status === "Terminado") {
+    return canUserDoBoardAction(user, board.id, "editFinishedBoardRow")
+      || canUserDoWarehouseAction(user, "editHistoryRecords", permissions);
+  }
+  return true;
 }
 
 function canManageUserRole(actorRole, targetRole) {
@@ -7445,11 +7459,8 @@ export function duplicateWarehouseBoard(auth, boardId, includeRows = false) {
   if (!canManageWarehouseBoard(currentUser, board)) {
     return { ok: false, reason: "forbidden" };
   }
-  if (includeRows) {
-    if (!canUserDoWarehouseAction(currentUser, "duplicateBoardWithRows", currentState.permissions)) {
-      return { ok: false, reason: "forbidden" };
-    }
-  } else if (!canUserDoWarehouseAction(currentUser, "duplicateBoard", currentState.permissions)) {
+  const duplicateAction = includeRows ? "duplicateBoardWithRows" : "duplicateBoard";
+  if (!canUserDoBoardAction(currentUser, boardId, duplicateAction)) {
     return { ok: false, reason: "forbidden" };
   }
 
@@ -7496,28 +7507,11 @@ export function duplicateWarehouseBoard(auth, boardId, includeRows = false) {
 export function canEditWarehouseBoardRow(user, board, row, permissions, actionId = "createBoardRow") {
   if (!user || !board || !row) return false;
   if (!canManageWarehouseBoard(user, board)) return false;
-  if (normalizeRole(user.role) === ROLE_LEAD) return true;
   if (row.status === "Terminado") {
-    if (canUserDoWarehouseAction(user, "editFinishedBoardRow", permissions)) return true;
-    if (hasGrantedWarehouseBoardOperationalAccess(board, user) && WAREHOUSE_BOARD_OPERATION_ACTION_IDS.has("editFinishedBoardRow")) {
-      return true;
-    }
-    const boardPermissions = board.permissions;
-    if (boardPermissions?.isEnabled) {
-      const finishedEntry = boardPermissions.actions?.editFinishedBoardRow;
-      if (userMatchesPermissionEntry(user, finishedEntry)) return true;
-    }
+    if (canUserDoBoardAction(user, board.id, "editFinishedBoardRow")) return true;
     return canUserDoWarehouseAction(user, "editHistoryRecords", permissions);
   }
-  if (hasGrantedWarehouseBoardOperationalAccess(board, user) && WAREHOUSE_BOARD_OPERATION_ACTION_IDS.has(actionId)) {
-    return true;
-  }
-  const boardPermissions = board.permissions;
-  if (boardPermissions?.isEnabled) {
-    const actionEntry = boardPermissions.actions?.[actionId];
-    if (userMatchesPermissionEntry(user, actionEntry)) return true;
-  }
-  return canUserDoWarehouseAction(user, actionId, permissions);
+  return canUserDoBoardAction(user, board.id, actionId);
 }
 
 export function canOperateWarehouseBoardRow(user, board, row, permissions) {
@@ -7909,8 +7903,7 @@ export function deleteWarehouseBoardRow(auth, boardId, rowId) {
     // Idempotent delete: if row was already removed, sync current state instead of failing.
     return { ok: true, state: replaceWarehouseState(currentState) };
   }
-  const isLeadUser = normalizeRole(currentUser.role) === ROLE_LEAD;
-  if ((!isLeadUser && row.status === "Terminado") || !canEditWarehouseBoardRow(currentUser, board, row, currentState.permissions)) {
+  if (!canDeleteWarehouseBoardRow(currentUser, board, row, currentState.permissions)) {
     return { ok: false, reason: "forbidden" };
   }
 
