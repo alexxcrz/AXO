@@ -785,7 +785,7 @@ export function BoardBuilderModal({
     getOrderedBoardColumns,
     getBoardSectionGroups,
     reorderBoardColumnOrderTokens,
-    _renderBoardFieldLabel,
+    renderBoardFieldLabel,
     sortBoardFieldsByColumnOrder,
     getAreaRoot,
     normalizeAreaOption,
@@ -1711,7 +1711,11 @@ export function BoardBuilderModal({
                           }}
                         >
                           <div style={{ display: "grid", gap: "0.3rem" }}>
-                            <span className="board-preview-field-label">{column.kind === "field" ? `${column.field.label}${column.field.required ? " *" : ""}` : column.label}</span>
+                            <span className="board-preview-field-label">
+                              {column.kind === "field"
+                                ? renderBoardFieldLabel(column.field.label, column.field.required)
+                                : column.label}
+                            </span>
                           </div>
                           <button
                             type="button"

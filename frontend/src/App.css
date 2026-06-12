@@ -4989,8 +4989,23 @@ body .primary-button:disabled {
 }
 
 .required-mark {
-  color: #d14343;
-  font-weight: 800;
+  color: #dc2626;
+  font-weight: 900;
+  font-size: 1.2em;
+  line-height: 1;
+  margin-left: 0.12em;
+  letter-spacing: 0;
+  text-shadow: 0 0 0.5px rgba(220, 38, 38, 0.35);
+}
+
+.board-runtime-table th .required-mark,
+.board-table-clean thead th .required-mark,
+.board-preview-field-label .required-mark,
+.board-builder-workbench .required-mark {
+  color: #dc2626 !important;
+  font-size: 1.35em;
+  font-weight: 900 !important;
+  text-shadow: 0 0 1px rgba(220, 38, 38, 0.45);
 }
 
 .required-legend {
@@ -4998,6 +5013,11 @@ body .primary-button:disabled {
   color: #74808f;
   font-size: 0.8rem;
   font-weight: 600;
+}
+
+.required-legend .required-mark {
+  font-size: 1.45em;
+  margin-right: 0.08em;
 }
 
 .builder-section-head,

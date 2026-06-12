@@ -26,6 +26,7 @@ import {
   resolveInventoryPropertySourceFieldId,
   normalizeInventoryDomain,
   evaluateBoardRowSla,
+  renderBoardFieldLabel as renderBoardFieldLabelUtil,
 } from "../utils/utilidades.jsx";
 import { INVENTORY_DOMAIN_MAINTENANCE, BOARD_SLA_MIN_DURATION_RATIO } from "../utils/constantes.js";
 
@@ -611,7 +612,7 @@ export default function MisTableros({ contexto }) {
   };
   const formatFieldLabel = typeof renderBoardFieldLabel === "function"
     ? renderBoardFieldLabel
-    : (label, required = false) => `${label}${required ? " *" : ""}`;
+    : renderBoardFieldLabelUtil;
   const boardView = selectedCustomBoardDisplay || selectedCustomBoard;
   const boardShowMetrics = boardView?.settings?.showMetrics !== false;
   const catalogMap = useMemo(
