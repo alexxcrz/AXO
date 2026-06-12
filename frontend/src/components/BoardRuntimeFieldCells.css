@@ -6,7 +6,8 @@
 
 .board-msd-trigger {
   width: 100%;
-  min-height: 2.35rem;
+  min-height: 2.125rem;
+  height: 2.125rem;
   border: 1px solid rgba(49, 77, 105, 0.28);
   border-radius: 0.62rem;
   background: #ffffff;

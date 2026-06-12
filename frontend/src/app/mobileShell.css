@@ -93,11 +93,27 @@ html.mobile-shell select {
   touch-action: manipulation;
 }
 
+html.mobile-shell .board-runtime-table select {
+  min-height: var(--board-row-control-height, 2.25rem) !important;
+  height: var(--board-row-control-height, 2.25rem) !important;
+  border-radius: 0.55rem;
+}
+
 html.mobile-shell button,
 html.mobile-shell .icon-button,
 html.mobile-shell .primary-button {
   touch-action: manipulation;
   min-height: 40px;
+}
+
+/* Tableros: evitar botones ovalados por min-height global en PWA */
+html.mobile-shell .board-runtime-table .board-action-button,
+html.mobile-shell .board-runtime-table .board-action-button.icon-only,
+html.mobile-shell .board-runtime-table .inventory-lookup-clear,
+html.mobile-shell .board-runtime-table .board-assignee-trigger,
+html.mobile-shell .board-runtime-table .board-msd-trigger,
+html.mobile-shell .board-runtime-table .spanish-date-input__trigger {
+  min-height: unset;
 }
 
 /* Botones circulares del chat: no aplastar con min-height global */
@@ -195,10 +211,44 @@ html.mobile-shell .board-inline-select,
 html.mobile-shell .board-top-select select,
 html.mobile-shell .board-runtime-table input,
 html.mobile-shell .board-runtime-table textarea {
-  font-size: 1rem !important;
+  font-size: 0.82rem !important;
   font-weight: 500 !important;
   color: var(--ui-text, #374151) !important;
   -webkit-text-fill-color: var(--ui-text, #374151) !important;
+}
+
+html.mobile-shell .board-runtime-table {
+  --board-row-control-height: 2.25rem;
+}
+
+html.mobile-shell .board-runtime-table td input:not([type="checkbox"]):not([type="radio"]),
+html.mobile-shell .board-runtime-table td select,
+html.mobile-shell .board-runtime-table .inventory-lookup-input,
+html.mobile-shell .board-runtime-table .spanish-date-input__trigger,
+html.mobile-shell .board-runtime-table .board-msd-trigger,
+html.mobile-shell .board-runtime-table .board-assignee-trigger {
+  min-height: var(--board-row-control-height) !important;
+  height: var(--board-row-control-height) !important;
+  min-width: 0 !important;
+  font-size: 0.82rem !important;
+}
+
+html.mobile-shell .board-runtime-table .board-action-button.icon-only {
+  width: var(--board-row-control-height) !important;
+  height: var(--board-row-control-height) !important;
+  min-width: var(--board-row-control-height) !important;
+  min-height: var(--board-row-control-height) !important;
+  max-width: var(--board-row-control-height) !important;
+  max-height: var(--board-row-control-height) !important;
+}
+
+html.mobile-shell .board-runtime-table .inventory-lookup-clear {
+  width: 1.45rem !important;
+  height: 1.45rem !important;
+  min-width: 1.45rem !important;
+  min-height: 1.45rem !important;
+  max-width: 1.45rem !important;
+  max-height: 1.45rem !important;
 }
 
 html.mobile-shell .board-runtime-table input::placeholder,
@@ -344,5 +394,5 @@ html.mobile-shell .board-table-clean td {
 html.mobile-shell .board-runtime-table td input,
 html.mobile-shell .board-runtime-table td select,
 html.mobile-shell .board-runtime-table td textarea {
-  min-width: 5.25rem;
+  min-width: 0 !important;
 }
