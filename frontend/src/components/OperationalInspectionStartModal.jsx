@@ -9,6 +9,8 @@ import {
   validateOperationalInspection,
   buildIncidenciasFromOperationalInspection,
   normalizeOperationalInspectionTemplate,
+  sanitizeInspectionSiteKeys,
+  isDeprecatedInspectionSite,
 } from "../utils/operationalInspectionTemplate";
 
 const SEVERITY_OPTIONS = [
@@ -71,13 +73,15 @@ export default function OperationalInspectionStartModal({
   const hasInitializedOpenCycleRef = useRef(false);
   const normalizedIncidentSiteOptions = useMemo(() => {
     const seen = new Set();
-    return (Array.isArray(incidentSiteOptions) ? incidentSiteOptions : [])
-      .map((entry) => String(entry || "").trim().toUpperCase())
-      .filter((entry) => {
-        if (!entry || seen.has(entry)) return false;
-        seen.add(entry);
-        return true;
-      });
+    return sanitizeInspectionSiteKeys(
+      (Array.isArray(incidentSiteOptions) ? incidentSiteOptions : [])
+        .map((entry) => String(entry || "").trim().toUpperCase())
+        .filter((entry) => {
+          if (!entry || seen.has(entry)) return false;
+          seen.add(entry);
+          return true;
+        }),
+    );
   }, [incidentSiteOptions]);
 
   const isMultiSiteMode = normalizedIncidentSiteOptions.length > 1;

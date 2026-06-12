@@ -504,6 +504,29 @@ export async function createIncidenciasFromOperationalInspection({
 
 export const DEFAULT_CLEANING_CHECKLIST_SITES = ["C1", "C2", "C3"];
 
+const DEPRECATED_INSPECTION_SITE_KEYS = new Set([
+  "P",
+  "PATIO",
+  "P/PATIO",
+  "PPATIO",
+  "P/P",
+  "PATIO/P",
+]);
+
+export function isDeprecatedInspectionSite(site) {
+  const key = String(site || "").trim().toUpperCase().replaceAll(" ", "");
+  return DEPRECATED_INSPECTION_SITE_KEYS.has(key);
+}
+
+export function sanitizeInspectionSiteKeys(sites = []) {
+  const cleaned = uniqueInspectionSites(sites).filter((site) => !isDeprecatedInspectionSite(site));
+  const cleaningMatches = DEFAULT_CLEANING_CHECKLIST_SITES.filter((site) => cleaned.includes(site));
+  if (cleaningMatches.length >= 2) {
+    return cleaningMatches;
+  }
+  return cleaned;
+}
+
 function uniqueInspectionSites(list = []) {
   return Array.from(new Set(
     (Array.isArray(list) ? list : [])
@@ -526,7 +549,7 @@ export function resolveInspectionSiteKeys(record, template = null) {
   const templateSites = uniqueInspectionSites(normalizedTemplate?.siteOptions);
   const completedSites = uniqueInspectionSites(safeRecord.completedSites);
   const bySiteDraftKeys = uniqueInspectionSites(Object.keys(safeRecord.bySiteDrafts || {}));
-  const merged = uniqueInspectionSites([
+  const merged = sanitizeInspectionSiteKeys([
     ...siteOptions,
     ...templateSites,
     ...completedSites,
@@ -535,14 +558,14 @@ export function resolveInspectionSiteKeys(record, template = null) {
 
   if (merged.length > 1) {
     const preferredOrder = siteOptions.length > 1
-      ? siteOptions
-      : (templateSites.length > 1 ? templateSites : DEFAULT_CLEANING_CHECKLIST_SITES);
+      ? sanitizeInspectionSiteKeys(siteOptions)
+      : (templateSites.length > 1 ? sanitizeInspectionSiteKeys(templateSites) : DEFAULT_CLEANING_CHECKLIST_SITES);
     const ordered = orderInspectionSites(preferredOrder, merged);
     return ordered.length > 1 ? ordered : merged.sort();
   }
 
   if (safeRecord.multiSite && templateSites.length > 1) {
-    return templateSites;
+    return sanitizeInspectionSiteKeys(templateSites);
   }
 
   if (merged.length === 1) return merged;
