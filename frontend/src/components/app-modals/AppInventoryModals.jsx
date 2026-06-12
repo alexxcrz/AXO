@@ -191,7 +191,7 @@ return (
           </label>
         ) : null}
         <label className="app-modal-field">
-          <span>C├│digo</span>
+          <span>Código</span>
           <input value={inventoryModal.code} onChange={(event) => setInventoryModal((current) => ({ ...current, code: event.target.value }))} />
         </label>
         <label className="app-modal-field">
@@ -239,7 +239,7 @@ return (
               <input type="number" value={inventoryModal.stockUnits} onChange={(event) => setInventoryModal((current) => ({ ...current, stockUnits: event.target.value }))} />
             </label>
             <label className="app-modal-field">
-              <span>Stock m├¡nimo</span>
+              <span>Stock mínimo</span>
               <input type="number" value={inventoryModal.minStockUnits} onChange={(event) => setInventoryModal((current) => ({ ...current, minStockUnits: event.target.value }))} />
             </label>
             <label className="app-modal-field">
@@ -250,7 +250,7 @@ return (
               </datalist>
             </label>
             <label className="app-modal-field">
-              <span>Ubicaci├│n / resguardo</span>
+              <span>Ubicación / resguardo</span>
               <input value={inventoryModal.storageLocation} onChange={(event) => setInventoryModal((current) => ({ ...current, storageLocation: event.target.value }))} placeholder={inventoryStoragePlaceholder} />
             </label>
           </>
@@ -313,19 +313,19 @@ return (
 
     <Modal
       open={pieceDeductionModal.open}
-      title="┬┐Descontar insumos al iniciar?"
-      confirmLabel="S├¡, descontar y comenzar"
+      title="¿Descontar insumos al iniciar?"
+      confirmLabel="Sí, descontar y comenzar"
       cancelLabel="Comenzar sin descontar"
       onClose={() => confirmPieceDeductionAndStart(false)}
       onConfirm={() => confirmPieceDeductionAndStart(true)}
     >
       <div className="modal-form-grid">
-        <p className="modal-footnote">Esta actividad tiene insumos en piezas vinculados. ┬┐Quieres descontar autom├íticamente del inventario al iniciar?</p>
+        <p className="modal-footnote">Esta actividad tiene insumos en piezas vinculados. ¿Quieres descontar automáticamente del inventario al iniciar?</p>
         <div className="piece-deduction-list">
           {pieceDeductionModal.items.map((item) => (
             <div key={item.id} className="piece-deduction-row">
               <strong>{item.name}</strong>
-              <span className="chip">{item.quantity} {item.unit} ┬À Stock actual: {item.stock}</span>
+              <span className="chip">{item.quantity} {item.unit} · Stock actual: {item.stock}</span>
             </div>
           ))}
         </div>
@@ -340,12 +340,12 @@ return (
             <span>Insumo</span>
             <select value={inventoryMovementModal.itemId || ""} onChange={(event) => updateInventoryMovementModal({ itemId: event.target.value || null })}>
               <option value="">Selecciona un insumo</option>
-              {orderInventoryItems.map((item) => <option key={item.id} value={item.id}>{item.code} ┬À {item.name}</option>)}
+              {orderInventoryItems.map((item) => <option key={item.id} value={item.id}>{item.code} · {item.name}</option>)}
             </select>
           </label>
         ) : (
           <label className="app-modal-field">
-            <span>Art├¡culo</span>
+            <span>Artículo</span>
             <input value={inventoryMovementModal.itemName} readOnly />
           </label>
         )}
@@ -367,15 +367,15 @@ return (
           <label className="app-modal-field">
             <span>Ubicaciones guardadas</span>
             <select value={inventoryMovementSelectedSavedLocation} onChange={(event) => applySavedInventoryLocation(event.target.value)}>
-              <option value="">Selecciona una ubicaci├│n previa</option>
+              <option value="">Selecciona una ubicación previa</option>
               {inventoryMovementSavedLocations.map((entry) => <option key={entry.key} value={entry.key}>{entry.label}</option>)}
             </select>
           </label>
         ) : null}
         {!isOrderTransferMovementModal ? (
           <label className="app-modal-field">
-            <span>Ubicaci├│n / resguardo</span>
-            <input value={inventoryMovementModal.storageLocation} onChange={(event) => updateInventoryMovementModal({ storageLocation: event.target.value })} placeholder="Ej: Nave 2 ┬À Estante 4" />
+            <span>Ubicación / resguardo</span>
+            <input value={inventoryMovementModal.storageLocation} onChange={(event) => updateInventoryMovementModal({ storageLocation: event.target.value })} placeholder="Ej: Nave 2 · Estante 4" />
           </label>
         ) : null}
         {isOrderTransferMovementModal ? (
@@ -412,7 +412,7 @@ return (
             )}
 
             <label className="app-modal-field">
-              <span>Qui├®n recibe el material</span>
+              <span>Quién recibe el material</span>
               <input value={inventoryMovementModal.recipientName} onChange={(event) => updateInventoryMovementModal({ recipientName: event.target.value })} placeholder="Nombre del responsable destino" />
             </label>
 
@@ -423,9 +423,9 @@ return (
                 <p><strong>Disponible para transferir:</strong> {inventoryMovementAvailableUnits} {inventoryMovementSelectedItem?.unitLabel || "pzas"}</p>
               </div>
               {inventoryMovementTransferTarget ? (
-                <p className="subtle-line">├Ültimo saldo registrado en el destino {inventoryMovementTransferTarget.warehouse || "sin nave"} / {inventoryMovementTransferTarget.storageLocation || "sin punto de entrega"}: {inventoryMovementTransferTarget.availableUnits} {inventoryMovementTransferTarget.unitLabel || inventoryMovementSelectedItem?.unitLabel || "pzas"}. Ese saldo solo actualiza el destino y no devuelve piezas al stock origen.</p>
+                <p className="subtle-line">Último saldo registrado en el destino {inventoryMovementTransferTarget.warehouse || "sin nave"} / {inventoryMovementTransferTarget.storageLocation || "sin punto de entrega"}: {inventoryMovementTransferTarget.availableUnits} {inventoryMovementTransferTarget.unitLabel || inventoryMovementSelectedItem?.unitLabel || "pzas"}. Ese saldo solo actualiza el destino y no devuelve piezas al stock origen.</p>
               ) : (
-                <p className="subtle-line">Este destino se registrar├í como un nuevo punto de resguardo para el insumo seleccionado.</p>
+                <p className="subtle-line">Este destino se registrará como un nuevo punto de resguardo para el insumo seleccionado.</p>
               )}
             </div>
           </>
@@ -445,10 +445,10 @@ return (
         </label>
         <label className="app-modal-field">
           <span>Punto de entrega</span>
-          <input value={inventoryDestinationModal.storageLocation} onChange={(event) => setInventoryDestinationModal((current) => ({ ...current, storageLocation: event.target.value }))} placeholder="Ej: Estante 4 / ├ürea de empaque" />
+          <input value={inventoryDestinationModal.storageLocation} onChange={(event) => setInventoryDestinationModal((current) => ({ ...current, storageLocation: event.target.value }))} placeholder="Ej: Estante 4 / Área de empaque" />
         </label>
         <label className="app-modal-field">
-          <span>Qui├®n recibe el material</span>
+          <span>Quién recibe el material</span>
           <input value={inventoryDestinationModal.recipientName} onChange={(event) => setInventoryDestinationModal((current) => ({ ...current, recipientName: event.target.value }))} placeholder="Nombre del responsable destino" />
         </label>
       </div>
@@ -464,11 +464,11 @@ return (
             <p><strong>Nave destino:</strong> {inventoryTransferConfirmModal.warehouse || "Sin nave"}</p>
             <p><strong>Punto de entrega destino:</strong> {inventoryTransferConfirmModal.storageLocation || "Sin punto de entrega"}</p>
           </div>
-          <p className="subtle-line">Antes de sumar esta nueva transferencia, confirma cu├íntas piezas siguen quedando actualmente en ese mismo destino. Ese dato solo ajusta el control del destino.</p>
+          <p className="subtle-line">Antes de sumar esta nueva transferencia, confirma cuántas piezas siguen quedando actualmente en ese mismo destino. Ese dato solo ajusta el control del destino.</p>
         </div>
         <label className="app-modal-field app-modal-field-full">
-          <span>┬┐Cu├íntas piezas quedan ahorita en ese destino?</span>
-          <input type="number" min="0" value={inventoryTransferConfirmModal.remainingUnits} onChange={(event) => setInventoryTransferConfirmModal((current) => ({ ...current, remainingUnits: event.target.value }))} placeholder={inventoryTransferConfirmModal.lastKnownUnits === null ? "Ej: 50" : `├Ültimo saldo registrado: ${inventoryTransferConfirmModal.lastKnownUnits}`} />
+          <span>¿Cuántas piezas quedan ahorita en ese destino?</span>
+          <input type="number" min="0" value={inventoryTransferConfirmModal.remainingUnits} onChange={(event) => setInventoryTransferConfirmModal((current) => ({ ...current, remainingUnits: event.target.value }))} placeholder={inventoryTransferConfirmModal.lastKnownUnits === null ? "Ej: 50" : `Último saldo registrado: ${inventoryTransferConfirmModal.lastKnownUnits}`} />
         </label>
       </div>
     </Modal>
@@ -503,8 +503,8 @@ return (
               <article key={`${target.itemId}-${target.destinationKey}`} className="inventory-transfer-compact-row">
                 <div className="inventory-transfer-compact-main">
                   <strong>{target.warehouse || target.storageLocation || "Destino sin nombre"}</strong>
-                  {inventoryTransferViewerItem ? null : <p>{target.itemCode} ┬À {target.itemName}</p>}
-                  <p className="subtle-line">{target.storageLocation || "Sin punto de entrega"}{target.recipientName ? ` ┬À ${target.recipientName}` : ""}</p>
+                  {inventoryTransferViewerItem ? null : <p>{target.itemCode} · {target.itemName}</p>}
+                  <p className="subtle-line">{target.storageLocation || "Sin punto de entrega"}{target.recipientName ? ` · ${target.recipientName}` : ""}</p>
                 </div>
                 <div className="inventory-transfer-compact-side">
                   <span className="chip">{target.availableUnits} {target.unitLabel || target.itemUnitLabel}</span>
@@ -512,7 +512,7 @@ return (
                 </div>
               </article>
             ))}
-            {!viewedOrderInventoryTransferTargets.length && <p className="subtle-line">Todav├¡a no hay saldos por destino registrados para este filtro.</p>}
+            {!viewedOrderInventoryTransferTargets.length && <p className="subtle-line">Todavía no hay saldos por destino registrados para este filtro.</p>}
           </div>
         </section>
 
@@ -520,7 +520,7 @@ return (
           <div className="card-header-row">
             <div>
               <h3>Movimientos recientes</h3>
-              <p>├Ültimas transferencias registradas, sin detalle duplicado.</p>
+              <p>Últimas transferencias registradas, sin detalle duplicado.</p>
             </div>
             <span className="chip">{Math.min(viewedOrderInventoryTransferMovements.length, 10)}</span>
           </div>
@@ -529,8 +529,8 @@ return (
               <article key={movement.id} className="inventory-transfer-compact-row">
                 <div className="inventory-transfer-compact-main">
                   <strong>{movement.warehouse || movement.storageLocation || "Destino sin nombre"}</strong>
-                  <p>{movement.quantity} {movement.unitLabel || "pzas"}{movement.recipientName ? ` ┬À ${movement.recipientName}` : ""}</p>
-                  <p className="subtle-line">{movement.storageLocation || "Sin punto de entrega"}{shouldShowTransferRemainingUnits(movement) ? ` ┬À Antes quedaban ${movement.remainingUnits} ${movement.unitLabel || "pzas"}` : ""}</p>
+                  <p>{movement.quantity} {movement.unitLabel || "pzas"}{movement.recipientName ? ` · ${movement.recipientName}` : ""}</p>
+                  <p className="subtle-line">{movement.storageLocation || "Sin punto de entrega"}{shouldShowTransferRemainingUnits(movement) ? ` · Antes quedaban ${movement.remainingUnits} ${movement.unitLabel || "pzas"}` : ""}</p>
                 </div>
                 <div className="inventory-transfer-compact-side">
                   <span className="chip">Saldo {movement.destinationBalanceUnits ?? movement.quantity}</span>
@@ -544,9 +544,9 @@ return (
       </div>
     </Modal>
 
-    <Modal open={Boolean(deleteInventoryId)} title="Eliminar art├¡culo" confirmLabel="Eliminar art├¡culo" cancelLabel="Cancelar" onClose={() => setDeleteInventoryId(null)} onConfirm={() => deleteInventoryItem(deleteInventoryId)}>
-      <p>Esta acci├│n quitar├í el art├¡culo del inventario compartido.</p>
-      <p>La informaci├│n dejar├í de estar disponible para todos los dispositivos conectados.</p>
+    <Modal open={Boolean(deleteInventoryId)} title="Eliminar artículo" confirmLabel="Eliminar artículo" cancelLabel="Cancelar" onClose={() => setDeleteInventoryId(null)} onConfirm={() => deleteInventoryItem(deleteInventoryId)}>
+      <p>Esta acción quitará el artículo del inventario compartido.</p>
+      <p>La información dejará de estar disponible para todos los dispositivos conectados.</p>
     </Modal>
     </>
 

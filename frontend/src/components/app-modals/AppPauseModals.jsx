@@ -60,8 +60,8 @@ return (
       <div className="modal-form-grid">
         {pauseState.completed ? (
           <>
-            <p className="validation-text success">Continuemos. La pausa de la actividad qued├│ registrada correctamente.</p>
-            <p className="modal-footnote">{pauseState.continueReady ? "Cuando pulses continuar la actividad se reanudar├í." : "El bot├│n Continuar se habilitar├í en unos segundos..."}</p>
+            <p className="validation-text success">Continuemos. La pausa de la actividad quedó registrada correctamente.</p>
+            <p className="modal-footnote">{pauseState.continueReady ? "Cuando pulses continuar la actividad se reanudará." : "El botón Continuar se habilitará en unos segundos..."}</p>
           </>
         ) : (
           <>
@@ -88,15 +88,15 @@ return (
       <div className="modal-form-grid">
         {boardPauseState.completed ? (
           <>
-            <p className="validation-text success">Continuemos. La fila qued├│ pausada y el motivo se guard├│ correctamente.</p>
-            <p className="modal-footnote">{boardPauseState.continueReady ? "Pulsa continuar para reanudar la fila." : "El bot├│n Continuar se habilitar├í en unos segundos..."}</p>
+            <p className="validation-text success">Continuemos. La fila quedó pausada y el motivo se guardó correctamente.</p>
+            <p className="modal-footnote">{boardPauseState.continueReady ? "Pulsa continuar para reanudar la fila." : "El botón Continuar se habilitará en unos segundos..."}</p>
             {Number(boardPauseState.authorizedPauseSeconds || 0) > 0 ? (
               boardPauseIsOutOfTime ? (
                 <div className="board-pause-overtime-alert">
                   <span className="board-pause-overtime-icon" aria-hidden="true">ÔÜá</span>
                   <div>
                     <strong>Tiempo de pausa excedido</strong>
-                        <span>El tiempo autorizado se agot├│. Reanuda la fila cuanto antes.</span>
+                        <span>El tiempo autorizado se agotó. Reanuda la fila cuanto antes.</span>
                         {boardPauseOvertimeSeconds > 0 ? (
                           <div className="board-pause-overtime-detail">Tiempo fuera: {formatDurationClock(boardPauseOvertimeSeconds)}</div>
                         ) : null}

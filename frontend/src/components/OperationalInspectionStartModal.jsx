@@ -16,7 +16,7 @@ const SEVERITY_OPTIONS = [
   { value: "baja", label: "Baja" },
   { value: "media", label: "Media" },
   { value: "alta", label: "Alta" },
-  { value: "critica", label: "Critica" },
+  { value: "critica", label: "Crítica" },
 ];
 
 function buildInitialDraft(template, currentUser, defaultArea, defaultProcess, requireIncidentSiteSelection = false) {
@@ -285,7 +285,7 @@ export default function OperationalInspectionStartModal({
   async function handleConfirm() {
     const validation = validateOperationalInspection(currentDraft, resolvedTemplate);
     if (!validation.ok) {
-      setFormError(validation.errors[0] || "Completa la inspeccion antes de continuar.");
+      setFormError(validation.errors[0] || "Completa la inspección antes de continuar.");
       return;
     }
 

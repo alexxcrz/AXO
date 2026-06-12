@@ -442,16 +442,16 @@ export function buildIncidenciasFromOperationalInspection({
         .filter(Boolean);
 
       const descriptionParts = [
-        notes || "Hallazgo detectado durante checklist de inspeccion operativa.",
+        notes || "Hallazgo detectado durante checklist de inspección operativa.",
         "",
         `Origen: ${template.name}`,
         `Seccion: ${section.title}`,
         `Check: ${check.label}`,
-        `Area inspeccion: ${String(metadata.area || "").trim() || "N/A"}`,
+        `Área inspección: ${String(metadata.area || "").trim() || "N/A"}`,
         `Nave afectada: ${affectedSite || "N/A"}`,
-        `Responsable inspeccion: ${String(metadata.responsable || "").trim() || reporterName || "N/A"}`,
-        `Fecha inspeccion: ${toIsoDate(metadata.date)}`,
-        `Hora inspeccion: ${toInspectionHour(metadata.inspectedAt, metadata.date)}`,
+        `Responsable inspección: ${String(metadata.responsable || "").trim() || reporterName || "N/A"}`,
+        `Fecha inspección: ${toIsoDate(metadata.date)}`,
+        `Hora inspección: ${toInspectionHour(metadata.inspectedAt, metadata.date)}`,
         `Proceso/Tablero: ${String(metadata.process || "").trim() || "N/A"}`,
       ];
 

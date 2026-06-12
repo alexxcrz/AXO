@@ -29,7 +29,7 @@ html.mobile-shell .warehouse-app {
 /* Dark mode only when the OS requests it */
 html.mobile-shell[data-color-scheme="dark"] body {
   background: #121820;
-  color: #e8edf4;
+  color: var(--ui-text, #cbd5e1);
 }
 
 html.mobile-shell[data-color-scheme="dark"] .warehouse-app {
@@ -51,6 +51,20 @@ html.mobile-shell .content-header {
   padding-top: max(0.35rem, env(safe-area-inset-top, 0px));
   overflow: hidden;
   min-width: 0;
+  align-items: center;
+}
+
+html.mobile-shell .content-header .mobile-nav-toggle,
+html.mobile-shell .content-header .header-tools,
+html.mobile-shell .content-header .header-bell-right {
+  align-self: center;
+}
+
+html.mobile-shell .mis-tableros-shell .table-card,
+html.mobile-shell .mis-tableros-shell .card-header-row,
+html.mobile-shell .mis-tableros-shell .custom-board-header-controls,
+html.mobile-shell .mis-tableros-shell .board-day-actions-row {
+  overflow: visible;
 }
 
 html.mobile-shell .content-shell {
@@ -126,7 +140,11 @@ html.mobile-shell .board-runtime-table .spanish-date-input__trigger {
 /* Botones circulares del chat: no aplastar con min-height global */
 html.mobile-shell .chat-btn-enviar,
 html.mobile-shell .chat-back-button,
-html.mobile-shell .chat-btn-archivo {
+html.mobile-shell .chat-btn-archivo,
+html.mobile-shell .chat-user-header-btn,
+html.mobile-shell .chat-close-btn,
+html.mobile-shell .chat-sidebar-nav-toggle,
+html.mobile-shell .chat-delete-btn {
   min-height: unset;
 }
 
@@ -134,8 +152,43 @@ html.mobile-shell .chat-header-icon-btn,
 html.mobile-shell .chat-add-member-btn {
   min-height: 36px;
   min-width: 36px;
+  max-width: 36px;
+  max-height: 36px;
   aspect-ratio: 1 / 1;
   padding: 8px !important;
+}
+
+html.mobile-shell .chat-user-header-btn {
+  width: 36px;
+  min-width: 36px;
+  max-width: 36px;
+  height: 36px;
+  min-height: 36px;
+  max-height: 36px;
+  padding: 0 !important;
+}
+
+html.mobile-shell .chat-close-btn,
+html.mobile-shell .chat-sidebar-nav-toggle {
+  width: 32px !important;
+  min-width: 32px !important;
+  max-width: 32px !important;
+  height: 32px !important;
+  min-height: 32px !important;
+  max-height: 32px !important;
+  padding: 0 !important;
+}
+
+html.mobile-shell .board-day-actions-row .custom-board-add-row-button,
+html.mobile-shell .board-day-actions-row .custom-board-menu-trigger {
+  min-height: unset;
+  width: 2.35rem;
+  min-width: 2.35rem;
+  max-width: 2.35rem;
+  height: 2.35rem;
+  max-height: 2.35rem;
+  padding: 0;
+  border-radius: 999px;
 }
 
 html.mobile-shell .content-header,
@@ -173,7 +226,11 @@ html.mobile-shell .modal-card,
 html.mobile-shell .sicfla-modal,
 html.mobile-shell .app-notification-panel,
 html.mobile-shell .app-notification-item,
-html.mobile-shell .chat-pro-ventana {
+html.mobile-shell .chat-pro-ventana,
+html.mobile-shell .stat-tile,
+html.mobile-shell .custom-board-stat-tile,
+html.mobile-shell .header-tools,
+html.mobile-shell .content-header h2 {
   color: var(--ui-text, var(--sicfla-text, #22384f));
 }
 
@@ -182,25 +239,79 @@ html.mobile-shell .surface-card span,
 html.mobile-shell .surface-card small,
 html.mobile-shell .surface-card p,
 html.mobile-shell .surface-card strong,
+html.mobile-shell .surface-card h3,
 html.mobile-shell .table-wrap label,
 html.mobile-shell .table-wrap span,
 html.mobile-shell .table-wrap small,
 html.mobile-shell .table-wrap p,
 html.mobile-shell .table-wrap strong,
+html.mobile-shell .stat-tile span,
+html.mobile-shell .stat-tile strong,
+html.mobile-shell .custom-board-stat-tile span,
+html.mobile-shell .custom-board-stat-tile strong,
 html.mobile-shell .app-notification-item strong,
 html.mobile-shell .app-notification-item p,
 html.mobile-shell .app-notification-item small,
-html.mobile-shell .app-notification-item span {
+html.mobile-shell .app-notification-item span,
+html.mobile-shell .header-tools span,
+html.mobile-shell .header-tools strong {
   color: var(--ui-text, var(--sicfla-text, #22384f));
 }
 
-html.mobile-shell .subtle-line {
-  color: #5d6775 !important;
+html.mobile-shell .content-header .mobile-nav-toggle,
+html.mobile-shell .content-header .mobile-nav-toggle span {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+html.mobile-shell .stat-tile span,
+html.mobile-shell .custom-board-stat-tile span {
+  color: var(--ui-muted, #64748b) !important;
+}
+
+html.mobile-shell .subtle-line,
+html.mobile-shell .board-meta-inline,
+html.mobile-shell .board-meta-inline span {
+  color: var(--ui-muted, #5d6775) !important;
+}
+
+html.mobile-shell[data-color-scheme="dark"] .surface-card,
+html.mobile-shell[data-color-scheme="dark"] .table-card,
+html.mobile-shell[data-color-scheme="dark"] .stat-tile,
+html.mobile-shell[data-color-scheme="dark"] .header-tools {
+  background: var(--ui-card, #ffffff);
+}
+
+html.mobile-shell[data-color-scheme="dark"] .surface-card *,
+html.mobile-shell[data-color-scheme="dark"] .table-wrap *,
+html.mobile-shell[data-color-scheme="dark"] .stat-tile *,
+html.mobile-shell[data-color-scheme="dark"] .custom-board-stat-tile *,
+html.mobile-shell[data-color-scheme="dark"] .header-tools *,
+html.mobile-shell[data-color-scheme="dark"] .content-header h2,
+html.mobile-shell[data-color-scheme="dark"] .header-tools span,
+html.mobile-shell[data-color-scheme="dark"] .chip:not(.active):not(.danger) {
+  color: var(--ui-text, #1e293b) !important;
+  -webkit-text-fill-color: var(--ui-text, #1e293b) !important;
+  text-shadow: none !important;
+}
+
+html.mobile-shell[data-color-scheme="dark"] .content-header .mobile-nav-toggle,
+html.mobile-shell[data-color-scheme="dark"] .content-header .mobile-nav-toggle span {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+html.mobile-shell[data-color-scheme="dark"] .stat-tile span,
+html.mobile-shell[data-color-scheme="dark"] .custom-board-stat-tile span,
+html.mobile-shell[data-color-scheme="dark"] .subtle-line,
+html.mobile-shell[data-color-scheme="dark"] .board-meta-inline span {
+  color: var(--ui-muted, #64748b) !important;
+  -webkit-text-fill-color: var(--ui-muted, #64748b) !important;
 }
 
 html.mobile-shell .app-notification-item-header span,
 html.mobile-shell .app-notification-item small {
-  color: #4b5563 !important;
+  color: var(--ui-muted, #4b5563) !important;
 }
 
 /* Unified board typography on mobile (respects profile font size) */

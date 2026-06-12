@@ -237,8 +237,13 @@
   border: 1px solid var(--cp-border);
   border-radius: 50%;
   width: 32px;
+  min-width: 32px;
+  max-width: 32px;
   height: 32px;
-  display: flex;
+  min-height: 32px;
+  max-height: 32px;
+  aspect-ratio: 1 / 1;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
@@ -246,6 +251,8 @@
   transition: background var(--cp-tr), border-color var(--cp-tr);
   color: var(--cp-text);
   padding: 0;
+  flex-shrink: 0;
+  box-sizing: border-box;
 }
 .chat-user-header-btn:hover {
   background: var(--cp-green-light);
@@ -3424,7 +3431,8 @@ span.chat-item-menu-btn:active {
 .chat-header-icon-btn, .chat-add-member-btn, .chat-delete-btn {
   background: var(--cp-input-bg) !important; border: 1px solid var(--cp-border) !important;
   border-radius: var(--cp-radius-sm) !important; padding: 6px 8px !important;
-  min-width: 36px; min-height: 36px; aspect-ratio: 1 / 1;
+  width: 36px; min-width: 36px; max-width: 36px;
+  min-height: 36px; max-height: 36px; aspect-ratio: 1 / 1;
   cursor: pointer; color: var(--cp-text); display: inline-flex; align-items: center; justify-content: center;
   box-shadow: none !important; transition: background var(--cp-tr); flex-shrink: 0; box-sizing: border-box;
 }
@@ -3782,7 +3790,9 @@ span.chat-item-menu-btn:active {
 }
 
 .cp-panel-subheader-actions {
-  width: 100%;
+  display: flex;
+  justify-content: flex-end;
+  width: auto;
   padding: 0 2px;
 }
 

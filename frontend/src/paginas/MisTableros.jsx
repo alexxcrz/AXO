@@ -1296,7 +1296,7 @@ export default function MisTableros({ contexto }) {
     } catch (error) {
       setBoardRuntimeFeedback({
         tone: "danger",
-        message: error?.message || "No se pudo guardar el checklist de inspeccion.",
+        message: error?.message || "No se pudo guardar el checklist de inspección.",
       });
       throw error;
     } finally {
@@ -1550,7 +1550,7 @@ export default function MisTableros({ contexto }) {
             <div className="card-header-row">
               <div>
                 <h3>{boardView?.name || selectedCustomBoard.name}</h3>
-                <div className="saved-board-list">
+                <div className="saved-board-list board-title-chips">
                   <span className={isHistoricalCustomBoardView ? "chip" : "chip success"}>{isHistoricalCustomBoardView ? "Histórico" : "Semana actual"}</span>
                   <span className="chip">{isHistoricalCustomBoardView ? selectedCustomBoardSnapshot?.weekName : "Operación activa"}</span>
                 </div>
@@ -1596,12 +1596,76 @@ export default function MisTableros({ contexto }) {
                       </select>
                     </label>
                   ) : null}
-                  <label className="board-top-select min-width board-day-select-inline">
-                    <span>Día</span>
-                    <select value={selectedWeekdayFilter} onChange={(event) => setSelectedWeekdayFilter(event.target.value)}>
-                      {weekdayOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-                    </select>
-                  </label>
+                  <div className="board-day-actions-row">
+                    <label className="board-top-select min-width board-day-select-inline">
+                      <span>Día</span>
+                      <select value={selectedWeekdayFilter} onChange={(event) => setSelectedWeekdayFilter(event.target.value)}>
+                        {weekdayOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                      </select>
+                    </label>
+                    <div className="custom-board-actions-menu-shell board-day-actions-inline" ref={customBoardActionsMenuRef}>
+                      <button
+                        type="button"
+                        className="primary-button custom-board-add-row-button"
+                        title={boardRowCreationPending ? "Creando fila..." : "Nueva fila"}
+                        aria-label="Nueva fila"
+                        aria-busy={boardRowCreationPending}
+                        onClick={() => createBoardRow(selectedCustomBoard.id)}
+                        disabled={isHistoricalCustomBoardView || boardRowCreationPending || !selectedBoardActionPermissions.createBoardRow}
+                      >
+                        <Plus size={16} />
+                      </button>
+                      <button
+                        ref={menuTriggerRef}
+                        type="button"
+                        className="icon-button custom-board-menu-trigger"
+                        aria-label="Abrir acciones del tablero"
+                        aria-expanded={customBoardActionsMenuOpen}
+                        onClick={() => {
+                          if (!customBoardActionsMenuOpen) {
+                            const rect = menuTriggerRef.current?.getBoundingClientRect();
+                            if (rect) setDropdownPos({ top: rect.bottom + 6, left: Math.min(rect.left, window.innerWidth - 244) });
+                          }
+                          setCustomBoardActionsMenuOpen((current) => !current);
+                        }}
+                        disabled={isHistoricalCustomBoardView}
+                      >
+                        <Menu size={16} />
+                      </button>
+                      {customBoardActionsMenuOpen && !isHistoricalCustomBoardView && dropdownPos ? createPortal(
+                        <div
+                          className="custom-board-actions-dropdown"
+                          style={{ position: "fixed", top: dropdownPos.top, left: dropdownPos.left, zIndex: 9999 }}
+                          onPointerDown={(e) => e.stopPropagation()}
+                        >
+                          <button type="button" className="custom-board-menu-item" onClick={() => { setCustomBoardActionsMenuOpen(false); void saveCurrentBoardAsTemplate(); }} disabled={!actionPermissions?.saveTemplate}>
+                            Guardar como plantilla
+                          </button>
+                          <button type="button" className="custom-board-menu-item" onClick={() => { setCustomBoardActionsMenuOpen(false); void setAsTarimaReviewBoard(); }} disabled={!canChangeSelectedBoardOperationalContext}>
+                            Usar para revisión de tarimas
+                          </button>
+                          <button type="button" className="custom-board-menu-item" onClick={() => { setCustomBoardActionsMenuOpen(false); exportSelectedBoardToExcel(); }} disabled={!selectedBoardActionPermissions.exportBoardExcel}>
+                            Exportar Excel
+                          </button>
+                          <button type="button" className="custom-board-menu-item" onClick={() => { setCustomBoardActionsMenuOpen(false); previewSelectedBoardPdf(); }} disabled={!selectedBoardActionPermissions.previewBoardPdf}>
+                            Vista PDF
+                          </button>
+                          <button type="button" className="custom-board-menu-item" onClick={() => { setCustomBoardActionsMenuOpen(false); exportSelectedBoardToPdf(); }} disabled={!selectedBoardActionPermissions.exportBoardPdf}>
+                            Exportar PDF
+                          </button>
+                          <hr style={{ margin: "0.3rem 0", border: "none", borderTop: "1px solid rgba(49, 77, 105, 0.1)" }} />
+                          <button type="button" className="custom-board-menu-item" onClick={() => { setCustomBoardActionsMenuOpen(false); exportCurrentBoardAsJson(); }}>
+                            Exportar estructura JSON
+                          </button>
+                          <button type="button" className="custom-board-menu-item" disabled={isBoardImporting || !actionPermissions?.createBoard} onClick={() => { setCustomBoardActionsMenuOpen(false); boardImportInputRef.current?.click(); }}>
+                            {isBoardImporting ? "Importando..." : "Importar tablero desde JSON"}
+                          </button>
+                          <input ref={boardImportInputRef} type="file" accept=".json" style={{ display: "none" }} onChange={handleBoardImportFile} />
+                        </div>,
+                        document.body
+                      ) : null}
+                    </div>
+                  </div>
                 </div>
                 {!showCleaningNaveSelector && boardOperationalContextType !== "none" ? (
                   <label className="board-top-select min-width">
@@ -1615,68 +1679,6 @@ export default function MisTableros({ contexto }) {
                     </select>
                   </label>
                 ) : null}
-              </div>
-              <div className="custom-board-actions-menu-shell" ref={customBoardActionsMenuRef}>
-                  <button
-                    type="button"
-                    className="primary-button custom-board-add-row-button"
-                    title={boardRowCreationPending ? "Creando fila..." : "Nueva fila"}
-                    aria-label="Nueva fila"
-                    aria-busy={boardRowCreationPending}
-                    onClick={() => createBoardRow(selectedCustomBoard.id)}
-                    disabled={isHistoricalCustomBoardView || boardRowCreationPending || !selectedBoardActionPermissions.createBoardRow}
-                  >
-                    <Plus size={16} />
-                  </button>
-                  <button
-                    ref={menuTriggerRef}
-                    type="button"
-                    className="icon-button custom-board-menu-trigger"
-                    aria-label="Abrir acciones del tablero"
-                    aria-expanded={customBoardActionsMenuOpen}
-                    onClick={() => {
-                      if (!customBoardActionsMenuOpen) {
-                        const rect = menuTriggerRef.current?.getBoundingClientRect();
-                        if (rect) setDropdownPos({ top: rect.bottom + 6, left: Math.min(rect.left, window.innerWidth - 244) });
-                      }
-                      setCustomBoardActionsMenuOpen((current) => !current);
-                    }}
-                    disabled={isHistoricalCustomBoardView}
-                  >
-                    <Menu size={16} />
-                  </button>
-                  {customBoardActionsMenuOpen && !isHistoricalCustomBoardView && dropdownPos ? createPortal(
-                    <div
-                      className="custom-board-actions-dropdown"
-                      style={{ position: "fixed", top: dropdownPos.top, left: dropdownPos.left, zIndex: 9999 }}
-                      onPointerDown={(e) => e.stopPropagation()}
-                    >
-                      <button type="button" className="custom-board-menu-item" onClick={() => { setCustomBoardActionsMenuOpen(false); void saveCurrentBoardAsTemplate(); }} disabled={!actionPermissions?.saveTemplate}>
-                        Guardar como plantilla
-                      </button>
-                      <button type="button" className="custom-board-menu-item" onClick={() => { setCustomBoardActionsMenuOpen(false); void setAsTarimaReviewBoard(); }} disabled={!canChangeSelectedBoardOperationalContext}>
-                        Usar para revisión de tarimas
-                      </button>
-                      <button type="button" className="custom-board-menu-item" onClick={() => { setCustomBoardActionsMenuOpen(false); exportSelectedBoardToExcel(); }} disabled={!selectedBoardActionPermissions.exportBoardExcel}>
-                        Exportar Excel
-                      </button>
-                      <button type="button" className="custom-board-menu-item" onClick={() => { setCustomBoardActionsMenuOpen(false); previewSelectedBoardPdf(); }} disabled={!selectedBoardActionPermissions.previewBoardPdf}>
-                        Vista PDF
-                      </button>
-                      <button type="button" className="custom-board-menu-item" onClick={() => { setCustomBoardActionsMenuOpen(false); exportSelectedBoardToPdf(); }} disabled={!selectedBoardActionPermissions.exportBoardPdf}>
-                        Exportar PDF
-                      </button>
-                      <hr style={{ margin: "0.3rem 0", border: "none", borderTop: "1px solid rgba(49, 77, 105, 0.1)" }} />
-                      <button type="button" className="custom-board-menu-item" onClick={() => { setCustomBoardActionsMenuOpen(false); exportCurrentBoardAsJson(); }}>
-                        Exportar estructura JSON
-                      </button>
-                      <button type="button" className="custom-board-menu-item" disabled={isBoardImporting || !actionPermissions?.createBoard} onClick={() => { setCustomBoardActionsMenuOpen(false); boardImportInputRef.current?.click(); }}>
-                        {isBoardImporting ? "Importando..." : "Importar tablero desde JSON"}
-                      </button>
-                      <input ref={boardImportInputRef} type="file" accept=".json" style={{ display: "none" }} onChange={handleBoardImportFile} />
-                    </div>,
-                    document.body
-                  ) : null}
               </div>
               </div>
             </div>

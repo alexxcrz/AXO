@@ -183,19 +183,19 @@ return (
             <input value={userModal.username} onChange={(event) => setUserModal((current) => ({ ...current, username: event.target.value }))} placeholder="Ej: alejandro.cruz" />
           </label>
           <label className="app-modal-field">
-            <span>├ürea</span>
+            <span>Área</span>
             <div className="area-selector-row">
               <select value={userModal.area} onChange={(event) => setUserModal((current) => ({ ...current, area: event.target.value }))}>
-                <option value="">Seleccionar ├írea...</option>
+                <option value="">Seleccionar área...</option>
                 {(currentUser?.role === ROLE_LEAD ? rootAreaOptions : Array.from(new Set(userAreaOptions.map((a) => getAreaRoot(a) || a))).filter(Boolean)).map((area) => <option key={area} value={area}>{area}</option>)}
               </select>
-              {currentUser?.role === ROLE_LEAD ? <button type="button" className="icon-button area-add-button" onClick={() => handleAddAreaOption()} aria-label="Agregar nueva ├írea"><Plus size={16} /></button> : null}
+              {currentUser?.role === ROLE_LEAD ? <button type="button" className="icon-button area-add-button" onClick={() => handleAddAreaOption()} aria-label="Agregar nueva área"><Plus size={16} /></button> : null}
               {currentUser?.role === ROLE_LEAD && userModal.area ? (
                 <button
                   type="button"
                   className="icon-button danger"
-                  onClick={() => openDeleteAreaModal(userModal.area, `├írea ${userModal.area}`)}
-                  aria-label="Eliminar ├írea seleccionada"
+                  onClick={() => openDeleteAreaModal(userModal.area, `área ${userModal.area}`)}
+                  aria-label="Eliminar área seleccionada"
                 >
                   <Trash2 size={16} />
                 </button>
@@ -221,18 +221,18 @@ return (
           </label>
           {userModal.mode === "create" ? (
             <label className="app-modal-field">
-              <span>Contrase├▒a temporal</span>
+              <span>Contraseña temporal</span>
               <div className="password-visibility-field">
                 <input
                   type={showUserModalPassword ? "text" : "password"}
                   value={userModal.password}
                   onChange={(event) => setUserModal((current) => ({ ...current, password: event.target.value }))}
-                  placeholder="M├¡nimo 4 caracteres"
+                  placeholder="Mínimo 4 caracteres"
                 />
                 <button
                   type="button"
                   className="password-visibility-toggle"
-                  aria-label={showUserModalPassword ? "Ocultar contrase├▒a" : "Mostrar contrase├▒a"}
+                  aria-label={showUserModalPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
                   onClick={() => setShowUserModalPassword((current) => !current)}
                 >
                   {showUserModalPassword ? <EyeOff size={16} /> : <Eye size={16} />}
@@ -261,8 +261,8 @@ return (
           <section className="user-modal-permissions">
             <div className="builder-section-head">
               <div>
-                <h4>Permisos del men├║ lateral</h4>
-                <p>Un ├║nico mapeo 1:1 con el men├║ lateral: secci├│n y pesta├▒as por cada ├írea o grupo.</p>
+                <h4>Permisos del menú lateral</h4>
+                <p>Un único mapeo 1:1 con el menú lateral: sección y pestañas por cada área o grupo.</p>
               </div>
               <span className="chip primary">{menuPermissionSections.length} secciones</span>
             </div>
@@ -284,7 +284,7 @@ return (
                     <button type="button" className="permission-accordion-toggle" onClick={() => toggleUserModalPermissionSection(sectionPanelId)}>
                       <div>
                         <strong>{section.label}</strong>
-                        <span>{`${navEnabled ? "Acceso lateral activo" : "Acceso lateral bloqueado"} ┬À ${enabledTabCount}/${section.itemPermissions.length} pesta├▒as/items activos`}</span>
+                        <span>{`${navEnabled ? "Acceso lateral activo" : "Acceso lateral bloqueado"} · ${enabledTabCount}/${section.itemPermissions.length} pestañas/items activos`}</span>
                       </div>
                       <span className="chip">{isOpen ? "Abierto" : "Abrir"}</span>
                     </button>
@@ -293,8 +293,8 @@ return (
                       <div className="permission-accordion-body user-modal-permission-body">
                         <div className="permission-switch-row permission-switch-row-primary permission-switch-row-toned" style={{ "--permission-accent": "#355f88", "--permission-soft": "rgba(15, 118, 110, 0.1)" }}>
                           <div>
-                            <strong>Ver secci├│n lateral</strong>
-                            <span>{canGrantManagedPermission(section.navVisibilityKind, section.navVisibilityActionId) ? `Permite mostrar ${section.label} en la barra lateral.` : "No puedes delegar esta secci├│n lateral porque t├║ no la tienes activa."}</span>
+                            <strong>Ver sección lateral</strong>
+                            <span>{canGrantManagedPermission(section.navVisibilityKind, section.navVisibilityActionId) ? `Permite mostrar ${section.label} en la barra lateral.` : "No puedes delegar esta sección lateral porque tú no la tienes activa."}</span>
                           </div>
                           <button
                             type="button"
@@ -310,7 +310,7 @@ return (
                         <div className="permission-group-stack">
                           <section className="permission-group-block">
                             <div className="permission-group-head" style={{ "--permission-group-accent": "#334155" }}>
-                              <strong>Pesta├▒as del ├írea</strong>
+                              <strong>Pestañas del área</strong>
                               <span>{section.itemPermissions.length} permiso(s)</span>
                             </div>
                             <div className="permission-switch-list permission-tab-grid">
@@ -327,7 +327,7 @@ return (
                                     <div className="permission-tab-header">
                                       <div className="permission-tab-copy">
                                         <strong>{tab.label}</strong>
-                                        <span>{delegable ? "Habilita la pesta├▒a y sus acciones operativas dentro de esta ├írea." : "No delegable"}</span>
+                                        <span>{delegable ? "Habilita la pestaña y sus acciones operativas dentro de esta área." : "No delegable"}</span>
                                       </div>
                                       <div className="permission-tab-actions">
                                         {nestedActions.length ? (
@@ -372,7 +372,7 @@ return (
                                             <div key={actionItem.id} className="permission-switch-row permission-subaction-row" style={{ "--permission-accent": "#64748b", "--permission-soft": "rgba(100, 116, 139, 0.08)" }}>
                                               <div className="permission-subaction-copy">
                                                 <strong>{actionItem.label}</strong>
-                                                <span>{actionDelegable ? "Permiso puntual dentro de esta pesta├▒a." : "No delegable"}</span>
+                                                <span>{actionDelegable ? "Permiso puntual dentro de esta pestaña." : "No delegable"}</span>
                                               </div>
                                               <button
                                                 type="button"
@@ -424,7 +424,7 @@ return (
             <div className="builder-section-head">
               <div>
                 <h4>Modo Demo del sistema</h4>
-                <p>Activa el modo demo para hacer demostraciones o pruebas. Cuando lo desactives, todos los cambios realizados durante la demo se revertir├ín autom├íticamente.</p>
+                <p>Activa el modo demo para hacer demostraciones o pruebas. Cuando lo desactives, todos los cambios realizados durante la demo se revertirán automáticamente.</p>
               </div>
               {isDemoMode ? <span className="chip" style={{ background: "#fef3c7", color: "#92400e" }}>Activo</span> : <span className="chip">Inactivo</span>}
             </div>
@@ -445,7 +445,7 @@ return (
         {shouldShowUserPermissionNote && (
           <article className="user-permission-note">
             <strong>{userModal.role === ROLE_SSR ? "Semi-Senior con alcance operativo" : "Acceso operativo por tablero"}</strong>
-            <p>{userModal.role === ROLE_SSR ? "Semi-Senior solo puede crear perfiles Junior y trabajar con los tableros que tenga asignados." : "Junior solo accede a Mis tableros y ver├í ├║nicamente los tableros que tenga asignados."}</p>
+            <p>{userModal.role === ROLE_SSR ? "Semi-Senior solo puede crear perfiles Junior y trabajar con los tableros que tenga asignados." : "Junior solo accede a Mis tableros y verá únicamente los tableros que tenga asignados."}</p>
           </article>
         )}
       </div>
@@ -467,7 +467,7 @@ return (
     >
       <div className="modal-form-grid">
         <p className="modal-footnote">
-          Este archivo tiene <strong>{excelSheetSelector.sheets.length} hojas</strong>. Selecciona las que quieres importar. Cada hoja seleccionada reemplazar├í los componentes actuales del tablero (la ├║ltima seleccionada quedar├í activa). Para crear tableros separados, importa una hoja a la vez.
+          Este archivo tiene <strong>{excelSheetSelector.sheets.length} hojas</strong>. Selecciona las que quieres importar. Cada hoja seleccionada reemplazará los componentes actuales del tablero (la última seleccionada quedará activa). Para crear tableros separados, importa una hoja a la vez.
         </p>
         <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
           {excelSheetSelector.sheets.map((sheet, idx) => (
@@ -502,8 +502,8 @@ return (
               <div>
                 <strong style={{ fontSize: "0.95rem" }}>{sheet.name}</strong>
                 <p style={{ margin: 0, fontSize: "0.77rem", color: "#6b7280" }}>
-                  {sheet.columnCount} columnas ┬À {sheet.rowCount} filas de datos
-                  {(sheet.supportedFormulaCount || 0) > 0 ? ` ┬À ${sheet.supportedFormulaCount} f├│rmula(s) detectada(s)` : ""}
+                  {sheet.columnCount} columnas · {sheet.rowCount} filas de datos
+                  {(sheet.supportedFormulaCount || 0) > 0 ? ` · ${sheet.supportedFormulaCount} fórmula(s) detectada(s)` : ""}
                 </p>
               </div>
             </button>
@@ -516,8 +516,8 @@ return (
 
     <Modal
       open={resetUserPasswordModal.open}
-      title="Restablecer contrase├▒a"
-      confirmLabel="Guardar contrase├▒a temporal"
+      title="Restablecer contraseña"
+      confirmLabel="Guardar contraseña temporal"
       cancelLabel="Cancelar"
       onClose={() => {
         setShowResetUserPassword(false);
@@ -527,9 +527,9 @@ return (
       confirmDisabled={resetUserPasswordModal.submitting}
     >
       <div className="modal-form-grid">
-        <p className="modal-footnote">La sesi├│n activa de {resetUserPasswordModal.userName || "este player"} se cerrar├í y en su siguiente acceso deber├í capturar una contrase├▒a nueva.</p>
+        <p className="modal-footnote">La sesión activa de {resetUserPasswordModal.userName || "este player"} se cerrará y en su siguiente acceso deberá capturar una contraseña nueva.</p>
         <label className="app-modal-field">
-          <span>Contrase├▒a temporal</span>
+          <span>Contraseña temporal</span>
           <div className="password-visibility-field">
             <input
               type={showResetUserPassword ? "text" : "password"}
@@ -539,7 +539,7 @@ return (
             <button
               type="button"
               className="password-visibility-toggle"
-              aria-label={showResetUserPassword ? "Ocultar contrase├▒a" : "Mostrar contrase├▒a"}
+              aria-label={showResetUserPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
               onClick={() => setShowResetUserPassword((current) => !current)}
             >
               {showResetUserPassword ? <EyeOff size={16} /> : <Eye size={16} />}
@@ -547,17 +547,17 @@ return (
           </div>
         </label>
         {resetUserPasswordModal.message ? <p className="validation-text">{resetUserPasswordModal.message}</p> : null}
-        <p className="modal-footnote">Solo Lead y Senior pueden restablecer la contrase├▒a de otros players. La contrase├▒a temporal puede tener desde {TEMPORARY_PASSWORD_MIN_LENGTH} caracteres.</p>
+        <p className="modal-footnote">Solo Lead y Senior pueden restablecer la contraseña de otros players. La contraseña temporal puede tener desde {TEMPORARY_PASSWORD_MIN_LENGTH} caracteres.</p>
       </div>
     </Modal>
     <Modal open={Boolean(deleteUserId)} title="Eliminar player" confirmLabel="Eliminar player" cancelLabel="Cancelar" onClose={() => setDeleteUserId(null)} onConfirm={() => deleteUser(deleteUserId)}>
-      <p>Esta acci├│n no se puede deshacer.</p>
-      <p>Se perder├í el acceso y los registros del player quedar├ín sin responsabilidad asignada.</p>
+      <p>Esta acción no se puede deshacer.</p>
+      <p>Se perderá el acceso y los registros del player quedarán sin responsabilidad asignada.</p>
     </Modal>
 
     <Modal open={Boolean(transferLeadTargetId)} title="Transferir rol de Lead" confirmLabel="Transferir Lead" cancelLabel="Cancelar" onClose={() => setTransferLeadTargetId(null)} onConfirm={() => transferLead(transferLeadTargetId)}>
-      <p>El player <strong>{state.users?.find((u) => u.id === transferLeadTargetId)?.name || ""}</strong> pasar├í a ser Lead.</p>
-      <p>Tu cuenta quedar├í como Senior. Esta acci├│n no se puede deshacer desde aqu├¡.</p>
+      <p>El player <strong>{state.users?.find((u) => u.id === transferLeadTargetId)?.name || ""}</strong> pasará a ser Lead.</p>
+      <p>Tu cuenta quedará como Senior. Esta acción no se puede deshacer desde aquí.</p>
     </Modal>
     </>
 

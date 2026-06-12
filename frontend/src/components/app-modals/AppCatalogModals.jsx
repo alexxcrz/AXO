@@ -104,14 +104,14 @@ return (
         </label>
         <label className="app-modal-field">
           <span>Lista de actividades</span>
-          <input value={catalogModal.category} onChange={(event) => setCatalogModal((current) => ({ ...current, category: event.target.value }))} placeholder="Ej: Limpieza, Seguridad, Producci├│n" />
+          <input value={catalogModal.category} onChange={(event) => setCatalogModal((current) => ({ ...current, category: event.target.value }))} placeholder="Ej: Limpieza, Seguridad, Producción" />
         </label>
         <label className="app-modal-field">
           <span>Nombre de la actividad</span>
           <input value={catalogModal.name} onChange={(event) => setCatalogModal((current) => ({ ...current, name: event.target.value }))} />
         </label>
         <label className="app-modal-field catalog-activity-limit-field">
-          <span>Tiempo l├¡mite (minutos)</span>
+          <span>Tiempo límite (minutos)</span>
           <input type="number" value={catalogModal.limit} onChange={(event) => setCatalogModal((current) => ({ ...current, limit: event.target.value }))} />
         </label>
         <label className="app-modal-field">
@@ -247,7 +247,7 @@ return (
 
     <Modal
       open={areaDeleteModal.open}
-      title="Eliminar ├írea"
+      title="Eliminar área"
       confirmLabel={areaDeleteModal.submitting ? "Eliminando..." : "Eliminar"}
       cancelLabel="Cancelar"
       onClose={() => setAreaDeleteModal({ open: false, areaName: "", label: "", error: "", submitting: false })}
@@ -255,8 +255,8 @@ return (
       confirmDisabled={areaDeleteModal.submitting || !areaDeleteModal.areaName}
     >
       <div className="modal-form-grid">
-        <p>Vas a eliminar {areaDeleteModal.label || "esta ├írea"}.</p>
-        <p className="modal-footnote">Si es sub├írea, los players migran al ├írea ra├¡z. Si es ├írea ra├¡z, se limpia el ├írea de los players asignados.</p>
+        <p>Vas a eliminar {areaDeleteModal.label || "esta área"}.</p>
+        <p className="modal-footnote">Si es subárea, los players migran al área raíz. Si es área raíz, se limpia el área de los players asignados.</p>
         {areaDeleteModal.error ? <p className="validation-text">{areaDeleteModal.error}</p> : null}
       </div>
     </Modal>
@@ -264,7 +264,7 @@ return (
     <Modal open={Boolean(editWeekId)} title="Editar semana" confirmLabel="Cerrar" hideCancel onClose={() => { setEditWeekId(null); setEditWeekActivityId(""); }}>
       <div className="modal-form-grid">
         <label className="app-modal-field">
-          <span>Seleccionar actividad del cat├ílogo</span>
+          <span>Seleccionar actividad del catálogo</span>
           <select value={editWeekActivityId} onChange={(event) => setEditWeekActivityId(event.target.value)}>
             <option value="">Seleccionar...</option>
             {state.catalog.filter((item) => !item.isDeleted).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}

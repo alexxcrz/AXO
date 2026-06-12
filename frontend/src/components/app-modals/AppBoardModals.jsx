@@ -71,7 +71,7 @@ return (
               <div className="board-finish-time-row production">
                 <div className="board-finish-time-icon production-icon" />
                 <div className="board-finish-time-info">
-                  <span className="board-finish-time-label">Tiempo de producci├│n</span>
+                  <span className="board-finish-time-label">Tiempo de producción</span>
                   <small className="board-finish-time-hint">Solo cuando estuvo activa</small>
                 </div>
                 <strong className="board-finish-time-value">{formatDurationClock(productionSecs)}</strong>
@@ -114,33 +114,33 @@ return (
       onConfirm={confirmStartBoardRow}
     >
       <div className="modal-form-grid">
-        <p>{boardStartConfirm.message || "┬┐Deseas iniciar esta actividad?"}</p>
+        <p>{boardStartConfirm.message || "¿Deseas iniciar esta actividad?"}</p>
         <p className="modal-footnote">Solo puedes tener una actividad en curso por player, entre actividades y tableros.</p>
       </div>
     </Modal>
 
     <Modal open={deleteBoardRowState.open} title="Eliminar fila" confirmLabel="Eliminar fila" cancelLabel="Cancelar" onClose={() => setDeleteBoardRowState({ open: false, boardId: null, rowId: null })} onConfirm={() => deleteBoardRow(deleteBoardRowState.boardId, deleteBoardRowState.rowId)}>
       <div className="modal-form-grid">
-        <p>Esta fila se eliminar├í del tablero.</p>
-        <p>├Üsalo cuando la actividad se cre├│ por error o ya no se va a realizar.</p>
+        <p>Esta fila se eliminará del tablero.</p>
+        <p>Úsalo cuando la actividad se creó por error o ya no se va a realizar.</p>
       </div>
     </Modal>
 
     <Modal
       open={pieceDeductionModal.open}
-      title="┬┐Descontar insumos al iniciar?"
-      confirmLabel="S├¡, descontar y comenzar"
+      title="¿Descontar insumos al iniciar?"
+      confirmLabel="Sí, descontar y comenzar"
       cancelLabel="Comenzar sin descontar"
       onClose={() => confirmPieceDeductionAndStart(false)}
       onConfirm={() => confirmPieceDeductionAndStart(true)}
     >
       <div className="modal-form-grid">
-        <p className="modal-footnote">Esta actividad tiene insumos en piezas vinculados. ┬┐Quieres descontar autom├íticamente del inventario al iniciar?</p>
+        <p className="modal-footnote">Esta actividad tiene insumos en piezas vinculados. ¿Quieres descontar automáticamente del inventario al iniciar?</p>
         <div className="piece-deduction-list">
           {pieceDeductionModal.items.map((item) => (
             <div key={item.id} className="piece-deduction-row">
               <strong>{item.name}</strong>
-              <span className="chip">{item.quantity} {item.unit} ┬À Stock actual: {item.stock}</span>
+              <span className="chip">{item.quantity} {item.unit} · Stock actual: {item.stock}</span>
             </div>
           ))}
         </div>
@@ -148,8 +148,8 @@ return (
       </div>
     </Modal>
     <Modal open={Boolean(deleteBoardId)} title="Eliminar tablero" confirmLabel="Eliminar tablero" cancelLabel="Cancelar" onClose={() => setDeleteBoardId(null)} onConfirm={() => deleteControlBoard(deleteBoardId)}>
-      <p>Esta acci├│n eliminar├í el tablero completo junto con sus filas guardadas.</p>
-      <p>├Üsalo cuando el tablero ya no se vaya a ocupar para que no quede abandonado.</p>
+      <p>Esta acción eliminará el tablero completo junto con sus filas guardadas.</p>
+      <p>Úsalo cuando el tablero ya no se vaya a ocupar para que no quede abandonado.</p>
     </Modal>
     </>
 

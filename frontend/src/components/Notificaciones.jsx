@@ -85,7 +85,7 @@ function AppNotificationCenter({ unreadNotifications, readNotifications, unreadC
           </div>
           <div className="app-notification-tabs" role="tablist" aria-label="Filtros de alertas">
             <button type="button" role="tab" aria-selected={activeTab === "unread"} className={activeTab === "unread" ? "app-notification-tab active" : "app-notification-tab"} onClick={() => onTabChange("unread")}>Sin leer</button>
-            <button type="button" role="tab" aria-selected={activeTab === "read"} className={activeTab === "read" ? "app-notification-tab active" : "app-notification-tab"} onClick={() => onTabChange("read")}>Leidas</button>
+            <button type="button" role="tab" aria-selected={activeTab === "read"} className={activeTab === "read" ? "app-notification-tab active" : "app-notification-tab"} onClick={() => onTabChange("read")}>Leídas</button>
           </div>
           <div className="app-notification-list">
             {visibleNotifications.map((notification) => (
@@ -108,7 +108,7 @@ function AppNotificationCenter({ unreadNotifications, readNotifications, unreadC
                 ) : null}
               </article>
             ))}
-            {visibleNotifications.length ? null : <p className="subtle-line app-notification-empty">{activeTab === "read" ? "No hay notificaciones leidas guardadas." : "No hay alertas sin leer."}</p>}
+            {visibleNotifications.length ? null : <p className="subtle-line app-notification-empty">{activeTab === "read" ? "No hay notificaciones leídas guardadas." : "No hay alertas sin leer."}</p>}
           </div>
         </section>
       ) : null}

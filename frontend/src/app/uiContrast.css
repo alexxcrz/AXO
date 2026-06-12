@@ -102,3 +102,239 @@ html[data-ui-theme] .chat-pro-ventana .chat-sidebar-header.ui-surface-dark * {
   color: #ffffff !important;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
 }
+
+/* ── Superficies claras: texto siempre legible (todos los temas + modo oscuro del SO) ── */
+
+html[data-ui-theme] .content-shell,
+html[data-ui-theme] .content-scroll-region,
+html[data-ui-theme] .admin-page-layout,
+html[data-color-scheme="dark"] .content-shell,
+html[data-color-scheme="dark"] .content-scroll-region,
+html[data-color-scheme="dark"] .admin-page-layout {
+  color: var(--ui-text, var(--sicfla-text, #1e293b));
+}
+
+html[data-ui-theme] .content-header,
+html[data-ui-theme] .content-header h2,
+html[data-ui-theme] .content-header .header-meta span,
+html[data-ui-theme] .content-header .header-clock,
+html[data-ui-theme] .header-tools,
+html[data-ui-theme] .header-tools span,
+html[data-ui-theme] .header-tools strong,
+html[data-color-scheme="dark"] .content-header,
+html[data-color-scheme="dark"] .content-header h2,
+html[data-color-scheme="dark"] .content-header .header-meta span,
+html[data-color-scheme="dark"] .content-header .header-clock,
+html[data-color-scheme="dark"] .header-tools,
+html[data-color-scheme="dark"] .header-tools span,
+html[data-color-scheme="dark"] .header-tools strong {
+  color: var(--ui-text, var(--sicfla-text, #1e293b)) !important;
+  -webkit-text-fill-color: var(--ui-text, var(--sicfla-text, #1e293b)) !important;
+  text-shadow: none !important;
+}
+
+html[data-ui-theme] .content-header .mobile-nav-toggle,
+html[data-ui-theme] .content-header .mobile-nav-toggle span,
+html[data-ui-theme] .content-header .mobile-nav-toggle svg,
+html[data-color-scheme="dark"] .content-header .mobile-nav-toggle,
+html[data-color-scheme="dark"] .content-header .mobile-nav-toggle span,
+html[data-color-scheme="dark"] .content-header .mobile-nav-toggle svg,
+html.mobile-shell .content-header .mobile-nav-toggle,
+html.mobile-shell .content-header .mobile-nav-toggle span {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  text-shadow: none !important;
+}
+
+/* Alertas: pestaña activa legible sobre fondo del tema */
+html[data-ui-theme] .app-notification-panel .app-notification-tab.active,
+html[data-color-scheme="dark"] .app-notification-panel .app-notification-tab.active,
+html.mobile-shell .app-notification-panel .app-notification-tab.active {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+html[data-ui-theme] .app-notification-panel .app-notification-tab:not(.active),
+html[data-color-scheme="dark"] .app-notification-panel .app-notification-tab:not(.active),
+html.mobile-shell .app-notification-panel .app-notification-tab:not(.active) {
+  color: var(--ui-text, #45615f) !important;
+  -webkit-text-fill-color: var(--ui-text, #45615f) !important;
+}
+
+html[data-ui-theme] .app-notification-panel-header strong,
+html[data-ui-theme] .app-notification-panel .app-notification-empty,
+html.mobile-shell .app-notification-panel-header strong,
+html.mobile-shell .app-notification-panel .app-notification-empty {
+  color: var(--ui-text, #1e293b) !important;
+  -webkit-text-fill-color: var(--ui-text, #1e293b) !important;
+}
+
+html[data-ui-theme] .app-notification-panel .app-notification-action,
+html.mobile-shell .app-notification-panel .app-notification-action {
+  color: var(--ui-primary, #355f88) !important;
+  -webkit-text-fill-color: var(--ui-primary, #355f88) !important;
+}
+
+html[data-ui-theme] .surface-card,
+html[data-ui-theme] .table-card,
+html[data-ui-theme] .table-wrap,
+html[data-ui-theme] .metric-card,
+html[data-ui-theme] .modal-card,
+html[data-ui-theme] .sicfla-modal,
+html[data-ui-theme] .stat-tile,
+html[data-ui-theme] .custom-board-stat-tile,
+html[data-ui-theme] .inventory-stat-grid,
+html[data-ui-theme] .custom-board-stat-grid,
+html[data-ui-theme] .feedback-banner,
+html[data-ui-theme] .status-banner,
+html[data-ui-theme] .board-runtime-feedback-banner,
+html[data-color-scheme="dark"] .surface-card,
+html[data-color-scheme="dark"] .table-card,
+html[data-color-scheme="dark"] .table-wrap,
+html[data-color-scheme="dark"] .metric-card,
+html[data-color-scheme="dark"] .modal-card,
+html[data-color-scheme="dark"] .sicfla-modal,
+html[data-color-scheme="dark"] .stat-tile,
+html[data-color-scheme="dark"] .custom-board-stat-tile,
+html[data-color-scheme="dark"] .inventory-stat-grid,
+html[data-color-scheme="dark"] .custom-board-stat-grid,
+html[data-color-scheme="dark"] .feedback-banner,
+html[data-color-scheme="dark"] .status-banner,
+html[data-color-scheme="dark"] .board-runtime-feedback-banner {
+  color: var(--ui-text, var(--sicfla-text, #1e293b));
+}
+
+html[data-ui-theme] .surface-card h1,
+html[data-ui-theme] .surface-card h2,
+html[data-ui-theme] .surface-card h3,
+html[data-ui-theme] .surface-card h4,
+html[data-ui-theme] .surface-card p,
+html[data-ui-theme] .surface-card label,
+html[data-ui-theme] .surface-card span,
+html[data-ui-theme] .surface-card small,
+html[data-ui-theme] .surface-card strong,
+html[data-ui-theme] .table-wrap th,
+html[data-ui-theme] .table-wrap td,
+html[data-ui-theme] .table-wrap label,
+html[data-ui-theme] .table-wrap span,
+html[data-ui-theme] .table-wrap p,
+html[data-ui-theme] .table-wrap strong,
+html[data-color-scheme="dark"] .surface-card h1,
+html[data-color-scheme="dark"] .surface-card h2,
+html[data-color-scheme="dark"] .surface-card h3,
+html[data-color-scheme="dark"] .surface-card h4,
+html[data-color-scheme="dark"] .surface-card p,
+html[data-color-scheme="dark"] .surface-card label,
+html[data-color-scheme="dark"] .surface-card span,
+html[data-color-scheme="dark"] .surface-card small,
+html[data-color-scheme="dark"] .surface-card strong,
+html[data-color-scheme="dark"] .table-wrap th,
+html[data-color-scheme="dark"] .table-wrap td,
+html[data-color-scheme="dark"] .table-wrap label,
+html[data-color-scheme="dark"] .table-wrap span,
+html[data-color-scheme="dark"] .table-wrap p,
+html[data-color-scheme="dark"] .table-wrap strong {
+  color: var(--ui-text, var(--sicfla-text, #1e293b)) !important;
+  -webkit-text-fill-color: var(--ui-text, var(--sicfla-text, #1e293b)) !important;
+  text-shadow: none !important;
+}
+
+html[data-ui-theme] .stat-tile span,
+html[data-ui-theme] .custom-board-stat-tile span,
+html[data-color-scheme="dark"] .stat-tile span,
+html[data-color-scheme="dark"] .custom-board-stat-tile span {
+  color: var(--ui-muted, #64748b) !important;
+  -webkit-text-fill-color: var(--ui-muted, #64748b) !important;
+}
+
+html[data-ui-theme] .stat-tile strong,
+html[data-ui-theme] .custom-board-stat-tile strong,
+html[data-color-scheme="dark"] .stat-tile strong,
+html[data-color-scheme="dark"] .custom-board-stat-tile strong {
+  color: var(--ui-text, var(--sicfla-text, #1e293b)) !important;
+  -webkit-text-fill-color: var(--ui-text, var(--sicfla-text, #1e293b)) !important;
+}
+
+html[data-ui-theme] .subtle-line,
+html[data-ui-theme] .board-meta-inline,
+html[data-ui-theme] .board-meta-inline span,
+html[data-ui-theme] .custom-board-sla-empty,
+html[data-ui-theme] .validation-text:not(.success):not(.danger),
+html[data-ui-theme] .board-top-select > span,
+html[data-color-scheme="dark"] .subtle-line,
+html[data-color-scheme="dark"] .board-meta-inline,
+html[data-color-scheme="dark"] .board-meta-inline span,
+html[data-color-scheme="dark"] .custom-board-sla-empty,
+html[data-color-scheme="dark"] .validation-text:not(.success):not(.danger),
+html[data-color-scheme="dark"] .board-top-select > span {
+  color: var(--ui-muted, #64748b) !important;
+  -webkit-text-fill-color: var(--ui-muted, #64748b) !important;
+  text-shadow: none !important;
+}
+
+html[data-ui-theme] .chip:not(.active),
+html[data-ui-theme] .chip.success,
+html[data-ui-theme] .custom-board-sla-summary .chip:not(.danger),
+html[data-color-scheme="dark"] .chip:not(.active),
+html[data-color-scheme="dark"] .chip.success,
+html[data-color-scheme="dark"] .custom-board-sla-summary .chip:not(.danger) {
+  color: var(--ui-text, var(--sicfla-text, #1e293b)) !important;
+  -webkit-text-fill-color: var(--ui-text, var(--sicfla-text, #1e293b)) !important;
+}
+
+html[data-ui-theme] .chip.danger,
+html[data-color-scheme="dark"] .chip.danger {
+  color: #b13f34 !important;
+  -webkit-text-fill-color: #b13f34 !important;
+}
+
+html[data-ui-theme] .feedback-banner strong,
+html[data-ui-theme] .feedback-banner p,
+html[data-ui-theme] .feedback-success,
+html[data-ui-theme] .feedback-error,
+html[data-color-scheme="dark"] .feedback-banner strong,
+html[data-color-scheme="dark"] .feedback-banner p,
+html[data-color-scheme="dark"] .feedback-success,
+html[data-color-scheme="dark"] .feedback-error {
+  text-shadow: none !important;
+}
+
+html[data-ui-theme] .feedback-success,
+html[data-color-scheme="dark"] .feedback-success {
+  color: #2d4f72 !important;
+}
+
+html[data-ui-theme] .feedback-error,
+html[data-color-scheme="dark"] .feedback-error {
+  color: #991b1b !important;
+}
+
+html[data-ui-theme] .board-top-select select,
+html[data-ui-theme] .filter-bar input,
+html[data-ui-theme] .filter-bar select,
+html[data-ui-theme] .form-card input,
+html[data-ui-theme] .form-card select,
+html[data-ui-theme] .form-card textarea,
+html[data-color-scheme="dark"] .board-top-select select,
+html[data-color-scheme="dark"] .filter-bar input,
+html[data-color-scheme="dark"] .filter-bar select,
+html[data-color-scheme="dark"] .form-card input,
+html[data-color-scheme="dark"] .form-card select,
+html[data-color-scheme="dark"] .form-card textarea {
+  color: var(--ui-text, var(--sicfla-text, #1e293b)) !important;
+  -webkit-text-fill-color: var(--ui-text, var(--sicfla-text, #1e293b)) !important;
+  background: var(--ui-card, #ffffff);
+}
+
+/* Temas oscuros (Grafito, Ceniza, etc.): chips y pills no pierden contraste */
+html[data-ui-theme="copmec-noche"] .chip:not(.active):not(.danger),
+html[data-ui-theme="copmec-ceniza"] .chip:not(.active):not(.danger),
+html[data-ui-theme="copmec-petroleo"] .chip:not(.active):not(.danger),
+html[data-ui-theme="copmec-pizarra"] .chip:not(.active):not(.danger),
+html[data-ui-theme="copmec-indigo"] .chip:not(.active):not(.danger),
+html[data-ui-theme="copmec-lino"] .chip:not(.active):not(.danger),
+html[data-ui-theme="copmec-g-medianoche"] .chip:not(.active):not(.danger),
+html[data-ui-theme="copmec-g-metal"] .chip:not(.active):not(.danger) {
+  color: var(--ui-text, #1e293b) !important;
+  -webkit-text-fill-color: var(--ui-text, #1e293b) !important;
+}

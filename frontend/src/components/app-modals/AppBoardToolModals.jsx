@@ -155,14 +155,14 @@ return (
           <input value={templateEditorModal.name} onChange={(event) => setTemplateEditorModal((current) => ({ ...current, name: event.target.value }))} />
         </label>
         <label className="app-modal-field">
-          <span>Categor├¡a</span>
-          <input value={templateEditorModal.category} onChange={(event) => setTemplateEditorModal((current) => ({ ...current, category: event.target.value }))} placeholder="Ej: Embarques, Calidad, Producci├│n" />
+          <span>Categoría</span>
+          <input value={templateEditorModal.category} onChange={(event) => setTemplateEditorModal((current) => ({ ...current, category: event.target.value }))} placeholder="Ej: Embarques, Calidad, Producción" />
         </label>
         <label className="app-modal-field">
           <span>Compartir con</span>
           <select value={templateEditorModal.visibilityType} onChange={(event) => setTemplateEditorModal((current) => ({ ...current, visibilityType: event.target.value }))}>
             <option value="department">Departamento</option>
-                      <option value="users">Players espec├¡ficos</option>
+                      <option value="users">Players específicos</option>
             <option value="all">Todos</option>
           </select>
         </label>
@@ -183,8 +183,8 @@ return (
           </label>
         ) : null}
         <label className="app-modal-field">
-          <span>Descripci├│n</span>
-          <input value={templateEditorModal.description} onChange={(event) => setTemplateEditorModal((current) => ({ ...current, description: event.target.value }))} placeholder="Explica para qu├® sirve esta plantilla" />
+          <span>Descripción</span>
+          <input value={templateEditorModal.description} onChange={(event) => setTemplateEditorModal((current) => ({ ...current, description: event.target.value }))} placeholder="Explica para qué sirve esta plantilla" />
         </label>
       </div>
     </Modal>
@@ -199,7 +199,7 @@ return (
       onConfirm={confirmDeleteBoardTemplate}
     >
       <div className="modal-form-grid">
-        <p className="subtle-line">Esta acci├│n eliminar├í la plantilla guardada para todos los usuarios con acceso.</p>
+        <p className="subtle-line">Esta acción eliminará la plantilla guardada para todos los usuarios con acceso.</p>
         <p><strong>{templateDeleteModal.name || "Plantilla"}</strong></p>
         <p className="validation-text">No se puede deshacer.</p>
       </div>
@@ -262,9 +262,9 @@ return (
 
     <BoardComponentStudioModal open={componentStudioOpen} mode={editingDraftColumnId ? "edit" : "create"} draft={controlBoardDraft} onChange={setControlBoardDraft} onClose={() => { setComponentStudioOpen(false); setEditingDraftColumnId(null); setControlBoardDraft((current) => ({ ...current, ...createEmptyFieldDraft() })); }} onConfirm={addDraftColumn} catalog={state.catalog} inventoryItems={state.inventoryItems} visibleUsers={visibleUsers} sectionOptions={boardSectionOptions} activityCategoryOptions={activityCatalogCategoryOptions} contextoConstructor={contextoConstructor} />
 
-    <Modal open={excelFormulaWizard.open} title="Asistente de f├│rmulas de Excel" confirmLabel="Aplicar mapeo" cancelLabel="Cerrar" onClose={() => setExcelFormulaWizard({ open: false, items: [] })} onConfirm={applyExcelFormulaWizard}>
+    <Modal open={excelFormulaWizard.open} title="Asistente de fórmulas de Excel" confirmLabel="Aplicar mapeo" cancelLabel="Cerrar" onClose={() => setExcelFormulaWizard({ open: false, items: [] })} onConfirm={applyExcelFormulaWizard}>
       <div className="modal-form-grid">
-        <p className="modal-footnote">Estas columnas ten├¡an f├│rmulas que no se pudieron convertir autom├íticamente. Elige c├│mo debe comportarse cada campo en el tablero.</p>
+        <p className="modal-footnote">Estas columnas tenían fórmulas que no se pudieron convertir automáticamente. Elige cómo debe comportarse cada campo en el tablero.</p>
         {(excelFormulaWizard.items || []).map((item, index) => (
           <section key={`${item.targetFieldId || item.targetLabel}-${index}`} className="surface-card" style={{ padding: "0.8rem" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap", marginBottom: "0.25rem" }}>
@@ -291,7 +291,7 @@ return (
               <p className="modal-footnote" style={{ marginBottom: "0.35rem", color: "#374151" }}>{item.classification.description}</p>
             ) : null}
             <p className="modal-footnote" style={{ marginBottom: "0.5rem" }}>
-              F├│rmula original: <code style={{ fontSize: "0.78rem", background: "#f1f5f9", padding: "0.1rem 0.3rem", borderRadius: "4px" }}>{item.formula}</code>
+              Fórmula original: <code style={{ fontSize: "0.78rem", background: "#f1f5f9", padding: "0.1rem 0.3rem", borderRadius: "4px" }}>{item.formula}</code>
             </p>
 
             <label className="app-modal-field" style={{ marginBottom: "0.6rem" }}>
@@ -301,21 +301,21 @@ return (
                 onChange={(event) => updateExcelFormulaWizardItem(index, "targetType", event.target.value)}
                 style={{ fontWeight: 600 }}
               >
-                <option value="formula">F├│rmula (operaci├│n entre campos)</option>
+                <option value="formula">Fórmula (operación entre campos)</option>
                 <option value="inventoryLookup">Buscador de inventario</option>
-                <option value="number">N├║mero (valor est├ítico)</option>
-                <option value="text">Texto (valor est├ítico)</option>
-                <option value="select">Men├║ desplegable</option>
+                <option value="number">Número (valor estático)</option>
+                <option value="text">Texto (valor estático)</option>
+                <option value="select">Menú desplegable</option>
               </select>
             </label>
 
             {(item.targetType === "inventoryLookup") ? (
               <p className="modal-footnote" style={{ color: "#2c4b6b", background: "#dfe9f4", borderRadius: "8px", padding: "0.4rem 0.6rem" }}>
-                Este campo se configurar├í como Buscador de inventario. Los operadores podr├ín buscar y vincular art├¡culos del inventario del sistema.
+                Este campo se configurará como Buscador de inventario. Los operadores podrán buscar y vincular artículos del inventario del sistema.
               </p>
             ) : (item.targetType === "text" || item.targetType === "number" || item.targetType === "select") ? (
               <p className="modal-footnote" style={{ color: "#92400e", background: "#fef3c7", borderRadius: "8px", padding: "0.4rem 0.6rem" }}>
-                El campo se importar├í como <strong>{item.targetType === "text" ? "Texto" : item.targetType === "number" ? "N├║mero" : "Men├║ desplegable"}</strong> con los valores calculados por Excel.
+                El campo se importará como <strong>{item.targetType === "text" ? "Texto" : item.targetType === "number" ? "Número" : "Menú desplegable"}</strong> con los valores calculados por Excel.
               </p>
             ) : (
               <div className="modal-form-grid" style={{ gridTemplateColumns: "repeat(3, minmax(0, 1fr))" }}>
@@ -327,7 +327,7 @@ return (
                   </select>
                 </label>
                 <label className="app-modal-field">
-                  <span>Operaci├│n<span className="required-mark" aria-hidden="true"> *</span></span>
+                  <span>Operación<span className="required-mark" aria-hidden="true"> *</span></span>
                   <select value={item.operation || "add"} onChange={(event) => updateExcelFormulaWizardItem(index, "operation", event.target.value)}>
                     {FORMULA_OPERATIONS.map((operation) => <option key={operation.value} value={operation.value}>{operation.label}</option>)}
                   </select>
