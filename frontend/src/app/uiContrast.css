@@ -18,6 +18,12 @@ html[data-ui-theme] .sidebar-close-button,
 html[data-ui-theme] .sidebar-close-button svg {
   color: #eff7f3 !important;
   stroke: currentColor;
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--ui-primary) 92%, #ffffff 8%) 0%,
+    color-mix(in srgb, var(--ui-primary-strong, var(--ui-primary)) 88%, #000000 12%) 100%
+  ) !important;
+  border-color: color-mix(in srgb, var(--ui-primary) 34%, transparent) !important;
 }
 
 html[data-ui-theme] .ui-surface-dark,

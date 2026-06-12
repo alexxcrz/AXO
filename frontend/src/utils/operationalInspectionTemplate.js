@@ -501,3 +501,50 @@ export async function createIncidenciasFromOperationalInspection({
     results,
   };
 }
+
+export const DEFAULT_CLEANING_CHECKLIST_SITES = ["C1", "C2", "C3"];
+
+function uniqueInspectionSites(list = []) {
+  return Array.from(new Set(
+    (Array.isArray(list) ? list : [])
+      .map((site) => String(site || "").trim().toUpperCase())
+      .filter(Boolean),
+  ));
+}
+
+function orderInspectionSites(preferredOrder = [], available = []) {
+  const availableSet = new Set(available);
+  const ordered = uniqueInspectionSites(preferredOrder).filter((site) => availableSet.has(site));
+  const extras = available.filter((site) => !ordered.includes(site)).sort();
+  return [...ordered, ...extras];
+}
+
+export function resolveInspectionSiteKeys(record, template = null) {
+  const safeRecord = record && typeof record === "object" ? record : {};
+  const normalizedTemplate = normalizeOperationalInspectionTemplate(template || safeRecord.template);
+  const siteOptions = uniqueInspectionSites(safeRecord.siteOptions);
+  const templateSites = uniqueInspectionSites(normalizedTemplate?.siteOptions);
+  const completedSites = uniqueInspectionSites(safeRecord.completedSites);
+  const bySiteDraftKeys = uniqueInspectionSites(Object.keys(safeRecord.bySiteDrafts || {}));
+  const merged = uniqueInspectionSites([
+    ...siteOptions,
+    ...templateSites,
+    ...completedSites,
+    ...bySiteDraftKeys,
+  ]);
+
+  if (merged.length > 1) {
+    const preferredOrder = siteOptions.length > 1
+      ? siteOptions
+      : (templateSites.length > 1 ? templateSites : DEFAULT_CLEANING_CHECKLIST_SITES);
+    const ordered = orderInspectionSites(preferredOrder, merged);
+    return ordered.length > 1 ? ordered : merged.sort();
+  }
+
+  if (safeRecord.multiSite && templateSites.length > 1) {
+    return templateSites;
+  }
+
+  if (merged.length === 1) return merged;
+  return ["GENERAL"];
+}

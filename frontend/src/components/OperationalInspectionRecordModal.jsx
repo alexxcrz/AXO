@@ -1,7 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { Modal } from "./Modal";
 import { isImageMedia, isVideoMedia, MediaLightbox } from "./MediaLightbox.jsx";
-import { normalizeOperationalInspectionTemplate } from "../utils/operationalInspectionTemplate";
+import {
+  normalizeOperationalInspectionTemplate,
+  resolveInspectionSiteKeys,
+} from "../utils/operationalInspectionTemplate";
+import { formatDateTime } from "../utils/utilidades.jsx";
 
 function normalizeInspectionRecord(record) {
   const safeRecord = record && typeof record === "object" ? record : {};
@@ -12,18 +16,13 @@ function normalizeInspectionRecord(record) {
   const bySiteDrafts = safeRecord.bySiteDrafts && typeof safeRecord.bySiteDrafts === "object"
     ? safeRecord.bySiteDrafts
     : {};
-  const siteOptions = Array.isArray(safeRecord.siteOptions)
-    ? safeRecord.siteOptions.map((site) => String(site || "").trim().toUpperCase()).filter(Boolean)
-    : [];
-  const computedSiteKeys = siteOptions.length
-    ? siteOptions
-    : (Object.keys(bySiteDrafts).length ? Object.keys(bySiteDrafts) : ["GENERAL"]);
+  const siteKeys = resolveInspectionSiteKeys(safeRecord, template);
   return {
     ...safeRecord,
     template,
     draft: fallbackDraft,
     bySiteDrafts,
-    siteKeys: computedSiteKeys,
+    siteKeys,
     incidencias: Array.isArray(safeRecord.incidencias) ? safeRecord.incidencias : [],
   };
 }
@@ -52,6 +51,12 @@ function isVideoEvidence(item = {}) {
     || /\.(mp4|mov|webm|ogg|m4v)$/i.test(String(item?.name || item?.url || ""));
 }
 
+function formatInspectionDate(value) {
+  if (!value) return "N/A";
+  const formatted = formatDateTime(value);
+  return formatted === "-" ? String(value) : formatted;
+}
+
 export default function OperationalInspectionRecordModal({
   open,
   onClose,
@@ -60,20 +65,19 @@ export default function OperationalInspectionRecordModal({
 }) {
   const resolvedRecord = useMemo(() => normalizeInspectionRecord(record), [record]);
   const [activeSite, setActiveSite] = useState("");
-
   const [mediaLightbox, setMediaLightbox] = useState(null);
+  const showSiteTabs = resolvedRecord.siteKeys.length > 1 || Boolean(resolvedRecord.multiSite);
 
   useEffect(() => {
     if (activeSite && resolvedRecord.siteKeys.includes(activeSite)) return;
     setActiveSite(resolvedRecord.siteKeys[0] || "GENERAL");
   }, [activeSite, resolvedRecord.siteKeys]);
 
-
-
   const currentSiteKey = activeSite || resolvedRecord.siteKeys[0] || "GENERAL";
   const currentDraft = resolvedRecord.bySiteDrafts[currentSiteKey] && typeof resolvedRecord.bySiteDrafts[currentSiteKey] === "object"
     ? resolvedRecord.bySiteDrafts[currentSiteKey]
     : resolvedRecord.draft;
+  const completedAtLabel = formatInspectionDate(resolvedRecord.completedAt || currentDraft?.metadata?.date);
 
   async function handleExportPdf() {
     const { template, completedAt, completedByName } = resolvedRecord;
@@ -85,7 +89,7 @@ export default function OperationalInspectionRecordModal({
     pdf.setFontSize(9);
     pdf.text(`Plantilla: ${template.name}`, 36, 58);
     pdf.text(`Completado por: ${String(completedByName || resolvedRecord.draft?.metadata?.responsable || "N/A")}`, 36, 72);
-    pdf.text(`Fecha: ${String(completedAt || resolvedRecord.draft?.metadata?.date || "N/A")}`, 36, 86);
+    pdf.text(`Fecha: ${formatInspectionDate(completedAt || resolvedRecord.draft?.metadata?.date)}`, 36, 86);
 
     const body = [];
     resolvedRecord.siteKeys.forEach((siteKey) => {
@@ -152,59 +156,65 @@ export default function OperationalInspectionRecordModal({
             Exportar PDF
           </button>
         )}
-        className="operational-inspection-modal"
+        className="operational-inspection-modal inspection-record-modal"
       >
-        <div style={{ display: "grid", gap: "0.85rem" }}>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: "0.55rem" }}>
-            <div className="surface-card" style={{ padding: "0.65rem" }}>
+        <div className="inspection-record-body">
+          <div className="inspection-record-summary">
+            <div className="surface-card inspection-record-summary-card">
               <strong>Área</strong>
               <div>{String(currentDraft?.metadata?.area || "N/A")}</div>
             </div>
-            <div className="surface-card" style={{ padding: "0.65rem" }}>
+            <div className="surface-card inspection-record-summary-card">
               <strong>Fecha</strong>
-              <div>{String(resolvedRecord.completedAt || currentDraft?.metadata?.date || "N/A")}</div>
+              <div title={String(resolvedRecord.completedAt || currentDraft?.metadata?.date || "")}>{completedAtLabel}</div>
             </div>
-            <div className="surface-card" style={{ padding: "0.65rem" }}>
+            <div className="surface-card inspection-record-summary-card">
               <strong>Responsable</strong>
               <div>{String(resolvedRecord.completedByName || currentDraft?.metadata?.responsable || "N/A")}</div>
             </div>
-            <div className="surface-card" style={{ padding: "0.65rem" }}>
+            <div className="surface-card inspection-record-summary-card">
               <strong>Incidencias</strong>
               <div>{resolvedRecord.incidencias.length}</div>
             </div>
           </div>
 
-          {resolvedRecord.siteKeys.length > 1 ? (
-            <div className="history-area-tabs" style={{ paddingLeft: 0 }}>
+          {showSiteTabs ? (
+            <div className="history-area-tabs inspection-record-site-tabs">
               {resolvedRecord.siteKeys.map((siteKey) => {
                 const siteDraft = resolvedRecord.bySiteDrafts[siteKey] && typeof resolvedRecord.bySiteDrafts[siteKey] === "object"
                   ? resolvedRecord.bySiteDrafts[siteKey]
                   : resolvedRecord.draft;
                 const siteNoOk = Object.values(siteDraft?.checks || {}).filter((entry) => entry?.status === "no_ok").length;
+                const siteCompleted = Array.isArray(resolvedRecord.completedSites)
+                  ? resolvedRecord.completedSites.map((site) => String(site || "").trim().toUpperCase()).includes(siteKey)
+                  : false;
                 return (
-                  <button key={siteKey} type="button" className={`tab ${currentSiteKey === siteKey ? "active" : ""}`} onClick={() => setActiveSite(siteKey)}>
-                    {siteKey} ({siteNoOk})
+                  <button
+                    key={siteKey}
+                    type="button"
+                    className={`tab ${currentSiteKey === siteKey ? "active" : ""}`}
+                    onClick={() => setActiveSite(siteKey)}
+                  >
+                    {siteKey}{siteNoOk ? ` (${siteNoOk})` : siteCompleted ? " (Hecha)" : ""}
                   </button>
                 );
               })}
             </div>
           ) : null}
 
-
-
-{resolvedRecord.template.sections.map((section) => (
-            <article key={section.id} style={{ border: "1px solid rgba(49, 77, 105, 0.14)", borderRadius: "0.9rem", padding: "0.7rem", display: "grid", gap: "0.6rem" }}>
+          {resolvedRecord.template.sections.map((section) => (
+            <article key={section.id} className="inspection-record-section">
               <div className="board-meta-inline created-board-card-meta" style={{ margin: 0 }}>
                 <strong>{section.title}</strong>
                 <span>{section.incidenceCategory || "Otro"}</span>
               </div>
-              <div style={{ display: "grid", gap: "0.45rem" }}>
+              <div className="inspection-record-check-list">
                 {section.checks.map((check) => {
                   const current = currentDraft?.checks?.[check.id] || { status: "pending", notes: "", severity: "media", photos: [], site: "" };
                   const photos = Array.isArray(current.photos) ? current.photos : [];
                   return (
-                    <div key={check.id} style={{ border: "1px solid rgba(49, 77, 105, 0.08)", borderRadius: "0.75rem", padding: "0.55rem", display: "grid", gap: "0.45rem" }}>
-                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.6rem", flexWrap: "wrap" }}>
+                    <div key={check.id} className="inspection-record-check-item">
+                      <div className="inspection-record-check-head">
                         <span>{check.label}</span>
                         <strong style={{ color: getCheckStatusColor(current.status) }}>{getCheckStatusLabel(current.status)}</strong>
                       </div>
@@ -224,28 +234,26 @@ export default function OperationalInspectionRecordModal({
                       ) : null}
 
                       {photos.length ? (
-                        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))", gap: "0.35rem" }}>
+                        <div className="inspection-record-evidence-grid">
                           {photos.map((photo) => (
                             <button
                               key={photo.id}
                               type="button"
+                              className="inspection-record-evidence-btn"
                               onClick={() => {
                                 const gallery = photos.filter((item) => isImageMedia(item) || isVideoMedia(item));
                                 const startIndex = gallery.findIndex((item) => item.id === photo.id);
                                 setMediaLightbox({ items: gallery, startIndex: startIndex >= 0 ? startIndex : 0 });
                               }}
-                              style={{ display: "grid", gap: "0.2rem", border: "1px solid rgba(49, 77, 105, 0.14)", borderRadius: "0.6rem", padding: "0.3rem", background: "#ffffff", cursor: "pointer", textAlign: "left" }}
                             >
                               {isImageEvidence(photo) ? (
-                                <img src={photo.thumbnailUrl || photo.url} alt={photo.name || "Evidencia"} style={{ width: "100%", height: "80px", objectFit: "cover", borderRadius: "0.45rem" }} />
+                                <img src={photo.thumbnailUrl || photo.url} alt={photo.name || "Evidencia"} />
                               ) : isVideoEvidence(photo) ? (
-                                <video src={photo.url} poster={photo.thumbnailUrl || undefined} style={{ width: "100%", height: "80px", objectFit: "cover", borderRadius: "0.45rem" }} muted playsInline preload="metadata" />
+                                <video src={photo.url} poster={photo.thumbnailUrl || undefined} muted playsInline preload="metadata" />
                               ) : (
-                                <div style={{ width: "100%", height: "80px", display: "grid", placeItems: "center", background: "#f3f5f8", borderRadius: "0.45rem" }}>
-                                  <span style={{ fontSize: "0.8rem", color: "#64748b" }}>Archivo</span>
-                                </div>
+                                <div className="inspection-record-evidence-file">Archivo</div>
                               )}
-                              <small style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{photo.name || "Archivo"}</small>
+                              <small>{photo.name || "Archivo"}</small>
                             </button>
                           ))}
                         </div>
@@ -258,9 +266,9 @@ export default function OperationalInspectionRecordModal({
           ))}
 
           {String(currentDraft?.observations || "").trim() ? (
-            <label style={{ display: "grid", gap: "0.2rem" }}>
+            <label className="inspection-record-observations">
               <span>Observaciones generales</span>
-              <div className="surface-card" style={{ padding: "0.7rem" }}>{String(currentDraft.observations).trim()}</div>
+              <div className="surface-card inspection-record-observations-copy">{String(currentDraft.observations).trim()}</div>
             </label>
           ) : null}
         </div>
