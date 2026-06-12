@@ -100,6 +100,21 @@ html.mobile-shell .primary-button {
   min-height: 40px;
 }
 
+/* Botones circulares del chat: no aplastar con min-height global */
+html.mobile-shell .chat-btn-enviar,
+html.mobile-shell .chat-back-button,
+html.mobile-shell .chat-btn-archivo {
+  min-height: unset;
+}
+
+html.mobile-shell .chat-header-icon-btn,
+html.mobile-shell .chat-add-member-btn {
+  min-height: 36px;
+  min-width: 36px;
+  aspect-ratio: 1 / 1;
+  padding: 8px !important;
+}
+
 html.mobile-shell .content-header,
 html.mobile-shell .mobile-nav-toggle {
   -webkit-user-select: none;

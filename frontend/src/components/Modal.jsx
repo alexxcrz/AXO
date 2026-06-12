@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 
 let modalLayerCounter = 0;
 let activeTopModalLayer = 0;
@@ -68,8 +69,9 @@ export function Modal({
   if (!open) return null;
 
   const backdropZIndex = 20000 + (modalLayer * 10);
+  const portalTarget = typeof document !== "undefined" ? document.body : null;
 
-  return (
+  const modalTree = (
     <div
       className={`sicfla-modal-backdrop ${backdropClassName}`.trim()}
       style={{ zIndex: backdropZIndex }}
@@ -105,4 +107,6 @@ export function Modal({
       </section>
     </div>
   );
+
+  return portalTarget ? createPortal(modalTree, portalTarget) : modalTree;
 }

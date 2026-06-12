@@ -928,9 +928,9 @@ html {
 }
 
 .sidebar-profile-avatar {
-  width: 2.05rem;
-  height: 2.05rem;
-  font-size: 0.8rem;
+  width: 2.35rem;
+  height: 2.35rem;
+  font-size: 0.82rem;
   overflow: hidden;
 }
 
@@ -8208,9 +8208,9 @@ html[data-ui-theme] body .switch-thumb {
 }
 
 .profile-avatar {
-  width: 2rem;
-  height: 2rem;
-  font-size: 0.76rem;
+  width: 2.3rem;
+  height: 2.3rem;
+  font-size: 0.78rem;
 }
 
 .profile-detail-grid {
@@ -11710,8 +11710,8 @@ html[data-ui-theme] body .switch-thumb {
   }
 
   .sidebar-profile-avatar {
-    width: 2rem;
-    height: 2rem;
+    width: 2.3rem;
+    height: 2.3rem;
   }
 
   .sidebar-profile-meta strong {
@@ -12283,7 +12283,10 @@ html[data-ui-theme] body .switch-thumb {
 
   /* ── Modales: casi full-screen en móvil ── */
   .sicfla-modal-backdrop {
-    align-items: flex-end;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    align-items: stretch;
     padding: 0;
   }
 
@@ -12306,10 +12309,17 @@ html[data-ui-theme] body .switch-thumb {
     width: 100vw !important;
     max-width: 100vw !important;
     max-height: 90dvh;
+    min-height: min(42dvh, 320px);
     border-radius: 1.2rem 1.2rem 0 0 !important;
     overflow: hidden;
     -webkit-overflow-scrolling: touch;
     margin: 0 !important;
+    flex-shrink: 0;
+  }
+
+  .sicfla-modal.operational-inspection-modal {
+    max-height: 92dvh;
+    min-height: min(52dvh, 420px);
   }
 
   .sicfla-modal-body {
@@ -13084,8 +13094,8 @@ html[data-ui-theme] body .switch-thumb {
 }
 
 .ep-hero__avatar {
-  width: 56px;
-  height: 56px;
+  width: 64px;
+  height: 64px;
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.18);
   border: 2px solid rgba(255, 255, 255, 0.3);

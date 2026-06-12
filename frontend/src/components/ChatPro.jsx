@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { ChatAudioMessage } from "./ChatAudioMessage.jsx";
 // COPMEC: removed authFetch/useAuth
 import "./ChatPro.css";
 import axoAiLogo from "../assets/AXOIA.png";
@@ -6470,6 +6471,35 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
     return d.toLocaleDateString("es-MX", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
   };
 
+  const claveFechaMensajeChat = (fechaIso) => {
+    if (!fechaIso) return "";
+    const d = new Date(fechaIso);
+    if (Number.isNaN(d.getTime())) return "";
+    const y = d.getFullYear();
+    const mo = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${mo}-${day}`;
+  };
+
+  const etiquetaFechaMensajeChat = (fechaIso) => {
+    if (!fechaIso) return "";
+    const d = new Date(fechaIso);
+    if (Number.isNaN(d.getTime())) return "";
+    const hoy = new Date();
+    const ayer = new Date(hoy);
+    ayer.setDate(hoy.getDate() - 1);
+    if (d.toDateString() === hoy.toDateString()) return "Hoy";
+    if (d.toDateString() === ayer.toDateString()) return "Ayer";
+    const mismoAnio = d.getFullYear() === hoy.getFullYear();
+    const etiqueta = d.toLocaleDateString(
+      "es-MX",
+      mismoAnio
+        ? { weekday: "long", day: "numeric", month: "long" }
+        : { weekday: "long", day: "numeric", month: "long", year: "numeric" },
+    );
+    return etiqueta.charAt(0).toUpperCase() + etiqueta.slice(1);
+  };
+
   const claveSinLeerGrupo = (grupo) => `${grupo.tipo}-${grupo.conversacion_id}`;
 
   const toggleSinLeerGrupo = (clave) => {
@@ -10094,9 +10124,29 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
                             otroNickname = m.usuario_nickname || "Usuario";
                           }
 
+                          const fechaClaveActual = claveFechaMensajeChat(m.fecha);
+                          const fechaClaveAnterior = i > 0
+                            ? claveFechaMensajeChat(mensajesActuales[i - 1]?.fecha)
+                            : "";
+                          const mostrarSeparadorFecha = Boolean(
+                            fechaClaveActual && fechaClaveActual !== fechaClaveAnterior,
+                          );
+                          const etiquetaSeparadorFecha = mostrarSeparadorFecha
+                            ? etiquetaFechaMensajeChat(m.fecha)
+                            : "";
+
                           return (
+                            <React.Fragment key={msgKey}>
+                              {mostrarSeparadorFecha ? (
+                                <div
+                                  className="chat-date-divider"
+                                  role="separator"
+                                  aria-label={etiquetaSeparadorFecha}
+                                >
+                                  <span>{etiquetaSeparadorFecha}</span>
+                                </div>
+                              ) : null}
                             <div
-                              key={i}
                               id={mensajeId ? `msg-${mensajeId}` : undefined}
                               className={`${esMio ? "msg-row msg-row-out" : "msg-row msg-row-in"}${mensajeResaltadoId === mensajeId ? " msg-resaltado-prioritario" : ""}`}
                             >
@@ -10436,17 +10486,7 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
                                           } else if (!urlAudio.startsWith('http')) {
                                             urlAudio = `${SERVER_URL}${urlAudio.startsWith('/') ? '' : '/'}${urlAudio}`;
                                           }
-                                          return (
-                                            <div className="msg-audio-player">
-                                              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{flexShrink:0,opacity:0.6}}><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
-                                              <audio
-                                                src={urlAudio}
-                                                controls
-                                                preload="auto"
-                                                style={{ flex:1, minWidth:'160px', maxWidth:'240px', height:'32px' }}
-                                              />
-                                            </div>
-                                          );
+                                          return <ChatAudioMessage src={urlAudio} />;
                                         }
                                         
                                         // Mostrar como archivo normal (no imagen, no audio)
@@ -10550,6 +10590,7 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
                                 </button>
                               )}
                             </div>
+                            </React.Fragment>
                           );
                         })}
                       </div>
