@@ -4,6 +4,7 @@ import { Image as ImageIcon, Plus, Upload } from "lucide-react";
 import { isImageMedia, isVideoMedia, MediaLightbox } from "./MediaLightbox.jsx";
 import { uploadFileToCloudinary } from "../services/upload.service";
 import { normalizeBoardEvidenceValue, normalizeBoardMultiSelectDetailValue } from "../utils/utilidades.jsx";
+import "./BoardRuntimeFieldCells.css";
 
 function isImageEvidence(evidence) {
   return isImageMedia(evidence);
@@ -14,8 +15,30 @@ function isVideoEvidence(evidence) {
 }
 
 export function BoardMultiSelectDetailCell({ field, value, options, disabled, onChange }) {
+  const rootRef = useRef(null);
+  const panelRef = useRef(null);
+  const [open, setOpen] = useState(false);
+  const [panelStyle, setPanelStyle] = useState(null);
   const selections = normalizeBoardMultiSelectDetailValue(value);
   const selectedMap = useMemo(() => new Map(selections.map((item) => [item.option, item])), [selections]);
+
+  const triggerSummary = useMemo(() => {
+    if (!selections.length) {
+      return {
+        title: "Seleccionar causales",
+        subtitle: "Toca para marcar y capturar piezas",
+      };
+    }
+    const parts = selections.map((item) => {
+      const label = item.label || item.option;
+      const detail = String(item.detail || "").trim();
+      return detail ? `${label} (${detail})` : label;
+    });
+    return {
+      title: `${selections.length} causal${selections.length === 1 ? "" : "es"} marcada${selections.length === 1 ? "" : "s"}`,
+      subtitle: parts.join(" · "),
+    };
+  }, [selections]);
 
   function handleToggleOption(option) {
     const optionValue = String(option.value || "").trim();
@@ -32,32 +55,121 @@ export function BoardMultiSelectDetailCell({ field, value, options, disabled, on
     onChange(selections.map((item) => (item.option === optionValue ? { ...item, label: option.label || optionValue, detail } : item)));
   }
 
+  useEffect(() => {
+    function handlePointerDown(event) {
+      if (rootRef.current?.contains(event.target) || panelRef.current?.contains(event.target)) return;
+      setOpen(false);
+    }
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => document.removeEventListener("pointerdown", handlePointerDown);
+  }, []);
+
+  useEffect(() => {
+    if (!open || !rootRef.current) return undefined;
+
+    function updatePanelPosition() {
+      const rect = rootRef.current?.getBoundingClientRect();
+      if (!rect) return;
+
+      const panelWidth = Math.min(320, Math.max(260, globalThis.innerWidth - 16));
+      const estimatedHeight = Math.min(420, Math.max(220, (options?.length || 0) * 72 + 72));
+      const spaceBelow = Math.max(0, globalThis.innerHeight - rect.bottom - 8);
+      const spaceAbove = Math.max(0, rect.top - 8);
+      const openAbove = spaceBelow < estimatedHeight && spaceAbove > spaceBelow;
+      const maxHeight = Math.min(estimatedHeight, openAbove ? spaceAbove : Math.max(spaceBelow, 180));
+      let left = rect.left;
+      left = Math.max(8, Math.min(left, globalThis.innerWidth - panelWidth - 8));
+
+      setPanelStyle({
+        position: "fixed",
+        left,
+        width: panelWidth,
+        maxHeight,
+        top: openAbove ? Math.max(8, rect.top - maxHeight - 6) : rect.bottom + 6,
+        zIndex: 9300,
+      });
+    }
+
+    updatePanelPosition();
+    globalThis.addEventListener("resize", updatePanelPosition, { passive: true });
+    globalThis.addEventListener("scroll", updatePanelPosition, { capture: true, passive: true });
+    return () => {
+      globalThis.removeEventListener("resize", updatePanelPosition);
+      globalThis.removeEventListener("scroll", updatePanelPosition, { capture: true });
+    };
+  }, [open, options?.length]);
+
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "0.18rem", minWidth: 0 }}>
-      {(options || []).map((option) => {
-        const optionValue = String(option.value || "").trim();
-        const selectedItem = selectedMap.get(optionValue) || null;
-        const isSelected = Boolean(selectedItem);
-        return (
-          <div key={optionValue} style={{ border: "1px solid rgba(162, 170, 181, 0.16)", borderRadius: "0.55rem", padding: "0.16rem 0.24rem", display: "grid", gap: "0.12rem", background: isSelected ? "rgba(49, 77, 105, 0.03)" : "#ffffff" }}>
-            <label style={{ display: "flex", alignItems: "center", gap: "0.24rem", fontSize: "0.66rem", fontWeight: 600, color: "#244040", lineHeight: 1.1 }}>
-              <input type="checkbox" checked={isSelected} onChange={() => handleToggleOption(option)} disabled={disabled} style={{ width: "14px", height: "14px", margin: 0 }} />
-              <span>{option.label || optionValue}</span>
-            </label>
-            {isSelected ? (
-              <input
-                type="text"
-                inputMode="text"
-                value={selectedItem?.detail || ""}
-                onChange={(event) => handleDetailChange(option, event.target.value)}
-                placeholder={field.placeholder || "Dato adicional"}
-                disabled={disabled}
-                style={{ width: "100%", minHeight: "24px", fontSize: "0.66rem", padding: "0.16rem 0.3rem", borderRadius: "0.46rem" }}
-              />
-            ) : null}
+    <div ref={rootRef} className="board-msd-cell">
+      <button
+        type="button"
+        className={`board-msd-trigger${selections.length ? " has-value" : ""}`}
+        onClick={() => !disabled && setOpen((current) => !current)}
+        disabled={disabled}
+        title={field.helpText || field.label || "Causales"}
+        aria-expanded={open}
+      >
+        {selections.length ? (
+          <span className="board-msd-trigger-badge">{selections.length}</span>
+        ) : null}
+        <span className="board-msd-trigger-body">
+          <span className="board-msd-trigger-title">{triggerSummary.title}</span>
+          <span className="board-msd-trigger-subtitle">{triggerSummary.subtitle}</span>
+        </span>
+        <span className="board-msd-trigger-caret" aria-hidden="true">{open ? "▲" : "▼"}</span>
+      </button>
+
+      {open && panelStyle ? createPortal(
+        <div ref={panelRef} className="board-msd-panel" style={panelStyle} role="dialog" aria-label="Causales">
+          <div className="board-msd-panel-head">
+            <div className="board-msd-panel-head-copy">
+              <strong>{field.label || "Causales"}</strong>
+              <span>Marca cada causal y captura las piezas afectadas.</span>
+            </div>
+            <button type="button" className="board-msd-panel-close" onClick={() => setOpen(false)} aria-label="Cerrar">
+              ✕
+            </button>
           </div>
-        );
-      })}
+          <div className="board-msd-panel-list">
+            {(options || []).map((option) => {
+              const optionValue = String(option.value || "").trim();
+              const selectedItem = selectedMap.get(optionValue) || null;
+              const isSelected = Boolean(selectedItem);
+              return (
+                <div key={optionValue} className={`board-msd-option${isSelected ? " is-selected" : ""}`}>
+                  <label className="board-msd-option-label">
+                    <input
+                      type="checkbox"
+                      className="board-msd-checkbox"
+                      checked={isSelected}
+                      onChange={() => handleToggleOption(option)}
+                      disabled={disabled}
+                    />
+                    <span className="board-msd-option-text">{option.label || optionValue}</span>
+                  </label>
+                  {isSelected ? (
+                    <div className="board-msd-detail-row">
+                      <span className="board-msd-detail-label">Piezas</span>
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        className="board-msd-detail"
+                        value={selectedItem?.detail || ""}
+                        onChange={(event) => handleDetailChange(option, event.target.value)}
+                        placeholder={field.placeholder || "Cantidad"}
+                        disabled={disabled}
+                        aria-label={`Piezas ${option.label || optionValue}`}
+                      />
+                    </div>
+                  ) : null}
+                </div>
+              );
+            })}
+          </div>
+        </div>,
+        document.body,
+      ) : null}
     </div>
   );
 }

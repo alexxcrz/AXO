@@ -315,7 +315,7 @@ export const BOARD_FIELD_MIN_WIDTH_BY_TYPE = {
   maintenanceInventoryLookup: 260,
   inventoryLookupLogistics: 210,
   select: 190,
-  multiSelectDetail: 240,
+  multiSelectDetail: 200,
   evidenceGallery: 240,
   user: 190,
   status: 150,

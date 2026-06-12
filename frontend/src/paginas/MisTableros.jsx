@@ -2170,7 +2170,7 @@ export default function MisTableros({ contexto }) {
 
                           if (field.type === "multiSelectDetail") {
                             return (
-                              <td key={field.id} style={columnStyle}>
+                              <td key={field.id} style={columnStyle} className="board-cell-multiselect-detail">
                                 <BoardMultiSelectDetailCell
                                   field={field}
                                   value={value}
