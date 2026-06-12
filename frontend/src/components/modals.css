@@ -162,18 +162,22 @@
 .sicfla-modal.inspection-start-modal .sicfla-modal-actions .icon-button,
 .sicfla-modal.inspection-record-modal .sicfla-modal-actions .icon-button {
   width: auto;
+  min-width: fit-content;
+  flex: 0 0 auto;
   min-height: 1.95rem;
   padding: 0.3rem 0.72rem;
   font-size: 0.76rem;
   font-weight: 600;
   border-radius: 0.55rem;
+  white-space: nowrap;
 }
 
 .sicfla-modal.inspection-start-modal .sicfla-modal-actions .sicfla-button.ghost,
 .sicfla-modal.inspection-record-modal .sicfla-modal-actions .sicfla-button.ghost {
-  background: transparent;
-  border-color: color-mix(in srgb, var(--sicfla-brand) 28%, transparent);
-  color: var(--sicfla-brand);
+  background: #ffffff !important;
+  border: 1px solid color-mix(in srgb, var(--sicfla-brand, var(--ui-primary, #385878)) 34%, transparent) !important;
+  color: var(--sicfla-brand, var(--ui-primary, #385878)) !important;
+  box-shadow: none !important;
 }
 
 .inspection-start-body {

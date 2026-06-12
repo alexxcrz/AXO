@@ -17594,17 +17594,25 @@ html[data-ui-theme] .sidebar-profile-card {
 }
 
 html[data-ui-theme] body .primary-button,
-html[data-ui-theme] body .sicfla-button,
+html[data-ui-theme] body .sicfla-button:not(.ghost),
 html[data-ui-theme] body .ep-btn--primary,
 html[data-ui-theme] body .copmec-ai-send-btn,
 html[data-ui-theme] .primary-button,
-html[data-ui-theme] .sicfla-button,
+html[data-ui-theme] .sicfla-button:not(.ghost),
 html[data-ui-theme] .ep-btn--primary,
 html[data-ui-theme] .copmec-ai-send-btn {
   background: linear-gradient(180deg, var(--ui-primary-soft) 0%, var(--ui-primary) 100%);
   border-color: color-mix(in srgb, var(--ui-primary-strong) 55%, black 45%);
   box-shadow: var(--ui-shadow-soft);
   color: var(--btn-on-primary, #ffffff) !important;
+}
+
+html[data-ui-theme] body .sicfla-button.ghost,
+html[data-ui-theme] .sicfla-button.ghost {
+  background: #ffffff !important;
+  border: 1px solid color-mix(in srgb, var(--ui-primary) 34%, transparent) !important;
+  color: var(--ui-primary, var(--sicfla-brand)) !important;
+  box-shadow: none !important;
 }
 
 /* Botones de workflow del tablero: colores semánticos fijos, sin depender del tema UI */
@@ -17676,15 +17684,21 @@ html[data-ui-theme] .board-action-button.icon-only.delete.locked {
 }
 
 html[data-ui-theme] body .primary-button:hover,
-html[data-ui-theme] body .sicfla-button:hover,
+html[data-ui-theme] body .sicfla-button:not(.ghost):hover,
 html[data-ui-theme] body .ep-btn--primary:hover,
 html[data-ui-theme] body .copmec-ai-send-btn:hover,
 html[data-ui-theme] .primary-button:hover,
-html[data-ui-theme] .sicfla-button:hover,
+html[data-ui-theme] .sicfla-button:not(.ghost):hover,
 html[data-ui-theme] .ep-btn--primary:hover,
 html[data-ui-theme] .copmec-ai-send-btn:hover {
   background: linear-gradient(180deg, color-mix(in srgb, var(--ui-primary-soft) 88%, white), var(--ui-primary));
   color: var(--btn-on-primary, #ffffff) !important;
+}
+
+html[data-ui-theme] body .sicfla-button.ghost:hover,
+html[data-ui-theme] .sicfla-button.ghost:hover {
+  background: color-mix(in srgb, var(--ui-primary) 8%, #ffffff) !important;
+  color: var(--ui-primary, var(--sicfla-brand)) !important;
 }
 
 html[data-ui-theme] body .primary-button:disabled,
