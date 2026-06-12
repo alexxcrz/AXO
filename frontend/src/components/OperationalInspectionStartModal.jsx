@@ -10,7 +10,6 @@ import {
   buildIncidenciasFromOperationalInspection,
   normalizeOperationalInspectionTemplate,
   sanitizeInspectionSiteKeys,
-  isDeprecatedInspectionSite,
 } from "../utils/operationalInspectionTemplate";
 
 const SEVERITY_OPTIONS = [
@@ -118,6 +117,7 @@ export default function OperationalInspectionStartModal({
       metadata: {
         ...base.metadata,
         ...(source.metadata && typeof source.metadata === "object" ? source.metadata : {}),
+        area: String(site || source?.metadata?.area || defaultArea || "").trim().toUpperCase(),
         site: String(site || source?.metadata?.site || "").trim().toUpperCase(),
       },
       checks: mergedChecks,
@@ -179,6 +179,27 @@ export default function OperationalInspectionStartModal({
     isMultiSiteMode,
     normalizedIncidentSiteOptions,
   ]);
+
+  useEffect(() => {
+    if (!open || !isMultiSiteMode || !currentSiteKey) return;
+    setSiteDrafts((prev) => {
+      const draft = prev[currentSiteKey];
+      if (!draft) return prev;
+      const nextArea = currentSiteKey;
+      if (String(draft.metadata?.area || "").trim().toUpperCase() === nextArea) return prev;
+      return {
+        ...prev,
+        [currentSiteKey]: {
+          ...draft,
+          metadata: {
+            ...draft.metadata,
+            area: nextArea,
+            site: nextArea,
+          },
+        },
+      };
+    });
+  }, [open, isMultiSiteMode, currentSiteKey]);
 
 
 
@@ -330,9 +351,9 @@ export default function OperationalInspectionStartModal({
       cancelLabel="Cancelar"
       confirmDisabled={confirmBusy}
       disableBackdropClose
-      className="operational-inspection-modal"
+      className="operational-inspection-modal inspection-start-modal"
     >
-      <div style={{ display: "grid", gap: "0.85rem" }}>
+      <div className="inspection-start-body">
         {isMultiSiteMode ? (
           <div className="history-area-tabs" style={{ paddingLeft: 0 }}>
             {normalizedIncidentSiteOptions.map((siteOption) => {
@@ -354,16 +375,22 @@ export default function OperationalInspectionStartModal({
 
 
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: "0.55rem" }}>
-          <label style={{ display: "grid", gap: "0.2rem" }}>
-            <span>Area</span>
-            <input value={currentDraft.metadata.area} onChange={(event) => updateMetadata("area", event.target.value)} placeholder="Area" />
+        <div className="inspection-start-meta-grid">
+          <label className="inspection-start-meta-field">
+            <span>{isMultiSiteMode ? "Nave" : "Area"}</span>
+            <input
+              value={isMultiSiteMode ? currentSiteKey : currentDraft.metadata.area}
+              onChange={(event) => updateMetadata("area", event.target.value)}
+              placeholder={isMultiSiteMode ? "Nave" : "Area"}
+              readOnly={isMultiSiteMode}
+              aria-readonly={isMultiSiteMode}
+            />
           </label>
-          <label style={{ display: "grid", gap: "0.2rem" }}>
+          <label className="inspection-start-meta-field">
             <span>Fecha</span>
             <SpanishDateInput value={currentDraft.metadata.date} onChange={(event) => updateMetadata("date", event.target.value)} placeholder="Seleccionar fecha" />
           </label>
-          <label style={{ display: "grid", gap: "0.2rem" }}>
+          <label className="inspection-start-meta-field">
             <span>Responsable</span>
             <input value={currentDraft.metadata.responsable} onChange={(event) => updateMetadata("responsable", event.target.value)} placeholder="Responsable" />
           </label>
@@ -379,40 +406,19 @@ export default function OperationalInspectionStartModal({
                 const photos = Array.isArray(current.photos) ? current.photos : [];
                 const saveKey = `${currentSiteKey}:${check.id}`;
                 return (
-                  <div key={check.id} style={{ border: "1px solid rgba(49, 77, 105, 0.08)", borderRadius: "0.75rem", padding: "0.55rem", display: "grid", gap: "0.45rem" }}>
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.6rem", flexWrap: "wrap" }}>
-                      <span>{check.label}</span>
-                      <div style={{ display: "inline-flex", alignItems: "center", gap: "0.45rem", fontWeight: 700 }}>
-                        <span style={{ color: isNoOk ? "#b91c1c" : "#2d4f72" }}>{isNoOk ? "NO OK" : "OK"}</span>
+                  <div key={check.id} className="inspection-start-check-item">
+                    <div className="inspection-check-row">
+                      <span className="inspection-check-label">{check.label}</span>
+                      <div className="inspection-check-switch">
+                        <span className={isNoOk ? "inspection-check-status is-no-ok" : "inspection-check-status"}>{isNoOk ? "NO OK" : "OK"}</span>
                         <button
                           type="button"
+                          className={`inspection-check-toggle${isNoOk ? " is-no-ok" : ""}`}
                           aria-label={`Cambiar estado de ${check.label}`}
                           aria-pressed={!isNoOk}
                           onClick={() => updateCheck(check.id, { status: isNoOk ? "ok" : "no_ok" })}
-                          style={{
-                            cursor: "pointer",
-                            position: "relative",
-                            width: "44px",
-                            height: "24px",
-                            borderRadius: "999px",
-                            background: isNoOk ? "#dc2626" : "#4f7da9",
-                            transition: "all 0.2s ease",
-                            border: "none",
-                            padding: 0,
-                          }}
                         >
-                          <span
-                            style={{
-                              position: "absolute",
-                              top: "3px",
-                              left: isNoOk ? "3px" : "23px",
-                              width: "18px",
-                              height: "18px",
-                              borderRadius: "50%",
-                              background: "#ffffff",
-                              transition: "all 0.2s ease",
-                            }}
-                          />
+                          <span className="inspection-check-toggle-thumb" />
                         </button>
                       </div>
                     </div>

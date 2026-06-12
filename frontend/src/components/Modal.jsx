@@ -96,10 +96,9 @@ export function Modal({
           )}
           <button
             type="button"
-            className="sicfla-button"
+            className="sicfla-button sicfla-modal-confirm-btn"
             onClick={onConfirm || onClose}
             disabled={confirmDisabled}
-            style={{ minHeight: "44px", touchAction: "manipulation" }}
           >
             {confirmLabel}
           </button>

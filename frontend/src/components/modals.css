@@ -131,9 +131,171 @@
   min-height: 2.2rem;
 }
 
+.sicfla-modal-actions .sicfla-modal-confirm-btn {
+  min-height: 2.2rem;
+  touch-action: manipulation;
+}
+
+.sicfla-modal.operational-inspection-modal .sicfla-modal-actions .sicfla-modal-confirm-btn {
+  min-height: 44px;
+}
+
 .sicfla-modal.operational-inspection-modal .sicfla-modal-actions .sicfla-button {
   min-height: 44px;
   touch-action: manipulation;
+}
+
+.sicfla-modal.inspection-start-modal .sicfla-modal-actions,
+.sicfla-modal.inspection-record-modal .sicfla-modal-actions {
+  flex-direction: row;
+  justify-content: flex-end;
+  flex-wrap: nowrap;
+  gap: 0.45rem;
+  margin-top: 0.65rem;
+  padding-top: 0.65rem;
+}
+
+.sicfla-modal.inspection-start-modal .sicfla-modal-actions .sicfla-button,
+.sicfla-modal.inspection-record-modal .sicfla-modal-actions .sicfla-button,
+.sicfla-modal.inspection-start-modal .sicfla-modal-actions .sicfla-modal-confirm-btn,
+.sicfla-modal.inspection-record-modal .sicfla-modal-actions .sicfla-modal-confirm-btn,
+.sicfla-modal.inspection-start-modal .sicfla-modal-actions .icon-button,
+.sicfla-modal.inspection-record-modal .sicfla-modal-actions .icon-button {
+  width: auto;
+  min-height: 1.95rem;
+  padding: 0.3rem 0.72rem;
+  font-size: 0.76rem;
+  font-weight: 600;
+  border-radius: 0.55rem;
+}
+
+.sicfla-modal.inspection-start-modal .sicfla-modal-actions .sicfla-button.ghost,
+.sicfla-modal.inspection-record-modal .sicfla-modal-actions .sicfla-button.ghost {
+  background: transparent;
+  border-color: color-mix(in srgb, var(--sicfla-brand) 28%, transparent);
+  color: var(--sicfla-brand);
+}
+
+.inspection-start-body {
+  display: grid;
+  gap: 0.85rem;
+  min-width: 0;
+}
+
+.inspection-start-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+.inspection-start-meta-field {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.inspection-start-meta-field input[readonly] {
+  background: #f8fafc;
+  color: #334155;
+  cursor: default;
+}
+
+.inspection-start-check-item {
+  border: 1px solid rgba(49, 77, 105, 0.08);
+  border-radius: 0.75rem;
+  padding: 0.55rem;
+  display: grid;
+  gap: 0.45rem;
+  min-width: 0;
+}
+
+.inspection-check-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.65rem;
+}
+
+.inspection-check-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  line-height: 1.35;
+  padding-top: 0.08rem;
+}
+
+.inspection-check-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex: 0 0 auto;
+  white-space: nowrap;
+  font-weight: 700;
+}
+
+.inspection-check-status {
+  color: #2d4f72;
+  font-size: 0.78rem;
+}
+
+.inspection-check-status.is-no-ok {
+  color: #b91c1c;
+}
+
+.inspection-check-toggle {
+  position: relative;
+  width: 42px;
+  height: 22px;
+  border-radius: 999px;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  background: #4f7da9;
+  transition: background 0.2s ease;
+  flex-shrink: 0;
+}
+
+.inspection-check-toggle.is-no-ok {
+  background: #dc2626;
+}
+
+.inspection-check-toggle-thumb {
+  position: absolute;
+  top: 3px;
+  left: 22px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #ffffff;
+  transition: left 0.2s ease;
+}
+
+.inspection-check-toggle.is-no-ok .inspection-check-toggle-thumb {
+  left: 3px;
+}
+
+@media (max-width: 720px) {
+  .inspection-start-meta-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .inspection-start-meta-field:last-child {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 480px) {
+  .sicfla-modal.inspection-start-modal .sicfla-modal-actions,
+  .sicfla-modal.inspection-record-modal .sicfla-modal-actions {
+    flex-direction: row !important;
+  }
+
+  .sicfla-modal.inspection-start-modal .sicfla-modal-actions .sicfla-button,
+  .sicfla-modal.inspection-record-modal .sicfla-modal-actions .sicfla-button,
+  .sicfla-modal.inspection-start-modal .sicfla-modal-actions .sicfla-modal-confirm-btn,
+  .sicfla-modal.inspection-record-modal .sicfla-modal-actions .sicfla-modal-confirm-btn {
+    width: auto !important;
+    min-height: 1.85rem !important;
+  }
 }
 
 .sicfla-modal.operational-inspection-modal .sicfla-modal-body button[type="button"] {
