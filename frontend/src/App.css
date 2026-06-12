@@ -3729,11 +3729,76 @@ html[data-ui-theme] .app-notification-badge {
   max-height: 1.62rem;
   padding: 0;
   justify-content: center;
-  border-radius: 0.48rem;
+  border-radius: 0.35rem;
   gap: 0;
   flex: 0 0 auto;
   aspect-ratio: 1 / 1;
   box-sizing: border-box;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  font-weight: 600;
+  transition: background-color 0.14s ease, color 0.14s ease, opacity 0.14s ease;
+}
+
+.board-action-button.icon-only svg {
+  flex-shrink: 0;
+  width: 1.12rem;
+  height: 1.12rem;
+  filter: drop-shadow(0 0 0.35px currentColor);
+}
+
+.board-action-button.icon-only.start {
+  color: #047857;
+}
+
+.board-action-button.icon-only.pause {
+  color: #c2410c;
+}
+
+.board-action-button.icon-only.finish {
+  color: #be123c;
+}
+
+.board-action-button.icon-only.delete.enabled {
+  color: #44403c;
+}
+
+.board-action-button.icon-only.delete.locked {
+  color: #78716c;
+}
+
+.board-action-button.icon-only:not(.start):not(.pause):not(.finish):not(.delete) {
+  color: #334155;
+}
+
+.board-action-button.icon-only:hover:not(:disabled) {
+  background: rgba(15, 23, 42, 0.06);
+}
+
+.board-action-button.icon-only.start:hover:not(:disabled) {
+  background: rgba(5, 150, 105, 0.12);
+  color: #047857;
+}
+
+.board-action-button.icon-only.pause:hover:not(:disabled) {
+  background: rgba(217, 119, 6, 0.12);
+  color: #92400e;
+}
+
+.board-action-button.icon-only.finish:hover:not(:disabled) {
+  background: rgba(225, 29, 72, 0.1);
+  color: #be123c;
+}
+
+.board-action-button.icon-only.delete.enabled:hover:not(:disabled) {
+  background: rgba(87, 83, 78, 0.12);
+  color: #292524;
+}
+
+.board-action-button.icon-only:not(.start):not(.pause):not(.finish):not(.delete):hover:not(:disabled) {
+  background: rgba(71, 85, 105, 0.1);
+  color: #334155;
 }
 
 .admin-page-layout,
@@ -17340,39 +17405,71 @@ html[data-ui-theme] .copmec-ai-send-btn {
 }
 
 /* Botones de workflow del tablero: colores semánticos fijos, sin depender del tema UI */
-html[data-ui-theme] body .board-action-button.start,
-html[data-ui-theme] .board-action-button.start {
+html[data-ui-theme] body .board-action-button.start:not(.icon-only),
+html[data-ui-theme] .board-action-button.start:not(.icon-only) {
   background: linear-gradient(180deg, #34d399 0%, #059669 100%) !important;
   border-color: #047857 !important;
   color: #ffffff !important;
 }
 
-html[data-ui-theme] body .board-action-button.pause,
-html[data-ui-theme] .board-action-button.pause {
+html[data-ui-theme] body .board-action-button.pause:not(.icon-only),
+html[data-ui-theme] .board-action-button.pause:not(.icon-only) {
   background: linear-gradient(180deg, #fbbf24 0%, #d97706 100%) !important;
   border-color: #b45309 !important;
   color: #ffffff !important;
 }
 
-html[data-ui-theme] body .board-action-button.finish,
-html[data-ui-theme] .board-action-button.finish {
+html[data-ui-theme] body .board-action-button.finish:not(.icon-only),
+html[data-ui-theme] .board-action-button.finish:not(.icon-only) {
   background: linear-gradient(180deg, #fb7185 0%, #e11d48 100%) !important;
   border-color: #be123c !important;
   color: #ffffff !important;
 }
 
-html[data-ui-theme] body .board-action-button.delete.enabled,
-html[data-ui-theme] .board-action-button.delete.enabled {
+html[data-ui-theme] body .board-action-button.delete.enabled:not(.icon-only),
+html[data-ui-theme] .board-action-button.delete.enabled:not(.icon-only) {
   background: linear-gradient(180deg, #78716c 0%, #44403c 100%) !important;
   border-color: #292524 !important;
   color: #ffffff !important;
 }
 
-html[data-ui-theme] body .board-action-button.delete.locked,
-html[data-ui-theme] .board-action-button.delete.locked {
+html[data-ui-theme] body .board-action-button.delete.locked:not(.icon-only),
+html[data-ui-theme] .board-action-button.delete.locked:not(.icon-only) {
   background: linear-gradient(180deg, #d6d3d1 0%, #a8a29e 100%) !important;
   border-color: #78716c !important;
   color: #ffffff !important;
+}
+
+html[data-ui-theme] body .board-action-button.icon-only,
+html[data-ui-theme] .board-action-button.icon-only {
+  background: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+
+html[data-ui-theme] body .board-action-button.icon-only.start,
+html[data-ui-theme] .board-action-button.icon-only.start {
+  color: #047857 !important;
+}
+
+html[data-ui-theme] body .board-action-button.icon-only.pause,
+html[data-ui-theme] .board-action-button.icon-only.pause {
+  color: #c2410c !important;
+}
+
+html[data-ui-theme] body .board-action-button.icon-only.finish,
+html[data-ui-theme] .board-action-button.icon-only.finish {
+  color: #be123c !important;
+}
+
+html[data-ui-theme] body .board-action-button.icon-only.delete.enabled,
+html[data-ui-theme] .board-action-button.icon-only.delete.enabled {
+  color: #44403c !important;
+}
+
+html[data-ui-theme] body .board-action-button.icon-only.delete.locked,
+html[data-ui-theme] .board-action-button.icon-only.delete.locked {
+  color: #78716c !important;
 }
 
 html[data-ui-theme] body .primary-button:hover,

@@ -2015,42 +2015,42 @@ export default function MisTableros({ contexto }) {
                                 <div className="row-actions compact board-workflow-actions">
                                   {canStartRow ? (
                                     <button type="button" className="board-action-button start icon-only" title={row.status === STATUS_PAUSED ? "Reanudar" : "Iniciar"} aria-label={row.status === STATUS_PAUSED ? "Reanudar" : "Iniciar"} onClick={() => { void handleStartRow(row); }} disabled={!rowWorkflowEnabled}>
-                                      <Play size={13} />
+                                      <Play size={16} strokeWidth={2.5} />
                                     </button>
                                   ) : null}
                                   {canOpenChecklistWhileRunning ? (
                                     <button type="button" className="board-action-button pause icon-only" title="Abrir checklist" aria-label="Abrir checklist" onClick={() => { void handleStartRow(row); }} disabled={!rowWorkflowEnabled}>
-                                      <ClipboardList size={13} />
+                                      <ClipboardList size={16} strokeWidth={2.5} />
                                     </button>
                                   ) : null}
-                                  {checklistTemplateForRow ? (
+                                  {checklistTemplateForRow && !checklistRecordForRow ? (
                                     <button type="button" className="board-action-button icon-only" title="Crear checklist manual" aria-label="Crear checklist manual" onClick={() => openManualChecklistModal(row)} disabled={!rowWorkflowEnabled}>
-                                      <Plus size={13} />
+                                      <Plus size={16} strokeWidth={2.5} />
                                     </button>
                                   ) : null}
                                   {canPauseRow ? (
                                     <button type="button" className="board-action-button pause icon-only" title="Pausar" aria-label="Pausar" onClick={() => openBoardPauseModal(selectedCustomBoard.id, row.id)} disabled={!rowWorkflowEnabled}>
-                                      <PauseCircle size={13} />
+                                      <PauseCircle size={16} strokeWidth={2.5} />
                                     </button>
                                   ) : null}
                                   {canFinishRow ? (
                                     <button type="button" className="board-action-button finish icon-only" title="Finalizar" aria-label="Finalizar" onClick={() => openFinishBoardRowConfirm(selectedCustomBoard.id, row.id)} disabled={!rowWorkflowEnabled}>
-                                      <Square size={13} />
+                                      <Square size={16} strokeWidth={2.5} />
                                     </button>
                                   ) : null}
                                   {row.status === STATUS_RUNNING && checklistPendingCompletion ? (
                                     <button type="button" className="board-action-button finish icon-only" title="Completa todas las naves del checklist para finalizar" aria-label="Completa todas las naves del checklist para finalizar" disabled>
-                                      <Square size={13} />
+                                      <Square size={16} strokeWidth={2.5} />
                                     </button>
                                   ) : null}
                                   {isFinishedRow ? (
                                     <button type="button" className="board-action-button finish icon-only static" title="Terminado" aria-label="Terminado" disabled>
-                                      <Square size={13} />
+                                      <Square size={16} strokeWidth={2.5} />
                                     </button>
                                   ) : null}
                                   {getRowInspectionRecord(row) ? (
                                     <button type="button" className="board-action-button pause icon-only" title="Ver checklist realizado" aria-label="Ver checklist realizado" onClick={() => openInspectionRecord(row)}>
-                                      <Eye size={13} />
+                                      <Eye size={16} strokeWidth={2.5} />
                                     </button>
                                   ) : null}
                                   {canDeleteBoardRows ? (
@@ -2058,7 +2058,7 @@ export default function MisTableros({ contexto }) {
                                       if (!rowDeleteEnabled) return;
                                       setDeleteBoardRowState({ open: true, boardId: selectedCustomBoard.id, rowId: row.id });
                                     }} disabled={!rowDeleteEnabled}>
-                                      <Trash2 size={13} />
+                                      <Trash2 size={16} strokeWidth={2.5} />
                                     </button>
                                   ) : null}
                                 </div>
