@@ -7148,10 +7148,22 @@ html[data-ui-theme] body .switch-thumb {
 
 .board-runtime-table td input:not([type="checkbox"]):not([type="radio"]),
 .board-runtime-table td select,
-.board-runtime-table .inventory-lookup-input,
 .board-runtime-table .spanish-date-input__trigger,
 .board-runtime-table .board-msd-trigger,
 .board-runtime-table .board-assignee-trigger {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  min-height: var(--board-row-control-height);
+  height: var(--board-row-control-height);
+  padding: 0 0.52rem;
+  font-size: 0.78rem;
+  line-height: 1.2;
+  border-radius: 0.55rem;
+}
+
+.board-runtime-table .inventory-lookup-input {
   box-sizing: border-box;
   width: 100%;
   min-width: 0;
@@ -7203,42 +7215,46 @@ html[data-ui-theme] body .switch-thumb {
 
 .board-runtime-table .inventory-lookup-selected {
   min-height: var(--board-row-control-height);
-  height: var(--board-row-control-height);
-  padding: 0 0.28rem 0 0.52rem;
-  display: flex;
+  height: auto;
+  padding: 0.34rem 0.3rem 0.34rem 0.52rem;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
+  gap: 0.35rem;
   box-sizing: border-box;
 }
 
 .board-runtime-table .inventory-lookup-selected-copy {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
+  display: grid;
+  gap: 0.1rem;
   min-width: 0;
-  overflow: hidden;
-  white-space: nowrap;
-}
-
-.board-runtime-table .inventory-lookup-selected-copy strong,
-.board-runtime-table .inventory-lookup-selected-copy span {
-  display: inline;
-  font-size: 0.72rem;
-  line-height: 1.15;
+  overflow: visible;
 }
 
 .board-runtime-table .inventory-lookup-selected-copy strong {
-  flex-shrink: 0;
+  display: block;
+  font-size: 0.68rem;
+  line-height: 1.15;
+  letter-spacing: 0.03em;
+  color: #2d4f72;
 }
 
 .board-runtime-table .inventory-lookup-selected-copy span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: #365151;
+  display: block;
+  font-size: 0.74rem;
+  line-height: 1.22;
+  color: #17352d;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  overflow: visible;
 }
 
 .board-runtime-table .inventory-lookup-selected-copy small {
-  display: none;
+  display: inline;
+  font-size: 0.68rem;
+  color: #6f7d8b;
+  margin-left: 0.2rem;
 }
 
 .board-runtime-table .inventory-lookup-clear {

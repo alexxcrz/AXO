@@ -233,6 +233,12 @@ html.mobile-shell .board-runtime-table .board-assignee-trigger {
   font-size: 0.82rem !important;
 }
 
+html.mobile-shell .board-runtime-table .inventory-lookup-selected {
+  min-height: var(--board-row-control-height) !important;
+  height: auto !important;
+  max-height: none !important;
+}
+
 html.mobile-shell .board-runtime-table .board-action-button.icon-only {
   width: var(--board-row-control-height) !important;
   height: var(--board-row-control-height) !important;
