@@ -1016,8 +1016,21 @@ export default function MisTableros({ contexto }) {
     )
     : null;
   const visibleRows = (boardView?.rows || []).filter((row) => {
+    const rowOperationalDateKey = (() => {
+      if (boardDateField) {
+        const fieldDate = normalizeOperationalDateKey(row?.values?.[boardDateField.id]);
+        if (fieldDate) return fieldDate;
+      }
+      const timeIso = row?.endTime || row?.startTime || row?.createdAt;
+      if (!timeIso) return "";
+      return getOperationalDateParts(new Date(timeIso).getTime(), operationalTimeZone).isoDate;
+    })();
+
+    if (targetOperationalDateKey && rowOperationalDateKey && rowOperationalDateKey !== targetOperationalDateKey) {
+      return false;
+    }
+
     if (!isHistoricalCustomBoardView && showCleaningNaveSelector && boardDateField && targetOperationalDateKey) {
-      const rowDate = normalizeOperationalDateKey(row?.values?.[boardDateField.id]);
       const activityValue = activityListField
         ? String(row?.values?.[activityListField.id] || "").trim().toLowerCase()
         : "";
@@ -1025,8 +1038,6 @@ export default function MisTableros({ contexto }) {
         || !activityOptionNames
         || !activityValue
         || activityOptionNames.has(activityValue);
-      // En limpieza, la lista operativa se limita estrictamente al dia seleccionado.
-      if (rowDate && rowDate !== targetOperationalDateKey) return false;
       return activityAllowedToday;
     }
     if (!activityListField || !activityOptionNames) return true;

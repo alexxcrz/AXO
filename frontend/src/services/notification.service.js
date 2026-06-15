@@ -101,3 +101,52 @@ export function showTransportNotificationForStatusUpdate(record, newStatus, opti
     ...options,
   });
 }
+
+export function showOrderInventoryTransferNotification(movement, performedByName = "", options = {}) {
+  const destination = [movement?.warehouse, movement?.storageLocation]
+    .map((entry) => String(entry || "").trim())
+    .filter(Boolean)
+    .join(" · ") || "destino";
+  const title = "📦 Transferencia de insumos para pedidos";
+  const body = `${movement?.quantity || 0} ${movement?.unitLabel || "pzas"} de ${movement?.itemName || "insumo"} → ${destination}`;
+  const performerSuffix = performedByName ? ` · por ${performedByName}` : "";
+
+  return showTransportNotification(title, {
+    body: `${body}${performerSuffix}`,
+    tag: `order-inv-transfer-${movement?.id || Date.now()}`,
+    alertMode: options?.alertMode || "sound-vibration",
+    ...options,
+  });
+}
+
+export function showOrderInventoryRestockNotification(movement, performedByName = "", options = {}) {
+  const location = String(movement?.storageLocation || "").trim();
+  const locationSuffix = location ? ` · ${location}` : "";
+  const title = "📥 Surtido de insumos para pedidos";
+  const body = `+${movement?.quantity || 0} ${movement?.unitLabel || "pzas"} de ${movement?.itemName || "insumo"}${locationSuffix}`;
+  const performerSuffix = performedByName ? ` · por ${performedByName}` : "";
+
+  return showTransportNotification(title, {
+    body: `${body}${performerSuffix}`,
+    tag: `order-inv-restock-${movement?.id || Date.now()}`,
+    alertMode: options?.alertMode || "sound-vibration",
+    ...options,
+  });
+}
+
+export function showOrderInventoryItemCreatedNotification(item, performedByName = "", options = {}) {
+  const stockUnits = Math.max(0, Number(item?.stockUnits || 0));
+  const stockSuffix = stockUnits > 0
+    ? ` · stock inicial: ${stockUnits} ${item?.unitLabel || "pzas"}`
+    : "";
+  const title = "🆕 Nuevo insumo para pedidos";
+  const body = `${item?.code || "sin código"} · ${item?.name || "insumo"}${stockSuffix}`;
+  const performerSuffix = performedByName ? ` · por ${performedByName}` : "";
+
+  return showTransportNotification(title, {
+    body: `${body}${performerSuffix}`,
+    tag: `order-inv-item-${item?.id || Date.now()}`,
+    alertMode: options?.alertMode || "sound-vibration",
+    ...options,
+  });
+}

@@ -29,7 +29,7 @@ export function RetailWorkflowBar({ retail, activeTab, onStepClick, adminOnly = 
           <h3>Flujo retail conectado</h3>
           <p>
             {adminOnly
-              ? "Vista de administracion. Haz clic en un paso para ir a esa pestana operativa."
+              ? "Vista de administración. Haz clic en un paso para ir a esa pestaña operativa."
               : "Resumen del proceso retail."}
           </p>
         </div>

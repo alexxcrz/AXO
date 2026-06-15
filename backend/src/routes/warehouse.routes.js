@@ -116,6 +116,7 @@ import {
   deleteDocumentacionArea,
   publishTransportNotification,
   getTransportNotificationRecipients,
+  getOrderInventoryNotificationRecipients,
   listTransportNotificationsForUser,
   markTransportNotificationsAsRead,
   markInboxNotificationsAsRead,
@@ -162,6 +163,119 @@ function dispatchTransportAlert({
     console.warn("[transport_dispatch] error:", err?.message || err);
     return null;
   }
+}
+
+function resolveOrderInventoryPerformerName(state, userId) {
+  const performer = (state?.users || []).find((user) => user.id === userId);
+  return String(performer?.name || "").trim();
+}
+
+function emitOrderInventoryEvent(eventName, payload) {
+  try {
+    const io = getIO();
+    io.emit(eventName, { ...payload, ts: Date.now() });
+  } catch (socketErr) {
+    console.debug(`[order_inventory] socket emit error (${eventName}):`, socketErr?.message);
+  }
+}
+
+function dispatchOrderInventoryAlert({ type, title, message, meta = "", tone = "info", recordId = "", excludeUserId = "" }) {
+  try {
+    const recipients = getOrderInventoryNotificationRecipients({ excludeUserId });
+    if (!recipients.length) return null;
+
+    return publishTransportNotification({
+      type,
+      title,
+      message,
+      meta,
+      tone,
+      alertMode: "sound-vibration",
+      targetPage: "inventory",
+      targetDomain: "orders",
+      recordId: String(recordId || "").trim(),
+      targetUserIds: recipients,
+    });
+  } catch (err) {
+    console.warn("[order_inventory_dispatch] error:", err?.message || err);
+    return null;
+  }
+}
+
+function notifyOrderInventoryTransfer({ movement, state, userId }) {
+  if (!movement || movement.domain !== "orders" || movement.movementType !== "transfer") return;
+
+  const performedByName = resolveOrderInventoryPerformerName(state, userId);
+  emitOrderInventoryEvent("order_inventory_transfer_created", {
+    movement,
+    performedById: userId,
+    performedByName,
+  });
+
+  const destination = [movement?.warehouse, movement?.storageLocation]
+    .map((entry) => String(entry || "").trim())
+    .filter(Boolean)
+    .join(" · ") || "destino";
+
+  dispatchOrderInventoryAlert({
+    type: "order_inventory_transfer_created",
+    title: "Transferencia de insumos para pedidos",
+    message: `${movement.quantity || 0} ${movement.unitLabel || "pzas"} de ${movement.itemName || "insumo"} → ${destination}`,
+    meta: performedByName ? `Transferido por: ${performedByName}` : "",
+    tone: "warning",
+    recordId: movement.id,
+    excludeUserId: userId,
+  });
+}
+
+function notifyOrderInventoryRestock({ movement, state, userId }) {
+  if (!movement || movement.domain !== "orders" || movement.movementType !== "restock") return;
+
+  const performedByName = resolveOrderInventoryPerformerName(state, userId);
+  emitOrderInventoryEvent("order_inventory_restock_created", {
+    movement,
+    performedById: userId,
+    performedByName,
+  });
+
+  const location = String(movement?.storageLocation || "").trim();
+  const locationSuffix = location ? ` · ${location}` : "";
+
+  dispatchOrderInventoryAlert({
+    type: "order_inventory_restock_created",
+    title: "Surtido de insumos para pedidos",
+    message: `+${movement.quantity || 0} ${movement.unitLabel || "pzas"} de ${movement.itemName || "insumo"}${locationSuffix}`,
+    meta: performedByName ? `Surtido por: ${performedByName}` : "",
+    tone: "success",
+    recordId: movement.id,
+    excludeUserId: userId,
+  });
+}
+
+function notifyOrderInventoryItemCreated({ item, state, userId }) {
+  if (!item || item.domain !== "orders") return;
+
+  const performedByName = resolveOrderInventoryPerformerName(state, userId);
+  emitOrderInventoryEvent("order_inventory_item_created", {
+    item,
+    performedById: userId,
+    performedByName,
+  });
+
+  const stockUnits = Math.max(0, Number(item?.stockUnits || 0));
+  const stockSuffix = stockUnits > 0
+    ? ` · stock inicial: ${stockUnits} ${item.unitLabel || "pzas"}`
+    : "";
+
+  dispatchOrderInventoryAlert({
+    type: "order_inventory_item_created",
+    title: "Nuevo insumo para pedidos",
+    message: `${item.code || "sin código"} · ${item.name || "insumo"}${stockSuffix}`,
+    meta: performedByName ? `Registrado por: ${performedByName}` : "",
+    tone: "info",
+    recordId: item.id,
+    excludeUserId: userId,
+  });
 }
 
 warehouseRouter.get("/state", (_req, res) => {
@@ -417,6 +531,10 @@ warehouseRouter.post("/inventory", requireAuth, (req, res) => {
     itemCode: result.itemCode,
     revision: result.state?.revision,
   });
+
+  const item = (result.state?.inventoryItems || []).find((entry) => entry.id === result.itemId) || null;
+  notifyOrderInventoryItemCreated({ item, state: result.state, userId: req.auth?.userId });
+
   res.status(201).json({ ok: true, data: { state: result.state, itemId: result.itemId, itemCode: result.itemCode } });
 });
 
@@ -1491,6 +1609,14 @@ warehouseRouter.post("/inventory/movements", requireAuth, (req, res) => {
     itemCode: result.itemCode,
     revision: result.state?.revision,
   });
+
+  const movement = result.movement
+    || (result.state?.inventoryMovements || []).find((entry) => entry.id === result.movementId)
+    || null;
+
+  notifyOrderInventoryTransfer({ movement, state: result.state, userId: req.auth?.userId });
+  notifyOrderInventoryRestock({ movement, state: result.state, userId: req.auth?.userId });
+
   res.status(201).json({ ok: true, data: { state: result.state, movementId: result.movementId, itemId: result.itemId, itemCode: result.itemCode } });
 });
 

@@ -1,5 +1,5 @@
-// transport.notifications.js � Notificaciones server-side de transporte
-// Resuelve destinatarios, persiste alertas y env�a Web Push a usuarios offline.
+// transport.notifications.js — Notificaciones server-side de transporte
+// Resuelve destinatarios, persiste alertas y envía Web Push a usuarios offline.
 
 import { sendPushToNick } from "./push.service.js";
 
@@ -29,7 +29,7 @@ function makeNotificationId(prefix = "tn") {
 }
 
 /**
- * Resuelve la lista de userIds que deben recibir notificaci�n de transporte.
+ * Resuelve la lista de userIds que deben recibir notificación de transporte.
  * @param {Array} users  state.users
  * @param {Object} permissions  state.permissions
  * @param {Function} canDo  warehouse.store.canUserDoWarehouseAction
@@ -66,7 +66,7 @@ export function resolveTransportRecipientUserIds(users, permissions, canDo, opti
 }
 
 /**
- * Construye una notificaci�n normalizada para guardar en state.
+ * Construye una notificación normalizada para guardar en state.
  */
 export function buildTransportNotification({
   type,
@@ -78,6 +78,7 @@ export function buildTransportNotification({
   targetPage = "transport",
   alertMode = "sound-vibration",
   recordId = "",
+  targetDomain = "",
   highlightUserIds = [],
 }) {
   const normalizedTargets = Array.from(new Set((Array.isArray(targetUserIds) ? targetUserIds : [])
@@ -89,13 +90,14 @@ export function buildTransportNotification({
   return {
     id: makeNotificationId("tn"),
     type: String(type || "transport_event").trim(),
-    title: String(title || "Notificaci�n").trim(),
+    title: String(title || "Notificación").trim(),
     message: String(message || "").trim(),
     meta: String(meta || "").trim(),
     tone: String(tone || "info").trim(),
     targetPage: String(targetPage || "transport").trim(),
     alertMode: String(alertMode || "sound-vibration").trim(),
     recordId: String(recordId || "").trim(),
+    targetDomain: String(targetDomain || "").trim(),
     targetUserIds: normalizedTargets,
     highlightUserIds: normalizedHighlight,
     readByUserIds: [],
@@ -105,7 +107,7 @@ export function buildTransportNotification({
 
 /**
  * Recorta notificaciones para que la lista no crezca infinitamente.
- * Se mantienen las �ltimas N y se descartan las le�das m�s antiguas.
+ * Se mantienen las últimas N y se descartan las leídas más antiguas.
  */
 export function trimTransportNotifications(list, { maxTotal = 400, maxAgeDays = 30 } = {}) {
   const arr = Array.isArray(list) ? list : [];
@@ -120,8 +122,8 @@ export function trimTransportNotifications(list, { maxTotal = 400, maxAgeDays = 
 }
 
 /**
- * Env�a Web Push a los usuarios destinatarios.
- * Resuelve userIds ? nicknames del state.users y delega a sendPushToNick.
+ * Envía Web Push a los usuarios destinatarios.
+ * Resuelve userIds → nicknames del state.users y delega a sendPushToNick.
  */
 export async function sendTransportPushToUsers(users, targetUserIds, payload) {
   const userMap = new Map();
@@ -138,7 +140,7 @@ export async function sendTransportPushToUsers(users, targetUserIds, payload) {
 }
 
 /**
- * Marca una notificaci�n como le�da por un userId.
+ * Marca una notificación como leída por un userId.
  */
 export function markTransportNotificationsRead(list, userId, notificationIds) {
   const targetUserId = String(userId || "").trim();

@@ -44,19 +44,155 @@ html.mobile-shell .warehouse-app {
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
-html.mobile-shell .content-header {
+html.mobile-shell .content-header,
+html.standalone-app .content-header {
   position: sticky;
   top: 0;
   z-index: 20;
   padding-top: max(0.35rem, env(safe-area-inset-top, 0px));
-  overflow: hidden;
+  overflow: visible;
   min-width: 0;
   align-items: center;
 }
 
+/* PWA / móvil: header compacto aunque la ventana instalada sea ancha (evita layout “aplastado”) */
+html.mobile-shell .mobile-nav-toggle,
+html.standalone-app .mobile-nav-toggle {
+  display: inline-flex;
+}
+
+html.mobile-shell .content-header,
+html.standalone-app .content-header {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  grid-template-areas: "menu title meta bell";
+  gap: 0.4rem;
+}
+
+html.mobile-shell .mobile-nav-toggle,
+html.standalone-app .mobile-nav-toggle {
+  grid-area: menu;
+  flex-shrink: 0;
+  width: auto;
+  min-height: 2.35rem;
+  height: 2.35rem;
+  padding: 0 0.62rem;
+  font-size: 0.76rem;
+  align-self: center;
+  justify-content: center;
+}
+
+html.mobile-shell .content-header > div:not(.header-tools):not(.header-bell-right):not(.header-notification-wrap),
+html.standalone-app .content-header > div:not(.header-tools):not(.header-bell-right):not(.header-notification-wrap) {
+  grid-area: title;
+  position: static;
+  transform: none;
+  width: auto;
+  min-width: 0;
+  text-align: center;
+  pointer-events: auto;
+  overflow: hidden;
+  align-self: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+html.mobile-shell .content-header .eyebrow,
+html.standalone-app .content-header .eyebrow {
+  display: none;
+}
+
+html.mobile-shell .content-header h2,
+html.standalone-app .content-header h2 {
+  font-size: clamp(0.98rem, 3.8vw, 1.22rem);
+  line-height: 1.08;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+}
+
+html.mobile-shell .header-tools,
+html.standalone-app .header-tools {
+  grid-area: meta;
+  margin-left: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.28rem;
+  padding: 0.18rem 0.42rem;
+  border-radius: 0.55rem;
+  max-width: min(100%, 8.8rem);
+  min-width: 0;
+  min-height: 2.35rem;
+  height: 2.35rem;
+  align-self: center;
+  box-shadow: none;
+}
+
+html.mobile-shell .header-meta,
+html.standalone-app .header-meta {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 0;
+  min-width: 0;
+  padding: 0;
+}
+
+html.mobile-shell .header-meta span,
+html.standalone-app .header-meta span,
+html.mobile-shell .header-clock,
+html.standalone-app .header-clock {
+  font-size: 0.64rem;
+  line-height: 1.1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 7.5rem;
+}
+
+html.mobile-shell .header-bell-right,
+html.standalone-app .header-bell-right,
+html.mobile-shell .header-notification-wrap,
+html.standalone-app .header-notification-wrap {
+  grid-area: bell;
+  margin-left: 0;
+  flex-shrink: 0;
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+}
+
+html.mobile-shell .app-notification-trigger,
+html.standalone-app .app-notification-trigger {
+  width: 2.35rem;
+  height: 2.35rem;
+  min-width: 2.35rem;
+  min-height: 2.35rem;
+}
+
+/* Panel fuera del header sticky para que no quede recortado en PWA */
+html.mobile-shell .app-notification-center.open .app-notification-panel,
+html.standalone-app .app-notification-center.open .app-notification-panel {
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 0px) + 3.15rem);
+  right: max(0.65rem, env(safe-area-inset-right, 0px));
+  left: auto;
+  width: min(92vw, 400px);
+  max-width: calc(100vw - 1rem);
+  max-height: min(70dvh, 540px);
+  z-index: 250;
+}
+
 html.mobile-shell .content-header .mobile-nav-toggle,
 html.mobile-shell .content-header .header-tools,
-html.mobile-shell .content-header .header-bell-right {
+html.mobile-shell .content-header .header-bell-right,
+html.standalone-app .content-header .mobile-nav-toggle,
+html.standalone-app .content-header .header-tools,
+html.standalone-app .content-header .header-bell-right {
   align-self: center;
 }
 

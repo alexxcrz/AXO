@@ -6,7 +6,7 @@ import OperationalInspectionRecordModal from "../components/OperationalInspectio
 import {
   formatPercent,
   formatBoardPreviewValue,
-  formatTime,
+  getBoardRowResponsibleIds,
   isBoardActivityListField,
   resolveBoardRowHistoryTimeDisplay,
 } from "../utils/utilidades";
@@ -78,6 +78,111 @@ function getHistoryMonthKeyFromDate(date) {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, "0");
   return `${y}-${m}`;
+}
+
+function resolveHistoryActivityDayKey(activity) {
+  return getHistoryDateKey(parseHistoryDate(activity?.activityDate));
+}
+
+function isActivityDayWithinWeek(dayKey, week) {
+  if (!dayKey) return false;
+  const start = parseHistoryDateOnly(week?.startDate);
+  const end = parseHistoryDateOnly(week?.endDate);
+  if (!start || !end) return true;
+  const activityDay = parseHistoryDateOnly(dayKey);
+  if (!activityDay) return false;
+  const normalizedStart = new Date(start);
+  const normalizedEnd = new Date(end);
+  const normalizedActivityDay = new Date(activityDay);
+  normalizedStart.setHours(0, 0, 0, 0);
+  normalizedEnd.setHours(0, 0, 0, 0);
+  normalizedActivityDay.setHours(0, 0, 0, 0);
+  return normalizedActivityDay >= normalizedStart && normalizedActivityDay <= normalizedEnd;
+}
+
+function dedupeBoardHistorySnapshotsForWeek(snapshots, { weekId, activeWeekKey, controlBoards }) {
+  const byBoardId = new Map();
+
+  (Array.isArray(snapshots) ? snapshots : []).forEach((snapshot) => {
+    const boardId = String(snapshot?.boardId || snapshot?.sourceBoardId || "").trim();
+    const key = boardId || String(snapshot?.id || "").trim();
+    if (!key) return;
+
+    const existing = byBoardId.get(key);
+    const archivedAt = Date.parse(snapshot?.archivedAt || "") || 0;
+    const existingAt = existing ? (Date.parse(existing?.archivedAt || "") || 0) : -1;
+    if (!existing || archivedAt >= existingAt) {
+      byBoardId.set(key, snapshot);
+    }
+  });
+
+  const deduped = Array.from(byBoardId.values());
+  if (weekId !== activeWeekKey) return deduped;
+
+  const liveBoardIds = new Set(
+    (Array.isArray(controlBoards) ? controlBoards : [])
+      .map((board) => String(board?.id || "").trim())
+      .filter(Boolean),
+  );
+
+  return deduped.filter((snapshot) => {
+    const boardId = String(snapshot?.boardId || snapshot?.sourceBoardId || "").trim();
+    return !boardId || !liveBoardIds.has(boardId);
+  });
+}
+
+function getHistoryActivityResponsibleIds(activity) {
+  const fromList = Array.isArray(activity?.responsibleIds)
+    ? activity.responsibleIds.map((entry) => String(entry || "").trim()).filter(Boolean)
+    : [];
+  if (fromList.length) return fromList;
+  const fallbackId = String(activity?.responsibleId || "").trim();
+  return fallbackId ? [fallbackId] : [];
+}
+
+function activityIncludesHistoryPlayer(activity, playerKey) {
+  const normalizedPlayerKey = String(playerKey || "").trim();
+  if (!normalizedPlayerKey || normalizedPlayerKey === "all") return true;
+  return getHistoryActivityResponsibleIds(activity).includes(normalizedPlayerKey);
+}
+
+function resolveHistoryPlayerNames(activity, userMap) {
+  const names = getHistoryActivityResponsibleIds(activity)
+    .map((userId) => String(userMap?.get?.(userId)?.name || "").trim())
+    .filter(Boolean);
+  if (!names.length) return "Sin player";
+  return names.join(", ");
+}
+
+function dedupeHistoryActivities(activities) {
+  const seen = new Map();
+
+  (Array.isArray(activities) ? activities : []).forEach((activity) => {
+    const dayKey = resolveHistoryActivityDayKey(activity);
+    let key = "";
+
+    if (activity?.derivedFromBoardHistory) {
+      const boardId = String(activity.historyBoardId || activity.boardKey || "").trim();
+      const rowId = String(activity.historyRowId || "").trim();
+      key = `board:${boardId}|${rowId}|${dayKey}`;
+    } else {
+      key = `act:${String(activity?.id || "").trim()}|${dayKey}`;
+    }
+
+    if (!key || key.endsWith("|")) return;
+
+    const existing = seen.get(key);
+    if (!existing) {
+      seen.set(key, activity);
+      return;
+    }
+
+    if (existing.historyIsLive && !activity.historyIsLive) {
+      seen.set(key, activity);
+    }
+  });
+
+  return Array.from(seen.values());
 }
 
 const SECTION_AREA_SCOPE_MAP = {
@@ -342,12 +447,12 @@ function buildWeekDaySections(week, activities, finishedStatus, _workWeek) {
   const grouped = new Map();
 
   activities.forEach((activity) => {
-    const parts = toDateParts(activity.activityDate);
-    if (!parts) return;
+    const dayKey = resolveHistoryActivityDayKey(activity);
+    if (!dayKey || !isActivityDayWithinWeek(dayKey, week)) return;
 
-    if (!grouped.has(parts.day)) {
-      grouped.set(parts.day, {
-        dayKey: parts.day,
+    if (!grouped.has(dayKey)) {
+      grouped.set(dayKey, {
+        dayKey,
         total: 0,
         completed: 0,
         totalSeconds: 0,
@@ -355,7 +460,7 @@ function buildWeekDaySections(week, activities, finishedStatus, _workWeek) {
       });
     }
 
-    const entry = grouped.get(parts.day);
+    const entry = grouped.get(dayKey);
     entry.total += 1;
     entry.completed += activity.status === finishedStatus ? 1 : 0;
     entry.totalSeconds += Number(activity.accumulatedSeconds || 0);
@@ -378,7 +483,9 @@ function buildWeekDaySections(week, activities, finishedStatus, _workWeek) {
     return Array.from(grouped.values())
       .map((entry) => ({
         ...entry,
-        activities: [...entry.activities].sort((left, right) => (parseHistoryDate(left.activityDate)?.getTime() ?? 0) - (parseHistoryDate(right.activityDate)?.getTime() ?? 0)),
+        activities: entry.activities
+          .filter((activity) => resolveHistoryActivityDayKey(activity) === entry.dayKey)
+          .sort((left, right) => (parseHistoryDate(left.activityDate)?.getTime() ?? 0) - (parseHistoryDate(right.activityDate)?.getTime() ?? 0)),
       }))
       .sort((left, right) => left.dayKey.localeCompare(right.dayKey));
   }
@@ -400,7 +507,9 @@ function buildWeekDaySections(week, activities, finishedStatus, _workWeek) {
       completed: existing?.completed || 0,
       totalSeconds: existing?.totalSeconds || 0,
       activities: existing
-        ? [...existing.activities].sort((left, right) => (parseHistoryDate(left.activityDate)?.getTime() ?? 0) - (parseHistoryDate(right.activityDate)?.getTime() ?? 0))
+        ? existing.activities
+          .filter((activity) => resolveHistoryActivityDayKey(activity) === parts.day)
+          .sort((left, right) => (parseHistoryDate(left.activityDate)?.getTime() ?? 0) - (parseHistoryDate(right.activityDate)?.getTime() ?? 0))
         : [],
     });
   }
@@ -536,14 +645,8 @@ export default function HistorialSemanas({ contexto }) {
     return getActivityLabel(activity, catalogMap);
   }
 
-  function getHistoryPlayerKey(activity) {
-    if (!activity?.responsibleId) return "__sin_player__";
-    return String(activity.responsibleId);
-  }
-
   function resolveHistoryPlayerLabel(activity) {
-    if (!activity?.responsibleId) return "Sin player";
-    return String(userMap.get(activity.responsibleId)?.name || "Sin player").trim() || "Sin player";
+    return resolveHistoryPlayerNames(activity, userMap);
   }
 
   const weekAreaMap = useMemo(() => {
@@ -610,10 +713,12 @@ export default function HistorialSemanas({ contexto }) {
     if (!week?.id) return [];
 
     if (useBoardHistoryFallback) {
-      const snapshots = (state.boardWeekHistory || [])
-        .filter((snapshot) => String(snapshot?.weekKey || "").trim() === week.id);
-
       const activeWeekKey = String(state?.boardWeeklyCycle?.activeWeekKey || "").trim();
+      const snapshots = dedupeBoardHistorySnapshotsForWeek(
+        (state.boardWeekHistory || []).filter((snapshot) => String(snapshot?.weekKey || "").trim() === week.id),
+        { weekId: week.id, activeWeekKey, controlBoards: state.controlBoards || [] },
+      );
+
       const liveBoardsForWeek = week.id === activeWeekKey
         ? (state.controlBoards || []).map((board) => ({
           id: `${board.id}-live`,
@@ -632,12 +737,18 @@ export default function HistorialSemanas({ contexto }) {
 
       const allSources = snapshots.concat(liveBoardsForWeek);
 
-      return allSources.flatMap((snapshot) => {
+      return dedupeHistoryActivities(allSources.flatMap((snapshot) => {
         const snapshotBoardKey = String(snapshot?.boardId || snapshot?.sourceBoardId || snapshot?.id || "").trim()
           || String(snapshot?.id || "").trim();
         const boardContext = String(snapshot?.settings?.operationalContextValue || "").trim();
         const boardName = String(snapshot?.boardName || "Tablero").trim() || "Tablero";
-        return (snapshot?.rows || []).map((row) => {
+        return (snapshot?.rows || [])
+          .filter((row) => {
+            const rowDateIso = getBoardRowHistoryDateValue(snapshot, row);
+            const dayKey = getHistoryDateKey(parseHistoryDate(rowDateIso));
+            return isActivityDayWithinWeek(dayKey, week);
+          })
+          .map((row) => {
           const user = userMap.get(row.responsibleId);
           const areaLabel = resolveBoardHistoryAreaLabel(snapshot, user);
           const areaRoot = resolveBoardHistoryAreaRoot(snapshot, user);
@@ -650,6 +761,7 @@ export default function HistorialSemanas({ contexto }) {
           const normalizedDayLabel = dayLabel.charAt(0).toUpperCase() + dayLabel.slice(1);
           const rowValueText = resolveBoardRowHistoryActivityValue(snapshot, row);
 
+          const responsibleIds = getBoardRowResponsibleIds(row);
           const historyIsLive = String(snapshot?.id || "").endsWith("-live");
           return {
             id: `${snapshot.id}-${row.id}`,
@@ -659,7 +771,8 @@ export default function HistorialSemanas({ contexto }) {
             historyIsLive,
             weekId: week.id,
             activityDate: rowDateIso,
-            responsibleId: row.responsibleId,
+            responsibleId: responsibleIds[0] || row.responsibleId || "",
+            responsibleIds,
             status: row.status,
             startTime: row.startTime,
             endTime: row.endTime,
@@ -680,10 +793,10 @@ export default function HistorialSemanas({ contexto }) {
             derivedFromBoardHistory: true,
           };
         });
-      });
+      }));
     }
 
-    return (state.activities || [])
+    return dedupeHistoryActivities((state.activities || [])
       .filter((activity) => activity.weekId === week.id)
       .map((activity) => {
         const user = userMap.get(activity.responsibleId);
@@ -715,7 +828,7 @@ export default function HistorialSemanas({ contexto }) {
           dayLabel: normalizedDayLabel,
           derivedFromBoardHistory: false,
         };
-      });
+      }));
   }, [catalogMap, getUserArea, resolveBoardHistoryAreaLabel, resolveBoardHistoryAreaRoot, state, useBoardHistoryFallback, userMap]);
 
   const historyActivities = useMemo(
@@ -801,12 +914,22 @@ export default function HistorialSemanas({ contexto }) {
     const grouped = new Map();
 
     boardScopedActivities.forEach((activity) => {
-      const playerKey = getHistoryPlayerKey(activity);
-      const playerLabel = resolveHistoryPlayerLabel(activity);
-      if (!grouped.has(playerKey)) {
-        grouped.set(playerKey, { value: playerKey, label: playerLabel, total: 0 });
+      const responsibleIds = getHistoryActivityResponsibleIds(activity);
+      if (!responsibleIds.length) {
+        if (!grouped.has("__sin_player__")) {
+          grouped.set("__sin_player__", { value: "__sin_player__", label: "Sin player", total: 0 });
+        }
+        grouped.get("__sin_player__").total += 1;
+        return;
       }
-      grouped.get(playerKey).total += 1;
+
+      responsibleIds.forEach((playerKey) => {
+        const playerLabel = String(userMap.get(playerKey)?.name || "Sin player").trim() || "Sin player";
+        if (!grouped.has(playerKey)) {
+          grouped.set(playerKey, { value: playerKey, label: playerLabel, total: 0 });
+        }
+        grouped.get(playerKey).total += 1;
+      });
     });
 
     return Array.from(grouped.values()).sort((left, right) => left.label.localeCompare(right.label, "es-MX"));
@@ -815,7 +938,7 @@ export default function HistorialSemanas({ contexto }) {
 
   const playerScopedActivities = useMemo(() => {
     if (selectedPlayerTab === "all") return boardScopedActivities;
-    return boardScopedActivities.filter((activity) => getHistoryPlayerKey(activity) === selectedPlayerTab);
+    return boardScopedActivities.filter((activity) => activityIncludesHistoryPlayer(activity, selectedPlayerTab));
   }, [boardScopedActivities, selectedPlayerTab]);
 
   const yearOptions = useMemo(() => {
@@ -858,8 +981,10 @@ export default function HistorialSemanas({ contexto }) {
   }, [STATUS_FINISHED, effectiveHistoryWeek, normalizedOperationalWorkWeek, playerScopedActivities, selectedMonthFilter, selectedYearFilter]);
 
   const visibleHistoryActivities = useMemo(() => {
-    return [...playerScopedActivities]
+    return dedupeHistoryActivities([...playerScopedActivities])
       .filter((activity) => {
+        const dayKey = resolveHistoryActivityDayKey(activity);
+        if (!dayKey || !isActivityDayWithinWeek(dayKey, effectiveHistoryWeek)) return false;
         const parts = toDateParts(activity.activityDate);
         if (!parts) return false;
         if (selectedYearFilter !== "all" && parts.year !== selectedYearFilter) return false;
@@ -873,7 +998,7 @@ export default function HistorialSemanas({ contexto }) {
         if (leftTime !== rightTime) return leftTime - rightTime;
         return String(left.boardName || "").localeCompare(String(right.boardName || ""), "es-MX");
       });
-  }, [playerScopedActivities, selectedDayFilter, selectedMonthFilter, selectedYearFilter]);
+  }, [effectiveHistoryWeek, playerScopedActivities, selectedDayFilter, selectedMonthFilter, selectedYearFilter]);
 
   const visibleHistorySummary = useMemo(() => {
     const activities = visibleHistoryActivities;
@@ -1077,7 +1202,8 @@ export default function HistorialSemanas({ contexto }) {
   }, [activeMonthWeeks, effectiveHistoryWeek]);
 
   const weeklyDaySections = useMemo(() => {
-    return buildWeekDaySections(effectiveHistoryWeek, playerScopedActivities, STATUS_FINISHED, normalizedOperationalWorkWeek);
+    return buildWeekDaySections(effectiveHistoryWeek, playerScopedActivities, STATUS_FINISHED, normalizedOperationalWorkWeek)
+      .filter((section) => section.total > 0);
   }, [STATUS_FINISHED, effectiveHistoryWeek, normalizedOperationalWorkWeek, playerScopedActivities]);
 
   const canEditHistoricalWeekActivities = Boolean(
@@ -1220,7 +1346,7 @@ export default function HistorialSemanas({ contexto }) {
     }
 
     if (selectedPlayerTab !== "all") {
-      filtered = filtered.filter((activity) => getHistoryPlayerKey(activity) === selectedPlayerTab);
+      filtered = filtered.filter((activity) => activityIncludesHistoryPlayer(activity, selectedPlayerTab));
     }
 
     return filtered;
@@ -1329,8 +1455,8 @@ export default function HistorialSemanas({ contexto }) {
 
       const pdfBoardFields = collectSnapshotFieldsFromActivities(exportActivities);
       const pdfHeaders = pdfBoardFields.length > 0
-        ? [...pdfBoardFields.map((f) => String(f.label || f.id || "")), "Player", "Estado", "Fecha", "Inicio", "Fin", "Tiempo"]
-        : ["Area", "Tablero", "Actividad", "Player", "Estado", "Fecha", "Inicio", "Fin", "Tiempo"];
+        ? [...pdfBoardFields.map((f) => String(f.label || f.id || "")), "Responsables", "Estado", "Fecha", "Inicio", "Fin", "Tiempo"]
+        : ["Area", "Tablero", "Actividad", "Responsables", "Estado", "Fecha", "Inicio", "Fin", "Tiempo"];
 
       // Group activities by day
       const dayGroups = new Map();
@@ -1459,7 +1585,7 @@ export default function HistorialSemanas({ contexto }) {
 
       autoTable(pdf, {
         startY: 104,
-        head: [["Fecha", "Area", "Tablero", "Actividad", "Player", "Completado", "Incidencias", "Observaciones", "Evidencias"]],
+        head: [["Fecha", "Area", "Tablero", "Actividad", "Responsables", "Completado", "Incidencias", "Observaciones", "Evidencias"]],
         body,
         styles: { fontSize: 7, cellPadding: 4, valign: "top" },
         headStyles: { fillColor: [3, 33, 33], textColor: [255, 255, 255] },
@@ -1873,7 +1999,9 @@ export default function HistorialSemanas({ contexto }) {
                         </div>
 
                         <div style={{ display: "grid", gap: "0.9rem" }}>
-                          {historyDetailTab === "checklists" ? buildWeekDaySections(effectiveHistoryWeek, visibleChecklistActivities, STATUS_FINISHED, normalizedOperationalWorkWeek).map((dayEntry) => {
+                          {historyDetailTab === "checklists" ? buildWeekDaySections(effectiveHistoryWeek, visibleChecklistActivities, STATUS_FINISHED, normalizedOperationalWorkWeek)
+                            .filter((section) => section.total > 0)
+                            .map((dayEntry) => {
                             const dayToggleKey = `check-${dayEntry.dayKey}`;
                             const isExpanded = expandedDayKey === dayToggleKey;
                             const dayDate = parseHistoryDate(dayEntry.dayKey);
@@ -1996,7 +2124,7 @@ export default function HistorialSemanas({ contexto }) {
                                                   ? dynamicFields.map((field) => <th key={field.id}>{field.label || field.id}</th>)
                                                   : (<><th>Área</th><th>Tablero</th><th>Actividad</th></>)
                                                 }
-                                                <th>Player</th>
+                                                <th>Responsables</th>
                                                 <th>Estado</th>
                                                 {!hasDynamicFields && <><th>Inicio</th><th>Fin</th></>}
                                                 <th>Tiempo</th>

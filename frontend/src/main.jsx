@@ -69,7 +69,25 @@ createRoot(document.getElementById('root')).render(
 if ('serviceWorker' in navigator) {
   (async () => {
     try {
-      await navigator.serviceWorker.register('/service-worker.js');
+      const reg = await navigator.serviceWorker.register('/service-worker.js');
+
+      reg.addEventListener('updatefound', () => {
+        const nextWorker = reg.installing;
+        if (!nextWorker) return;
+        nextWorker.addEventListener('statechange', () => {
+          if (nextWorker.state === 'installed' && navigator.serviceWorker.controller) {
+            nextWorker.postMessage({ type: 'SKIP_WAITING' });
+          }
+        });
+      });
+
+      let refreshing = false;
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (refreshing) return;
+        refreshing = true;
+        window.location.reload();
+      });
+
       await syncNotificationPrefsToServiceWorker();
       // Solicitar permisos de notificación
       if ('Notification' in globalThis && Notification.permission === 'default') {

@@ -32,6 +32,9 @@ const TRANSPORT_PUSH_TYPES = new Set([
   "documentacion_route_assigned",
   "documentacion_status_updated",
   "transport_road_alert",
+  "order_inventory_transfer_created",
+  "order_inventory_restock_created",
+  "order_inventory_item_created",
 ]);
 
 function resolveSoundUrl(data, kind) {
@@ -124,6 +127,8 @@ async function showTransportNotification(data) {
     data: {
       type: data.type,
       url: data.url || "/transport",
+      targetPage: data.targetPage || "",
+      targetDomain: data.targetDomain || "",
       recordId: data.recordId || "",
       notificationId: data.notificationId || "",
     },

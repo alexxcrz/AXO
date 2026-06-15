@@ -732,6 +732,15 @@ export function canUserReceiveTransportAreaNotification(user, permissions, optio
   return userHasAnyPermissionAction(user, permissions, TRANSPORT_GENERAL_PERMISSION_ACTION_IDS);
 }
 
+export function canUserReceiveOrderInventoryNotification(user, permissions) {
+  if (!user) return false;
+  return userHasAnyPermissionAction(
+    user,
+    permissions,
+    INVENTORY_DOMAIN_ACCESS_ACTION_IDS[INVENTORY_DOMAIN_ORDERS],
+  );
+}
+
 export function createInventoryModalState(mode = "create", item = {}, fallbackDomain = INVENTORY_DOMAIN_BASE) {
   const normalized = normalizeInventoryItemRecord(item);
   return {

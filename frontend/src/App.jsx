@@ -477,6 +477,8 @@ import {
 
   canUserReceiveTransportAreaNotification,
 
+  canUserReceiveOrderInventoryNotification,
+
   canUserAccessTemplate,
 
   canEditBoard,
@@ -593,6 +595,9 @@ import {
   showTransportNotificationForNewRecord,
   showTransportNotificationForAssignment,
   showTransportNotificationForStatusUpdate,
+  showOrderInventoryTransferNotification,
+  showOrderInventoryRestockNotification,
+  showOrderInventoryItemCreatedNotification,
 } from "./services/notification.service.js";
 
 function App() { // NOSONAR
@@ -1320,8 +1325,8 @@ function App() { // NOSONAR
       }
     }
 
-    document.addEventListener("mousedown", handleDocumentPointerDown);
-    return () => document.removeEventListener("mousedown", handleDocumentPointerDown);
+    document.addEventListener("pointerdown", handleDocumentPointerDown);
+    return () => document.removeEventListener("pointerdown", handleDocumentPointerDown);
   }, [notificationPanelOpen]);
 
   useEffect(() => {
@@ -1759,6 +1764,9 @@ function App() { // NOSONAR
     const shouldShowTransportDeviceNotification = (options = {}) => (
       canReceiveTransportAreaNotification(options) && !isLeadSession
     );
+    const canReceiveOrderInventoryNotification = () => (
+      canUserReceiveOrderInventoryNotification(sessionUser, sessionPermissions)
+    );
 
     const queueWarehouseRefresh = (data) => {
       if (ignoreResponse) return;
@@ -2002,6 +2010,82 @@ function App() { // NOSONAR
       queueWarehouseRefresh(data);
     };
 
+    const handleOrderInventoryTransferCreated = async (data) => {
+      if (ignoreResponse) return;
+      if (!data?.movement) return;
+      if (String(data?.performedById || "").trim() === String(sessionUserId || "").trim()) return;
+      if (!canReceiveOrderInventoryNotification()) return;
+
+      const movement = data.movement;
+      const destination = [movement?.warehouse, movement?.storageLocation]
+        .map((entry) => String(entry || "").trim())
+        .filter(Boolean)
+        .join(" · ") || "destino";
+
+      showOrderInventoryTransferNotification(movement, data?.performedByName || "", { alertMode: "sound-vibration" });
+      pushNotificationToInbox({
+        id: `order-inv-transfer-${movement.id}-${data.ts || Date.now()}`,
+        title: "Transferencia de insumos para pedidos",
+        message: `${movement.quantity || 0} ${movement.unitLabel || "pzas"} de ${movement.itemName || "insumo"} → ${destination}`,
+        meta: `Transferido por: ${data?.performedByName || "Operador"}`,
+        tone: "warning",
+        timestamp: new Date(data.ts || Date.now()).toISOString(),
+        targetPage: PAGE_INVENTORY,
+        targetDomain: INVENTORY_DOMAIN_ORDERS,
+      });
+      queueWarehouseRefresh(data);
+    };
+
+    const handleOrderInventoryRestockCreated = async (data) => {
+      if (ignoreResponse) return;
+      if (!data?.movement) return;
+      if (String(data?.performedById || "").trim() === String(sessionUserId || "").trim()) return;
+      if (!canReceiveOrderInventoryNotification()) return;
+
+      const movement = data.movement;
+      const location = String(movement?.storageLocation || "").trim();
+      const locationSuffix = location ? ` · ${location}` : "";
+
+      showOrderInventoryRestockNotification(movement, data?.performedByName || "", { alertMode: "sound-vibration" });
+      pushNotificationToInbox({
+        id: `order-inv-restock-${movement.id}-${data.ts || Date.now()}`,
+        title: "Surtido de insumos para pedidos",
+        message: `+${movement.quantity || 0} ${movement.unitLabel || "pzas"} de ${movement.itemName || "insumo"}${locationSuffix}`,
+        meta: `Surtido por: ${data?.performedByName || "Operador"}`,
+        tone: "success",
+        timestamp: new Date(data.ts || Date.now()).toISOString(),
+        targetPage: PAGE_INVENTORY,
+        targetDomain: INVENTORY_DOMAIN_ORDERS,
+      });
+      queueWarehouseRefresh(data);
+    };
+
+    const handleOrderInventoryItemCreated = async (data) => {
+      if (ignoreResponse) return;
+      if (!data?.item) return;
+      if (String(data?.performedById || "").trim() === String(sessionUserId || "").trim()) return;
+      if (!canReceiveOrderInventoryNotification()) return;
+
+      const item = data.item;
+      const stockUnits = Math.max(0, Number(item?.stockUnits || 0));
+      const stockSuffix = stockUnits > 0
+        ? ` · stock inicial: ${stockUnits} ${item.unitLabel || "pzas"}`
+        : "";
+
+      showOrderInventoryItemCreatedNotification(item, data?.performedByName || "", { alertMode: "sound-vibration" });
+      pushNotificationToInbox({
+        id: `order-inv-item-${item.id}-${data.ts || Date.now()}`,
+        title: "Nuevo insumo para pedidos",
+        message: `${item.code || "sin código"} · ${item.name || "insumo"}${stockSuffix}`,
+        meta: `Registrado por: ${data?.performedByName || "Operador"}`,
+        tone: "info",
+        timestamp: new Date(data.ts || Date.now()).toISOString(),
+        targetPage: PAGE_INVENTORY,
+        targetDomain: INVENTORY_DOMAIN_ORDERS,
+      });
+      queueWarehouseRefresh(data);
+    };
+
     socket.on("transport_record_created", handleTransportRecordCreated);
     socket.on("transport_route_assigned", handleTransportRouteAssigned);
     socket.on("transport_record_postponed", handleTransportRecordPostponed);
@@ -2012,6 +2096,9 @@ function App() { // NOSONAR
     socket.on("documentacion_record_updated", handleDocumentacionRecordUpdated);
     socket.on("documentacion_route_assigned", handleDocumentacionRouteAssigned);
     socket.on("documentacion_status_updated", handleDocumentacionStatusUpdated);
+    socket.on("order_inventory_transfer_created", handleOrderInventoryTransferCreated);
+    socket.on("order_inventory_restock_created", handleOrderInventoryRestockCreated);
+    socket.on("order_inventory_item_created", handleOrderInventoryItemCreated);
 
     return () => {
       ignoreResponse = true;
@@ -2025,6 +2112,9 @@ function App() { // NOSONAR
       socket.off("documentacion_record_updated", handleDocumentacionRecordUpdated);
       socket.off("documentacion_route_assigned", handleDocumentacionRouteAssigned);
       socket.off("documentacion_status_updated", handleDocumentacionStatusUpdated);
+      socket.off("order_inventory_transfer_created", handleOrderInventoryTransferCreated);
+      socket.off("order_inventory_restock_created", handleOrderInventoryRestockCreated);
+      socket.off("order_inventory_item_created", handleOrderInventoryItemCreated);
     };
   }, [sessionUserId, socketConnectCount, state?.permissions, state?.users]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -2292,6 +2382,49 @@ function App() { // NOSONAR
         window.dispatchEvent(new CustomEvent("axo-reject-call", { detail: data }));
       },
     });
+  }, []);
+
+  useEffect(() => {
+    const ORDER_INVENTORY_PUSH_TYPES = new Set([
+      "order_inventory_transfer_created",
+      "order_inventory_restock_created",
+      "order_inventory_item_created",
+    ]);
+    const TRANSPORT_PUSH_TYPES = new Set([
+      "transport_record_created",
+      "transport_record_updated",
+      "transport_record_deleted",
+      "transport_route_assigned",
+      "transport_status_updated",
+      "transport_record_postponed",
+      "transport_record_reactivated",
+      "documentacion_record_created",
+      "documentacion_record_updated",
+      "documentacion_route_assigned",
+      "documentacion_status_updated",
+      "transport_road_alert",
+    ]);
+
+    function handlePushAreaNavigation(event) {
+      const data = event?.detail || {};
+      const type = String(data.type || "").trim();
+
+      if (ORDER_INVENTORY_PUSH_TYPES.has(type) || data.targetPage === "inventory" || data.url === "/inventory") {
+        setInventoryTab(data.targetDomain || INVENTORY_DOMAIN_ORDERS);
+        setPage(PAGE_INVENTORY);
+        return;
+      }
+
+      if (TRANSPORT_PUSH_TYPES.has(type) || data.url === "/transport") {
+        if (data.recordId) {
+          setPendingOpenTransportRecordId(String(data.recordId));
+        }
+        setPage(PAGE_TRANSPORT);
+      }
+    }
+
+    window.addEventListener("axo-notification-action", handlePushAreaNavigation);
+    return () => window.removeEventListener("axo-notification-action", handlePushAreaNavigation);
   }, []);
 
   // Dismiss message notifications when the app becomes visible (user is using the app)
@@ -8262,18 +8395,19 @@ function App() { // NOSONAR
       socketBaseUrl = parsedApiUrl.origin;
     } catch (_) { /* noop */ }
 
+    const usePollingOnly = import.meta.env.PROD;
     const socket = io(socketBaseUrl, {
       withCredentials: true,
       path: "/socket.io",
-      // Polling primero: más estable en Render (evita ERR_HTTP2_PING_FAILED en WebSocket).
-      transports: ["polling", "websocket"],
-      upgrade: true,
-      reconnection: true,            // Socket.IO gestiona reconexión (sin race conditions)
-      reconnectionDelay: 5000,       // 5s entre intentos (menos tormenta al despertar instancia)
-      reconnectionDelayMax: 15000,   // máximo 15s de espera
+      // En producción (Render/PWA): solo polling evita "WebSocket is already in CLOSING or CLOSED".
+      transports: usePollingOnly ? ["polling"] : ["polling", "websocket"],
+      upgrade: !usePollingOnly,
+      reconnection: true,
+      reconnectionDelay: 5000,
+      reconnectionDelayMax: 15000,
       reconnectionAttempts: Infinity,
       timeout: 30000,
-      forceNew: true,                // nuevo Manager en cada montaje (sin cache)
+      forceNew: true,
     });
 
     socket.on("connect", () => {

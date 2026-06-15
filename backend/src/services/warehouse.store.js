@@ -15,6 +15,7 @@ import {
   markTransportNotificationsRead as markTransportNotificationsReadInList,
   getTransportNotificationsForUser as getTransportNotificationsForUserFromList,
 } from "./transport.notifications.js";
+import { resolveOrderInventoryRecipientUserIds } from "./inventory.notifications.js";
 import { repairBoardRowTimes, repairWarehouseBoardTimes } from "./boardHistoryTimeRepair.js";
 import { attachRoadMonitorToTransportState, syncTransportRoadMonitors } from "./transport-road-monitor.service.js";
 import { normalizeRetailState } from "./retail.store.js";
@@ -3639,6 +3640,16 @@ export function getTransportNotificationRecipients({
   );
 }
 
+export function getOrderInventoryNotificationRecipients({ excludeUserId = "" } = {}) {
+  const state = getRawWarehouseState();
+  return resolveOrderInventoryRecipientUserIds(
+    state.users || [],
+    state.permissions || {},
+    canUserDoWarehouseAction,
+    { excludeUserId },
+  );
+}
+
 export function publishTransportNotification(notification) {
   if (!notification) return null;
   const state = getRawWarehouseState();
@@ -3655,10 +3666,11 @@ export function publishTransportNotification(notification) {
         type: entry.type,
         meta: entry.meta,
         targetPage: entry.targetPage,
+        targetDomain: entry.targetDomain || (entry.targetPage === "inventory" ? "orders" : ""),
         recordId: entry.recordId,
         notificationId: entry.id,
-        url: "/transport",
-        tag: `transport-${entry.type}-${entry.recordId || entry.id}`,
+        url: entry.targetPage === "inventory" ? "/inventory" : "/transport",
+        tag: `${entry.targetPage || "transport"}-${entry.type}-${entry.recordId || entry.id}`,
       });
     } catch (err) {
       console.warn("[transport_push] error enviando push:", err?.message || err);
@@ -6028,6 +6040,7 @@ export function createWarehouseInventoryMovement(auth, payload) {
   return {
     ok: true,
     state: replaceWarehouseState(nextState),
+    movement,
     movementId: movement.id,
     itemId: currentItem.id,
     itemCode: currentItem.code,

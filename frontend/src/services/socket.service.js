@@ -5,12 +5,15 @@ let socket = null;
 export function initSocketIO() {
   if (socket?.connected) return socket;
 
+  const usePollingOnly = import.meta.env.PROD;
   socket = io(window.location.origin, {
+    path: "/socket.io",
     reconnection: true,
     reconnectionDelay: 1000,
     reconnectionDelayMax: 5000,
     reconnectionAttempts: 5,
-    transports: ["websocket", "polling"],
+    transports: usePollingOnly ? ["polling"] : ["polling", "websocket"],
+    upgrade: !usePollingOnly,
     withCredentials: true,
   });
 
