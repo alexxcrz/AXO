@@ -53,6 +53,7 @@ export function buildBoardNavigationFocusFromDashboardRecord(record, overrides =
     cleaningSite: String(overrides.cleaningSite || record.cleaningSite || record.operationalContextValue || "").trim(),
     boardViewId,
     openPauseDetails: Boolean(overrides.openPauseDetails),
+    revealRow: Boolean(overrides.revealRow),
   };
 }
 

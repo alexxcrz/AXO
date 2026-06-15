@@ -64,6 +64,7 @@ export function buildPaginasContexto(d) {
     dashboardFilters: d.dashboardFilters,
     filteredDashboardRecords: d.filteredDashboardRecords,
     dateFilteredDashboardRecords: d.dateFilteredDashboardRecords,
+    dashboardRecords: d.dashboardRecords,
     areaNavSections: d.areaNavSections,
     dynamicAreaSectionRoots: d.dynamicAreaSectionRoots,
     transportRecords: d.transportRecords,

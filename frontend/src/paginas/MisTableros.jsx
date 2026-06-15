@@ -6,7 +6,7 @@ import { SpanishDateInput } from "../components/SpanishDateInput";
 import OperationalInspectionRecordModal from "../components/OperationalInspectionRecordModal.jsx";
 import { BoardEditableInventoryPropertyInput, BoardEvidenceCell, BoardMultiSelectDetailCell } from "../components/BoardRuntimeFieldCells.jsx";
 import { downloadBoardAsJson, parseBoardImportJson } from "../utils/boardImportExport";
-import { resolveWeekdayOffsetForOperationalDate } from "../utils/boardNavigationFocus.js";
+import { enrichBoardRowNavigationMeta, resolveWeekdayOffsetForOperationalDate } from "../utils/boardNavigationFocus.js";
 import { normalizeOperationalInspectionTemplate } from "../utils/operationalInspectionTemplate";
 import {
   formatBoardMultiSelectDetailValue,
@@ -381,6 +381,7 @@ export default function MisTableros({ contexto }) {
     setSelectedCustomBoardRowId,
     boardNavigationFocus,
     clearBoardNavigationFocus,
+    navigateToBoardFocus,
     isHistoricalCustomBoardView,
     isHistoricalBoardReadOnly,
     canEditHistoricalBoardWeeks,
@@ -474,7 +475,7 @@ export default function MisTableros({ contexto }) {
     const rowElement = document.querySelector(`[data-board-row-id="${selectedCustomBoardRowId}"]`);
     if (!rowElement) return;
     rowElement.scrollIntoView({ block: "center", behavior: "smooth" });
-  }, [selectedCustomBoardRowId, selectedCustomBoardId, selectedCustomBoardViewId]);
+  }, [selectedCustomBoardRowId, selectedCustomBoardId, selectedCustomBoardViewId, selectedWeekdayFilter]);
 
   function normalizeTimeInput24h(value, strict = false) {
     const raw = String(value || "").trim();
@@ -748,6 +749,7 @@ export default function MisTableros({ contexto }) {
     : [];
   const weekdayOptions = [
     { value: "auto", label: "Auto (hoy)" },
+    { value: "all", label: "Todos" },
     { value: "0", label: "L" },
     { value: "1", label: "M" },
     { value: "2", label: "M" },
@@ -758,8 +760,11 @@ export default function MisTableros({ contexto }) {
   ];
   const effectiveWeekdayOffset = selectedWeekdayFilter === "auto"
     ? currentWeekdayOffset
-    : Number(selectedWeekdayFilter);
-  const weekdayAllowedBySystemSchedule = !showCleaningNaveSelector
+    : selectedWeekdayFilter === "all"
+      ? null
+      : Number(selectedWeekdayFilter);
+  const weekdayAllowedBySystemSchedule = selectedWeekdayFilter === "all"
+    || !showCleaningNaveSelector
     || !allowedWeekdaysForNave.length
     || allowedWeekdaysForNave.includes(effectiveWeekdayOffset);
   const effectiveCatalogCleaningSite = showCleaningNaveSelector ? cleaningNaveValue : "";
@@ -785,11 +790,12 @@ export default function MisTableros({ contexto }) {
     return scopedUsers;
   }, [boardView, state, visibleUsers]);
   const targetOperationalDateKey = (() => {
+    if (selectedWeekdayFilter === "all") return "";
     if (selectedWeekdayFilter === "auto") {
       return getOperationalDateParts(Date.now(), operationalTimeZone).isoDate;
     }
     const parsedWeekStart = parseBoardWeekKey(effectiveWeekKey);
-    if (!parsedWeekStart) return "";
+    if (!parsedWeekStart || effectiveWeekdayOffset === null || Number.isNaN(effectiveWeekdayOffset)) return "";
     const targetDate = addDays(parsedWeekStart, effectiveWeekdayOffset);
     const year = targetDate.getFullYear();
     const month = String(targetDate.getMonth() + 1).padStart(2, "0");
@@ -1060,6 +1066,15 @@ export default function MisTableros({ contexto }) {
         ? String(selectedCustomBoardSnapshot?.weekKey || "").trim()
         : String(state?.boardWeeklyCycle?.activeWeekKey || "").trim();
 
+      if (focus.revealRow) {
+        setSelectedWeekdayFilter("all");
+      } else if (focus.operationalDate && weekKeyForDate) {
+        const weekdayOffset = resolveWeekdayOffsetForOperationalDate(focus.operationalDate, weekKeyForDate);
+        if (weekdayOffset !== null) {
+          setSelectedWeekdayFilter(String(weekdayOffset));
+        }
+      }
+
       if (focus.cleaningSite) {
         if (isHistorical) {
           setHistViewNave(focus.cleaningSite);
@@ -1072,19 +1087,15 @@ export default function MisTableros({ contexto }) {
         }
       }
 
-      if (focus.operationalDate && weekKeyForDate) {
-        const weekdayOffset = resolveWeekdayOffsetForOperationalDate(focus.operationalDate, weekKeyForDate);
-        if (weekdayOffset !== null) {
-          setSelectedWeekdayFilter(String(weekdayOffset));
-        }
-      }
-
       if (focus.rowId) {
         for (let attempt = 0; attempt < 25; attempt += 1) {
           await new Promise((resolve) => setTimeout(resolve, 100));
           if (cancelled) return;
           const rowElement = document.querySelector(`[data-board-row-id="${focus.rowId}"]`);
-          if (rowElement) break;
+          if (rowElement) {
+            rowElement.scrollIntoView({ block: "center", behavior: "smooth" });
+            break;
+          }
         }
       }
 
@@ -1380,6 +1391,33 @@ export default function MisTableros({ contexto }) {
       setBoardRuntimeFeedback({ tone: "danger", message: error?.message || "No se pudo actualizar el responsable de la fila." });
     });
   }
+  const boardAlertMetrics = useMemo(() => {
+    const allRows = boardView?.rows || [];
+    const delayedRows = [];
+    const tooFastRows = [];
+    const pausedRows = [];
+    const runningRows = [];
+
+    allRows.forEach((row) => {
+      const sla = evaluateBoardRowSla(boardView, row, catalogMap, realtimeNow, pauseState);
+      if (sla.isDelayed) delayedRows.push({ row, sla });
+      if (sla.isTooFast) tooFastRows.push({ row, sla });
+      if (row.status === STATUS_PAUSED) pausedRows.push({ row, sla });
+      if (row.status === STATUS_RUNNING) runningRows.push({ row, sla });
+    });
+
+    return {
+      delayedCount: delayedRows.length,
+      tooFastCount: tooFastRows.length,
+      pausedCount: pausedRows.length,
+      runningCount: runningRows.length,
+      delayedRows,
+      tooFastRows,
+      pausedRows,
+      runningRows,
+    };
+  }, [STATUS_PAUSED, STATUS_RUNNING, boardView, catalogMap, pauseState, realtimeNow]);
+
   const visibleBoardMetrics = useMemo(() => {
     const delayedRows = [];
     const tooFastRows = [];
@@ -1398,6 +1436,25 @@ export default function MisTableros({ contexto }) {
       tooFastRows,
     };
   }, [boardView, catalogMap, pauseState, realtimeNow, visibleRows, STATUS_FINISHED, STATUS_RUNNING]);
+
+  function focusBoardRowAlert(row, options = {}) {
+    if (!row?.id || !selectedCustomBoard?.id) return;
+    setSelectedWeekdayFilter("all");
+    const meta = enrichBoardRowNavigationMeta(
+      boardView,
+      row,
+      isHistoricalCustomBoardView ? selectedCustomBoardViewId : "",
+    );
+    navigateToBoardFocus?.({
+      boardId: selectedCustomBoard.id,
+      rowId: row.id,
+      operationalDate: meta.operationalDate,
+      cleaningSite: meta.cleaningSite,
+      boardViewId: isHistoricalCustomBoardView ? selectedCustomBoardViewId : "current",
+      revealRow: true,
+      openPauseDetails: Boolean(options.openPauseDetails || row.status === STATUS_PAUSED),
+    });
+  }
   const effectivePauseDetailsRow = useMemo(() => {
     if (!pauseDetailsRow?.id || !selectedCustomBoard?.rows) return pauseDetailsRow;
     return (selectedCustomBoard.rows || []).find((row) => row.id === pauseDetailsRow.id) || pauseDetailsRow;
@@ -1518,40 +1575,79 @@ export default function MisTableros({ contexto }) {
         <>
           <div className="inventory-stat-grid custom-board-stat-grid">
             <StatTile label="Filas" value={visibleBoardMetrics.totalRows} className="custom-board-stat-tile" />
-            <StatTile label="En curso" value={visibleBoardMetrics.running} tone="soft" className="custom-board-stat-tile" />
+            <StatTile label="En curso" value={boardAlertMetrics.runningCount} tone="soft" className="custom-board-stat-tile" />
+            <StatTile label="En pausa" value={boardAlertMetrics.pausedCount} tone={boardAlertMetrics.pausedCount > 0 ? "warning" : "soft"} className="custom-board-stat-tile" />
             <StatTile label="Terminadas" value={visibleBoardMetrics.completed} tone="success" className="custom-board-stat-tile" />
             {boardShowMetrics ? (
               <>
                 <StatTile
                   label="Retrasos"
-                  value={visibleBoardMetrics.delayedCount}
-                  tone={visibleBoardMetrics.delayedCount > 0 ? "danger" : "soft"}
+                  value={boardAlertMetrics.delayedCount}
+                  tone={boardAlertMetrics.delayedCount > 0 ? "danger" : "soft"}
                   className="custom-board-stat-tile"
                 />
                 <StatTile
                   label="Muy rápidas"
-                  value={visibleBoardMetrics.tooFastCount}
-                  tone={visibleBoardMetrics.tooFastCount > 0 ? "soft" : "default"}
+                  value={boardAlertMetrics.tooFastCount}
+                  tone={boardAlertMetrics.tooFastCount > 0 ? "soft" : "default"}
                   className="custom-board-stat-tile"
                 />
               </>
             ) : null}
           </div>
-          {boardShowMetrics && (visibleBoardMetrics.delayedCount > 0 || visibleBoardMetrics.tooFastCount > 0) ? (
-            <div className="saved-board-list custom-board-sla-summary">
-              {visibleBoardMetrics.delayedRows.map(({ row, sla }) => (
-                <span key={`delay-${row.id}`} className="chip danger">
+          {boardShowMetrics && (boardAlertMetrics.delayedCount > 0 || boardAlertMetrics.tooFastCount > 0 || boardAlertMetrics.pausedCount > 0 || boardAlertMetrics.runningCount > 0) ? (
+            <div className="custom-board-sla-summary board-operational-alerts" role="list" aria-label="Alertas operativas del tablero">
+              {boardAlertMetrics.delayedRows.map(({ row, sla }) => (
+                <button
+                  key={`delay-${row.id}`}
+                  type="button"
+                  className="chip danger custom-board-sla-chip"
+                  onClick={() => focusBoardRowAlert(row)}
+                  title="Ir a la actividad con retraso"
+                >
                   {sla.activityLabel || "Actividad"} · retraso +{formatDurationClock(sla.excessSeconds)} (límite {sla.limitMinutes} min)
-                </span>
+                </button>
               ))}
-              {visibleBoardMetrics.tooFastRows.map(({ row, sla }) => (
-                <span key={`fast-${row.id}`} className="chip">
+              {boardAlertMetrics.pausedRows
+                .filter(({ row }) => !boardAlertMetrics.delayedRows.some((entry) => entry.row.id === row.id))
+                .map(({ row, sla }) => (
+                  <button
+                    key={`paused-${row.id}`}
+                    type="button"
+                    className="chip warning custom-board-sla-chip"
+                    onClick={() => focusBoardRowAlert(row, { openPauseDetails: true })}
+                    title="Ir a la actividad en pausa"
+                  >
+                    {sla.activityLabel || "Actividad"} · en pausa
+                  </button>
+                ))}
+              {boardAlertMetrics.runningRows
+                .filter(({ row }) => !boardAlertMetrics.delayedRows.some((entry) => entry.row.id === row.id))
+                .map(({ row, sla }) => (
+                  <button
+                    key={`running-${row.id}`}
+                    type="button"
+                    className="chip primary custom-board-sla-chip"
+                    onClick={() => focusBoardRowAlert(row)}
+                    title="Ir a la actividad en curso"
+                  >
+                    {sla.activityLabel || "Actividad"} · en curso
+                  </button>
+                ))}
+              {boardAlertMetrics.tooFastRows.map(({ row, sla }) => (
+                <button
+                  key={`fast-${row.id}`}
+                  type="button"
+                  className="chip custom-board-sla-chip"
+                  onClick={() => focusBoardRowAlert(row)}
+                  title="Ir a la actividad muy rápida"
+                >
                   {sla.activityLabel || "Actividad"} · muy rápida ({formatDurationClock(sla.durationSeconds)} / mín. {formatDurationClock(sla.minDurationSeconds)})
-                </span>
+                </button>
               ))}
             </div>
           ) : null}
-          {boardShowMetrics && visibleBoardMetrics.totalRows > 0 && visibleBoardMetrics.delayedCount === 0 && visibleBoardMetrics.tooFastCount === 0 ? (
+          {boardShowMetrics && boardAlertMetrics.delayedCount === 0 && boardAlertMetrics.tooFastCount === 0 && boardAlertMetrics.pausedCount === 0 && boardAlertMetrics.runningCount === 0 && visibleBoardMetrics.totalRows > 0 ? (
             <p className="subtle-line custom-board-sla-empty">
               Sin retrasos ni actividades sospechosamente rápidas en el día visible. Umbral rápido: menos del {Math.round(BOARD_SLA_MIN_DURATION_RATIO * 100)}% del tiempo límite del catálogo.
             </p>

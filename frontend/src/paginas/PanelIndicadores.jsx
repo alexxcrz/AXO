@@ -84,7 +84,8 @@ import {
   summarizeTransportForGeneralDashboard,
 } from "../utils/generalAreaDashboardPanels";
 import { getAreaDashboardSections } from "../utils/areaDashboardThemes";
-import { PAGE_CUSTOM_BOARDS, STATUS_FINISHED } from "../utils/constantes";
+import { PAGE_CUSTOM_BOARDS, STATUS_FINISHED, STATUS_PAUSED, STATUS_RUNNING } from "../utils/constantes";
+import { formatDurationClock } from "../utils/utilidades.jsx";
 import {
   buildBoardNavigationFocusFromDashboardRecord,
   pauseReasonsMatch,
@@ -268,6 +269,7 @@ export default function PanelIndicadores({ contexto }) {
     dashboardBoardKpiCards,
     processAuditMetrics,
     dateFilteredDashboardRecords,
+    dashboardRecords,
     areaNavSections,
     dynamicAreaSectionRoots,
     transportRecords,
@@ -379,12 +381,18 @@ export default function PanelIndicadores({ contexto }) {
   }
 
   function goToBoardFromDashboardRecord(record, options = {}) {
-    const focus = buildBoardNavigationFocusFromDashboardRecord(record, options);
+    const focus = buildBoardNavigationFocusFromDashboardRecord(record, {
+      ...options,
+      revealRow: options.revealRow !== false && Boolean(options.rowId || record?.rowId),
+    });
     if (!focus?.boardId) {
       pushAppToast?.("No se pudo ubicar el tablero de esta actividad.", "warning");
       return;
     }
-    navigateToBoardFocus?.(focus);
+    navigateToBoardFocus?.({
+      ...focus,
+      revealRow: focus.revealRow !== false && Boolean(focus.rowId),
+    });
     setPauseModalOpen(false);
   }
 
@@ -677,6 +685,44 @@ export default function PanelIndicadores({ contexto }) {
   const activeAreaLabel = (selectedAreaSectionId === "all" || selectedAreaSectionId === "admin")
     ? (dashboardFilters.area === "all" ? "General" : dashboardFilters.area)
     : (selectedAreaSection?.label || "Área");
+
+  const liveOperationalBoardAlerts = useMemo(() => {
+    const records = Array.isArray(dashboardRecords) ? dashboardRecords : [];
+    const areaScopes = showGlobalAreaFilter
+      ? []
+      : (Array.isArray(selectedAreaSection?.scopes) && selectedAreaSection.scopes.length
+        ? selectedAreaSection.scopes.map((scope) => String(scope || "").trim().toLowerCase()).filter(Boolean)
+        : [String(selectedAreaSection?.label || "").trim().toLowerCase()].filter(Boolean));
+
+    const matchesArea = (record) => {
+      if (!areaScopes.length) return true;
+      const recordAreas = (Array.isArray(record.areaScopes) && record.areaScopes.length
+        ? record.areaScopes
+        : [record.area])
+        .map((area) => String(area || "").trim().toLowerCase())
+        .filter(Boolean);
+      return recordAreas.some((area) => areaScopes.some((scope) => area.includes(scope) || scope.includes(area)));
+    };
+
+    const priority = (record) => {
+      if (record.excessSeconds > 0 && record.status !== STATUS_FINISHED) return 0;
+      if (record.status === STATUS_PAUSED) return 1;
+      if (record.status === STATUS_RUNNING) return 2;
+      return 3;
+    };
+
+    return records
+      .filter((record) => record.source === "board" && !String(record.id).startsWith("board-history-"))
+      .filter(matchesArea)
+      .filter((record) => record.status === STATUS_RUNNING
+        || record.status === STATUS_PAUSED
+        || (record.excessSeconds > 0 && record.status !== STATUS_FINISHED))
+      .sort((left, right) => {
+        const priorityDiff = priority(left) - priority(right);
+        if (priorityDiff !== 0) return priorityDiff;
+        return Number(right.excessSeconds || 0) - Number(left.excessSeconds || 0);
+      });
+  }, [dashboardRecords, selectedAreaSection?.label, selectedAreaSection?.scopes, showGlobalAreaFilter]);
 
   const normalizeAreaText = useCallback((value) => {
     return String(value || "")
@@ -2107,6 +2153,40 @@ export default function PanelIndicadores({ contexto }) {
           </div>
         )}
       </header>
+
+      {liveOperationalBoardAlerts.length ? (
+        <section className="dashboard-live-alerts surface-card" aria-label="Alertas operativas en vivo">
+          <header className="dashboard-live-alerts-header">
+            <div>
+              <h3>Operación en vivo</h3>
+              <p className="subtle-line">Actividades activas, en pausa o con retraso. Clic para ir directo al tablero.</p>
+            </div>
+            <span className="chip danger">{liveOperationalBoardAlerts.length}</span>
+          </header>
+          <div className="custom-board-sla-summary board-operational-alerts dashboard-live-alerts-chips">
+            {liveOperationalBoardAlerts.map((record) => {
+              const isDelayed = record.excessSeconds > 0 && record.status !== STATUS_FINISHED;
+              const chipTone = isDelayed ? "danger" : record.status === STATUS_PAUSED ? "warning" : "primary";
+              const detail = isDelayed
+                ? `retraso +${formatDurationClock(record.excessSeconds)}`
+                : record.status === STATUS_PAUSED
+                  ? "en pausa"
+                  : "en curso";
+              return (
+                <button
+                  key={record.id}
+                  type="button"
+                  className={`chip ${chipTone} custom-board-sla-chip`}
+                  onClick={() => goToBoardFromDashboardRecord(record, { openPauseDetails: record.status === STATUS_PAUSED })}
+                  title={`Ir a ${record.label} en ${record.boardName}`}
+                >
+                  {record.label} · {detail} · {record.boardName}
+                </button>
+              );
+            })}
+          </div>
+        </section>
+      ) : null}
 
       {!showGlobalAreaFilter && areaDashboardSpotlights.length ? (
         <div className={`dashboard-area-spotlight dashboard-area-spotlight--${areaDashboardTheme.layout}`}>

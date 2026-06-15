@@ -4086,9 +4086,28 @@ html[data-ui-theme] .app-notification-badge {
 }
 
 @media (max-width: 720px) {
-  .mis-tableros-shell .custom-board-stat-grid,
+  .mis-tableros-shell .custom-board-stat-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .mis-tableros-shell .custom-board-sla-summary,
-  .mis-tableros-shell .custom-board-sla-empty,
+  .mis-tableros-shell .board-operational-alerts {
+    display: flex !important;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+  }
+
+  .mis-tableros-shell .custom-board-sla-summary .custom-board-sla-chip,
+  .mis-tableros-shell .board-operational-alerts .custom-board-sla-chip {
+    flex: 1 1 100%;
+    width: 100%;
+    max-width: 100%;
+    border-radius: 0.85rem;
+    min-height: 2.5rem;
+    padding: 0.5rem 0.85rem;
+  }
+
   .mis-tableros-shell .board-title-chips,
   .mis-tableros-shell .board-meta-inline-header {
     display: none !important;
@@ -5095,25 +5114,82 @@ body .primary-button:disabled {
   font-weight: 700;
 }
 
-/* Resumen SLA en tableros: chips apilados y legibles en móvil */
+/* Resumen SLA en tableros: chips tipo píldora, legibles y clicables */
+.board-operational-alerts,
 .custom-board-sla-summary {
-  flex-direction: column;
-  align-items: stretch;
-  gap: 0.4rem;
-  overflow-x: visible;
+  display: flex;
   flex-wrap: wrap;
+  align-items: flex-start;
+  align-content: flex-start;
+  gap: 0.5rem;
+  width: 100%;
+  margin: 0 0 0.75rem;
+  overflow: visible;
 }
 
-.custom-board-sla-summary .chip {
-  width: 100%;
-  max-width: 100%;
-  white-space: normal;
-  line-height: 1.4;
-  border-radius: 0.65rem;
-  justify-content: flex-start;
+.board-operational-alerts .custom-board-sla-chip,
+.custom-board-sla-summary .custom-board-sla-chip {
+  appearance: none;
+  cursor: pointer;
+  border: 1px solid #d8e3df;
+  background: #f8fafc;
+  font: inherit;
   text-align: left;
-  padding: 0.45rem 0.72rem;
-  min-height: auto;
+  display: inline-flex;
+  align-items: center;
+  width: auto;
+  max-width: 100%;
+  flex: 0 1 auto;
+  white-space: normal;
+  line-height: 1.45;
+  border-radius: 999px;
+  justify-content: flex-start;
+  padding: 0.45rem 0.9rem;
+  min-height: 2.25rem;
+  font-size: 0.78rem;
+  transition: transform 120ms ease, box-shadow 120ms ease;
+}
+
+.custom-board-sla-summary .custom-board-sla-chip:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.08);
+}
+
+.custom-board-sla-summary .custom-board-sla-chip:focus-visible {
+  outline: 2px solid rgba(14, 165, 233, 0.45);
+  outline-offset: 2px;
+}
+
+.chip.warning {
+  background: #fff7ed;
+  border-color: #fdba74;
+  color: #9a3412;
+}
+
+.custom-board-sla-empty {
+  margin-bottom: 0.75rem;
+}
+
+.dashboard-live-alerts {
+  padding: 1rem 1.1rem;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.dashboard-live-alerts-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.dashboard-live-alerts-header h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.dashboard-live-alerts-chips {
+  margin-bottom: 0;
 }
 
 .mis-tableros-shell .card-header-row .saved-board-list:not(.custom-board-sla-summary) {
@@ -13354,14 +13430,23 @@ html[data-ui-theme] body .switch-thumb {
   }
 
   .custom-board-sla-summary,
+  .board-operational-alerts,
   .mis-tableros-shell .card-header-row .saved-board-list {
     flex-wrap: wrap !important;
     overflow-x: visible !important;
     flex-direction: row;
   }
 
-  .custom-board-sla-summary {
-    flex-direction: column !important;
+  .custom-board-sla-summary,
+  .board-operational-alerts {
+    gap: 0.45rem;
+  }
+
+  .custom-board-sla-summary .custom-board-sla-chip,
+  .board-operational-alerts .custom-board-sla-chip {
+    flex: 1 1 100%;
+    width: 100%;
+    min-height: 2.45rem;
   }
 
   .saved-board-list .tab {

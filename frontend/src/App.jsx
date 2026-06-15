@@ -3404,7 +3404,7 @@ function App() { // NOSONAR
         return {
           targetPage: PAGE_CUSTOM_BOARDS,
           targetBoardId: record.boardId,
-          targetRowId: record.rawId,
+          targetRowId: record.rowId || record.rawId,
         };
       }
       if (record.source === "activity" && record.rawId) {
@@ -8081,6 +8081,7 @@ function App() { // NOSONAR
     dashboardDynamicMetricRows,
     dashboardFilters,
     dateFilteredDashboardRecords,
+    dashboardRecords,
     areaNavSections,
     dynamicAreaSectionRoots,
     transportRecords: transportRecordsForDashboard,

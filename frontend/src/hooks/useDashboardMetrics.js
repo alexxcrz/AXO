@@ -443,8 +443,16 @@ export function useDashboardMetrics({
       };
     }));
 
+    const liveBoardRowKeys = new Set(
+      boardRecords.map((record) => `${String(record.boardId || "").trim()}::${String(record.rowId || "").trim()}`),
+    );
+    const dedupedHistoricalBoardRecords = historicalBoardRecords.filter((record) => {
+      const key = `${String(record.boardId || "").trim()}::${String(record.rowId || "").trim()}`;
+      return !key.endsWith("::") && !liveBoardRowKeys.has(key);
+    });
+
     return activityRecords
-      .concat(boardRecords, historicalBoardRecords)
+      .concat(boardRecords, dedupedHistoricalBoardRecords)
       .filter((record) => Boolean(record.occurredAt));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activityPauseSummaryMap, catalogMap, dashboardVisibleBoardHistorySnapshots, dashboardVisibleControlBoards, now, operationalPauseState, state.activities, userMap, visibleDashboardActivities]);
