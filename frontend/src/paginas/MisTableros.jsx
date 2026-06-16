@@ -470,13 +470,6 @@ export default function MisTableros({ contexto }) {
     return () => globalThis.clearInterval(timer);
   }, []);
 
-  useEffect(() => {
-    if (!selectedCustomBoardRowId) return;
-    const rowElement = document.querySelector(`[data-board-row-id="${selectedCustomBoardRowId}"]`);
-    if (!rowElement) return;
-    rowElement.scrollIntoView({ block: "center", behavior: "smooth" });
-  }, [selectedCustomBoardRowId, selectedCustomBoardId, selectedCustomBoardViewId, selectedWeekdayFilter]);
-
   function normalizeTimeInput24h(value, strict = false) {
     const raw = String(value || "").trim();
     if (!raw) return "";
@@ -627,6 +620,14 @@ export default function MisTableros({ contexto }) {
   const menuTriggerRef = useRef(null);
   const [dropdownPos, setDropdownPos] = useState(null);
   const [selectedWeekdayFilter, setSelectedWeekdayFilter] = useState("auto");
+
+  useEffect(() => {
+    if (!selectedCustomBoardRowId) return;
+    const rowElement = document.querySelector(`[data-board-row-id="${selectedCustomBoardRowId}"]`);
+    if (!rowElement) return;
+    rowElement.scrollIntoView({ block: "center", behavior: "smooth" });
+  }, [selectedCustomBoardRowId, selectedCustomBoardId, selectedCustomBoardViewId, selectedWeekdayFilter]);
+
   const [histViewNave, setHistViewNave] = useState("");
   const [currentWeekdayOffset, setCurrentWeekdayOffset] = useState(() => {
     const today = getOperationalDateParts(Date.now(), normalizeSystemOperationalSettings(state?.system?.operational).timeZone);
