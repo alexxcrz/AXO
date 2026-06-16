@@ -322,9 +322,14 @@ export default function PanelIndicadores({ contexto }) {
     setSelectedCustomBoardViewId,
     setSelectedCustomBoardRowId,
     navigateToBoardFocus,
+    state,
   } = contexto;
 
-  const dashboardVisibleControlBoards = useMemo(() => rawDashboardVisibleControlBoards ?? filteredVisibleControlBoards ?? [], [rawDashboardVisibleControlBoards, filteredVisibleControlBoards]);
+  const catalogAutoLimitUpdates = useMemo(() => {
+    const updates = state?.catalogAutoLimits?.updates;
+    return Array.isArray(updates) ? updates : [];
+  }, [state?.catalogAutoLimits?.updates]);
+
   const canManageDashboardActions = Boolean(canManageDashboardControls ?? canManageDashboardState);
   const canExportDashboardActions = Boolean(canExportDashboardData ?? true);
   const showGlobalAreaFilter = selectedAreaSectionId === "all" || selectedAreaSectionId === "admin";
@@ -438,6 +443,11 @@ export default function PanelIndicadores({ contexto }) {
     () => getAreaDashboardTheme(selectedAreaSectionId),
     [selectedAreaSectionId],
   );
+
+  const isCleaningDashboard = useMemo(() => {
+    const sectionId = String(selectedAreaSectionId || "").toLowerCase();
+    return sectionId.includes("limpieza") || areaDashboardThemeEarly?.layout === "cleaning";
+  }, [selectedAreaSectionId, areaDashboardThemeEarly?.layout]);
 
   const enabledAreaDashboardSections = useMemo(
     () => new Set(getAreaDashboardSections(areaDashboardThemeEarly)),
@@ -3468,10 +3478,20 @@ export default function PanelIndicadores({ contexto }) {
             <div className="dashboard-panel-header with-badge">
               <div>
                 <h3>Resumen de actividades vs. límite SLA</h3>
-                <p>Promedio general por tipo de actividad. No lista cada registro individual.</p>
+                <p>
+                  Promedio general por tipo de actividad. No lista cada registro individual.
+                  {isCleaningDashboard ? " Los tiempos del catálogo se actualizan automáticamente tras 3 semanas de datos (máx. 30), redondeados al alza en bloques de 5 min." : ""}
+                </p>
               </div>
               <span className="dashboard-alert-pill">{dashboardActivitySlaSummaryRows.filter((row) => row.exceededCount > 0).length} con exceso</span>
             </div>
+            {isCleaningDashboard && catalogAutoLimitUpdates.length ? (
+              <div className="dashboard-auto-limit-banner" role="status">
+                <strong>Tiempos del catálogo actualizados automáticamente:</strong>
+                {" "}
+                {catalogAutoLimitUpdates.map((entry) => `${entry.name}: ${entry.previousLimitMinutes} → ${entry.nextLimitMinutes} min`).join(" · ")}
+              </div>
+            ) : null}
             <div className="dashboard-table-wrap">
               <table className="dashboard-table-clean">
                 <thead>
@@ -3482,6 +3502,7 @@ export default function PanelIndicadores({ contexto }) {
                     <th>% exceso</th>
                     <th>Límite</th>
                     <th>Prom. real</th>
+                    <th>Límite sugerido</th>
                     <th>Prom. exceso</th>
                   </tr>
                 </thead>
@@ -3494,11 +3515,14 @@ export default function PanelIndicadores({ contexto }) {
                       <td>{formatPercent(row.exceededPercent)}</td>
                       <td>{row.limitMinutes} min</td>
                       <td>{formatMinutes(row.avgRealMinutes)}</td>
+                      <td className={row.hasEnoughSamplesForAutoLimit && row.suggestedLimitMinutes !== row.limitMinutes ? "dashboard-number-warning" : ""}>
+                        {row.hasEnoughSamplesForAutoLimit ? `${row.suggestedLimitMinutes} min` : `— (${row.sampleWeekCount || 0}/3 sem.)`}
+                      </td>
                       <td>{row.exceededCount > 0 ? formatMinutes(row.avgExcessMinutes) : "—"}</td>
                     </tr>
                   )) : (
                     <tr>
-                      <td colSpan={7}>No hay actividades con límite SLA en el periodo.</td>
+                      <td colSpan={8}>No hay actividades con límite SLA en el periodo.</td>
                     </tr>
                   )}
                 </tbody>

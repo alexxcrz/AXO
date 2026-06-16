@@ -16,7 +16,8 @@ import {
   getTransportNotificationsForUser as getTransportNotificationsForUserFromList,
 } from "./transport.notifications.js";
 import { resolveOrderInventoryRecipientUserIds } from "./inventory.notifications.js";
-import { repairBoardRowTimes, repairWarehouseBoardTimes } from "./boardHistoryTimeRepair.js";
+import { applyCatalogAutoTimeLimits } from "./catalogAutoTimeLimits.js";
+import { repairWarehouseBoardTimes } from "./boardHistoryTimeRepair.js";
 import { attachRoadMonitorToTransportState, syncTransportRoadMonitors } from "./transport-road-monitor.service.js";
 import { normalizeRetailState } from "./retail.store.js";
 import { isDeprecatedDynamicArea, migrateDeprecatedAreaValue } from "../config/deprecatedAreas.js";
@@ -4877,9 +4878,10 @@ function applyWarehouseAutomationPipeline(state, referenceDate = new Date()) {
   const { state: boardState, changed: boardChanged } = applyAutomatedBoardWeeklyCut(state, referenceDate);
   const { state: dailyRowsState, changed: dailyRowsChanged } = applyAutomatedBoardDailyRows(boardState, referenceDate);
   const { state: transportState, changed: transportChanged } = applyAutomatedTransportDailyCut(dailyRowsState);
+  const { state: catalogState, changed: catalogChanged } = applyCatalogAutoTimeLimits(transportState);
   return {
-    state: transportState,
-    changed: boardChanged || dailyRowsChanged || transportChanged,
+    state: catalogState,
+    changed: boardChanged || dailyRowsChanged || transportChanged || catalogChanged,
   };
 }
 
@@ -6881,6 +6883,16 @@ function sanitizeCatalogItemDraft(payload = {}, existingId = null) {
     area: normalizeCatalogArea(payload.area, payload.category),
     operationalChecklistConfig: normalizedChecklistConfig,
     isDeleted: Boolean(payload.isDeleted),
+    autoLimitMeta: payload?.autoLimitMeta && typeof payload.autoLimitMeta === "object"
+      ? {
+          avgMinutes: Number(payload.autoLimitMeta.avgMinutes || 0),
+          sampleCount: Number(payload.autoLimitMeta.sampleCount || 0),
+          sampleWeeks: Number(payload.autoLimitMeta.sampleWeeks || 0),
+          previousLimitMinutes: Number(payload.autoLimitMeta.previousLimitMinutes || 0),
+          updatedAt: String(payload.autoLimitMeta.updatedAt || "").trim(),
+          roundedToStep: Number(payload.autoLimitMeta.roundedToStep || 5),
+        }
+      : undefined,
   };
 }
 
@@ -7035,6 +7047,26 @@ export function deleteWarehouseCatalogItem(auth, itemId) {
   };
 
   return { ok: true, state: replaceWarehouseState(nextState), itemId: existingItem.id, itemName: existingItem.name };
+}
+
+export function syncCatalogAutoTimeLimits(auth, options = {}) {
+  const currentUser = findWarehouseUserById(auth?.userId);
+  if (!currentUser?.isActive) return { ok: false, reason: "auth_required" };
+  const currentState = getRawWarehouseState();
+  if (!canUserDoWarehouseAction(currentUser, "editCatalog", currentState.permissions)) {
+    return { ok: false, reason: "forbidden" };
+  }
+
+  const { state: nextState, changed, updates } = applyCatalogAutoTimeLimits(currentState, {
+    force: Boolean(options.force),
+  });
+  const persistedState = changed ? replaceWarehouseState(nextState) : currentState;
+  return {
+    ok: true,
+    state: sanitizeState(persistedState),
+    changed: Boolean(changed),
+    updates: Array.isArray(updates) ? updates : [],
+  };
 }
 
 export function createWarehouseTemplate(auth, draft) {

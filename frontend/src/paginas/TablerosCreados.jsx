@@ -933,7 +933,14 @@ export default function TablerosCreados({ contexto }) {
                     <td>{item.name}</td>
                     <td><span className="chip">{item.category || "General"}</span></td>
                     <td>{getActivityFrequencyLabel(item.frequency)}</td>
-                    <td>{item.timeLimitMinutes} min</td>
+                    <td>
+                      {item.timeLimitMinutes} min
+                      {item.autoLimitMeta?.updatedAt ? (
+                        <span className="chip chip-soft catalog-auto-limit-chip" title={`Ajustado automáticamente el ${new Date(item.autoLimitMeta.updatedAt).toLocaleDateString("es-MX")} según promedio real (${item.autoLimitMeta.avgMinutes} min, ${item.autoLimitMeta.sampleWeeks} sem.)`}>
+                          auto
+                        </span>
+                      ) : null}
+                    </td>
                     <td>{item.isMandatory ? "Obligatoria" : "Ocasional"}</td>
                     <td>
                       <div className="row-actions compact">

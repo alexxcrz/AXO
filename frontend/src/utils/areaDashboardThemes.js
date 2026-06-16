@@ -102,6 +102,7 @@ const AREA_DASHBOARD_THEMES = {
     executiveSubtitle: "Registros cerrados y desempeño por player.",
     playersTitle: "Equipo de limpieza",
     playersSubtitle: "Productividad y SLA por persona.",
+    alertsSubtitle: "Excesos de límite y pausas. Los tiempos del catálogo de limpieza se ajustan solos tras 3 semanas de datos (ventana de 30 semanas), redondeados al alza en bloques de 5 min.",
     sections: ["executive", "players", "trends", "causes", "alerts"],
     zoneOrder: ["executive", "players", "trends", "alerts"],
     spotlightKeys: ["total", "completed", "sla", "players"],

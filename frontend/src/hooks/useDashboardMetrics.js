@@ -35,6 +35,7 @@ import {
   resolveDashboardInventoryRowMetrics,
 } from "../utils/utilidades.jsx";
 import { enrichBoardRowNavigationMeta } from "../utils/boardNavigationFocus.js";
+import { roundMinutesToScaleOfFiveCeil, CATALOG_AUTO_LIMITS_MIN_WEEKS } from "../utils/catalogAutoTimeLimits.js";
 
 export function useDashboardMetrics({
   state,
@@ -1225,11 +1226,14 @@ export function useDashboardMetrics({
           exceededCount: 0,
           totalRealSeconds: 0,
           totalExcessSeconds: 0,
+          sampleWeeks: new Set(),
         });
       }
 
       const item = groups.get(key);
       item.totalEvents += 1;
+      const sampleWeekKey = getDashboardPeriodKey(record.occurredAt, "week");
+      if (sampleWeekKey) item.sampleWeeks.add(sampleWeekKey);
       const realSeconds = Math.max(0, Number(record.durationSeconds || 0));
       item.totalRealSeconds += realSeconds;
       if (realSeconds > record.limitMinutes * 60) {
@@ -1244,6 +1248,11 @@ export function useDashboardMetrics({
         avgRealMinutes: item.totalEvents ? item.totalRealSeconds / item.totalEvents / 60 : 0,
         avgExcessMinutes: item.exceededCount ? item.totalExcessSeconds / item.exceededCount / 60 : 0,
         exceededPercent: item.totalEvents ? (item.exceededCount / item.totalEvents) * 100 : 0,
+        suggestedLimitMinutes: item.totalEvents
+          ? roundMinutesToScaleOfFiveCeil(item.totalRealSeconds / item.totalEvents / 60)
+          : 0,
+        sampleWeekCount: item.sampleWeeks?.size || 0,
+        hasEnoughSamplesForAutoLimit: (item.sampleWeeks?.size || 0) >= CATALOG_AUTO_LIMITS_MIN_WEEKS,
       }))
       .sort((left, right) => right.exceededCount - left.exceededCount || right.avgExcessMinutes - left.avgExcessMinutes);
   }, [filteredDashboardRecords]);

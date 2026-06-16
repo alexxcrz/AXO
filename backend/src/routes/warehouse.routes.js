@@ -61,6 +61,7 @@ import {
   updateWarehouseBoardAssignment,
   updateWarehouseBoardOperationalContext,
   updateWarehouseCatalogItem,
+  syncCatalogAutoTimeLimits,
   updateWarehouseInventoryItem,
   updateWarehouseInventoryLotHistory,
   createWarehouseInventoryDestination,
@@ -1859,6 +1860,29 @@ warehouseRouter.patch("/catalog/:itemId", requireWarehouseAction("editCatalog"),
     revision: result.state?.revision,
   });
   res.json({ ok: true, data: { state: result.state, itemId: result.itemId, itemName: result.itemName } });
+});
+
+warehouseRouter.post("/catalog/auto-time-limits", requireWarehouseAction("editCatalog"), (req, res) => {
+  const result = syncCatalogAutoTimeLimits(req.auth, { force: Boolean(req.body?.force) });
+  if (!result.ok) {
+    const status = result.reason === "auth_required" ? 401 : result.reason === "forbidden" ? 403 : 400;
+    res.status(status).json({ ok: false, message: "No fue posible sincronizar los tiempos del catálogo." });
+    return;
+  }
+
+  auditSecurityEvent("warehouse_catalog_auto_time_limits_synced", req, {
+    changed: result.changed,
+    updateCount: Array.isArray(result.updates) ? result.updates.length : 0,
+    revision: result.state?.revision,
+  });
+  res.json({
+    ok: true,
+    data: {
+      state: result.state,
+      changed: result.changed,
+      updates: result.updates,
+    },
+  });
 });
 
 warehouseRouter.delete("/catalog/:itemId", requireWarehouseAction("deleteCatalog"), (req, res) => {
