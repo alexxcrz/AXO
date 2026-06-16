@@ -1393,14 +1393,18 @@ export default function MisTableros({ contexto }) {
     });
   }
   const boardAlertMetrics = useMemo(() => {
-    const allRows = boardView?.rows || [];
+    const alertBoard = isHistoricalCustomBoardView ? boardView : selectedCustomBoard;
+    const allRows = isHistoricalCustomBoardView
+      ? (boardView?.rows || [])
+      : (selectedCustomBoard?.rows || boardView?.rows || []);
+
     const delayedRows = [];
     const tooFastRows = [];
     const pausedRows = [];
     const runningRows = [];
 
     allRows.forEach((row) => {
-      const sla = evaluateBoardRowSla(boardView, row, catalogMap, realtimeNow, pauseState);
+      const sla = evaluateBoardRowSla(alertBoard, row, catalogMap, realtimeNow, pauseState);
       if (sla.isDelayed) delayedRows.push({ row, sla });
       if (sla.isTooFast) tooFastRows.push({ row, sla });
       if (row.status === STATUS_PAUSED) pausedRows.push({ row, sla });
@@ -1417,7 +1421,7 @@ export default function MisTableros({ contexto }) {
       pausedRows,
       runningRows,
     };
-  }, [STATUS_PAUSED, STATUS_RUNNING, boardView, catalogMap, pauseState, realtimeNow]);
+  }, [STATUS_PAUSED, STATUS_RUNNING, boardView, catalogMap, isHistoricalCustomBoardView, pauseState, realtimeNow, selectedCustomBoard]);
 
   const visibleBoardMetrics = useMemo(() => {
     const delayedRows = [];
@@ -1440,20 +1444,25 @@ export default function MisTableros({ contexto }) {
 
   function focusBoardRowAlert(row, options = {}) {
     if (!row?.id || !selectedCustomBoard?.id) return;
+    const liveRow = (selectedCustomBoard?.rows || []).find((entry) => entry.id === row.id) || null;
+    const useLiveBoard = Boolean(liveRow) || !isHistoricalCustomBoardView;
+    const alertBoard = useLiveBoard ? selectedCustomBoard : boardView;
+    const targetRow = liveRow || row;
+
     setSelectedWeekdayFilter("all");
     const meta = enrichBoardRowNavigationMeta(
-      boardView,
-      row,
-      isHistoricalCustomBoardView ? selectedCustomBoardViewId : "",
+      alertBoard,
+      targetRow,
+      useLiveBoard ? "" : selectedCustomBoardViewId,
     );
     navigateToBoardFocus?.({
       boardId: selectedCustomBoard.id,
-      rowId: row.id,
+      rowId: targetRow.id,
       operationalDate: meta.operationalDate,
       cleaningSite: meta.cleaningSite,
-      boardViewId: isHistoricalCustomBoardView ? selectedCustomBoardViewId : "current",
+      boardViewId: useLiveBoard ? "current" : selectedCustomBoardViewId,
       revealRow: true,
-      openPauseDetails: Boolean(options.openPauseDetails || row.status === STATUS_PAUSED),
+      openPauseDetails: Boolean(options.openPauseDetails || targetRow.status === STATUS_PAUSED),
     });
   }
   const effectivePauseDetailsRow = useMemo(() => {

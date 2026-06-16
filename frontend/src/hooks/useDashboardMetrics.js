@@ -444,11 +444,15 @@ export function useDashboardMetrics({
     }));
 
     const liveBoardRowKeys = new Set(
-      boardRecords.map((record) => `${String(record.boardId || "").trim()}::${String(record.rowId || "").trim()}`),
+      boardRecords
+        .filter((record) => record.status === STATUS_RUNNING || record.status === STATUS_PAUSED || record.status === STATUS_PENDING)
+        .map((record) => `${String(record.boardId || "").trim()}::${String(record.rowId || "").trim()}`),
     );
     const dedupedHistoricalBoardRecords = historicalBoardRecords.filter((record) => {
       const key = `${String(record.boardId || "").trim()}::${String(record.rowId || "").trim()}`;
-      return !key.endsWith("::") && !liveBoardRowKeys.has(key);
+      if (key.endsWith("::")) return false;
+      // Solo ocultar duplicado histórico si la fila sigue activa en el tablero vigente.
+      return !liveBoardRowKeys.has(key);
     });
 
     return activityRecords

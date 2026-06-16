@@ -381,8 +381,11 @@ export default function PanelIndicadores({ contexto }) {
   }
 
   function goToBoardFromDashboardRecord(record, options = {}) {
+    const isLiveBoardRecord = record?.source === "board"
+      && !String(record?.id || "").startsWith("board-history-");
     const focus = buildBoardNavigationFocusFromDashboardRecord(record, {
       ...options,
+      boardViewId: isLiveBoardRecord ? "current" : options.boardViewId,
       revealRow: options.revealRow !== false && Boolean(options.rowId || record?.rowId),
     });
     if (!focus?.boardId) {
@@ -391,6 +394,7 @@ export default function PanelIndicadores({ contexto }) {
     }
     navigateToBoardFocus?.({
       ...focus,
+      boardViewId: isLiveBoardRecord ? "current" : focus.boardViewId,
       revealRow: focus.revealRow !== false && Boolean(focus.rowId),
     });
     setPauseModalOpen(false);
