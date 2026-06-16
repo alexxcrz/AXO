@@ -5188,8 +5188,63 @@ body .primary-button:disabled {
   font-size: 1rem;
 }
 
-.dashboard-live-alerts-chips {
-  margin-bottom: 0;
+.stat-tile-interactive {
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  font: inherit;
+  appearance: none;
+  border: inherit;
+  background: inherit;
+  color: inherit;
+  transition: transform 120ms ease, box-shadow 120ms ease;
+}
+
+.stat-tile-interactive:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.08);
+}
+
+.board-operational-alerts-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin: 0 0 0.45rem;
+}
+
+.board-operational-alerts-open {
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.board-operational-alerts-modal-list {
+  display: grid;
+  gap: 0.55rem;
+  max-height: 52vh;
+  overflow-y: auto;
+}
+
+.board-operational-alerts-modal-item {
+  width: 100%;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.2rem;
+  border-radius: 0.85rem;
+  min-height: 3rem;
+  padding: 0.55rem 0.8rem;
+}
+
+.board-operational-alerts-modal-item strong {
+  font-size: 0.84rem;
+}
+
+.board-operational-alerts-modal-item span {
+  font-size: 0.76rem;
+  font-weight: 600;
+  opacity: 0.9;
+}
+
+.dashboard-live-alerts-header button.dashboard-live-alerts-open {
+  margin-top: 0.35rem;
 }
 
 .mis-tableros-shell .card-header-row .saved-board-list:not(.custom-board-sla-summary) {

@@ -612,9 +612,21 @@ export function CopmecBrand({ headingTag = "h1", subtitle = "Sistema de Gestión
   );
 }
 
-export function StatTile({ label, value, tone = "default", className = "" }) {
+export function StatTile({ label, value, tone = "default", className = "", onClick = null, title = "" }) {
+  const interactive = typeof onClick === "function";
+  const classNames = `stat-tile ${tone} ${interactive ? "stat-tile-interactive" : ""} ${className}`.trim();
+
+  if (interactive) {
+    return (
+      <button type="button" className={classNames} onClick={onClick} title={title || label}>
+        <span>{label}</span>
+        <strong>{value}</strong>
+      </button>
+    );
+  }
+
   return (
-    <article className={`stat-tile ${tone} ${className}`.trim()}>
+    <article className={classNames}>
       <span>{label}</span>
       <strong>{value}</strong>
     </article>

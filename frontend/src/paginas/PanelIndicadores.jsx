@@ -345,6 +345,7 @@ export default function PanelIndicadores({ contexto }) {
 
   const [pauseModalOpen, setPauseModalOpen] = useState(false);
   const [pauseModalData, setPauseModalData] = useState(null);
+  const [liveOperationalAlertsModalOpen, setLiveOperationalAlertsModalOpen] = useState(false);
 
   function resolvePauseLogsForBoardReason(board, reasonEntry) {
     const records = (filteredDashboardRecords || []).filter((record) => {
@@ -395,8 +396,10 @@ export default function PanelIndicadores({ contexto }) {
     navigateToBoardFocus?.({
       ...focus,
       boardViewId: isLiveBoardRecord ? "current" : focus.boardViewId,
-      revealRow: focus.revealRow !== false && Boolean(focus.rowId),
+      revealRow: Boolean(focus.rowId),
+      openPauseDetails: Boolean(options.openPauseDetails || record?.status === STATUS_PAUSED),
     });
+    setLiveOperationalAlertsModalOpen(false);
     setPauseModalOpen(false);
   }
 
@@ -2163,9 +2166,23 @@ export default function PanelIndicadores({ contexto }) {
           <header className="dashboard-live-alerts-header">
             <div>
               <h3>Operación en vivo</h3>
-              <p className="subtle-line">Actividades activas, en pausa o con retraso. Clic para ir directo al tablero.</p>
+              <p className="subtle-line">Clic en una alerta para ir al tablero vigente y ubicar la actividad.</p>
+              <button
+                type="button"
+                className="icon-button dashboard-live-alerts-open"
+                onClick={() => setLiveOperationalAlertsModalOpen(true)}
+              >
+                Abrir listado de alertas ({liveOperationalBoardAlerts.length})
+              </button>
             </div>
-            <span className="chip danger">{liveOperationalBoardAlerts.length}</span>
+            <button
+              type="button"
+              className="chip danger"
+              onClick={() => setLiveOperationalAlertsModalOpen(true)}
+              title="Ver listado de alertas"
+            >
+              {liveOperationalBoardAlerts.length}
+            </button>
           </header>
           <div className="custom-board-sla-summary board-operational-alerts dashboard-live-alerts-chips">
             {liveOperationalBoardAlerts.map((record) => {
@@ -3576,6 +3593,42 @@ export default function PanelIndicadores({ contexto }) {
               >
                 {isResetSubmitting ? "Reiniciando..." : "Sí, reiniciar"}
               </button>
+            </div>
+          </div>
+        </div>,
+        document.body,
+      ) : null}
+      {liveOperationalAlertsModalOpen && liveOperationalBoardAlerts.length ? createPortal(
+        <div role="dialog" aria-modal="true" className="sicfla-modal-backdrop" style={{ zIndex: 9998 }}>
+          <div className="surface-card" style={{ width: "min(720px, 96vw)", maxHeight: "82vh", overflow: "auto", padding: "1rem" }}>
+            <div className="dashboard-live-alerts-header">
+              <div>
+                <h3 style={{ margin: 0 }}>Alertas operativas en vivo</h3>
+                <p className="subtle-line">Selecciona una actividad para ir al tablero vigente.</p>
+              </div>
+              <button type="button" className="icon-button" onClick={() => setLiveOperationalAlertsModalOpen(false)}>Cerrar</button>
+            </div>
+            <div className="board-operational-alerts-modal-list" style={{ marginTop: "0.75rem" }}>
+              {liveOperationalBoardAlerts.map((record) => {
+                const isDelayed = record.excessSeconds > 0 && record.status !== STATUS_FINISHED;
+                const chipTone = isDelayed ? "danger" : record.status === STATUS_PAUSED ? "warning" : "primary";
+                const detail = isDelayed
+                  ? `Retraso +${formatDurationClock(record.excessSeconds)}`
+                  : record.status === STATUS_PAUSED
+                    ? "En pausa"
+                    : "En curso";
+                return (
+                  <button
+                    key={record.id}
+                    type="button"
+                    className={`chip ${chipTone} custom-board-sla-chip board-operational-alerts-modal-item`}
+                    onClick={() => goToBoardFromDashboardRecord(record, { openPauseDetails: record.status === STATUS_PAUSED })}
+                  >
+                    <strong>{record.label}</strong>
+                    <span>{detail} · {record.boardName}</span>
+                  </button>
+                );
+              })}
             </div>
           </div>
         </div>,

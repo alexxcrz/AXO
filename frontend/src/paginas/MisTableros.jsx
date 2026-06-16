@@ -641,6 +641,7 @@ export default function MisTableros({ contexto }) {
   const assigneeTriggerRef = useRef(null);
   const [assigneeMenuPosition, setAssigneeMenuPosition] = useState({ top: 0, left: 0, width: 0, openUp: false });
   const [pauseDetailsRow, setPauseDetailsRow] = useState(null);
+  const [operationalAlertsModal, setOperationalAlertsModal] = useState("");
   const [inspectionModalState, setInspectionModalState] = useState({
     open: false,
     rowId: "",
@@ -1022,6 +1023,7 @@ export default function MisTableros({ contexto }) {
         .filter(Boolean),
     )
     : null;
+  const showAllWeekdays = selectedWeekdayFilter === "all";
   const visibleRows = (boardView?.rows || []).filter((row) => {
     const rowOperationalDateKey = (() => {
       if (boardDateField) {
@@ -1036,6 +1038,8 @@ export default function MisTableros({ contexto }) {
     if (targetOperationalDateKey && rowOperationalDateKey && rowOperationalDateKey !== targetOperationalDateKey) {
       return false;
     }
+
+    if (showAllWeekdays) return true;
 
     if (!isHistoricalCustomBoardView && showCleaningNaveSelector && boardDateField && targetOperationalDateKey) {
       const activityValue = activityListField
@@ -1089,7 +1093,7 @@ export default function MisTableros({ contexto }) {
       }
 
       if (focus.rowId) {
-        for (let attempt = 0; attempt < 25; attempt += 1) {
+        for (let attempt = 0; attempt < 40; attempt += 1) {
           await new Promise((resolve) => setTimeout(resolve, 100));
           if (cancelled) return;
           const rowElement = document.querySelector(`[data-board-row-id="${focus.rowId}"]`);
@@ -1107,7 +1111,10 @@ export default function MisTableros({ contexto }) {
       }
 
       if (focus.openPauseDetails && focus.rowId) {
-        const targetRow = (boardView?.rows || []).find((row) => String(row.id) === String(focus.rowId));
+        const rowSource = String(focus.boardViewId || "current") === "current"
+          ? (selectedCustomBoard?.rows || [])
+          : (boardView?.rows || []);
+        const targetRow = rowSource.find((row) => String(row.id) === String(focus.rowId));
         if (targetRow) {
           setPauseDetailsRow(targetRow);
         }
@@ -1442,29 +1449,100 @@ export default function MisTableros({ contexto }) {
     };
   }, [boardView, catalogMap, pauseState, realtimeNow, visibleRows, STATUS_FINISHED, STATUS_RUNNING]);
 
-  function focusBoardRowAlert(row, options = {}) {
-    if (!row?.id || !selectedCustomBoard?.id) return;
-    const liveRow = (selectedCustomBoard?.rows || []).find((entry) => entry.id === row.id) || null;
+  function revealBoardRowOnScreen(rowId, options = {}) {
+    if (!rowId) return;
+    const delayMs = Number(options.delayMs || 320);
+    globalThis.setTimeout(() => {
+      const rowElement = document.querySelector(`[data-board-row-id="${rowId}"]`);
+      if (rowElement) {
+        rowElement.scrollIntoView({ block: "center", behavior: "smooth" });
+      }
+    }, delayMs);
+  }
+
+  function configureBoardRowFocus(targetRow, options = {}) {
+    if (!targetRow?.id || !selectedCustomBoard?.id) return null;
+    const liveRow = (selectedCustomBoard?.rows || []).find((entry) => entry.id === targetRow.id) || null;
     const useLiveBoard = Boolean(liveRow) || !isHistoricalCustomBoardView;
     const alertBoard = useLiveBoard ? selectedCustomBoard : boardView;
-    const targetRow = liveRow || row;
-
-    setSelectedWeekdayFilter("all");
+    const resolvedRow = liveRow || targetRow;
     const meta = enrichBoardRowNavigationMeta(
       alertBoard,
-      targetRow,
+      resolvedRow,
       useLiveBoard ? "" : selectedCustomBoardViewId,
     );
-    navigateToBoardFocus?.({
+
+    setSelectedWeekdayFilter("all");
+    if (useLiveBoard) {
+      setSelectedCustomBoardViewId("current");
+    }
+    setSelectedCustomBoardRowId(resolvedRow.id);
+
+    if (meta.cleaningSite && showCleaningNaveSelector && useLiveBoard && selectedCustomBoard?.id) {
+      void updateBoardOperationalContext(selectedCustomBoard.id, meta.cleaningSite, "cleaningSite");
+    }
+
+    if (options.openPauseDetails) {
+      globalThis.setTimeout(() => {
+        const freshRow = (selectedCustomBoard?.rows || []).find((entry) => entry.id === resolvedRow.id) || resolvedRow;
+        setPauseDetailsRow(freshRow);
+      }, 360);
+    }
+
+    revealBoardRowOnScreen(resolvedRow.id, { delayMs: 380 });
+
+    return {
       boardId: selectedCustomBoard.id,
-      rowId: targetRow.id,
+      rowId: resolvedRow.id,
       operationalDate: meta.operationalDate,
       cleaningSite: meta.cleaningSite,
       boardViewId: useLiveBoard ? "current" : selectedCustomBoardViewId,
       revealRow: true,
-      openPauseDetails: Boolean(options.openPauseDetails || targetRow.status === STATUS_PAUSED),
-    });
+      openPauseDetails: Boolean(options.openPauseDetails || resolvedRow.status === STATUS_PAUSED),
+      useLiveBoard,
+    };
   }
+
+  function focusBoardRowAlert(row, options = {}) {
+    if (!row?.id || !selectedCustomBoard?.id) return;
+    const focusPayload = configureBoardRowFocus(row, options);
+    if (!focusPayload) return;
+
+    const alreadyOnLiveBoard = focusPayload.useLiveBoard
+      && String(selectedCustomBoardId || "") === String(selectedCustomBoard.id)
+      && String(selectedCustomBoardViewId || "current") === "current";
+
+    if (alreadyOnLiveBoard) return;
+
+    navigateToBoardFocus?.(focusPayload);
+  }
+
+  function openOperationalAlertsModal(kind) {
+    if (!kind) return;
+    setOperationalAlertsModal(kind);
+  }
+
+  const operationalAlertsModalEntries = useMemo(() => {
+    if (!operationalAlertsModal) return [];
+    if (operationalAlertsModal === "delayed") return boardAlertMetrics.delayedRows;
+    if (operationalAlertsModal === "paused") return boardAlertMetrics.pausedRows;
+    if (operationalAlertsModal === "running") return boardAlertMetrics.runningRows;
+    if (operationalAlertsModal === "fast") return boardAlertMetrics.tooFastRows;
+    return [
+      ...boardAlertMetrics.delayedRows,
+      ...boardAlertMetrics.pausedRows.filter(({ row }) => !boardAlertMetrics.delayedRows.some((entry) => entry.row.id === row.id)),
+      ...boardAlertMetrics.runningRows.filter(({ row }) => !boardAlertMetrics.delayedRows.some((entry) => entry.row.id === row.id)),
+    ];
+  }, [boardAlertMetrics, operationalAlertsModal]);
+
+  const operationalAlertsModalTitle = (() => {
+    if (operationalAlertsModal === "delayed") return "Actividades con retraso";
+    if (operationalAlertsModal === "paused") return "Actividades en pausa";
+    if (operationalAlertsModal === "running") return "Actividades en curso";
+    if (operationalAlertsModal === "fast") return "Actividades muy rápidas";
+    if (operationalAlertsModal === "all") return "Alertas operativas del tablero";
+    return "";
+  })();
   const effectivePauseDetailsRow = useMemo(() => {
     if (!pauseDetailsRow?.id || !selectedCustomBoard?.rows) return pauseDetailsRow;
     return (selectedCustomBoard.rows || []).find((row) => row.id === pauseDetailsRow.id) || pauseDetailsRow;
@@ -1585,8 +1663,8 @@ export default function MisTableros({ contexto }) {
         <>
           <div className="inventory-stat-grid custom-board-stat-grid">
             <StatTile label="Filas" value={visibleBoardMetrics.totalRows} className="custom-board-stat-tile" />
-            <StatTile label="En curso" value={boardAlertMetrics.runningCount} tone="soft" className="custom-board-stat-tile" />
-            <StatTile label="En pausa" value={boardAlertMetrics.pausedCount} tone={boardAlertMetrics.pausedCount > 0 ? "warning" : "soft"} className="custom-board-stat-tile" />
+            <StatTile label="En curso" value={boardAlertMetrics.runningCount} tone="soft" className="custom-board-stat-tile" onClick={boardAlertMetrics.runningCount > 0 ? () => openOperationalAlertsModal("running") : null} title={boardAlertMetrics.runningCount > 0 ? "Ver actividades en curso" : ""} />
+            <StatTile label="En pausa" value={boardAlertMetrics.pausedCount} tone={boardAlertMetrics.pausedCount > 0 ? "warning" : "soft"} className="custom-board-stat-tile" onClick={boardAlertMetrics.pausedCount > 0 ? () => openOperationalAlertsModal("paused") : null} title={boardAlertMetrics.pausedCount > 0 ? "Ver actividades en pausa" : ""} />
             <StatTile label="Terminadas" value={visibleBoardMetrics.completed} tone="success" className="custom-board-stat-tile" />
             {boardShowMetrics ? (
               <>
@@ -1595,16 +1673,31 @@ export default function MisTableros({ contexto }) {
                   value={boardAlertMetrics.delayedCount}
                   tone={boardAlertMetrics.delayedCount > 0 ? "danger" : "soft"}
                   className="custom-board-stat-tile"
+                  onClick={boardAlertMetrics.delayedCount > 0 ? () => openOperationalAlertsModal("delayed") : null}
+                  title={boardAlertMetrics.delayedCount > 0 ? "Ver actividades con retraso" : ""}
                 />
                 <StatTile
                   label="Muy rápidas"
                   value={boardAlertMetrics.tooFastCount}
                   tone={boardAlertMetrics.tooFastCount > 0 ? "soft" : "default"}
                   className="custom-board-stat-tile"
+                  onClick={boardAlertMetrics.tooFastCount > 0 ? () => openOperationalAlertsModal("fast") : null}
+                  title={boardAlertMetrics.tooFastCount > 0 ? "Ver actividades muy rápidas" : ""}
                 />
               </>
             ) : null}
           </div>
+          {boardShowMetrics && (boardAlertMetrics.delayedCount > 0 || boardAlertMetrics.tooFastCount > 0 || boardAlertMetrics.pausedCount > 0 || boardAlertMetrics.runningCount > 0) ? (
+            <div className="board-operational-alerts-toolbar">
+              <button
+                type="button"
+                className="icon-button board-operational-alerts-open"
+                onClick={() => openOperationalAlertsModal("all")}
+              >
+                Ver todas las alertas ({boardAlertMetrics.delayedCount + boardAlertMetrics.pausedCount + boardAlertMetrics.runningCount})
+              </button>
+            </div>
+          ) : null}
           {boardShowMetrics && (boardAlertMetrics.delayedCount > 0 || boardAlertMetrics.tooFastCount > 0 || boardAlertMetrics.pausedCount > 0 || boardAlertMetrics.runningCount > 0) ? (
             <div className="custom-board-sla-summary board-operational-alerts" role="list" aria-label="Alertas operativas del tablero">
               {boardAlertMetrics.delayedRows.map(({ row, sla }) => (
@@ -2755,6 +2848,47 @@ export default function MisTableros({ contexto }) {
         record={inspectionRecordModalState.record}
         onClose={() => setInspectionRecordModalState({ open: false, rowId: "", activityLabel: "", record: null })}
       />
+
+      <Modal
+        open={Boolean(operationalAlertsModal)}
+        title={operationalAlertsModalTitle}
+        onClose={() => setOperationalAlertsModal("")}
+        confirmLabel="Cerrar"
+        hideCancel
+      >
+        {operationalAlertsModalEntries.length ? (
+          <div className="board-operational-alerts-modal-list">
+            {operationalAlertsModalEntries.map(({ row, sla }) => {
+              const isDelayed = Boolean(sla?.isDelayed);
+              const isPaused = row.status === STATUS_PAUSED;
+              const chipTone = isDelayed ? "danger" : isPaused ? "warning" : "primary";
+              const detail = isDelayed
+                ? `Retraso +${formatDurationClock(sla.excessSeconds)} (límite ${sla.limitMinutes} min)`
+                : isPaused
+                  ? "En pausa"
+                  : row.status === STATUS_RUNNING
+                    ? "En curso"
+                    : `Muy rápida (${formatDurationClock(sla.durationSeconds)} / mín. ${formatDurationClock(sla.minDurationSeconds)})`;
+              return (
+                <button
+                  key={`${operationalAlertsModal}-${row.id}`}
+                  type="button"
+                  className={`chip ${chipTone} custom-board-sla-chip board-operational-alerts-modal-item`}
+                  onClick={() => {
+                    setOperationalAlertsModal("");
+                    focusBoardRowAlert(row, { openPauseDetails: isPaused });
+                  }}
+                >
+                  <strong>{sla.activityLabel || "Actividad"}</strong>
+                  <span>{detail}</span>
+                </button>
+              );
+            })}
+          </div>
+        ) : (
+          <p className="subtle-line">No hay alertas en esta categoría.</p>
+        )}
+      </Modal>
 
       <Modal
         open={Boolean(pauseDetailsRow)}
