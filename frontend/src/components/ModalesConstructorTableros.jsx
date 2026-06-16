@@ -10,6 +10,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { Modal } from "./Modal";
+import { normalizeOperationalInspectionTemplate, OPERATIONAL_INSPECTION_TEMPLATE } from "../utils/operationalInspectionTemplate";
 const COMPONENT_TYPE_CATEGORIES = [
   {
     label: "Texto y contacto",
@@ -870,6 +871,16 @@ export function BoardBuilderModal({
   const operationalContextValue = String(draft.settings?.operationalContextValue || "").trim()
     || operationalContextOptions[0]
     || "";
+  const checklistConfigRaw = draft.settings?.operationalChecklistConfig && typeof draft.settings.operationalChecklistConfig === "object"
+    ? draft.settings.operationalChecklistConfig
+    : {};
+  const checklistEnabled = Boolean(checklistConfigRaw.enabled);
+  const checklistLinkedActivities = Array.isArray(checklistConfigRaw.linkedActivityNames)
+    ? checklistConfigRaw.linkedActivityNames.map((item) => String(item || "").trim()).filter(Boolean)
+    : [];
+  const checklistTemplate = normalizeOperationalInspectionTemplate(
+    checklistConfigRaw.template || OPERATIONAL_INSPECTION_TEMPLATE,
+  );
   const selectedPreviewTemplateId = selectedPreviewTemplate?.id || "";
   const defaultAuxWidths = Object.fromEntries(Object.values(BOARD_AUX_COLUMN_DEFINITIONS).map((item) => [item.id, item.defaultWidth]));
   const fieldTypeMinWidths = {

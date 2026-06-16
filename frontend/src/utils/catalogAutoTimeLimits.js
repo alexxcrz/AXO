@@ -12,3 +12,11 @@ export function roundMinutesToScaleOfFiveCeil(minutes) {
     Math.ceil(numeric / CATALOG_AUTO_LIMITS_ROUND_STEP) * CATALOG_AUTO_LIMITS_ROUND_STEP,
   );
 }
+
+export function roundMinutesPerBoxCeil(minutes) {
+  const numeric = Number(minutes);
+  if (!Number.isFinite(numeric) || numeric <= 0) {
+    return 0.5;
+  }
+  return Math.max(0.5, Math.ceil(numeric * 2) / 2);
+}

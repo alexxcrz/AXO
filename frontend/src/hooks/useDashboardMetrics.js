@@ -342,7 +342,7 @@ export function useDashboardMetrics({
       const totalElapsedSeconds = row.startTime
         ? Math.max(durationSeconds, getOperationalElapsedSeconds(row.startTime, rowReferenceNow, operationalPauseState, timingRow.cleaningSite))
         : durationSeconds;
-      const limitMinutes = getBoardRowTimeLimitMinutes(board, row, catalogMap);
+      const limitMinutes = getBoardRowTimeLimitMinutes(board, row, catalogMap, inventoryItemsById);
       const pauseSummary = buildBoardRowPauseSummary(row);
       const rowActivityLabel = getBoardRowActivityLabel(board, row);
       const navigationMeta = enrichBoardRowNavigationMeta(board, row);
@@ -399,7 +399,7 @@ export function useDashboardMetrics({
       const totalElapsedSeconds = row.startTime
         ? Math.max(durationSeconds, getOperationalElapsedSeconds(row.startTime, rowReferenceNow, operationalPauseState, timingRow.cleaningSite))
         : durationSeconds;
-      const limitMinutes = getBoardRowTimeLimitMinutes(snapshot, row, catalogMap);
+      const limitMinutes = getBoardRowTimeLimitMinutes(snapshot, row, catalogMap, inventoryItemsById);
       const pauseSummary = buildBoardRowPauseSummary(row);
       const rowActivityLabel = getBoardRowActivityLabel(snapshot, row);
       const navigationMeta = enrichBoardRowNavigationMeta(snapshot, row, snapshot.id);

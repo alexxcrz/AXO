@@ -17,6 +17,7 @@ import {
 } from "./transport.notifications.js";
 import { resolveOrderInventoryRecipientUserIds } from "./inventory.notifications.js";
 import { applyCatalogAutoTimeLimits } from "./catalogAutoTimeLimits.js";
+import { applyInventoryAutoPalletTimes } from "./inventoryAutoPalletTimes.js";
 import { repairWarehouseBoardTimes } from "./boardHistoryTimeRepair.js";
 import { attachRoadMonitorToTransportState, syncTransportRoadMonitors } from "./transport-road-monitor.service.js";
 import { normalizeRetailState } from "./retail.store.js";
@@ -55,6 +56,9 @@ const BOARD_OPERATIONAL_CONTEXT_CLEANING_SITE_OPTIONS = ["C1", "C2", "C3"];
 const INVENTORY_SYSTEM_COLUMNS = Object.freeze([
   { id: "invcol-base-lote", domain: "base", label: "Lote", key: "lote", createdAt: "1970-01-01T00:00:00.000Z", isSystem: true },
   { id: "invcol-base-caducidad", domain: "base", label: "Caducidad", key: "caducidad", createdAt: "1970-01-01T00:00:00.000Z", isSystem: true },
+  { id: "invcol-base-etiqueta", domain: "base", label: "Etiqueta", key: "etiqueta", createdAt: "1970-01-01T00:00:00.000Z", isSystem: true },
+  { id: "invcol-base-tiempo-tarima", domain: "base", label: "Tiempo por tarima", key: "tiempoPorTarima", createdAt: "1970-01-01T00:00:00.000Z", isSystem: true },
+  { id: "invcol-base-tiempo-caja", domain: "base", label: "Tiempo por caja", key: "tiempoPorCaja", createdAt: "1970-01-01T00:00:00.000Z", isSystem: true },
 ]);
 
 const ROLE_LEAD = "Lead";
@@ -1466,6 +1470,8 @@ function normalizeInventoryItemRecord(item, fallbackId = null) {
     presentation: usesPresentation ? String(item?.presentation || "").trim() : "",
     piecesPerBox: usesPackagingMetrics ? Number(item?.piecesPerBox || 0) : 0,
     boxesPerPallet: usesPackagingMetrics ? Number(item?.boxesPerPallet || 0) : 0,
+    minutesPerPallet: usesPackagingMetrics ? Math.max(0, Number(item?.minutesPerPallet || 0)) : 0,
+    minutesPerBox: usesPackagingMetrics ? Math.max(0, Number(item?.minutesPerBox || 0)) : 0,
     domain,
     stockUnits: resolveInventorySourceStockUnits(domain, rawStockUnits, transferTargets, item?.stockTrackingMode),
     minStockUnits: Math.max(0, Number(item?.minStockUnits || 0)),
@@ -1478,6 +1484,16 @@ function normalizeInventoryItemRecord(item, fallbackId = null) {
     activityConsumptions,
     consumptionPerStart: fallbackConsumptionPerStart,
     customFields,
+    autoPalletTimeMeta: item?.autoPalletTimeMeta && typeof item.autoPalletTimeMeta === "object"
+      ? {
+          avgMinutes: Number(item.autoPalletTimeMeta.avgMinutes || 0),
+          sampleCount: Number(item.autoPalletTimeMeta.sampleCount || 0),
+          sampleWeeks: Number(item.autoPalletTimeMeta.sampleWeeks || 0),
+          previousMinutesPerPallet: Number(item.autoPalletTimeMeta.previousMinutesPerPallet || 0),
+          updatedAt: String(item.autoPalletTimeMeta.updatedAt || "").trim(),
+          roundedToStep: Number(item.autoPalletTimeMeta.roundedToStep || 5),
+        }
+      : undefined,
   };
 }
 
@@ -4879,9 +4895,10 @@ function applyWarehouseAutomationPipeline(state, referenceDate = new Date()) {
   const { state: dailyRowsState, changed: dailyRowsChanged } = applyAutomatedBoardDailyRows(boardState, referenceDate);
   const { state: transportState, changed: transportChanged } = applyAutomatedTransportDailyCut(dailyRowsState);
   const { state: catalogState, changed: catalogChanged } = applyCatalogAutoTimeLimits(transportState);
+  const { state: inventoryState, changed: inventoryChanged } = applyInventoryAutoPalletTimes(catalogState);
   return {
-    state: catalogState,
-    changed: boardChanged || dailyRowsChanged || transportChanged || catalogChanged,
+    state: inventoryState,
+    changed: boardChanged || dailyRowsChanged || transportChanged || catalogChanged || inventoryChanged,
   };
 }
 
@@ -5665,6 +5682,55 @@ export function updateWarehouseInventoryLotHistory(auth, itemId, payload = {}) {
   const nextItem = normalizeInventoryItemRecord({
     ...currentItem,
     customFields: nextCustomFields,
+  }, currentItem.id);
+
+  const nextState = {
+    ...currentState,
+    inventoryItems: (currentState.inventoryItems || []).map((entry) => (entry.id === itemId ? nextItem : entry)),
+  };
+
+  return { ok: true, state: replaceWarehouseState(nextState), itemId: nextItem.id, itemCode: nextItem.code };
+}
+
+export function updateWarehouseInventoryItemPackaging(auth, itemId, payload = {}) {
+  const currentUser = findWarehouseUserById(auth?.userId);
+  if (!currentUser?.isActive) return { ok: false, reason: "auth_required" };
+
+  const currentState = getRawWarehouseState();
+  const currentItem = (currentState.inventoryItems || []).find((entry) => entry.id === itemId);
+  if (!currentItem) return { ok: false, reason: "item_not_found" };
+
+  const domain = normalizeInventoryDomain(currentItem.domain);
+  if (domain !== "base") return { ok: false, reason: "invalid_domain" };
+
+  const canManageInventory = canUserDoWarehouseAction(
+    currentUser,
+    getInventoryManageActionId(domain),
+    currentState.permissions,
+  );
+  const canOperateBoard = canUserDoWarehouseAction(currentUser, "createBoardRow", currentState.permissions)
+    || canUserDoWarehouseAction(currentUser, "boardWorkflow", currentState.permissions);
+  if (!canManageInventory && !canOperateBoard) {
+    return { ok: false, reason: "forbidden" };
+  }
+
+  const boxesPerPallet = Math.max(0, Number(payload?.boxesPerPallet ?? 0));
+  if (!Number.isFinite(boxesPerPallet) || boxesPerPallet <= 0) {
+    return { ok: false, reason: "invalid_payload" };
+  }
+
+  const hasPiecesPerBox = payload?.piecesPerBox !== undefined && payload?.piecesPerBox !== null && String(payload.piecesPerBox).trim() !== "";
+  const piecesPerBox = hasPiecesPerBox
+    ? Math.max(0, Number(payload.piecesPerBox || 0))
+    : Math.max(0, Number(currentItem.piecesPerBox || 0));
+  if (!Number.isFinite(piecesPerBox) || piecesPerBox <= 0) {
+    return { ok: false, reason: "invalid_pieces_per_box" };
+  }
+
+  const nextItem = normalizeInventoryItemRecord({
+    ...currentItem,
+    piecesPerBox,
+    boxesPerPallet,
   }, currentItem.id);
 
   const nextState = {
@@ -7058,6 +7124,26 @@ export function syncCatalogAutoTimeLimits(auth, options = {}) {
   }
 
   const { state: nextState, changed, updates } = applyCatalogAutoTimeLimits(currentState, {
+    force: Boolean(options.force),
+  });
+  const persistedState = changed ? replaceWarehouseState(nextState) : currentState;
+  return {
+    ok: true,
+    state: sanitizeState(persistedState),
+    changed: Boolean(changed),
+    updates: Array.isArray(updates) ? updates : [],
+  };
+}
+
+export function syncInventoryAutoPalletTimes(auth, options = {}) {
+  const currentUser = findWarehouseUserById(auth?.userId);
+  if (!currentUser?.isActive) return { ok: false, reason: "auth_required" };
+  const currentState = getRawWarehouseState();
+  if (!canUserDoWarehouseAction(currentUser, "manageInventory", currentState.permissions)) {
+    return { ok: false, reason: "forbidden" };
+  }
+
+  const { state: nextState, changed, updates } = applyInventoryAutoPalletTimes(currentState, {
     force: Boolean(options.force),
   });
   const persistedState = changed ? replaceWarehouseState(nextState) : currentState;

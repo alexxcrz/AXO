@@ -65,7 +65,7 @@ const AREA_DASHBOARD_THEMES = {
     executiveTitle: "Estado operativo",
     executiveSubtitle: "Alertas de tiempo, pausas y avance por tablero.",
     alertsTitle: "Alertas de tiempo y pausas",
-    alertsSubtitle: "Excesos de límite y causas de interrupción prioritarias.",
+    alertsSubtitle: "Excesos de límite y causas de interrupción prioritarias. Los tiempos del catálogo de mantenimiento se ajustan solos tras 3 semanas de datos (ventana de 30 semanas), redondeados al alza en bloques de 5 min.",
     causesTitle: "Pareto de interrupciones",
     causesSubtitle: "Causas que más tiempo consumen en mantenimiento.",
     playersTitle: "Carga por técnico",

@@ -212,6 +212,8 @@ const INVENTORY_SYSTEM_COLUMNS = Object.freeze([
   { id: "invcol-base-lote", domain: INVENTORY_DOMAIN_BASE, label: "Lote", key: "lote", createdAt: "1970-01-01T00:00:00.000Z", isSystem: true },
   { id: "invcol-base-caducidad", domain: INVENTORY_DOMAIN_BASE, label: "Caducidad", key: "caducidad", createdAt: "1970-01-01T00:00:00.000Z", isSystem: true },
   { id: "invcol-base-etiqueta", domain: INVENTORY_DOMAIN_BASE, label: "Etiqueta", key: "etiqueta", createdAt: "1970-01-01T00:00:00.000Z", isSystem: true },
+  { id: "invcol-base-tiempo-tarima", domain: INVENTORY_DOMAIN_BASE, label: "Tiempo por tarima", key: "tiempoPorTarima", createdAt: "1970-01-01T00:00:00.000Z", isSystem: true },
+  { id: "invcol-base-tiempo-caja", domain: INVENTORY_DOMAIN_BASE, label: "Tiempo por caja", key: "tiempoPorCaja", createdAt: "1970-01-01T00:00:00.000Z", isSystem: true },
 ]);
 
 export function mergeInventoryColumnsWithSystem(columns = []) {
@@ -475,6 +477,8 @@ export function normalizeInventoryItemRecord(item) {
     presentation: usesPresentation ? String(item?.presentation || "").trim() : "",
     piecesPerBox: usesPackagingMetrics ? Number(item?.piecesPerBox || 0) : 0,
     boxesPerPallet: usesPackagingMetrics ? Number(item?.boxesPerPallet || 0) : 0,
+    minutesPerPallet: usesPackagingMetrics ? Math.max(0, Number(item?.minutesPerPallet || 0)) : 0,
+    minutesPerBox: usesPackagingMetrics ? Math.max(0, Number(item?.minutesPerBox || 0)) : 0,
     stockUnits: resolveInventorySourceStockUnits(domain, rawStockUnits, normalizedTransferTargets, item?.stockTrackingMode),
     minStockUnits: domain === INVENTORY_DOMAIN_BASE ? 0 : Math.max(0, Number(item?.minStockUnits || 0)),
     storageLocation: domain === INVENTORY_DOMAIN_BASE ? "" : String(item?.storageLocation || "").trim(),
@@ -1849,6 +1853,16 @@ export function formatDurationClock(totalSeconds) {
   const minutes = String(Math.floor((seconds % 3600) / 60)).padStart(2, "0");
   const remainder = String(seconds % 60).padStart(2, "0");
   return `${hours}:${minutes}:${remainder}`;
+}
+
+export function formatSlaExcessCompact(totalSeconds) {
+  const seconds = Math.max(0, Math.round(totalSeconds || 0));
+  if (seconds < 3600) return `+${formatDurationClock(seconds)}`;
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  if (hours >= 48) return `+${Math.floor(hours / 24)} d`;
+  if (minutes > 0) return `+${hours}h ${minutes}m`;
+  return `+${hours}h`;
 }
 
 
@@ -4319,7 +4333,90 @@ export function getBoardRowCatalogItem(board, row, catalogMap) {
   }) || null;
 }
 
-export function getBoardRowTimeLimitMinutes(board, row, catalogMap) {
+export function isPalletReviewBoard(board) {
+  const systemTemplateId = normalizeKey(board?.settings?.systemBoardTemplateId || "");
+  if (systemTemplateId === "revision-tarimas") return true;
+  const nameBlob = [board?.name, board?.category, board?.description]
+    .map((entry) => normalizeKey(entry))
+    .filter(Boolean)
+    .join(" ");
+  return nameBlob.includes("revision") && nameBlob.includes("tarima");
+}
+
+function findBoardRevisionInventoryLookupField(fields = []) {
+  const list = Array.isArray(fields) ? fields : [];
+  return list.find((field) => normalizeKey(field?.templateKey) === "productorevisiontarima")
+    || list.find((field) => normalizeKey(field?.type) === "inventorylookup")
+    || null;
+}
+
+function findBoardRevisionBoxesField(fields = []) {
+  const list = Array.isArray(fields) ? fields : [];
+  return list.find((field) => normalizeKey(field?.templateKey) === "cajasrevisadasrevision")
+    || list.find((field) => {
+      const label = normalizeKey(field?.label || field?.name || "");
+      return label.includes("cajas") && label.includes("revis");
+    })
+    || null;
+}
+
+export function resolveBoardRowInventoryProduct(board, row, inventoryMap) {
+  const lookupField = findBoardRevisionInventoryLookupField(getBoardFields(board));
+  if (!lookupField) return null;
+  const rawValue = String(row?.values?.[lookupField.id] || "").trim();
+  if (!rawValue) return null;
+
+  const resolveFromList = (items) => {
+    const list = Array.isArray(items) ? items : [];
+    const direct = list.find((item) => item?.id === rawValue);
+    if (direct) return direct;
+    const normalizedValue = normalizeKey(rawValue);
+    return list.find((item) => (
+      normalizeKey(item?.id) === normalizedValue
+      || normalizeKey(item?.code) === normalizedValue
+      || normalizeKey(item?.name) === normalizedValue
+    )) || null;
+  };
+
+  if (inventoryMap instanceof Map) {
+    const direct = inventoryMap.get(rawValue);
+    if (direct) return direct;
+    return resolveFromList(Array.from(inventoryMap.values()).filter((item) => normalizeInventoryDomain(item?.domain) === INVENTORY_DOMAIN_BASE));
+  }
+  return resolveFromList(inventoryMap);
+}
+
+export function resolveBoardRowBoxesToReview(board, row) {
+  const boxesField = findBoardRevisionBoxesField(getBoardFields(board));
+  if (!boxesField) return 0;
+  const rawValue = row?.values?.[boxesField.id];
+  const numeric = Number(rawValue);
+  return Number.isFinite(numeric) && numeric > 0 ? Math.round(numeric) : 0;
+}
+
+export function computePalletRevisionTimeLimitMinutes(product, boxesToReview) {
+  if (!product) return 0;
+  const boxes = Math.max(0, Number(boxesToReview || 0));
+  const perBox = Math.max(0, Number(product?.minutesPerBox || 0));
+  if (boxes > 0 && perBox > 0) {
+    return Math.ceil(boxes * perBox);
+  }
+  const perPallet = Math.max(0, Number(product?.minutesPerPallet || 0));
+  const boxesPerPallet = Math.max(0, Number(product?.boxesPerPallet || 0));
+  if (boxes > 0 && perPallet > 0 && boxesPerPallet > 0) {
+    return Math.ceil((perPallet / boxesPerPallet) * boxes);
+  }
+  if (perPallet > 0) return perPallet;
+  return 0;
+}
+
+export function getBoardRowTimeLimitMinutes(board, row, catalogMap, inventoryMap = null) {
+  if (inventoryMap && isPalletReviewBoard(board)) {
+    const product = resolveBoardRowInventoryProduct(board, row, inventoryMap);
+    const boxesToReview = resolveBoardRowBoxesToReview(board, row);
+    const revisionLimit = computePalletRevisionTimeLimitMinutes(product, boxesToReview);
+    if (revisionLimit > 0) return revisionLimit;
+  }
   return Math.max(0, Number(getBoardRowCatalogItem(board, row, catalogMap)?.timeLimitMinutes || 0));
 }
 
@@ -4388,7 +4485,13 @@ export function getBoardRowDurationSeconds(board, row, referenceNow, pauseState)
 
 export function evaluateBoardRowSla(board, row, catalogMap, referenceNow, pauseState, options = {}) {
   const minDurationRatio = Number(options.minDurationRatio ?? BOARD_SLA_MIN_DURATION_RATIO);
-  const limitMinutes = getBoardRowTimeLimitMinutes(board, row, catalogMap);
+  const inventoryMap = options.inventoryMap || null;
+  const product = inventoryMap && isPalletReviewBoard(board)
+    ? resolveBoardRowInventoryProduct(board, row, inventoryMap)
+    : null;
+  const boxesToReview = product ? resolveBoardRowBoxesToReview(board, row) : 0;
+  const minutesPerBox = Math.max(0, Number(product?.minutesPerBox || 0));
+  const limitMinutes = getBoardRowTimeLimitMinutes(board, row, catalogMap, inventoryMap);
   const durationSeconds = getBoardRowDurationSeconds(board, row, referenceNow, pauseState);
   const limitSeconds = limitMinutes > 0 ? limitMinutes * 60 : 0;
   const minDurationSeconds = limitSeconds > 0
@@ -4409,7 +4512,13 @@ export function evaluateBoardRowSla(board, row, catalogMap, referenceNow, pauseS
     excessSeconds,
     isDelayed,
     isTooFast,
-    activityLabel: getBoardRowActivityLabel(board, row),
+    boxesToReview,
+    minutesPerBox,
+    revisionProductName: product?.name || "",
+    revisionTimeBasis: product && boxesToReview > 0 && minutesPerBox > 0
+      ? "perBox"
+      : (product && limitMinutes > 0 ? "perPallet" : null),
+    activityLabel: getBoardRowActivityLabel(board, row) || product?.name || "",
     catalogActivityId: resolveBoardRowCatalogActivityId(
       board,
       row,

@@ -21,6 +21,14 @@ export function roundMinutesToScaleOfFiveCeil(minutes) {
   );
 }
 
+export function roundMinutesPerBoxCeil(minutes) {
+  const numeric = Number(minutes);
+  if (!Number.isFinite(numeric) || numeric <= 0) {
+    return 0.5;
+  }
+  return Math.max(0.5, Math.ceil(numeric * 2) / 2);
+}
+
 function findBoardActivityListField(fields = []) {
   return (fields || []).find((field) => field?.type === "select" && field?.optionSource === "catalogByCategory") || null;
 }
@@ -64,6 +72,17 @@ function isCleaningCatalogItem(item) {
   return area.includes("limpieza") || category.includes("limpieza");
 }
 
+function isMaintenanceCatalogItem(item) {
+  if (!item || item.isDeleted) return false;
+  const area = normalizeKey(item?.area || "");
+  const category = normalizeKey(item?.category || "");
+  return area.includes("mantenimiento") || category.includes("mantenimiento") || area.includes("maintenance") || category.includes("maintenance");
+}
+
+function isAutoLimitCatalogItem(item) {
+  return isCleaningCatalogItem(item) || isMaintenanceCatalogItem(item);
+}
+
 function isCleaningBoard(board) {
   const ownerArea = normalizeKey(board?.settings?.ownerArea || board?.ownerArea || "");
   const sharedDepartments = Array.isArray(board?.sharedDepartments)
@@ -75,6 +94,27 @@ function isCleaningBoard(board) {
     .filter(Boolean)
     .join(" ");
   return contextType === "cleaningsite" || nameBlob.includes("limpieza") || nameBlob.includes("cleaning");
+}
+
+function isMaintenanceBoard(board) {
+  if (isCleaningBoard(board)) return false;
+  const ownerArea = normalizeKey(board?.settings?.ownerArea || board?.ownerArea || "");
+  const sharedDepartments = Array.isArray(board?.sharedDepartments)
+    ? board.sharedDepartments.map((entry) => normalizeKey(entry)).join(" ")
+    : "";
+  const systemTemplateId = normalizeKey(board?.settings?.systemBoardTemplateId || "");
+  const nameBlob = [board?.name, board?.category, board?.description, ownerArea, sharedDepartments]
+    .map((entry) => String(entry || "").trim().toLowerCase())
+    .filter(Boolean)
+    .join(" ");
+  return systemTemplateId === "operational-inspection-v1"
+    || ownerArea.includes("mantenimiento")
+    || nameBlob.includes("mantenimiento")
+    || nameBlob.includes("maintenance");
+}
+
+function isAutoLimitBoard(board) {
+  return isCleaningBoard(board) || isMaintenanceBoard(board);
 }
 
 function collectRecentWeekKeys(state) {
@@ -91,7 +131,7 @@ function buildAutomationFingerprint(state) {
   const activeWeekKey = String(state?.boardWeeklyCycle?.activeWeekKey || "").trim();
   const historyCount = Array.isArray(state?.boardWeekHistory) ? state.boardWeekHistory.length : 0;
   const finishedCount = (Array.isArray(state?.controlBoards) ? state.controlBoards : []).reduce((sum, board) => {
-    if (!isCleaningBoard(board)) return sum;
+    if (!isAutoLimitBoard(board)) return sum;
     return sum + (board.rows || []).filter((row) => isFinishedRow(row)).length;
   }, 0);
   return `${activeWeekKey}|${historyCount}|${finishedCount}`;
@@ -128,7 +168,7 @@ function collectCatalogDurationSamples(state, allowedWeekKeys) {
       description: snapshot?.description || "",
       sharedDepartments: snapshot?.sharedDepartments || [],
     };
-    if (!isCleaningBoard(board)) return;
+    if (!isAutoLimitBoard(board)) return;
     (snapshot?.rows || []).forEach((row) => {
       const catalogId = resolveBoardRowCatalogActivityId(board, row, catalog);
       const durationSeconds = getFinishedRowDurationSeconds(row);
@@ -138,7 +178,7 @@ function collectCatalogDurationSamples(state, allowedWeekKeys) {
   });
 
   (Array.isArray(state?.controlBoards) ? state.controlBoards : []).forEach((board) => {
-    if (!isCleaningBoard(board) || !activeWeekKey || !allowedWeekKeys.has(activeWeekKey)) return;
+    if (!isAutoLimitBoard(board) || !activeWeekKey || !allowedWeekKeys.has(activeWeekKey)) return;
     (board?.rows || []).forEach((row) => {
       const catalogId = resolveBoardRowCatalogActivityId(board, row, catalog);
       const durationSeconds = getFinishedRowDurationSeconds(row);
@@ -166,7 +206,7 @@ export function applyCatalogAutoTimeLimits(state, options = {}) {
   let changed = false;
 
   const nextCatalog = (catalog || []).map((item) => {
-    if (!isCleaningCatalogItem(item)) return item;
+    if (!isAutoLimitCatalogItem(item)) return item;
     const bucket = samplesByCatalogId.get(item.id);
     if (!bucket || bucket.sampleCount <= 0) return item;
 

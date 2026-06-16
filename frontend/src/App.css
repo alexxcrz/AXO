@@ -3580,6 +3580,21 @@ html[data-ui-theme] .app-notification-badge {
   box-sizing: border-box;
 }
 
+.pallet-packaging-modal.sicfla-modal {
+  width: min(calc(100vw - 2rem), 440px);
+  box-sizing: border-box;
+}
+
+.board-pieces-per-box-cell {
+  cursor: pointer;
+  text-decoration: underline dotted;
+  text-underline-offset: 0.18em;
+}
+
+.board-pieces-per-box-cell:hover {
+  color: var(--primary, #2563eb);
+}
+
 @media (max-width: 640px) {
   .board-finish-time-row {
     grid-template-columns: auto minmax(0, 1fr);
@@ -4096,6 +4111,10 @@ html[data-ui-theme] .app-notification-badge {
     flex-direction: row;
     flex-wrap: wrap;
     gap: 0.45rem;
+  }
+
+  .mis-tableros-shell .board-operational-alerts-inline {
+    display: none !important;
   }
 
   .mis-tableros-shell .custom-board-sla-summary .custom-board-sla-chip,
@@ -5127,27 +5146,42 @@ body .primary-button:disabled {
   overflow: visible;
 }
 
-.board-operational-alerts .custom-board-sla-chip,
-.custom-board-sla-summary .custom-board-sla-chip {
+.custom-board-sla-summary .custom-board-sla-chip,
+.board-operational-alerts .custom-board-sla-chip {
   appearance: none;
   cursor: pointer;
   border: 1px solid #d8e3df;
   background: #f8fafc;
   font: inherit;
-  text-align: left;
   display: inline-flex;
   align-items: center;
+  justify-content: flex-start;
+  gap: 0.35rem;
+  flex-wrap: wrap;
   width: auto;
   max-width: 100%;
   flex: 0 1 auto;
+  text-align: left;
   white-space: normal;
-  line-height: 1.45;
+  line-height: 1.35;
   border-radius: 999px;
-  justify-content: flex-start;
   padding: 0.45rem 0.9rem;
   min-height: 2.25rem;
   font-size: 0.78rem;
   transition: transform 120ms ease, box-shadow 120ms ease;
+}
+
+.custom-board-sla-chip-label {
+  font-weight: 700;
+}
+
+.custom-board-sla-chip-meta {
+  font-size: 0.82rem;
+  opacity: 0.92;
+}
+
+.custom-board-sla-chip-more {
+  border-style: dashed !important;
 }
 
 .custom-board-sla-summary .custom-board-sla-chip:hover {
@@ -5245,6 +5279,75 @@ body .primary-button:disabled {
 
 .dashboard-live-alerts-header button.dashboard-live-alerts-open {
   margin-top: 0.35rem;
+}
+
+@media (max-width: 720px) {
+  .dashboard-live-alerts-chips-inline {
+    display: none !important;
+  }
+
+  .dashboard-live-alerts-header {
+    gap: 0.65rem;
+  }
+
+  .inventory-mobile-list {
+    display: grid;
+    gap: 0.75rem;
+  }
+
+  .inventory-table-desktop {
+    display: none !important;
+  }
+
+  .inventory-mobile-card {
+    border: 1px solid rgba(162, 170, 181, 0.28);
+    border-radius: 0.9rem;
+    padding: 0.85rem;
+    background: #fff;
+  }
+
+  .inventory-mobile-card-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.45rem;
+    margin-bottom: 0.45rem;
+  }
+
+  .inventory-mobile-card-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.45rem 0.65rem;
+    margin: 0.55rem 0 0.7rem;
+    font-size: 0.88rem;
+  }
+
+  .inventory-mobile-card-grid em {
+    display: block;
+    font-style: normal;
+    font-size: 0.72rem;
+    color: #6e7886;
+    margin-bottom: 0.12rem;
+  }
+
+  .inventory-mobile-card-actions {
+    justify-content: flex-end;
+  }
+
+  .inventory-page-layout .card-header-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .inventory-page-layout .users-search-field {
+    width: 100%;
+  }
+}
+
+@media (min-width: 721px) {
+  .inventory-mobile-list {
+    display: none;
+  }
 }
 
 .mis-tableros-shell .card-header-row .saved-board-list:not(.custom-board-sla-summary) {
@@ -9376,6 +9479,153 @@ html[data-ui-theme] body .switch-thumb {
   align-items: center;
 }
 
+.inventory-transfer-panel-card {
+  padding-bottom: 0.85rem;
+}
+
+.inventory-transfer-panel-lead {
+  margin: 0.2rem 0 0;
+  font-size: 0.82rem;
+}
+
+.inventory-transfer-panel-empty {
+  margin: 0 0 0.15rem;
+  padding: 0 0.15rem;
+}
+
+.inventory-transfer-panel-details {
+  margin-top: 0.35rem;
+}
+
+.inventory-transfer-panel-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  cursor: pointer;
+  list-style: none;
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: rgba(36, 64, 64, 0.92);
+  padding: 0.35rem 0.15rem 0.55rem;
+  user-select: none;
+}
+
+.inventory-transfer-panel-toggle::-webkit-details-marker {
+  display: none;
+}
+
+.inventory-transfer-panel-toggle::before {
+  content: "▸";
+  display: inline-block;
+  font-size: 0.78rem;
+  transition: transform 0.15s ease;
+}
+
+.inventory-transfer-panel-details[open] .inventory-transfer-panel-toggle::before {
+  transform: rotate(90deg);
+}
+
+.inventory-transfer-control-scroll {
+  max-height: min(38vh, 280px);
+  overflow: auto;
+  padding-right: 0.1rem;
+}
+
+.inventory-transfer-control-table {
+  display: grid;
+  gap: 0.35rem;
+  min-width: min(100%, 640px);
+}
+
+.inventory-transfer-control-head,
+.inventory-transfer-control-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(108px, 0.62fr) minmax(0, 1.35fr);
+  gap: 0.45rem 0.7rem;
+  align-items: center;
+}
+
+.inventory-transfer-control-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 0.35rem 0.65rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: rgba(59, 79, 79, 0.78);
+  background: rgba(255, 255, 255, 0.96);
+  border-bottom: 1px solid rgba(162, 170, 181, 0.18);
+}
+
+.inventory-transfer-control-row {
+  padding: 0.55rem 0.65rem;
+  border-radius: 0.8rem;
+  border: 1px solid rgba(162, 170, 181, 0.18);
+  background: rgba(247, 250, 249, 0.88);
+  font-size: 0.81rem;
+}
+
+.inventory-transfer-control-product {
+  min-width: 0;
+  display: grid;
+  gap: 0.12rem;
+}
+
+.inventory-transfer-control-product strong {
+  overflow-wrap: anywhere;
+  font-size: 0.84rem;
+}
+
+.inventory-transfer-control-product .subtle-line {
+  font-size: 0.74rem;
+}
+
+.inventory-transfer-control-stock {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.28rem;
+}
+
+.inventory-transfer-stock-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.14rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  background: rgba(162, 170, 181, 0.14);
+  color: rgba(36, 64, 64, 0.9);
+  white-space: nowrap;
+}
+
+.inventory-transfer-stock-pill.primary {
+  background: rgba(42, 96, 143, 0.12);
+  color: rgba(25, 72, 110, 0.95);
+}
+
+.inventory-transfer-dest-inline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.28rem;
+  min-width: 0;
+}
+
+.inventory-transfer-dest-chip {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  padding: 0.14rem 0.48rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  border: 1px solid rgba(162, 170, 181, 0.22);
+  background: #fff;
+  color: rgba(36, 64, 64, 0.92);
+  overflow-wrap: anywhere;
+}
+
 .inventory-transfer-view {
   display: grid;
   gap: 0.8rem;
@@ -11289,6 +11539,10 @@ html[data-ui-theme] body .switch-thumb {
   color: #0c4a6e;
   font-size: 0.88rem;
   line-height: 1.45;
+}
+
+.inventory-auto-pallet-banner {
+  margin-bottom: 0.85rem;
 }
 
 .catalog-auto-limit-chip {
@@ -13609,6 +13863,24 @@ html[data-ui-theme] body .switch-thumb {
   .inventory-transfer-card-actions .icon-button {
     flex: 1 1 180px;
     justify-content: center;
+  }
+
+  .inventory-transfer-control-head {
+    display: none;
+  }
+
+  .inventory-transfer-control-row {
+    grid-template-columns: 1fr;
+    gap: 0.4rem;
+    align-items: start;
+  }
+
+  .inventory-transfer-control-scroll {
+    max-height: min(46vh, 340px);
+  }
+
+  .inventory-transfer-panel-toggle {
+    width: 100%;
   }
 
   .inventory-transfer-modal-summary-grid {

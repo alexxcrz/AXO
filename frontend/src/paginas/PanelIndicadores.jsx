@@ -63,7 +63,7 @@ function getDashboardDatePopoverStyle(triggerElement) {
 }
 
 import { formatMinutesToHourMinute, formatTime, getDashboardPeriodKey, normalizeBoardMultiSelectDetailValue, resolveDashboardInventoryRowMetrics } from "../utils/utilidades";
-import { createDashboardPdfContext, DASHBOARD_PDF_THEME, getDashboardPdfAreaAccent } from "../utils/dashboardPdfTheme";
+import { createDashboardPdfContext, DASHBOARD_PDF_THEME, getDashboardPdfAreaAccent, getDashboardPdfBoardAccent } from "../utils/dashboardPdfTheme";
 import {
   appendGeneralAreaPanelsToPdf,
   buildDashboardPdfFileName,
@@ -330,6 +330,11 @@ export default function PanelIndicadores({ contexto }) {
     return Array.isArray(updates) ? updates : [];
   }, [state?.catalogAutoLimits?.updates]);
 
+  const dashboardVisibleControlBoards = useMemo(
+    () => rawDashboardVisibleControlBoards ?? filteredVisibleControlBoards ?? [],
+    [rawDashboardVisibleControlBoards, filteredVisibleControlBoards],
+  );
+
   const canManageDashboardActions = Boolean(canManageDashboardControls ?? canManageDashboardState);
   const canExportDashboardActions = Boolean(canExportDashboardData ?? true);
   const showGlobalAreaFilter = selectedAreaSectionId === "all" || selectedAreaSectionId === "admin";
@@ -448,6 +453,13 @@ export default function PanelIndicadores({ contexto }) {
     const sectionId = String(selectedAreaSectionId || "").toLowerCase();
     return sectionId.includes("limpieza") || areaDashboardThemeEarly?.layout === "cleaning";
   }, [selectedAreaSectionId, areaDashboardThemeEarly?.layout]);
+
+  const supportsCatalogAutoLimits = useMemo(() => {
+    const sectionId = String(selectedAreaSectionId || "").toLowerCase();
+    return isCleaningDashboard
+      || sectionId.includes("mantenimiento")
+      || areaDashboardThemeEarly?.layout === "maintenance";
+  }, [isCleaningDashboard, selectedAreaSectionId, areaDashboardThemeEarly?.layout]);
 
   const enabledAreaDashboardSections = useMemo(
     () => new Set(getAreaDashboardSections(areaDashboardThemeEarly)),
@@ -2194,8 +2206,8 @@ export default function PanelIndicadores({ contexto }) {
               {liveOperationalBoardAlerts.length}
             </button>
           </header>
-          <div className="custom-board-sla-summary board-operational-alerts dashboard-live-alerts-chips">
-            {liveOperationalBoardAlerts.map((record) => {
+          <div className="custom-board-sla-summary board-operational-alerts dashboard-live-alerts-chips dashboard-live-alerts-chips-inline">
+            {liveOperationalBoardAlerts.slice(0, 3).map((record) => {
               const isDelayed = record.excessSeconds > 0 && record.status !== STATUS_FINISHED;
               const chipTone = isDelayed ? "danger" : record.status === STATUS_PAUSED ? "warning" : "primary";
               const detail = isDelayed
@@ -2215,6 +2227,15 @@ export default function PanelIndicadores({ contexto }) {
                 </button>
               );
             })}
+            {liveOperationalBoardAlerts.length > 3 ? (
+              <button
+                type="button"
+                className="chip custom-board-sla-chip custom-board-sla-chip-more"
+                onClick={() => setLiveOperationalAlertsModalOpen(true)}
+              >
+                +{liveOperationalBoardAlerts.length - 3} alertas más
+              </button>
+            ) : null}
           </div>
         </section>
       ) : null}
@@ -3480,12 +3501,12 @@ export default function PanelIndicadores({ contexto }) {
                 <h3>Resumen de actividades vs. límite SLA</h3>
                 <p>
                   Promedio general por tipo de actividad. No lista cada registro individual.
-                  {isCleaningDashboard ? " Los tiempos del catálogo se actualizan automáticamente tras 3 semanas de datos (máx. 30), redondeados al alza en bloques de 5 min." : ""}
+                  {supportsCatalogAutoLimits ? " Los tiempos del catálogo se actualizan automáticamente tras 3 semanas de datos (máx. 30), redondeados al alza en bloques de 5 min." : ""}
                 </p>
               </div>
               <span className="dashboard-alert-pill">{dashboardActivitySlaSummaryRows.filter((row) => row.exceededCount > 0).length} con exceso</span>
             </div>
-            {isCleaningDashboard && catalogAutoLimitUpdates.length ? (
+            {supportsCatalogAutoLimits && catalogAutoLimitUpdates.length ? (
               <div className="dashboard-auto-limit-banner" role="status">
                 <strong>Tiempos del catálogo actualizados automáticamente:</strong>
                 {" "}

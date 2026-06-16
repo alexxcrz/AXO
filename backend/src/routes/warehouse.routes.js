@@ -62,8 +62,10 @@ import {
   updateWarehouseBoardOperationalContext,
   updateWarehouseCatalogItem,
   syncCatalogAutoTimeLimits,
+  syncInventoryAutoPalletTimes,
   updateWarehouseInventoryItem,
   updateWarehouseInventoryLotHistory,
+  updateWarehouseInventoryItemPackaging,
   createWarehouseInventoryDestination,
   updateWarehouseInventoryDestination,
   deleteWarehouseInventoryDestination,
@@ -564,6 +566,27 @@ warehouseRouter.patch("/inventory/:itemId/lot-history", requireAuth, (req, res) 
   }
 
   auditSecurityEvent("warehouse_inventory_lot_history_updated", req, {
+    itemId: result.itemId,
+    itemCode: result.itemCode,
+    revision: result.state?.revision,
+  });
+  res.json({ ok: true, data: { state: result.state, itemId: result.itemId, itemCode: result.itemCode } });
+});
+
+warehouseRouter.patch("/inventory/:itemId/packaging", requireAuth, (req, res) => {
+  const result = updateWarehouseInventoryItemPackaging(req.auth, req.params.itemId, req.body || {});
+  if (!result.ok) {
+    const status = result.reason === "auth_required" ? 401 : result.reason === "item_not_found" ? 404 : result.reason === "forbidden" ? 403 : 400;
+    const messages = {
+      invalid_payload: "Indica cuántas cajas trae una tarima completa (mayor a 0).",
+      invalid_pieces_per_box: "Indica cuántas piezas trae cada caja (mayor a 0).",
+      invalid_domain: "Solo se puede definir empaque en productos del inventario base.",
+    };
+    res.status(status).json({ ok: false, message: messages[result.reason] || "No fue posible guardar las cajas por tarima del producto." });
+    return;
+  }
+
+  auditSecurityEvent("warehouse_inventory_packaging_updated", req, {
     itemId: result.itemId,
     itemCode: result.itemCode,
     revision: result.state?.revision,
@@ -1871,6 +1894,29 @@ warehouseRouter.post("/catalog/auto-time-limits", requireWarehouseAction("editCa
   }
 
   auditSecurityEvent("warehouse_catalog_auto_time_limits_synced", req, {
+    changed: result.changed,
+    updateCount: Array.isArray(result.updates) ? result.updates.length : 0,
+    revision: result.state?.revision,
+  });
+  res.json({
+    ok: true,
+    data: {
+      state: result.state,
+      changed: result.changed,
+      updates: result.updates,
+    },
+  });
+});
+
+warehouseRouter.post("/inventory/auto-pallet-times", requireAuth, (req, res) => {
+  const result = syncInventoryAutoPalletTimes(req.auth, { force: Boolean(req.body?.force) });
+  if (!result.ok) {
+    const status = result.reason === "auth_required" ? 401 : result.reason === "forbidden" ? 403 : 400;
+    res.status(status).json({ ok: false, message: "No fue posible sincronizar los tiempos por tarima del inventario." });
+    return;
+  }
+
+  auditSecurityEvent("warehouse_inventory_auto_pallet_times_synced", req, {
     changed: result.changed,
     updateCount: Array.isArray(result.updates) ? result.updates.length : 0,
     revision: result.state?.revision,

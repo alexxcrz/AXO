@@ -26,12 +26,30 @@ import {
   resolveInventoryPropertySourceFieldId,
   normalizeInventoryDomain,
   evaluateBoardRowSla,
+  formatSlaExcessCompact,
+  isPalletReviewBoard,
   renderBoardFieldLabel as renderBoardFieldLabelUtil,
 } from "../utils/utilidades.jsx";
-import { INVENTORY_DOMAIN_MAINTENANCE, BOARD_SLA_MIN_DURATION_RATIO } from "../utils/constantes.js";
+import { INVENTORY_DOMAIN_MAINTENANCE, INVENTORY_DOMAIN_BASE, BOARD_SLA_MIN_DURATION_RATIO } from "../utils/constantes.js";
 
 const EDITABLE_INVENTORY_PROPERTIES = new Set(["lot", "expiry", "label"]);
 const CLEANING_BOARD_NAVES = ["C1", "C2", "C3"];
+
+const EMPTY_PALLET_PACKAGING_MODAL = {
+  open: false,
+  mode: "product-select",
+  boardId: "",
+  rowId: "",
+  field: null,
+  lookupValue: "",
+  itemId: "",
+  itemCode: "",
+  itemName: "",
+  boxesPerPallet: "",
+  piecesPerBox: "",
+  submitting: false,
+  error: "",
+};
 
 function resolveCleaningBoardNaves(...extraSites) {
   const normalizedExtras = extraSites
@@ -613,6 +631,13 @@ export default function MisTableros({ contexto }) {
     () => new Map((state?.catalog || []).map((item) => [item.id, item])),
     [state?.catalog],
   );
+  const inventoryItemsById = useMemo(() => {
+    const map = new Map();
+    (state?.inventoryItems || []).forEach((item) => {
+      if (item?.id) map.set(item.id, item);
+    });
+    return map;
+  }, [state?.inventoryItems]);
   const isBoardOwner = Boolean(selectedCustomBoard && currentUser && (currentUser.role === "Lead" || selectedCustomBoard.createdById === currentUser.id || selectedCustomBoard.ownerId === currentUser.id));
   const [openAssigneeMenuRowId, setOpenAssigneeMenuRowId] = useState("");
   const [isBoardImporting, setIsBoardImporting] = useState(false);
@@ -657,6 +682,7 @@ export default function MisTableros({ contexto }) {
     activityLabel: "",
     record: null,
   });
+  const [palletPackagingModal, setPalletPackagingModal] = useState(EMPTY_PALLET_PACKAGING_MODAL);
   const [inspectionSubmitting, setInspectionSubmitting] = useState(false);
   // Local edit buffer for Lead time overrides: key = "rowId-colId", value = string being typed
   const [leadTimeEdits, setLeadTimeEdits] = useState({});
@@ -1401,22 +1427,24 @@ export default function MisTableros({ contexto }) {
   }
   const boardAlertMetrics = useMemo(() => {
     const alertBoard = isHistoricalCustomBoardView ? boardView : selectedCustomBoard;
-    const allRows = isHistoricalCustomBoardView
+    const alertRows = isHistoricalCustomBoardView
       ? (boardView?.rows || [])
-      : (selectedCustomBoard?.rows || boardView?.rows || []);
+      : visibleRows;
 
     const delayedRows = [];
     const tooFastRows = [];
     const pausedRows = [];
     const runningRows = [];
 
-    allRows.forEach((row) => {
-      const sla = evaluateBoardRowSla(alertBoard, row, catalogMap, realtimeNow, pauseState);
+    alertRows.forEach((row) => {
+      const sla = evaluateBoardRowSla(alertBoard, row, catalogMap, realtimeNow, pauseState, { inventoryMap: inventoryItemsById });
       if (sla.isDelayed) delayedRows.push({ row, sla });
       if (sla.isTooFast) tooFastRows.push({ row, sla });
       if (row.status === STATUS_PAUSED) pausedRows.push({ row, sla });
       if (row.status === STATUS_RUNNING) runningRows.push({ row, sla });
     });
+
+    delayedRows.sort((left, right) => (right.sla?.excessSeconds || 0) - (left.sla?.excessSeconds || 0));
 
     return {
       delayedCount: delayedRows.length,
@@ -1428,13 +1456,13 @@ export default function MisTableros({ contexto }) {
       pausedRows,
       runningRows,
     };
-  }, [STATUS_PAUSED, STATUS_RUNNING, boardView, catalogMap, isHistoricalCustomBoardView, pauseState, realtimeNow, selectedCustomBoard]);
+  }, [STATUS_PAUSED, STATUS_RUNNING, boardView, catalogMap, inventoryItemsById, isHistoricalCustomBoardView, pauseState, realtimeNow, selectedCustomBoard, visibleRows]);
 
   const visibleBoardMetrics = useMemo(() => {
     const delayedRows = [];
     const tooFastRows = [];
     visibleRows.forEach((row) => {
-      const sla = evaluateBoardRowSla(boardView, row, catalogMap, realtimeNow, pauseState);
+      const sla = evaluateBoardRowSla(boardView, row, catalogMap, realtimeNow, pauseState, { inventoryMap: inventoryItemsById });
       if (sla.isDelayed) delayedRows.push({ row, sla });
       if (sla.isTooFast) tooFastRows.push({ row, sla });
     });
@@ -1515,6 +1543,150 @@ export default function MisTableros({ contexto }) {
     if (alreadyOnLiveBoard) return;
 
     navigateToBoardFocus?.(focusPayload);
+  }
+
+  function handleRevisionInventoryLookupChange(board, row, field, nextValue) {
+    if (!board?.id || !row?.id || !field) return;
+
+    const clearedValue = nextValue === null || nextValue === undefined
+      || (typeof nextValue === "string" && !nextValue.trim());
+    if (clearedValue) {
+      updateBoardRowValue(board.id, row.id, field, nextValue);
+      return;
+    }
+
+    if (isPalletReviewBoard(board) && field.type === "inventoryLookup") {
+      const matchedItem = resolveInventoryItemFromLookupValue(state.inventoryItems || [], nextValue);
+      if (matchedItem && normalizeInventoryDomain(matchedItem.domain) === INVENTORY_DOMAIN_BASE) {
+        const existingBoxes = Math.max(0, Number(matchedItem.boxesPerPallet || 0));
+        const existingPieces = Math.max(0, Number(matchedItem.piecesPerBox || 0));
+        const needsPackagingSetup = existingBoxes <= 0 || existingPieces <= 0;
+
+        if (needsPackagingSetup) {
+          setPalletPackagingModal({
+            open: true,
+            mode: "product-select",
+            boardId: board.id,
+            rowId: row.id,
+            field,
+            lookupValue: nextValue,
+            itemId: matchedItem.id,
+            itemCode: String(matchedItem.code || "").trim(),
+            itemName: String(matchedItem.name || "").trim(),
+            boxesPerPallet: existingBoxes > 0 ? String(existingBoxes) : "",
+            piecesPerBox: existingPieces > 0 ? String(existingPieces) : "",
+            submitting: false,
+            error: "",
+          });
+          return;
+        }
+      }
+    }
+
+    updateBoardRowValue(board.id, row.id, field, nextValue);
+  }
+
+  function openPiecesPerBoxEditor(board, row, piecesField) {
+    if (!board?.id || !row?.id || !piecesField || !isPalletReviewBoard(board)) return;
+
+    const sourceFieldId = resolveInventoryPropertySourceFieldId(board?.fields || [], piecesField.sourceFieldId, piecesField.id);
+    const lookupValue = row.values?.[sourceFieldId];
+    const matchedItem = resolveInventoryItemFromLookupValue(state.inventoryItems || [], lookupValue);
+    if (!matchedItem || normalizeInventoryDomain(matchedItem.domain) !== INVENTORY_DOMAIN_BASE) {
+      setBoardRuntimeFeedback({ tone: "warning", message: "Selecciona primero un producto del inventario base." });
+      return;
+    }
+
+    const existingBoxes = Math.max(0, Number(matchedItem.boxesPerPallet || 0));
+    const existingPieces = Math.max(0, Number(matchedItem.piecesPerBox || 0));
+    setPalletPackagingModal({
+      open: true,
+      mode: "pieces-edit",
+      boardId: board.id,
+      rowId: row.id,
+      field: null,
+      lookupValue: "",
+      itemId: matchedItem.id,
+      itemCode: String(matchedItem.code || "").trim(),
+      itemName: String(matchedItem.name || "").trim(),
+      boxesPerPallet: existingBoxes > 0 ? String(existingBoxes) : "",
+      piecesPerBox: existingPieces > 0 ? String(existingPieces) : "",
+      submitting: false,
+      error: "",
+    });
+  }
+
+  function closePalletPackagingModal() {
+    if (palletPackagingModal.submitting) return;
+    setPalletPackagingModal(EMPTY_PALLET_PACKAGING_MODAL);
+  }
+
+  async function confirmPalletPackagingModal() {
+    if (palletPackagingModal.submitting) return;
+
+    const piecesPerBox = Number(palletPackagingModal.piecesPerBox || 0);
+    if (!Number.isFinite(piecesPerBox) || piecesPerBox <= 0) {
+      setPalletPackagingModal((current) => ({
+        ...current,
+        error: "Indica cuántas piezas trae cada caja (mayor a 0).",
+      }));
+      return;
+    }
+
+    const boxesPerPallet = Number(palletPackagingModal.boxesPerPallet || 0);
+    if (!Number.isFinite(boxesPerPallet) || boxesPerPallet <= 0) {
+      setPalletPackagingModal((current) => ({
+        ...current,
+        error: "Indica cuántas cajas trae una tarima completa (mayor a 0).",
+      }));
+      return;
+    }
+
+    const {
+      mode,
+      boardId,
+      rowId,
+      field,
+      lookupValue,
+      itemId,
+      itemCode,
+      itemName,
+    } = palletPackagingModal;
+    if (!itemId) {
+      setPalletPackagingModal(EMPTY_PALLET_PACKAGING_MODAL);
+      return;
+    }
+    if (mode === "product-select" && (!boardId || !rowId || !field)) {
+      setPalletPackagingModal(EMPTY_PALLET_PACKAGING_MODAL);
+      return;
+    }
+
+    const productLabel = itemCode || itemName || "el producto";
+    setPalletPackagingModal((current) => ({ ...current, submitting: true, error: "" }));
+
+    try {
+      const result = await requestJson(`/warehouse/inventory/${itemId}/packaging`, {
+        method: "PATCH",
+        body: JSON.stringify({ boxesPerPallet, piecesPerBox }),
+      });
+      applyRemoteWarehouseState(result?.data?.state, setState, setLoginDirectory, skipNextSyncRef, setSyncStatus);
+      setPalletPackagingModal(EMPTY_PALLET_PACKAGING_MODAL);
+      if (mode === "product-select") {
+        updateBoardRowValue(boardId, rowId, field, lookupValue);
+      }
+      setBoardRuntimeFeedback({
+        tone: "success",
+        message: mode === "pieces-edit"
+          ? `Piezas por caja actualizadas para ${productLabel}.`
+          : `Datos de empaque guardados para ${productLabel}.`,
+      });
+    } catch (error) {
+      setPalletPackagingModal((current) => ({
+        ...current,
+        submitting: false,
+        error: error?.message || "No se pudo guardar el empaque del producto.",
+      }));
+    }
   }
 
   function openOperationalAlertsModal(kind) {
@@ -1699,8 +1871,8 @@ export default function MisTableros({ contexto }) {
             </div>
           ) : null}
           {boardShowMetrics && (boardAlertMetrics.delayedCount > 0 || boardAlertMetrics.tooFastCount > 0 || boardAlertMetrics.pausedCount > 0 || boardAlertMetrics.runningCount > 0) ? (
-            <div className="custom-board-sla-summary board-operational-alerts" role="list" aria-label="Alertas operativas del tablero">
-              {boardAlertMetrics.delayedRows.map(({ row, sla }) => (
+            <div className="custom-board-sla-summary board-operational-alerts board-operational-alerts-inline" role="list" aria-label="Alertas operativas del tablero">
+              {boardAlertMetrics.delayedRows.slice(0, 3).map(({ row, sla }) => (
                 <button
                   key={`delay-${row.id}`}
                   type="button"
@@ -1708,11 +1880,13 @@ export default function MisTableros({ contexto }) {
                   onClick={() => focusBoardRowAlert(row)}
                   title="Ir a la actividad con retraso"
                 >
-                  {sla.activityLabel || "Actividad"} · retraso +{formatDurationClock(sla.excessSeconds)} (límite {sla.limitMinutes} min)
+                  <span className="custom-board-sla-chip-label">{sla.activityLabel || "Actividad"}</span>
+                  <span className="custom-board-sla-chip-meta">{formatSlaExcessCompact(sla.excessSeconds)} · lím. {sla.limitMinutes} min</span>
                 </button>
               ))}
               {boardAlertMetrics.pausedRows
                 .filter(({ row }) => !boardAlertMetrics.delayedRows.some((entry) => entry.row.id === row.id))
+                .slice(0, 2)
                 .map(({ row, sla }) => (
                   <button
                     key={`paused-${row.id}`}
@@ -1721,11 +1895,13 @@ export default function MisTableros({ contexto }) {
                     onClick={() => focusBoardRowAlert(row, { openPauseDetails: true })}
                     title="Ir a la actividad en pausa"
                   >
-                    {sla.activityLabel || "Actividad"} · en pausa
+                    <span className="custom-board-sla-chip-label">{sla.activityLabel || "Actividad"}</span>
+                    <span className="custom-board-sla-chip-meta">en pausa</span>
                   </button>
                 ))}
               {boardAlertMetrics.runningRows
                 .filter(({ row }) => !boardAlertMetrics.delayedRows.some((entry) => entry.row.id === row.id))
+                .slice(0, 2)
                 .map(({ row, sla }) => (
                   <button
                     key={`running-${row.id}`}
@@ -1734,10 +1910,11 @@ export default function MisTableros({ contexto }) {
                     onClick={() => focusBoardRowAlert(row)}
                     title="Ir a la actividad en curso"
                   >
-                    {sla.activityLabel || "Actividad"} · en curso
+                    <span className="custom-board-sla-chip-label">{sla.activityLabel || "Actividad"}</span>
+                    <span className="custom-board-sla-chip-meta">en curso</span>
                   </button>
                 ))}
-              {boardAlertMetrics.tooFastRows.map(({ row, sla }) => (
+              {boardAlertMetrics.tooFastRows.slice(0, 2).map(({ row, sla }) => (
                 <button
                   key={`fast-${row.id}`}
                   type="button"
@@ -1745,9 +1922,19 @@ export default function MisTableros({ contexto }) {
                   onClick={() => focusBoardRowAlert(row)}
                   title="Ir a la actividad muy rápida"
                 >
-                  {sla.activityLabel || "Actividad"} · muy rápida ({formatDurationClock(sla.durationSeconds)} / mín. {formatDurationClock(sla.minDurationSeconds)})
+                  <span className="custom-board-sla-chip-label">{sla.activityLabel || "Actividad"}</span>
+                  <span className="custom-board-sla-chip-meta">muy rápida</span>
                 </button>
               ))}
+              {(boardAlertMetrics.delayedCount + boardAlertMetrics.pausedCount + boardAlertMetrics.runningCount + boardAlertMetrics.tooFastCount) > 3 ? (
+                <button
+                  type="button"
+                  className="chip custom-board-sla-chip custom-board-sla-chip-more"
+                  onClick={() => openOperationalAlertsModal("all")}
+                >
+                  Ver todas ({boardAlertMetrics.delayedCount + boardAlertMetrics.pausedCount + boardAlertMetrics.runningCount})
+                </button>
+              ) : null}
             </div>
           ) : null}
           {boardShowMetrics && boardAlertMetrics.delayedCount === 0 && boardAlertMetrics.tooFastCount === 0 && boardAlertMetrics.pausedCount === 0 && boardAlertMetrics.runningCount === 0 && visibleBoardMetrics.totalRows > 0 ? (
@@ -1978,7 +2165,7 @@ export default function MisTableros({ contexto }) {
                     const isFinishedRow = row.status === STATUS_FINISHED;
                     const rowSlaReferenceNow = isFinishedRow && row.endTime ? new Date(row.endTime).getTime() : realtimeNow;
                     const rowSla = boardShowMetrics
-                      ? evaluateBoardRowSla(boardView, row, catalogMap, rowSlaReferenceNow, pauseState)
+                      ? evaluateBoardRowSla(boardView, row, catalogMap, rowSlaReferenceNow, pauseState, { inventoryMap: inventoryItemsById })
                       : null;
                     const rowFieldEditable = rowCaptureEnabled;
                     const rowAssigneeEditable = !isHistoricalBoardReadOnly
@@ -2107,7 +2294,15 @@ export default function MisTableros({ contexto }) {
                                       <span className="chip">Muy rápida · {formatDurationClock(rowSla.durationSeconds)}</span>
                                     ) : null}
                                     {rowSla && rowSla.limitMinutes > 0 && !rowSla.isDelayed && !rowSla.isTooFast && (row.startTime || rowSla.durationSeconds > 0) ? (
-                                      <small className="subtle-line">SLA {rowSla.limitMinutes} min · {formatDurationClock(rowSla.durationSeconds)}</small>
+                                      <small className="subtle-line">
+                                        SLA {rowSla.limitMinutes} min
+                                        {rowSla.revisionTimeBasis === "perBox" && rowSla.boxesToReview > 0 && rowSla.minutesPerBox > 0
+                                          ? ` · ${rowSla.boxesToReview} cajas × ${rowSla.minutesPerBox} min/caja`
+                                          : ` · ${formatDurationClock(rowSla.durationSeconds)}`}
+                                      </small>
+                                    ) : null}
+                                    {rowSla?.isDelayed && rowSla.revisionTimeBasis === "perBox" && rowSla.boxesToReview > 0 && rowSla.minutesPerBox > 0 ? (
+                                      <small className="subtle-line">Objetivo: {rowSla.boxesToReview} cajas × {rowSla.minutesPerBox} min/caja</small>
                                     ) : null}
                                     {pauseCount > 0 ? <small className="subtle-line">{pauseCount} pausa(s) · {formatDurationClock(totalPauseSeconds)}</small> : null}
                                     {row.status === STATUS_PAUSED && showPauseReason ? <small className="subtle-line">Motivo: {pauseReasonLabel}</small> : null}
@@ -2331,7 +2526,7 @@ export default function MisTableros({ contexto }) {
                                 <InventoryLookupInput
                                   inventoryItems={state.inventoryItems || []}
                                   value={row.values?.[field.id] || ""}
-                                  onChange={(nextValue) => updateBoardRowValue(selectedCustomBoard.id, row.id, field, nextValue)}
+                                  onChange={(nextValue) => handleRevisionInventoryLookupChange(boardView, row, field, nextValue)}
                                   placeholder={field.placeholder || "Buscar por código o nombre"}
                                   style={controlStyle}
                                   title={field.helpText || field.label}
@@ -2781,6 +2976,26 @@ export default function MisTableros({ contexto }) {
                             );
                           }
 
+                          if (field.type === "inventoryProperty" && field.inventoryProperty === "piecesPerBox" && isPalletReviewBoard(boardView)) {
+                            const formattedValue = formatBoardCellObjectValue(value);
+                            const displayValue = formattedValue === "" ? "—" : formattedValue;
+                            const piecesEditTitle = rowFieldEditable
+                              ? "Doble clic para actualizar piezas por caja en inventario"
+                              : field.helpText || field.label;
+                            return (
+                              <td key={field.id} style={columnStyle}>
+                                <span
+                                  className={rowFieldEditable ? "board-pieces-per-box-cell" : undefined}
+                                  style={style}
+                                  title={piecesEditTitle}
+                                  onDoubleClick={() => rowFieldEditable && openPiecesPerBoxEditor(boardView, row, field)}
+                                >
+                                  {displayValue}
+                                </span>
+                              </td>
+                            );
+                          }
+
                           if (field.type === "formula" || field.type === "inventoryProperty") {
                             const formattedValue = formatBoardCellObjectValue(value);
                             const displayValue = formattedValue === "" && field.type === "formula" ? "0" : formattedValue;
@@ -3018,6 +3233,72 @@ export default function MisTableros({ contexto }) {
             )}
           </div>
         ) : null}
+      </Modal>
+
+      <Modal
+        open={palletPackagingModal.open}
+        title={palletPackagingModal.mode === "pieces-edit" ? "Actualizar piezas por caja" : "Definir empaque del producto"}
+        className="pallet-packaging-modal"
+        onClose={closePalletPackagingModal}
+        onConfirm={confirmPalletPackagingModal}
+        confirmLabel={palletPackagingModal.submitting
+          ? "Guardando..."
+          : palletPackagingModal.mode === "pieces-edit"
+            ? "Guardar"
+            : "Guardar y continuar"}
+        cancelLabel="Cancelar"
+        confirmDisabled={palletPackagingModal.submitting}
+        disableBackdropClose={palletPackagingModal.submitting}
+      >
+        <div style={{ display: "grid", gap: "0.75rem" }}>
+          <p className="subtle-line" style={{ margin: 0 }}>
+            {palletPackagingModal.itemCode
+              ? `${palletPackagingModal.itemCode} · ${palletPackagingModal.itemName}`
+              : palletPackagingModal.itemName || "Producto seleccionado"}
+            {palletPackagingModal.mode === "pieces-edit"
+              ? " — actualiza las piezas por caja si cambiaron para este lote o presentación."
+              : " — este producto aún no tiene empaque completo en inventario. Define las piezas por caja y las cajas por tarima; solo se pedirá esta vez."}
+          </p>
+          <label className="app-modal-field">
+            <span>Piezas por caja</span>
+            <input
+              type="number"
+              min="1"
+              step="1"
+              autoFocus={palletPackagingModal.mode === "pieces-edit"}
+              value={palletPackagingModal.piecesPerBox}
+              onChange={(event) => setPalletPackagingModal((current) => ({
+                ...current,
+                piecesPerBox: event.target.value,
+                error: "",
+              }))}
+              placeholder="Ej. 30"
+              disabled={palletPackagingModal.submitting}
+            />
+          </label>
+          <label className="app-modal-field">
+            <span>Cajas por tarima completa</span>
+            <input
+              type="number"
+              min="1"
+              step="1"
+              autoFocus={palletPackagingModal.mode !== "pieces-edit"}
+              value={palletPackagingModal.boxesPerPallet}
+              onChange={(event) => setPalletPackagingModal((current) => ({
+                ...current,
+                boxesPerPallet: event.target.value,
+                error: "",
+              }))}
+              placeholder="Ej. 48"
+              disabled={palletPackagingModal.submitting || (
+                palletPackagingModal.mode === "pieces-edit" && Number(palletPackagingModal.boxesPerPallet || 0) > 0
+              )}
+            />
+          </label>
+          {palletPackagingModal.error ? (
+            <p className="subtle-line" style={{ margin: 0, color: "var(--danger, #dc2626)" }}>{palletPackagingModal.error}</p>
+          ) : null}
+        </div>
       </Modal>
     </section>
   );

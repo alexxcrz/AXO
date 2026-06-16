@@ -6289,6 +6289,18 @@ function App() { // NOSONAR
       return;
     }
 
+    if (usesPackagingMetrics && Number(payload.boxesPerPallet || 0) <= 0) {
+      setInventoryModal((current) => ({ ...current, submitting: false }));
+      setInventoryImportFeedback({ tone: "danger", message: "Indica cuántas cajas trae una tarima completa (mayor a 0)." });
+      return;
+    }
+
+    if (usesPackagingMetrics && Number(payload.piecesPerBox || 0) <= 0) {
+      setInventoryModal((current) => ({ ...current, submitting: false }));
+      setInventoryImportFeedback({ tone: "danger", message: "Indica cuántas piezas trae cada caja (mayor a 0)." });
+      return;
+    }
+
     try {
       const result = await requestJson(
         inventoryModal.mode === "create" ? "/warehouse/inventory" : `/warehouse/inventory/${inventoryModal.id}`,

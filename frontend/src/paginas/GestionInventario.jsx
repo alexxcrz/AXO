@@ -137,7 +137,54 @@ export default function GestionInventario({ contexto }) {
     inventoryColumns,
     createInventoryColumn,
     deleteInventoryColumn,
+    state,
   } = contexto;
+
+  const inventoryAutoPalletUpdates = useMemo(() => {
+    const updates = state?.inventoryAutoPalletTimes?.updates;
+    return Array.isArray(updates) ? updates : [];
+  }, [state?.inventoryAutoPalletTimes?.updates]);
+
+  function renderInventoryColumnCell(item, column) {
+    if (column.key === "tiempoPorCaja") {
+      const minutes = Math.max(0, Number(item.minutesPerBox || 0));
+      if (!minutes) return "—";
+      return (
+        <>
+          {minutes} min/caja
+          {item.autoPalletTimeMeta?.updatedAt ? (
+            <span
+              className="chip chip-soft catalog-auto-limit-chip"
+              title={`Promedio por caja ajustado el ${new Date(item.autoPalletTimeMeta.updatedAt).toLocaleDateString("es-MX")} (${item.autoPalletTimeMeta.avgMinutesPerBox || item.autoPalletTimeMeta.avgMinutes} min/caja, ${item.autoPalletTimeMeta.sampleWeeks} sem.)`}
+            >
+              auto
+            </span>
+          ) : null}
+        </>
+      );
+    }
+    if (column.key === "tiempoPorTarima") {
+      const minutes = Math.max(0, Number(item.minutesPerPallet || 0));
+      if (!minutes) return "—";
+      return (
+        <>
+          {minutes} min
+          {item.autoPalletTimeMeta?.updatedAt ? (
+            <span
+              className="chip chip-soft catalog-auto-limit-chip"
+              title={`Tarima completa estimada (${item.boxesPerPallet || "?"} cajas) · ajustado el ${new Date(item.autoPalletTimeMeta.updatedAt).toLocaleDateString("es-MX")}`}
+            >
+              auto
+            </span>
+          ) : null}
+        </>
+      );
+    }
+    if (column.isSystem && (column.key === "lote" || column.key === "caducidad")) {
+      return <InventoryLotBadges item={item} columnKey={column.key} />;
+    }
+    return item.customFields?.[column.key] || "—";
+  }
 
   const [newColumnLabel, setNewColumnLabel] = useState("");
 
@@ -455,12 +502,17 @@ export default function GestionInventario({ contexto }) {
         </article>
       ) : null}
 
-      {/* Control de transferencias — insumos para pedidos y mantenimiento (arriba de la tabla) */}
+      {/* Control de transferencias — insumos para pedidos (vista compacta colapsable) */}
       {isOrderInventoryTab ? (
-        <article className="surface-card inventory-surface-card table-card">
+        <article className="surface-card inventory-surface-card inventory-transfer-panel-card">
           <div className="card-header-row">
             <div>
               <h3>Control de transferencias</h3>
+              <p className="subtle-line inventory-transfer-panel-lead">
+                {orderItemsWithTransfers.length
+                  ? `${orderItemsWithTransfers.length} producto${orderItemsWithTransfers.length === 1 ? "" : "s"} con saldo en destino`
+                  : "Sin saldos transferidos registrados"}
+              </p>
             </div>
             <div className="inventory-transfer-card-actions">
               <button type="button" className="icon-button" onClick={() => openOrderInventoryTransfer()} disabled={!currentInventoryManagePermission}><ArrowUp size={15} /> Nueva transferencia</button>
@@ -468,24 +520,44 @@ export default function GestionInventario({ contexto }) {
               <span className="chip primary">{currentInventoryTransferMovements.length}</span>
             </div>
           </div>
-          <div className="saved-board-list board-builder-launch-list">
-            {orderItemsWithTransfers.slice(0, 8).map((item) => (
-              <article key={item.id} className="surface-card">
-                <div className="card-header-row">
-                  <div>
-                    <strong>{item.name}</strong>
-                    <p>{item.code} · Stock origen {item.stockUnits} {item.unitLabel || "pzas"}</p>
+          {orderItemsWithTransfers.length ? (
+            <details className="inventory-transfer-panel-details">
+              <summary className="inventory-transfer-panel-toggle">
+                Ver resumen de destinos
+                <span className="chip soft">{orderItemsWithTransfers.length}</span>
+              </summary>
+              <div className="inventory-transfer-control-scroll">
+                <div className="inventory-transfer-control-table" role="table" aria-label="Saldos por producto transferido">
+                  <div className="inventory-transfer-control-head" role="row">
+                    <span role="columnheader">Producto</span>
+                    <span role="columnheader">Stock</span>
+                    <span role="columnheader">Destinos</span>
                   </div>
-                  <span className="chip primary">Disponible · {item.availableToTransferUnits}</span>
+                  {orderItemsWithTransfers.map((item) => (
+                    <article key={item.id} className="inventory-transfer-control-row" role="row">
+                      <div className="inventory-transfer-control-product" role="cell">
+                        <strong>{item.name}</strong>
+                        <span className="subtle-line">{item.code}</span>
+                      </div>
+                      <div className="inventory-transfer-control-stock" role="cell">
+                        <span className="inventory-transfer-stock-pill">Origen {item.stockUnits}</span>
+                        <span className="inventory-transfer-stock-pill primary">Disp. {item.availableToTransferUnits}</span>
+                      </div>
+                      <div className="inventory-transfer-dest-inline" role="cell">
+                        {item.transferTargets.map((target) => (
+                          <span key={target.destinationKey} className="inventory-transfer-dest-chip" title={target.storageLocation || undefined}>
+                            {(target.warehouse || "Sin nave")} · {target.availableUnits} {target.unitLabel || item.unitLabel || "pzas"}
+                          </span>
+                        ))}
+                      </div>
+                    </article>
+                  ))}
                 </div>
-                <div className="saved-board-list board-builder-launch-list">
-                  {item.transferTargets.slice(0, 3).map((target) => <span key={target.destinationKey} className="chip">{target.warehouse || "Sin nave"} · {target.availableUnits} {target.unitLabel || item.unitLabel || "pzas"}</span>)}
-                  {item.transferTargets.length > 3 ? <span className="chip">+{item.transferTargets.length - 3} destinos</span> : null}
-                </div>
-              </article>
-            ))}
-            {!orderItemsWithTransfers.length ? <p className="subtle-line">No hay transferencias registradas.</p> : null}
-          </div>
+              </div>
+            </details>
+          ) : (
+            <p className="subtle-line inventory-transfer-panel-empty">No hay transferencias registradas.</p>
+          )}
         </article>
       ) : null}
       {isMaintenanceInventoryTab ? (
@@ -521,7 +593,52 @@ export default function GestionInventario({ contexto }) {
               <Package size={42} />
             </div>
           ) : (
-            <div className="table-wrap">
+            <>
+            <div className="inventory-mobile-list">
+              {currentInventoryItems.map((item) => (
+                <article key={item.id} className="inventory-mobile-card">
+                  <div className="inventory-mobile-card-head">
+                    <span className="inventory-code-badge">{item.code}</span>
+                    <strong>{item.name}</strong>
+                  </div>
+                  {showPresentationColumn ? <p className="inventory-mobile-card-line">{item.presentation || "Sin presentación"}</p> : null}
+                  <div className="inventory-mobile-card-grid">
+                    <span><em>{isBaseInventoryTab ? "Piezas/caja" : "Stock"}</em>{renderInventoryStockCell(item)}</span>
+                    <span><em>{isBaseInventoryTab ? "Cajas/tarima" : "Ubicación"}</em>{renderInventoryLocationCell(item)}</span>
+                    {isBaseInventoryTab && item.minutesPerBox > 0 ? <span><em>Tiempo/caja</em>{item.minutesPerBox} min</span> : null}
+                    {isBaseInventoryTab && item.minutesPerPallet > 0 ? <span><em>Tiempo/tarima</em>{item.minutesPerPallet} min</span> : null}
+                    {currentInventoryColumns.map((column) => (
+                      <span key={`${item.id}-${column.id}-mobile`}>
+                        <em>{column.label}</em>
+                        {renderInventoryColumnCell(item, column)}
+                      </span>
+                    ))}
+                  </div>
+                  <div className="row-actions compact inventory-mobile-card-actions">
+                    {!isBaseInventoryTab ? <button type="button" className="icon-button" title="Surtir" onClick={() => openInventoryRestockModal(item)} disabled={!currentInventoryManagePermission}><Plus size={15} /></button> : null}
+                    {!isBaseInventoryTab ? <button type="button" className="icon-button" title={isOrderInventoryTab ? "Transferir" : "Descontar"} onClick={() => isOrderInventoryTab ? openOrderInventoryTransfer(item) : openInventoryMovement(item, INVENTORY_MOVEMENT_CONSUME)} disabled={!currentInventoryManagePermission}><ArrowUp size={15} /></button> : null}
+                    <button type="button" className="icon-button" title="Editar" onClick={() => openEditInventoryItem(item)} disabled={!currentInventoryManagePermission}><Pencil size={15} /></button>
+                    <button type="button" className="icon-button danger" title="Eliminar" onClick={() => setDeleteInventoryId(item.id)} disabled={!currentInventoryDeletePermission}><Trash2 size={15} /></button>
+                  </div>
+                </article>
+              ))}
+            </div>
+            <div className="table-wrap inventory-table-desktop">
+              {isBaseInventoryTab && inventoryAutoPalletUpdates.length ? (
+                <div className="dashboard-auto-limit-banner inventory-auto-pallet-banner" role="status">
+                  <strong>Tiempos por tarima actualizados automáticamente:</strong>
+                  {" "}
+                  {inventoryAutoPalletUpdates.map((entry) => {
+                    const boxPart = entry.nextMinutesPerBox
+                      ? `${entry.name}: ${entry.previousMinutesPerBox || 0} → ${entry.nextMinutesPerBox} min/caja`
+                      : "";
+                    const palletPart = entry.nextMinutesPerPallet
+                      ? `${entry.name}: tarima ${entry.previousMinutesPerPallet || 0} → ${entry.nextMinutesPerPallet} min`
+                      : "";
+                    return boxPart || palletPart;
+                  }).filter(Boolean).join(" · ")}
+                </div>
+              ) : null}
               {(() => {
                 const showControlColumn = !isBaseInventoryTab;
                 return (
@@ -558,10 +675,7 @@ export default function GestionInventario({ contexto }) {
                       ) : null}
                       {currentInventoryColumns.map((column) => (
                         <td key={`${item.id}-${column.id}`}>
-                          {(column.isSystem && (column.key === "lote" || column.key === "caducidad"))
-                            ? <InventoryLotBadges item={item} columnKey={column.key} />
-                            : (item.customFields?.[column.key] || "-")
-                          }
+                          {renderInventoryColumnCell(item, column)}
                         </td>
                       ))}
                       <td>
@@ -580,6 +694,7 @@ export default function GestionInventario({ contexto }) {
                 );
               })()}
             </div>
+            </>
           )}
         </article>
 
