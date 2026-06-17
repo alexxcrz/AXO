@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars -- props desde App.jsx */
 import { Modal } from "../Modal";
 import { InventoryActivityConsumptionEditor } from "../BarraLateral";
 import {
@@ -5,167 +6,88 @@ import {
   normalizeInventoryDomain,
   inventoryDomainUsesPresentation,
   inventoryDomainUsesPackagingMetrics,
-  formatDateTime,
 } from "../../utils/utilidades.jsx";
-import { INVENTORY_DOMAIN_MAINTENANCE } from "../../utils/constantes.js";
+import { formatDateTime } from "../../utils/utilidades.jsx";
+import {
+  INVENTORY_DOMAIN_MAINTENANCE,
+  INVENTORY_DOMAIN_CLEANING,
+  INVENTORY_DOMAIN_OPTIONS,
+  DEFAULT_CLEANING_SITE,
+} from "../../utils/constantes.js";
 
 /** Modales extra�dos de App.jsx � AppInventoryModals */
-
-/** Modales extraidos de App.jsx � AppInventoryModals */
 export function AppInventoryModals(props) {
   const {
-  activeCatalogItems,
-  Actividades,
-  activityCatalogIds,
-  activityConsumptions,
-  Antes,
-  applySavedInventoryLocation,
-  Art,
-  availableUnits,
-  Boolean,
-  boxesPerPallet,
-  C,
-  Cajas,
-  cantidades,
-  CLEANING_SITE_OPTIONS,
-  cleaningSite,
-  closeInventoryDestinationModal,
-  closeInventoryMovementModal,
-  closeInventoryRestockModal,
-  closeInventoryTransferConfirmModal,
-  confirma,
-  confirmPieceDeductionAndStart,
-  Costo,
-  createdAt,
-  createInventoryModalState,
-  Cu,
-  customFields,
-  DEFAULT_CLEANING_SITE,
-  deleteInventoryId,
-  deleteInventoryItem,
-  destinationBalanceUnits,
-  destinationKey,
-  Destino,
-  Disponible,
-  Dominio,
-  Escribe,
-  Ese,
-  Esta,
-  Este,
-  Familia,
-  formatDateTime,
-  Insumo,
-  INVENTORY_DOMAIN_CLEANING,
-  INVENTORY_DOMAIN_MAINTENANCE,
-  INVENTORY_DOMAIN_OPTIONS,
-  inventoryCleaningSite,
-  inventoryCustomColumnsForModal,
-  inventoryDestinationModal,
-  inventoryDomainUsesPackagingMetrics,
-  inventoryDomainUsesPresentation,
-  inventoryModal,
-  inventoryMovementAvailableUnits,
-  inventoryMovementModal,
-  inventoryMovementModalTitle,
-  inventoryMovementSavedLocations,
-  inventoryMovementSelectedItem,
-  inventoryMovementSelectedSavedLocation,
-  inventoryMovementTransferTarget,
-  inventoryMovementTypeOptions,
-  inventoryPresentationLabel,
-  inventoryPresentationPlaceholder,
-  inventoryRestockModal,
-  inventoryRestockModalItems,
-  inventoryRestockModalTitle,
-  inventoryStoragePlaceholder,
-  inventorySystemColumnSuggestions,
-  inventoryTransferAvailableWarehouses,
-  inventoryTransferConfirmModal,
-  inventoryTransferDestinationsByWarehouse,
-  inventoryTransferViewerItem,
-  inventoryTransferViewerState,
-  inventoryTransferViewerTitle,
-  inventoryUnitOptions,
-  inventoryUnitPlaceholder,
-  isOrderTransferMovementModal,
-  itemCode,
-  itemId,
-  itemName,
-  itemUnitLabel,
-  La,
-  lastKnownUnits,
-  map,
-  Math,
-  minStockUnits,
-  movementType,
-  Movimientos,
-  Nave,
-  nextDomain,
-  No,
-  Nombre,
-  normalizeInventoryDomain,
-  Notas,
-  Nueva,
-  onQuantityChange,
-  onToggle,
-  orderInventoryItems,
-  pieceDeductionModal,
-  piecesPerBox,
-  Piezas,
-  Precio,
-  Punto,
-  Qui,
-  Quieres,
-  recipientName,
-  remainingUnits,
-  Resguardo,
-  Resumen,
-  Saldo,
-  Saldos,
-  Sede,
-  Selecciona,
-  selectedTransferDestinationTab,
-  setDeleteInventoryId,
-  setInventoryDestinationModal,
-  setInventoryModal,
-  setInventoryTransferConfirmModal,
-  setInventoryTransferViewerState,
-  shouldShowCleaningLinkFields,
-  shouldShowInventoryPackagingFields,
-  shouldShowInventoryPresentationField,
-  shouldShowInventoryStockFields,
-  shouldShowTransferRemainingUnits,
-  Si,
-  Stock,
-  stockUnits,
-  storageLocation,
-  submitInventoryDestinationModal,
-  submitInventoryModal,
-  submitInventoryMovementModal,
-  submitInventoryRestockModal,
-  submitInventoryTransferConfirmModal,
-  submitting,
-  Tipo,
-  Todav,
-  toggleInventoryModalActivityCatalog,
-  transferTargetKey,
-  Ubicaci,
-  Ubicaciones,
-  Unidad,
-  unitLabel,
-  updatedAt,
-  updateInventoryModalActivityConsumption,
-  updateInventoryMovementModal,
-  updateInventoryRestockQuantity,
-  viewedOrderInventoryTransferMovements,
-  viewedOrderInventoryTransferTargets,
+    inventoryModal,
+    setInventoryModal,
+    createInventoryModalState,
+    submitInventoryModal,
+    inventoryEntityLabel,
+    normalizeInventoryDomain,
+    inventoryDomainUsesPresentation,
+    inventoryDomainUsesPackagingMetrics,
+    inventoryCleaningSite,
+    shouldShowInventoryPresentationField,
+    inventoryPresentationLabel,
+    inventoryPresentationPlaceholder,
+    shouldShowInventoryPackagingFields,
+    shouldShowInventoryStockFields,
+    inventoryUnitOptions,
+    inventoryUnitPlaceholder,
+    inventoryStoragePlaceholder,
+    inventoryCustomColumnsForModal,
+    inventorySystemColumnSuggestions,
+    shouldShowCleaningLinkFields,
+    CLEANING_SITE_OPTIONS,
+    activeCatalogItems,
+    toggleInventoryModalActivityCatalog,
+    updateInventoryModalActivityConsumption,
+    inventoryMovementModal,
+    inventoryMovementModalTitle,
+    isOrderTransferMovementModal,
+    closeInventoryMovementModal,
+    submitInventoryMovementModal,
+    updateInventoryMovementModal,
+    orderInventoryItems,
+    inventoryMovementTypeOptions,
+    inventoryMovementSavedLocations,
+    applySavedInventoryLocation,
+    inventoryMovementSelectedSavedLocation,
+    inventoryMovementSelectedItem,
+    inventoryMovementAvailableUnits,
+    inventoryMovementTransferTarget,
+    inventoryTransferAvailableWarehouses,
+    inventoryTransferDestinationWarehouses,
+    inventoryTransferDestinationsByWarehouse,
+    setInventoryTransferConfirmModal,
+    shouldShowTransferRemainingUnits,
+    inventoryDestinationModal,
+    setInventoryDestinationModal,
+    closeInventoryDestinationModal,
+    submitInventoryDestinationModal,
+    inventoryTransferConfirmModal,
+    closeInventoryTransferConfirmModal,
+    submitInventoryTransferConfirmModal,
+    inventoryRestockModal,
+    inventoryRestockModalTitle,
+    inventoryRestockModalItems,
+    closeInventoryRestockModal,
+    submitInventoryRestockModal,
+    updateInventoryRestockQuantity,
+    inventoryTransferViewerState,
+    setInventoryTransferViewerState,
+    inventoryTransferViewerTitle,
+    inventoryTransferViewerItem,
+    viewedOrderInventoryTransferTargets,
+    viewedOrderInventoryTransferMovements,
+    deleteInventoryId,
+    setDeleteInventoryId,
+    deleteInventoryItem,
   } = props;
 
   return (
     <>
-return (
-    <>
-    <Modal className="inventory-item-modal" open={inventoryModal.open} title={inventoryModal.mode === "create" ? `Agregar ${inventoryEntityLabel}` : `Editar ${inventoryEntityLabel}`} confirmLabel={inventoryModal.mode === "create" ? `Guardar ${inventoryEntityLabel}` : "Guardar cambios"} cancelLabel="Cancelar" onClose={() => setInventoryModal(createInventoryModalState())} onConfirm={submitInventoryModal} confirmDisabled={inventoryModal.submitting}>
+<Modal className="inventory-item-modal" open={inventoryModal.open} title={inventoryModal.mode === "create" ? `Agregar ${inventoryEntityLabel}` : `Editar ${inventoryEntityLabel}`} confirmLabel={inventoryModal.mode === "create" ? `Guardar ${inventoryEntityLabel}` : "Guardar cambios"} cancelLabel="Cancelar" onClose={() => setInventoryModal(createInventoryModalState())} onConfirm={submitInventoryModal} confirmDisabled={inventoryModal.submitting}>
       <div className="modal-form-grid">
         {inventoryModal.domain !== INVENTORY_DOMAIN_MAINTENANCE ? (
           <label className="app-modal-field">
@@ -310,29 +232,6 @@ return (
         ) : null}
       </div>
     </Modal>
-
-    <Modal
-      open={pieceDeductionModal.open}
-      title="¿Descontar insumos al iniciar?"
-      confirmLabel="Sí, descontar y comenzar"
-      cancelLabel="Comenzar sin descontar"
-      onClose={() => confirmPieceDeductionAndStart(false)}
-      onConfirm={() => confirmPieceDeductionAndStart(true)}
-    >
-      <div className="modal-form-grid">
-        <p className="modal-footnote">Esta actividad tiene insumos en piezas vinculados. ¿Quieres descontar automáticamente del inventario al iniciar?</p>
-        <div className="piece-deduction-list">
-          {pieceDeductionModal.items.map((item) => (
-            <div key={item.id} className="piece-deduction-row">
-              <strong>{item.name}</strong>
-              <span className="chip">{item.quantity} {item.unit} · Stock actual: {item.stock}</span>
-            </div>
-          ))}
-        </div>
-        <p className="modal-footnote">Si eliges "Comenzar sin descontar", la actividad inicia normalmente y el inventario no cambia.</p>
-      </div>
-    </Modal>
-
     <Modal open={inventoryMovementModal.open} title={inventoryMovementModalTitle} confirmLabel={isOrderTransferMovementModal ? "Guardar transferencia" : "Guardar movimiento"} cancelLabel="Cancelar" onClose={closeInventoryMovementModal} onConfirm={submitInventoryMovementModal} confirmDisabled={inventoryMovementModal.submitting}>
       <div className="modal-form-grid">
         {isOrderTransferMovementModal ? (
@@ -388,7 +287,7 @@ return (
             <div className="app-modal-field app-modal-field-full">
               <span>Nave destino</span>
               <div className="inventory-transfer-warehouse-tabs">
-                {inventoryTransferAvailableWarehouses.map((warehouse) => (
+                {inventoryTransferDestinationWarehouses.map((warehouse) => (
                   <button key={warehouse} type="button" className={`warehouse-tab ${inventoryMovementModal.selectedTransferDestinationTab === warehouse ? "active" : ""}`} onClick={() => updateInventoryMovementModal({ selectedTransferDestinationTab: warehouse })}>
                     {warehouse}
                   </button>
@@ -423,7 +322,7 @@ return (
                 <p><strong>Disponible para transferir:</strong> {inventoryMovementAvailableUnits} {inventoryMovementSelectedItem?.unitLabel || "pzas"}</p>
               </div>
               {inventoryMovementTransferTarget ? (
-                <p className="subtle-line">Último saldo registrado en el destino {inventoryMovementTransferTarget.warehouse || "sin nave"} / {inventoryMovementTransferTarget.storageLocation || "sin punto de entrega"}: {inventoryMovementTransferTarget.availableUnits} {inventoryMovementTransferTarget.unitLabel || inventoryMovementSelectedItem?.unitLabel || "pzas"}. Ese saldo solo actualiza el destino y no devuelve piezas al stock origen.</p>
+                <p className="subtle-line">Áltimo saldo registrado en el destino {inventoryMovementTransferTarget.warehouse || "sin nave"} / {inventoryMovementTransferTarget.storageLocation || "sin punto de entrega"}: {inventoryMovementTransferTarget.availableUnits} {inventoryMovementTransferTarget.unitLabel || inventoryMovementSelectedItem?.unitLabel || "pzas"}. Ese saldo solo actualiza el destino y no devuelve piezas al stock origen.</p>
               ) : (
                 <p className="subtle-line">Este destino se registrará como un nuevo punto de resguardo para el insumo seleccionado.</p>
               )}
@@ -468,7 +367,7 @@ return (
         </div>
         <label className="app-modal-field app-modal-field-full">
           <span>¿Cuántas piezas quedan ahorita en ese destino?</span>
-          <input type="number" min="0" value={inventoryTransferConfirmModal.remainingUnits} onChange={(event) => setInventoryTransferConfirmModal((current) => ({ ...current, remainingUnits: event.target.value }))} placeholder={inventoryTransferConfirmModal.lastKnownUnits === null ? "Ej: 50" : `Último saldo registrado: ${inventoryTransferConfirmModal.lastKnownUnits}`} />
+          <input type="number" min="0" value={inventoryTransferConfirmModal.remainingUnits} onChange={(event) => setInventoryTransferConfirmModal((current) => ({ ...current, remainingUnits: event.target.value }))} placeholder={inventoryTransferConfirmModal.lastKnownUnits === null ? "Ej: 50" : `Áltimo saldo registrado: ${inventoryTransferConfirmModal.lastKnownUnits}`} />
         </label>
       </div>
     </Modal>
@@ -520,7 +419,7 @@ return (
           <div className="card-header-row">
             <div>
               <h3>Movimientos recientes</h3>
-              <p>Últimas transferencias registradas, sin detalle duplicado.</p>
+              <p>Áltimas transferencias registradas, sin detalle duplicado.</p>
             </div>
             <span className="chip">{Math.min(viewedOrderInventoryTransferMovements.length, 10)}</span>
           </div>
@@ -543,13 +442,10 @@ return (
         </section>
       </div>
     </Modal>
-
     <Modal open={Boolean(deleteInventoryId)} title="Eliminar artículo" confirmLabel="Eliminar artículo" cancelLabel="Cancelar" onClose={() => setDeleteInventoryId(null)} onConfirm={() => deleteInventoryItem(deleteInventoryId)}>
       <p>Esta acción quitará el artículo del inventario compartido.</p>
       <p>La información dejará de estar disponible para todos los dispositivos conectados.</p>
     </Modal>
-    </>
-
     </>
   );
 }

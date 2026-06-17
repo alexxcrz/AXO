@@ -3,7 +3,6 @@ import {
   NOTIFICATION_SOUNDS,
   SOUND_PREF_KEY,
   getSoundPref,
-  setSoundPref,
 } from "./notificationSoundCatalog.js";
 
 export {

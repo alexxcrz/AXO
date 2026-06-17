@@ -8,8 +8,9 @@ services:
       rm -f yarn.lock ../yarn.lock ../frontend/yarn.lock
       npm install
       npx prisma db push
+      npx prisma db push --config=chat.config.ts
       cd ../frontend && npm install && npm run build
-    startCommand: node src/index.js
+    startCommand: npm start
     healthCheckPath: /api/health
     autoDeployTrigger: commit
     envVars:

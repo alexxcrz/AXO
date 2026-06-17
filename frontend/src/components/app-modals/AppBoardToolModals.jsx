@@ -1,3 +1,5 @@
+/* eslint-disable no-unused-vars -- props desde App.jsx */
+import { Suspense } from "react";
 import { Trash2 } from "lucide-react";
 import { Modal } from "../Modal";
 import { BoardBuilderModal, BoardComponentStudioModal } from "../ModalesConstructorTableros";
@@ -5,150 +7,76 @@ import { FORMULA_OPERATIONS } from "../../utils/constantes.js";
 import { createEmptyFieldDraft } from "../../utils/utilidades.jsx";
 
 /** Modales extra�dos de App.jsx � AppBoardToolModals */
-
-/** Modales extraidos de App.jsx � AppBoardToolModals */
 export function AppBoardToolModals(props) {
   const {
-  actionPermissions,
-  activeAssignableUsers,
-  activityCatalogCategoryOptions,
-  addDraftColumn,
-  alignItems,
-  applyBoardTemplate,
-  applyExcelFormulaWizard,
-  Array,
-  Auto,
-  BOARD_OPERATIONAL_CONTEXT_OPTIONS,
-  boardBuilderModal,
-  boardBuilderPreview,
-  boardExcelFileInputRef,
-  boardOperationalContextOptions,
-  boardSectionOptions,
-  borderRadius,
-  Buscador,
-  canDeleteBoardTemplateEntry,
-  canDeleteTemplate,
-  canSaveBoard,
-  canSaveTemplate,
-  Categor,
-  clearControlBoardDraft,
-  closeBoardBuilderModal,
-  Compartir,
-  componentStudioOpen,
-  confirmDeleteBoardTemplate,
-  controlBoardDraft,
-  controlBoardFeedback,
-  Convertir,
-  createBoard,
-  createEmptyFieldDraft,
-  Departamento,
-  Departamentos,
-  departmentOptions,
-  Descripci,
-  Desde,
-  draftColumnGroups,
-  duplicateDraftColumn,
-  editBoard,
-  editDraftColumn,
-  editingDraftColumnId,
-  El,
-  Elige,
-  Esta,
-  Estas,
-  Este,
-  Excel,
-  excelFormulaWizard,
-  F,
-  filter,
-  filteredBoardTemplates,
-  flexWrap,
-  fontSize,
-  fontWeight,
-  FORMULA_OPERATIONS,
-  formulaLeftFieldId,
-  formulaRightFieldId,
-  fromClassification,
-  fromMemory,
-  gridTemplateColumns,
-  importBoardStructureFromExcel,
-  isBoardSaveSubmitting,
-  Los,
-  map,
-  marginBottom,
-  marginLeft,
-  Men,
-  moveDraftColumn,
-  N,
-  No,
-  Nombre,
-  Omitir,
-  onApplyTemplate,
-  onClear,
-  onClearTemplatePreview,
-  onDeleteTemplate,
-  onDuplicateDraftColumn,
-  onEditDraftColumn,
-  onImportFromExcel,
-  onMoveDraftColumn,
-  onOpenComponentStudio,
-  onPreviewTemplate,
-  onRemoveDraftColumn,
-  onReorderDraftColumn,
-  onSaveTemplate,
-  onTemplateCategoryChange,
-  onTemplateSearchChange,
-  openBoardExcelImportPicker,
-  openComponentStudio,
-  openDeleteBoardTemplateModal,
-  Operaci,
-  Operando,
-  Players,
-  previewBoard,
-  previewBoardTemplate,
-  removeDraftColumn,
-  removeExcelFormulaWizardItem,
-  reorderDraftColumn,
-  saveControlBoard,
-  saveDraftAsBoardTemplate,
-  saveTemplate,
-  Seleccionar,
-  selectedAreaSection,
-  selectedAreaSectionId,
-  selectedOptions,
-  selectedPreviewTemplate,
-  setComponentStudioOpen,
-  setControlBoardDraft,
-  setEditingDraftColumnId,
-  setExcelFormulaWizard,
-  setTemplateCategoryFilter,
-  setTemplateDeleteModal,
-  setTemplateEditorModal,
-  setTemplatePreviewId,
-  setTemplateSearch,
-  sharedDepartments,
-  sharedUserIds,
-  submitBoardTemplateEdit,
-  submitting,
-  targetFieldId,
-  targetLabel,
-  targetType,
-  templateCategories,
-  templateCategoryFilter,
-  templateDeleteModal,
-  templateEditorModal,
-  templateSearch,
-  Texto,
-  Todos,
-  updateExcelFormulaWizardItem,
-  userMap,
-  visibilityType,
+    templateEditorModal,
+    setTemplateEditorModal,
+    submitBoardTemplateEdit,
+    departmentOptions,
+    activeAssignableUsers,
+    templateDeleteModal,
+    setTemplateDeleteModal,
+    confirmDeleteBoardTemplate,
+    boardBuilderModal,
+    controlBoardDraft,
+    setControlBoardDraft,
+    closeBoardBuilderModal,
+    saveControlBoard,
+    isBoardSaveSubmitting,
+    openComponentStudio,
+    openBoardExcelImportPicker,
+    saveDraftAsBoardTemplate,
+    clearControlBoardDraft,
+    controlBoardFeedback,
+    templateSearch,
+    setTemplateSearch,
+    templateCategoryFilter,
+    setTemplateCategoryFilter,
+    templateCategories,
+    filteredBoardTemplates,
+    previewBoardTemplate,
+    applyBoardTemplate,
+    openDeleteBoardTemplateModal,
+    canDeleteBoardTemplateEntry,
+    selectedPreviewTemplate,
+    setTemplatePreviewId,
+    boardBuilderPreview,
+    draftColumnGroups,
+    moveDraftColumn,
+    reorderDraftColumn,
+    duplicateDraftColumn,
+    editDraftColumn,
+    removeDraftColumn,
+    visibleUsers,
+    userMap,
+    selectedAreaSectionId,
+    selectedAreaSection,
+    BOARD_OPERATIONAL_CONTEXT_OPTIONS,
+    boardExcelFileInputRef,
+    importBoardStructureFromExcel,
+    componentStudioOpen,
+    setComponentStudioOpen,
+    editingDraftColumnId,
+    setEditingDraftColumnId,
+    createEmptyFieldDraft,
+    addDraftColumn,
+    boardSectionOptions,
+    activityCatalogCategoryOptions,
+    contextoConstructor,
+    excelFormulaWizard,
+    setExcelFormulaWizard,
+    applyExcelFormulaWizard,
+    updateExcelFormulaWizardItem,
+    removeExcelFormulaWizardItem,
+    FORMULA_OPERATIONS,
+    actionPermissions,
+    currentUser,
+    state,
   } = props;
 
   return (
     <>
-return (
-    <>
-    <Modal open={templateEditorModal.open} title="Editar plantilla guardada" confirmLabel="Guardar cambios" cancelLabel="Cancelar" onClose={() => setTemplateEditorModal({ open: false, id: null, name: "", description: "", category: "", visibilityType: "department", sharedDepartments: [], sharedUserIds: [], submitting: false })} onConfirm={submitBoardTemplateEdit} confirmDisabled={templateEditorModal.submitting}>
+<Modal open={templateEditorModal.open} title="Editar plantilla guardada" confirmLabel="Guardar cambios" cancelLabel="Cancelar" onClose={() => setTemplateEditorModal({ open: false, id: null, name: "", description: "", category: "", visibilityType: "department", sharedDepartments: [], sharedUserIds: [], submitting: false })} onConfirm={submitBoardTemplateEdit} confirmDisabled={templateEditorModal.submitting}>
       <div className="modal-form-grid">
         <label className="app-modal-field">
           <span>Nombre de plantilla</span>
@@ -205,6 +133,7 @@ return (
       </div>
     </Modal>
 
+    <Suspense fallback={null}>
     <BoardBuilderModal
       open={boardBuilderModal.open}
       mode={boardBuilderModal.mode}
@@ -261,7 +190,7 @@ return (
     />
 
     <BoardComponentStudioModal open={componentStudioOpen} mode={editingDraftColumnId ? "edit" : "create"} draft={controlBoardDraft} onChange={setControlBoardDraft} onClose={() => { setComponentStudioOpen(false); setEditingDraftColumnId(null); setControlBoardDraft((current) => ({ ...current, ...createEmptyFieldDraft() })); }} onConfirm={addDraftColumn} catalog={state.catalog} inventoryItems={state.inventoryItems} visibleUsers={visibleUsers} sectionOptions={boardSectionOptions} activityCategoryOptions={activityCatalogCategoryOptions} contextoConstructor={contextoConstructor} />
-
+    </Suspense>
     <Modal open={excelFormulaWizard.open} title="Asistente de fórmulas de Excel" confirmLabel="Aplicar mapeo" cancelLabel="Cerrar" onClose={() => setExcelFormulaWizard({ open: false, items: [] })} onConfirm={applyExcelFormulaWizard}>
       <div className="modal-form-grid">
         <p className="modal-footnote">Estas columnas tenían fórmulas que no se pudieron convertir automáticamente. Elige cómo debe comportarse cada campo en el tablero.</p>
@@ -345,8 +274,6 @@ return (
         ))}
       </div>
     </Modal>
-    </>
-
     </>
   );
 }

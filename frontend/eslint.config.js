@@ -54,5 +54,11 @@ export default defineConfig([
       'jsx-a11y/no-noninteractive-element-to-interactive-role': 'off',
     },
   },
+  {
+    files: ['**/ComponentesDashboard.jsx', '**/MediaLightbox.jsx'],
+    rules: {
+      'react-refresh/only-export-components': 'off',
+    },
+  },
 ])
 

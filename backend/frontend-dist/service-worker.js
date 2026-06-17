@@ -55,20 +55,25 @@ function resolveVibratePattern(kind, fallback) {
   return notificationPrefs.msgVibratePattern || fallback;
 }
 
-function buildNotificationOptions({ title, body, tag, data, vibrate, soundUrl, actions, requireInteraction, vibrateKind = "message" }) {
+function buildNotificationOptions({ title: _title, body, tag, data, vibrate, soundUrl: _soundUrl, actions, requireInteraction, vibrateKind = "message" }) {
   const pattern = Array.isArray(vibrate) && vibrate.length ? vibrate : resolveVibratePattern(vibrateKind, VIBRATE_MSG);
-  return {
+  const options = {
     body: body || "",
     icon: data?.icon || ICON,
     badge: BADGE,
     tag,
     renotify: true,
     requireInteraction: Boolean(requireInteraction),
-    vibrate: pattern,
     silent: true,
     actions: actions || [],
     data: data || {},
   };
+  // Las notificaciones silenciosas no pueden incluir vibrate (Chrome / spec).
+  if (pattern.length > 0) {
+    options.vibrate = pattern;
+    options.silent = false;
+  }
+  return options;
 }
 
 async function broadcastAppSound(soundUrl) {
@@ -113,7 +118,16 @@ self.addEventListener("push", (event) => {
 });
 
 async function showTransportNotification(data) {
-  const tag = data.tag || `transport-${data.type}-${data.recordId || data.notificationId || Date.now()}`;
+  const type = String(data.type || "").trim();
+  const isOrderInventory = type.startsWith("order_inventory_");
+  if (isOrderInventory) {
+    const clientList = await clients.matchAll({ type: "window", includeUncontrolled: true });
+    if (clientList.some((client) => client.visibilityState === "visible")) {
+      return;
+    }
+  }
+
+  const tag = data.tag || `transport-${type}-${data.recordId || data.notificationId || Date.now()}`;
   const prev = await self.registration.getNotifications({ tag });
   prev.forEach((n) => n.close());
 

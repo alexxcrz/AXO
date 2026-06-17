@@ -1,62 +1,31 @@
+/* eslint-disable no-unused-vars -- props desde App.jsx */
 import { Modal } from "../Modal";
 import { formatDateTime, formatDurationClock } from "../../utils/utilidades.jsx";
 
 /** Modales extra�dos de App.jsx � AppPauseModals */
-
-/** Modales extraidos de App.jsx � AppPauseModals */
 export function AppPauseModals(props) {
   const {
-  activityId,
-  authorizedPauseSeconds,
-  boardId,
-  boardPauseContinueTimerRef,
-  boardPauseIsOutOfTime,
-  boardPauseOvertimeSeconds,
-  boardPauseState,
-  Boolean,
-  clearTimeout,
-  Continuemos,
-  continueReady,
-  CUSTOM_PAUSE_REASON_VALUE,
-  customReason,
-  El,
-  formatDateTime,
-  formatDurationClock,
-  handleConfirmBoardPause,
-  handleConfirmPause,
-  historyPauseActivityId,
-  historyPauseLogs,
-  La,
-  map,
-  Motivo,
-  No,
-  Number,
-  optionLabel,
-  Otro,
-  Pausado,
-  pauseContinueTimerRef,
-  pausedAt,
-  pauseDurationSeconds,
-  pauseLogId,
-  pauseReason,
-  pauseReasonOptions,
-  pauseStartedAtMs,
-  pauseState,
-  Reanuda,
-  Reanudado,
-  resumedAt,
-  rowId,
-  setBoardPauseState,
-  setHistoryPauseActivityId,
-  setPauseState,
-  Tiempo,
+    pauseState,
+    setPauseState,
+    pauseContinueTimerRef,
+    pauseReasonOptions,
+    CUSTOM_PAUSE_REASON_VALUE,
+    handleConfirmPause,
+    boardPauseState,
+    setBoardPauseState,
+    boardPauseContinueTimerRef,
+    handleConfirmBoardPause,
+    boardPauseIsOutOfTime,
+    boardPauseOvertimeSeconds,
+    boardPauseRemainingSeconds,
+    historyPauseActivityId,
+    setHistoryPauseActivityId,
+    historyPauseLogs,
   } = props;
 
   return (
     <>
-return (
-    <>
-    <Modal open={pauseState.open} title="Actividad en pausa" confirmLabel={pauseState.completed ? (pauseState.continueReady ? "Continuar" : "Espera un momento...") : "Confirmar pausa"} cancelLabel="Cancelar" hideCancel={pauseState.completed} confirmDisabled={pauseState.completed && !pauseState.continueReady} onClose={() => { if (pauseContinueTimerRef.current) clearTimeout(pauseContinueTimerRef.current); setPauseState({ open: false, activityId: null, reason: "", customReason: "", error: "", completed: false, continueReady: false, pauseLogId: null }); }} onConfirm={handleConfirmPause}>
+<Modal open={pauseState.open} title="Actividad en pausa" confirmLabel={pauseState.completed ? (pauseState.continueReady ? "Continuar" : "Espera un momento...") : "Confirmar pausa"} cancelLabel="Cancelar" hideCancel={pauseState.completed} confirmDisabled={pauseState.completed && !pauseState.continueReady} onClose={() => { if (pauseContinueTimerRef.current) clearTimeout(pauseContinueTimerRef.current); setPauseState({ open: false, activityId: null, reason: "", customReason: "", error: "", completed: false, continueReady: false, pauseLogId: null }); }} onConfirm={handleConfirmPause}>
       <div className="modal-form-grid">
         {pauseState.completed ? (
           <>
@@ -84,7 +53,7 @@ return (
       </div>
     </Modal>
 
-    <Modal open={boardPauseState.open} title="Pausar fila" confirmLabel={boardPauseState.completed ? (boardPauseState.continueReady ? "Continuar" : "Espera un momento...") : "Confirmar pausa"} cancelLabel="Cancelar" hideCancel={boardPauseState.completed} confirmDisabled={boardPauseState.completed && !boardPauseState.continueReady} onClose={() => { if (boardPauseContinueTimerRef.current) clearTimeout(boardPauseContinueTimerRef.current); setBoardPauseState({ open: false, boardId: null, rowId: null, reason: "", customReason: "", error: "", completed: false, continueReady: false, authorizedPauseSeconds: 0, pauseStartedAtMs: 0 }); }} onConfirm={handleConfirmBoardPause} className="board-pause-reason-modal">
+    <Modal open={boardPauseState.open} title="Pausar fila" confirmLabel={boardPauseState.completed ? (boardPauseState.continueReady ? "Continuar" : "Espera un momento...") : "Confirmar pausa"} cancelLabel="Cancelar" hideCancel={boardPauseState.completed} confirmDisabled={boardPauseState.completed && !boardPauseState.continueReady} onClose={() => { if (boardPauseContinueTimerRef.current) clearTimeout(boardPauseContinueTimerRef.current); setBoardPauseState({ open: false, boardId: null, rowId: null, historySnapshotId: null, reason: "", customReason: "", error: "", completed: false, continueReady: false, authorizedPauseSeconds: 0, pauseStartedAtMs: 0 }); }} onConfirm={handleConfirmBoardPause} className="board-pause-reason-modal">
       <div className="modal-form-grid">
         {boardPauseState.completed ? (
           <>
@@ -143,8 +112,6 @@ return (
         )) : <p>No hay pausas registradas para esta actividad.</p>}
       </div>
     </Modal>
-    </>
-
     </>
   );
 }

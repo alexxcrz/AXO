@@ -1,10 +1,12 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { ChatAudioMessage } from "./ChatAudioMessage.jsx";
-// COPMEC: removed authFetch/useAuth
+import ReunionesPerfilUsuario from "./ReunionesPerfilUsuario.jsx";
 import "./ChatPro.css";
 import axoAiLogo from "../assets/AXOIA.png";
-// -- COPMEC stubs --
-function ReunionesPerfilUsuario() { return null; }
+import { persistCallSession, readCallSession, clearCallSession } from "../utils/callSession.js";
+import { buscarConflictosReunion, formatConflictosMensaje } from "../utils/reunionConflicts.js";
+import { buildReunionInviteUrl } from "../utils/reunionInvite.js";
+import { PlayerPickerList, PlayerPickerChips } from "./PlayerPickerList.jsx";
 
 const AXO_AI_LEGACY_NICK = "COPMEC";
 const isAxoAiChatNick = (value) => String(value || "").trim().toUpperCase() === AXO_AI_LEGACY_NICK;
@@ -86,8 +88,11 @@ const CpMenuIcon = ({ type }) => {
 const VideoTile = React.memo(function VideoTile({ stream, nickname }) {
   const videoRef = useRef(null);
   useEffect(() => {
-    if (videoRef.current) {
-      videoRef.current.srcObject = stream || null;
+    const node = videoRef.current;
+    if (!node) return;
+    node.srcObject = stream || null;
+    if (stream) {
+      node.play().catch(() => {});
     }
   }, [stream]);
   return (
@@ -177,8 +182,10 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
         rateLimitedUntilRef.current = Date.now() + waitMs;
       }
       let backendMessage = "";
+      let errorPayload = null;
       try {
         const payload = await r.clone().json();
+        errorPayload = payload;
         backendMessage = payload?.message || payload?.error || "";
       } catch (_) {
         try {
@@ -187,6 +194,7 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
       }
       const err = new Error(backendMessage || r.statusText || 'Request failed');
       err.status = r.status;
+      if (errorPayload) err.data = errorPayload;
       throw err;
     }
     try { return await r.json(); } catch { return null; }
@@ -303,10 +311,8 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
   const [submenuRestriccionAbierto, setSubmenuRestriccionAbierto] = useState(null); // nickname del miembro
   const [busquedaMiembros, setBusquedaMiembros] = useState("");
   const [filtroMiembros, setFiltroMiembros] = useState("todos"); // todos, admins, miembros
-  const [editandoTema, setEditandoTema] = useState(false);
   const [editandoNombreGrupo, setEditandoNombreGrupo] = useState(false);
   const [editandoDescripcion, setEditandoDescripcion] = useState(false);
-  const [nuevoTema, setNuevoTema] = useState("");
   const [nuevoNombreGrupo, setNuevoNombreGrupo] = useState("");
   const [nuevaDescripcion, setNuevaDescripcion] = useState("");
   const [guardandoGrupoPerfil, setGuardandoGrupoPerfil] = useState(false);
@@ -405,6 +411,11 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
   const [modalLinkTexto, setModalLinkTexto] = useState("");
   const [modalLinkUrl, setModalLinkUrl] = useState("");
   const [callActivo, setCallActivo] = useState(false);
+  const callActivoRef = useRef(false);
+  const marcarCallActivo = (activo) => {
+    callActivoRef.current = activo;
+    setCallActivo(activo);
+  };
   const [callIncoming, setCallIncoming] = useState(null);
   const [localStream, setLocalStream] = useState(null);
   const [remoteStreams, setRemoteStreams] = useState([]);
@@ -417,8 +428,12 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
   const [callMuted, setCallMuted] = useState(false);
   const [callVideoOff, setCallVideoOff] = useState(false);
   const [callFacingMode, setCallFacingMode] = useState("user");
+  const callFacingModeRef = useRef("user");
   const [switchingCamera, setSwitchingCamera] = useState(false);
   const [sharingScreen, setSharingScreen] = useState(false);
+  const [callOverlayMinimized, setCallOverlayMinimized] = useState(false);
+  const [pendingCallRestore, setPendingCallRestore] = useState(null);
+  const callFloatingVideoRef = useRef(null);
   const [rtcConfig, setRtcConfig] = useState({ iceServers: [] });
   const [reuniones, setReuniones] = useState([]);
   const [modalReunionAbierto, setModalReunionAbierto] = useState(false);
@@ -430,8 +445,16 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
     hora: "",
     lugar: "",
     esVideollamada: false,
+    duracionMinutos: 60,
     participantes: []
   });
+  const [reunionConflictos, setReunionConflictos] = useState([]);
+  const [verificandoConflictosReunion, setVerificandoConflictosReunion] = useState(false);
+  const [reunionSolicitudModal, setReunionSolicitudModal] = useState(null);
+  const [reunionSolicitudMensaje, setReunionSolicitudMensaje] = useState("");
+  const [reunionSolicitudDuracion, setReunionSolicitudDuracion] = useState(90);
+  const [modalAgregarParticipantesReunion, setModalAgregarParticipantesReunion] = useState(null);
+  const [participantesNuevosReunion, setParticipantesNuevosReunion] = useState([]);
 
   const chatBodyRef = useRef(null);
   const chatScrollTimeoutRef = useRef(null);
@@ -540,9 +563,11 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
         : null;
       baseNicknames = Array.isArray(grupo?.miembros) ? grupo.miembros : [];
     } else if (tipoChat === "privado") {
-      baseNicknames = Array.isArray(usuariosCOPMEC)
+      const base = Array.isArray(usuariosCOPMEC)
         ? usuariosCOPMEC.map((u) => u.nickname || u.name).filter(Boolean)
         : [];
+      if (chatActual) base.push(chatActual);
+      baseNicknames = base;
     }
 
     const inCallNicknames = new Set(
@@ -652,32 +677,70 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
       return;
     }
 
-    if (socket?.connected) {
+    const emitirInvitacionExtra = () => {
       socket.emit("call_invite", {
         room,
         fromNickname: userDisplayName,
         toNicknames: seleccionados,
-        tipo: "extendida",
+        tipo: tipoChat === "grupal" ? "grupal" : "extendida",
       });
-      showAlert(`Invitacion enviada a ${seleccionados.length} participante(s).`, "success");
+    };
+
+    if (socket?.connected) {
+      emitirInvitacionExtra();
+      showAlert(`Invitación enviada a ${seleccionados.length} participante(s).`, "success");
       setCallInvitePickerOpen(false);
       setCallInviteSelection({});
       return;
     }
 
     try {
-      await sendCallSignalFallback({
+      const fallbackResult = await sendCallSignalFallback({
         type: "invite",
         room,
         toNicknames: seleccionados,
         nickname: userDisplayName,
         fromPeerId: buildRestPeerId(userDisplayName),
       });
-      showAlert(`Invitacion enviada por canal alterno a ${seleccionados.length} participante(s).`, "success");
-      setCallInvitePickerOpen(false);
-      setCallInviteSelection({});
+      const delivered = Number(fallbackResult?.delivered || 0);
+      if (delivered > 0) {
+        showAlert(`Invitación enviada por canal alterno a ${delivered} participante(s).`, "success");
+        setCallInvitePickerOpen(false);
+        setCallInviteSelection({});
+        return;
+      }
+      showAlert("No se pudieron enviar las invitaciones adicionales.", "error");
     } catch {
       showAlert("No se pudieron enviar las invitaciones adicionales.", "error");
+    }
+  };
+
+  const guardarSesionLlamada = () => {
+    if (!callRoomRef.current) return;
+    persistCallSession({
+      room: callRoomRef.current,
+      tipoChat,
+      chatActual: chatActual || "",
+      user: user?.nickname || user?.name || "",
+    });
+  };
+
+  const solicitarPiPLlamada = async () => {
+    const video = localVideoRef.current || callFloatingVideoRef.current;
+    if (!video || !document.pictureInPictureEnabled) return;
+    if (document.pictureInPictureElement === video) return;
+    try {
+      await video.requestPictureInPicture();
+    } catch {
+      /* noop */
+    }
+  };
+
+  const restaurarVistaLlamada = () => {
+    setCallOverlayMinimized(false);
+    setOpen(true);
+    if (document.pictureInPictureElement) {
+      document.exitPictureInPicture().catch(() => {});
     }
   };
 
@@ -1766,7 +1829,8 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
     try {
       const data = await authFetch(`${SERVER_URL}/api/chat/calls/historial`);
       setHistorialLlamadas(Array.isArray(data) ? data : []);
-    } catch (_) {
+    } catch (err) {
+      console.warn("[ChatPro] historial llamadas:", err?.message || err);
       setHistorialLlamadas([]);
     } finally {
       if (mostrarLoader) setHistorialCargando(false);
@@ -2580,7 +2644,7 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
     const handleUserJoined = async (payload) => {
       if (callTransportRef.current && callTransportRef.current !== "socket") return;
       if (!payload?.room || callRoomRef.current !== payload.room) return;
-      if (!callActivo || payload.socketId === socket.id) return;
+      if (!callActivoRef.current || payload.socketId === socket.id) return;
       if (outgoingCallTimeoutRef.current) {
         clearTimeout(outgoingCallTimeoutRef.current);
         outgoingCallTimeoutRef.current = null;
@@ -2608,7 +2672,7 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
     const handleOffer = async (payload) => {
       if (callTransportRef.current && callTransportRef.current !== "socket") return;
       if (!payload?.room || callRoomRef.current !== payload.room) return;
-      if (!callActivo) return;
+      if (!callActivoRef.current) return;
       const pc = crearPeerConnection(payload.from, payload.nickname || "Usuario");
       await pc.setRemoteDescription(new RTCSessionDescription(payload.sdp));
       console.log('[PC] Creando answer para', payload.from);
@@ -2646,7 +2710,7 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
       if (!payload?.room || callRoomRef.current !== payload.room) return;
       if (payload.socketId) limpiarPeer(payload.socketId);
       const remainingPeers = Object.keys(peerConnectionsRef.current).filter((id) => peerConnectionsRef.current[id]?.pc);
-      if (remainingPeers.length === 0 && callActivo) {
+      if (remainingPeers.length === 0 && callActivoRef.current) {
         playCallSound("hangup");
         limpiarLlamada();
       }
@@ -2709,6 +2773,69 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
     socket.on("call_invite_status", handleCallInviteStatus);
     socket.on("call_cancelled", handleCallCancelled);
 
+    const handleReunionActualizada = (payload) => {
+      const reunion = payload?.reunion;
+      if (!reunion?.id) return;
+      const userDisplayName = user?.nickname || user?.name || "";
+      setReuniones((current) => {
+        const exists = current.some((r) => r.id === reunion.id);
+        if (!exists) return [...current, reunion];
+        return current.map((r) => (r.id === reunion.id ? { ...r, ...reunion } : r));
+      });
+      if (reunion.estado === "activa" && reunion.esVideollamada) {
+        showAlert(`La reunión "${reunion.titulo}" está activa. Puedes entrar desde el chat.`, "success");
+      } else if (
+        reunion.estado === "programada"
+        && userDisplayName
+        && reunion.creador !== userDisplayName
+        && (reunion.participantes || []).includes(userDisplayName)
+      ) {
+        showAlert(
+          `Te invitaron a "${reunion.titulo}" el ${reunion.fecha} a las ${reunion.hora}. `
+          + "Si durará más de 1 hora o necesitas otro horario, solicita un cambio desde Perfil > Reuniones.",
+          "info",
+        );
+      }
+    };
+
+    const handleReunionSolicitudCambio = (payload) => {
+      const userDisplayName = user?.nickname || user?.name || "";
+      if (!payload || payload.creador !== userDisplayName) return;
+      const reunion = payload.reunion;
+      const solicitante = payload.solicitante || "Un participante";
+      const motivo = payload.motivo === "duracion_extendida"
+        ? "indica que la reunión durará más de 1 hora"
+        : "reporta conflicto de horario";
+      showAlert(
+        `${solicitante} ${motivo} para "${reunion?.titulo || "la reunión"}". `
+        + (payload.mensaje ? `Mensaje: ${payload.mensaje}. ` : "")
+        + "Puedes editar la reunión desde el calendario del chat.",
+        "warning",
+      );
+      if (reunion?.id) {
+        setReuniones((current) => {
+          const exists = current.some((r) => r.id === reunion.id);
+          if (!exists) return [...current, reunion];
+          return current.map((r) => (r.id === reunion.id ? { ...r, ...reunion } : r));
+        });
+      }
+    };
+    socket.on("reunion_actualizada", handleReunionActualizada);
+    socket.on("reunion_solicitud_cambio", handleReunionSolicitudCambio);
+
+    const handleReunionSolicitudUnirse = (payload) => {
+      const userDisplayName = user?.nickname || user?.name || "";
+      if (!payload || payload.creador !== userDisplayName) return;
+      const solicitante = payload.solicitante || "Alguien";
+      const reunion = payload.reunion;
+      showAlert(
+        `${solicitante} quiere unirse a "${reunion?.titulo || "la reunión"}". `
+        + "Puedes agregarlo desde Perfil > Reuniones o copiar el enlace de invitación.",
+        "info",
+      );
+    };
+    socket.on("reunion_solicitud_unirse", handleReunionSolicitudUnirse);
+
     return () => {
       socket.off("call_invite", handleInvite);
       socket.off("call_users", handleUsers);
@@ -2720,6 +2847,9 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
       socket.off("call_rejected", handleCallRejected);
       socket.off("call_invite_status", handleCallInviteStatus);
       socket.off("call_cancelled", handleCallCancelled);
+      socket.off("reunion_actualizada", handleReunionActualizada);
+      socket.off("reunion_solicitud_cambio", handleReunionSolicitudCambio);
+      socket.off("reunion_solicitud_unirse", handleReunionSolicitudUnirse);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [socket, user, callActivo, audioSettings.callIncomingSound, audioSettings.callOutgoingSound, audioSettings.callVolume]);
@@ -2764,7 +2894,7 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
       if (callTransportRef.current && callTransportRef.current !== "rest") return;
 
       if (payload.type === "join") {
-        if (!callActivo || !payload.from) return;
+        if (!callActivoRef.current || !payload.from) return;
         if (peerConnectionsRef.current[payload.from]?.pc) return;
         if (outgoingCallTimeoutRef.current) {
           clearTimeout(outgoingCallTimeoutRef.current);
@@ -2791,7 +2921,7 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
       }
 
       if (payload.type === "offer") {
-        if (!callActivo) return;
+        if (!callActivoRef.current) return;
         const pc = crearPeerConnection(payload.from, payload.nickname || payload.fromNickname || "Usuario");
         if (pc.remoteDescription) return;
         await pc.setRemoteDescription(new RTCSessionDescription(payload.sdp));
@@ -2846,7 +2976,7 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
       if (payload.type === "leave" && payload.from) {
         limpiarPeer(payload.from);
         const remainingPeers = Object.keys(peerConnectionsRef.current).filter((id) => peerConnectionsRef.current[id]?.pc);
-        if (remainingPeers.length === 0 && callActivo) {
+        if (remainingPeers.length === 0 && callActivoRef.current) {
           playCallSound("hangup");
           limpiarLlamada();
         }
@@ -2889,14 +3019,15 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
 
   // ── Sincronizar localVideoRef con localStreamRef y state ─────────────────────────
   useEffect(() => {
-    if (callActivo && localVideoRef.current) {
-      // Asignar stream cuando call inicia o cuando stream cambia
-      if (localStreamRef.current && localVideoRef.current.srcObject !== localStreamRef.current) {
-        console.log('[VIDEO] Sincronizando localVideoRef con stream');
-        localVideoRef.current.srcObject = localStreamRef.current;
-      }
+    if (!callActivo || !localStreamRef.current) return;
+    const node = localVideoRef.current;
+    if (!node) return;
+    if (node.srcObject !== localStreamRef.current) {
+      console.log('[VIDEO] Sincronizando localVideoRef con stream');
+      node.srcObject = localStreamRef.current;
     }
-  }, [callActivo, localStream, callMainView, callExpanded]);
+    node.play().catch(() => {});
+  }, [callActivo, localStream, callMainView, callExpanded, remoteStreams]);
 
   // ── Pre-calentar AudioContext en primer gesto de usuario ──────────────────
   useEffect(() => {
@@ -3033,6 +3164,13 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
 
   const closeChatPanel = () => {
     if (!open) return;
+    if (callActivo) {
+      setCallOverlayMinimized(true);
+      setOpen(false);
+      if (onClose) onClose();
+      solicitarPiPLlamada();
+      return;
+    }
     abrirCerrarChat();
     if (onClose) onClose();
   };
@@ -3535,7 +3673,7 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
   useEffect(() => {
     const cargarReuniones = async () => {
       try {
-        const data = await authFetch(`${SERVER_URL}/reuniones/proximas`);
+        const data = await authFetch(`${SERVER_URL}/api/chat/reuniones/proximas`);
         setReuniones(data || []);
         // Programar notificaciones para todas las reuniones
         (data || []).forEach(reunion => programarNotificacionesReunion(reunion));
@@ -3581,6 +3719,28 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reuniones, SERVER_URL, open]);
 
+  useEffect(() => {
+    if (!modalReunionAbierto) return undefined;
+    if (!reunionForm.fecha || !reunionForm.hora) {
+      setReunionConflictos([]);
+      return undefined;
+    }
+    const timer = setTimeout(() => {
+      verificarConflictosReunionForm();
+    }, 450);
+    return () => clearTimeout(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    modalReunionAbierto,
+    reunionForm.fecha,
+    reunionForm.hora,
+    reunionForm.duracionMinutos,
+    reunionForm.participantes,
+    reunionEditando?.id,
+    tipoChat,
+    chatActual,
+  ]);
+
   // Programar notificaciones para una reunión
   const programarNotificacionesReunion = (reunion) => {
     if (!reunion.fecha || !reunion.hora) return;
@@ -3608,69 +3768,336 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
 
   // Mostrar notificación de reunión
   const mostrarNotificacionReunion = (reunion, cuando) => {
-    const mensaje = cuando === 'ahora' 
+    const mensaje = cuando === "ahora"
       ? `🔔 ¡La reunión "${reunion.titulo}" es ahora!`
       : `⏰ La reunión "${reunion.titulo}" comienza en 10 minutos`;
-    
-    showAlert(mensaje, 'info');
-    
-    // Reproducir sonido de notificación si está disponible
+
+    showAlert(mensaje, "info");
+    if (typeof Notification !== "undefined" && Notification.permission === "granted") {
+      try {
+        new Notification("Reunión COPMEC", { body: mensaje });
+      } catch {
+        /* noop */
+      }
+    }
     if (window.sonidoCOPMEC) {
       try {
-        window.sonidoCOPMEC.reproducir('notification');
-      } catch (_e) {
+        window.sonidoCOPMEC.reproducir("notification");
+      } catch {
         /* noop */
       }
     }
   };
 
+  const formatearMensajeReunion = (reunion) => {
+    const base = (
+      `📅 **Reunión: ${reunion.titulo}**\n`
+      + `📆 Fecha: ${new Date(reunion.fecha).toLocaleDateString("es-MX")}\n`
+      + `🕐 Hora: ${reunion.hora}\n`
+      + `⏱ Duración estimada: ${reunion.duracionMinutos || 60} min\n`
+      + (reunion.lugar ? `📍 Lugar: ${reunion.lugar}\n` : "")
+      + (reunion.esVideollamada ? "📹 Videollamada\n" : "")
+      + (reunion.descripcion ? `\n${reunion.descripcion}` : "")
+    );
+    const url = reunion.invitacionToken ? buildReunionInviteUrl(reunion.invitacionToken) : "";
+    if (url) {
+      return `${base}\n\n🔗 Enlace de invitación:\n${url}\n\nLos invitados externos pueden unirse sin cuenta del sistema cuando la reunión esté activa.`;
+    }
+    return `${base}\n\nSi la reunión durará más de 1 hora o necesitas otro horario, puedes solicitar un cambio desde tu perfil > Reuniones.`;
+  };
+
+  const enviarMensajeTextoDirecto = async (texto, { tipo = tipoChat, chatId = chatActual, paraNickname } = {}) => {
+    const userDisplayName = user?.nickname || user?.name;
+    if (!userDisplayName || !texto?.trim()) return false;
+    const bodyData = { mensaje: texto.trim(), tipo_mensaje: "texto" };
+    try {
+      if (tipo === "general") {
+        await authFetch(`${SERVER_URL}/api/chat/general`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(bodyData),
+        });
+        return true;
+      }
+      if (tipo === "privado") {
+        const destino = paraNickname || chatId;
+        if (!destino) return false;
+        await authFetch(`${SERVER_URL}/api/chat/privado`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ...bodyData, para_nickname: destino }),
+        });
+        return true;
+      }
+      if (tipo === "grupal" && chatId) {
+        await authFetch(`${SERVER_URL}/api/chat/grupos/${chatId}/mensajes`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(bodyData),
+        });
+        return true;
+      }
+    } catch {
+      return false;
+    }
+    return false;
+  };
+
+  const notificarReunionInvolucrados = async (reunion) => {
+    const texto = formatearMensajeReunion(reunion);
+    const userDisplayName = user?.nickname || user?.name || "";
+    const participantes = Array.isArray(reunion.participantes) ? reunion.participantes : [];
+
+    if (reunion.chat_tipo === "grupal" && reunion.chat_id) {
+      await enviarMensajeTextoDirecto(texto, { tipo: "grupal", chatId: reunion.chat_id });
+    } else if (reunion.chat_tipo === "privado" && reunion.chat_id) {
+      await enviarMensajeTextoDirecto(texto, { tipo: "privado", paraNickname: reunion.chat_id });
+    } else if (reunion.chat_tipo === "general") {
+      await enviarMensajeTextoDirecto(texto, { tipo: "general" });
+    }
+
+    await Promise.all(
+      participantes
+        .filter((nick) => nick && nick !== userDisplayName)
+        .map((nick) => enviarMensajeTextoDirecto(texto, { tipo: "privado", paraNickname: nick })),
+    );
+  };
+
+  const obtenerParticipantesReunionForm = () => {
+    let participantes = [...(reunionForm.participantes || [])];
+    if (tipoChat === "privado" && chatActual && !participantes.includes(chatActual)) {
+      participantes.push(chatActual);
+    }
+    return Array.from(new Set(participantes.filter(Boolean)));
+  };
+
+  const verificarConflictosReunionForm = async () => {
+    if (!reunionForm.fecha || !reunionForm.hora) {
+      setReunionConflictos([]);
+      return [];
+    }
+    const participantes = obtenerParticipantesReunionForm();
+    const userDisplayName = user?.nickname || user?.name || "";
+    const payload = {
+      fecha: reunionForm.fecha,
+      hora: reunionForm.hora,
+      duracionMinutos: reunionForm.duracionMinutos || 60,
+      participantes,
+      excluirReunionId: reunionEditando?.id || null,
+    };
+
+    setVerificandoConflictosReunion(true);
+    try {
+      const data = await authFetch(`${SERVER_URL}/api/chat/reuniones/verificar-conflictos`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const conflictos = data?.conflictos || [];
+      setReunionConflictos(conflictos);
+      return conflictos;
+    } catch {
+      const conflictos = buscarConflictosReunion({
+        ...payload,
+        creador: userDisplayName,
+        reuniones,
+        excluirReunionId: reunionEditando?.id,
+      });
+      setReunionConflictos(conflictos);
+      return conflictos;
+    } finally {
+      setVerificandoConflictosReunion(false);
+    }
+  };
+
+  const solicitarCambioReunion = async ({ reunion, motivo = "conflicto", mensaje = "", duracionEstimadaMinutos = null }) => {
+    if (!reunion?.id) return;
+    try {
+      await authFetch(`${SERVER_URL}/api/chat/reuniones/${reunion.id}/solicitar-cambio`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          motivo,
+          mensaje,
+          duracionEstimadaMinutos,
+        }),
+      });
+      showAlert("Solicitud enviada al creador de la reunión", "success");
+      setReunionSolicitudModal(null);
+      setReunionSolicitudMensaje("");
+    } catch (err) {
+      showAlert(err?.message || "No se pudo enviar la solicitud", "error");
+    }
+  };
+
+  const abrirSolicitudCambioReunion = (reunion, motivo = "duracion_extendida") => {
+    setReunionSolicitudModal({ reunion, motivo });
+    setReunionSolicitudMensaje("");
+    setReunionSolicitudDuracion(Math.max(90, reunion?.duracionMinutos || 60));
+  };
+
+  const obtenerEnlaceInvitacionReunion = async (reunion) => {
+    if (reunion?.invitacionToken) return buildReunionInviteUrl(reunion.invitacionToken);
+    if (!reunion?.id) return "";
+    try {
+      const data = await authFetch(`${SERVER_URL}/api/chat/reuniones/${reunion.id}/enlace`);
+      if (data?.reunion) {
+        setReuniones((current) => current.map((r) => (r.id === data.reunion.id ? { ...r, ...data.reunion } : r)));
+      }
+      return data?.url || buildReunionInviteUrl(data?.token);
+    } catch {
+      return "";
+    }
+  };
+
+  const copiarEnlaceInvitacionReunion = async (reunion) => {
+    const url = await obtenerEnlaceInvitacionReunion(reunion);
+    if (!url) {
+      showAlert("No se pudo obtener el enlace de invitación", "error");
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      showAlert("Enlace copiado al portapapeles", "success");
+    } catch {
+      showAlert(`Enlace de invitación:\n${url}`, "info");
+    }
+  };
+
+  const abrirModalAgregarParticipantesReunion = (reunion) => {
+    setModalAgregarParticipantesReunion(reunion);
+    setParticipantesNuevosReunion([]);
+  };
+
+  const agregarParticipantesReunion = async () => {
+    const reunion = modalAgregarParticipantesReunion;
+    if (!reunion?.id || !participantesNuevosReunion.length) {
+      showAlert("Selecciona al menos un participante", "warning");
+      return;
+    }
+    try {
+      const data = await authFetch(`${SERVER_URL}/api/chat/reuniones/${reunion.id}/agregar-participantes`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ participantes: participantesNuevosReunion }),
+      });
+      if (data?.reunion) {
+        setReuniones((current) => current.map((r) => (r.id === data.reunion.id ? data.reunion : r)));
+      }
+      setModalAgregarParticipantesReunion(null);
+      setParticipantesNuevosReunion([]);
+      showAlert(`Se agregaron ${data?.agregados?.length || participantesNuevosReunion.length} participante(s) y se envió el enlace`, "success");
+    } catch (err) {
+      if (err?.status === 409 && Array.isArray(err?.data?.conflictos)) {
+        showAlert(formatConflictosMensaje(err.data.conflictos), "warning");
+        return;
+      }
+      showAlert(err?.message || "No se pudieron agregar participantes", "error");
+    }
+  };
+
+  const solicitarUnirseReunion = async (reunion) => {
+    if (!reunion?.id) return;
+    try {
+      const data = await authFetch(`${SERVER_URL}/api/chat/reuniones/${reunion.id}/solicitar-unirse`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mensaje: "Me gustaría unirme a esta reunión." }),
+      });
+      showAlert("Solicitud enviada al organizador de la reunión", "success");
+      if (data?.url) {
+        showAlert(`También puedes compartir este enlace: ${data.url}`, "info");
+      }
+    } catch (err) {
+      showAlert(err?.message || "No se pudo enviar la solicitud", "error");
+    }
+  };
+
   // Crear o actualizar reunión
-  const guardarReunion = () => {
+  const guardarReunion = async () => {
     if (!reunionForm.titulo.trim() || !reunionForm.fecha || !reunionForm.hora) {
-      showAlert('Completa todos los campos obligatorios', 'warning');
+      showAlert("Completa todos los campos obligatorios", "warning");
       return;
     }
 
-    const nuevaReunion = {
-      id: reunionEditando?.id || Date.now(),
+    const chatId = tipoChat === "general" ? "general" : (chatActual || "");
+    const participantes = obtenerParticipantesReunionForm();
+
+    const conflictos = await verificarConflictosReunionForm();
+    if (conflictos.length) {
+      showAlert(formatConflictosMensaje(conflictos), "warning");
+      return;
+    }
+
+    const payload = {
       titulo: reunionForm.titulo.trim(),
       descripcion: reunionForm.descripcion.trim(),
       fecha: reunionForm.fecha,
       hora: reunionForm.hora,
       lugar: reunionForm.lugar.trim(),
       esVideollamada: reunionForm.esVideollamada,
-      participantes: reunionForm.participantes,
-      creador: user?.nickname || user?.name,
+      duracionMinutos: reunionForm.duracionMinutos || 60,
+      participantes,
       chat_tipo: tipoChat,
-      chat_id: chatActual || 'general',
-      creada: new Date().toISOString()
+      chat_id: String(chatId),
     };
 
-    let nuevasReuniones;
-    if (reunionEditando) {
-      nuevasReuniones = reuniones.map(r => r.id === reunionEditando.id ? nuevaReunion : r);
-    } else {
-      nuevasReuniones = [...reuniones, nuevaReunion];
-    }
+    try {
+      let reunionGuardada;
+      if (reunionEditando?.id && typeof reunionEditando.id === "number") {
+        reunionGuardada = await authFetch(`${SERVER_URL}/api/chat/reuniones/${reunionEditando.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        setReuniones((current) => current.map((r) => (r.id === reunionGuardada.id ? reunionGuardada : r)));
+      } else {
+        reunionGuardada = await authFetch(`${SERVER_URL}/api/chat/reuniones`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        setReuniones((current) => [...current, reunionGuardada]);
+        await notificarReunionInvolucrados(reunionGuardada);
+      }
 
-    setReuniones(nuevasReuniones);
-    localStorage.setItem('COPMEC_reuniones', JSON.stringify(nuevasReuniones));
-    
-    // Programar notificaciones
-    programarNotificacionesReunion(nuevaReunion);
-    
-    // Enviar mensaje al chat con la información de la reunión
-    const mensajeReunion = `📅 **Reunión: ${nuevaReunion.titulo}**\n` +
-      `📆 Fecha: ${new Date(nuevaReunion.fecha).toLocaleDateString('es-ES')}\n` +
-      `🕐 Hora: ${nuevaReunion.hora}\n` +
-      (nuevaReunion.lugar ? `📍 Lugar: ${nuevaReunion.lugar}\n` : '') +
-      (nuevaReunion.esVideollamada ? '📹 Videollamada\n' : '') +
-      (nuevaReunion.descripcion ? `\n${nuevaReunion.descripcion}` : '');
-    
-    setMensajeInput(mensajeReunion);
-    setModalReunionAbierto(false);
-    resetearFormularioReunion();
-    showAlert(reunionEditando ? 'Reunión actualizada' : 'Reunión creada', 'success');
+      programarNotificacionesReunion(reunionGuardada);
+      localStorage.setItem("COPMEC_reuniones", JSON.stringify(
+        reunionEditando?.id
+          ? reuniones.map((r) => (r.id === reunionGuardada.id ? reunionGuardada : r))
+          : [...reuniones, reunionGuardada],
+      ));
+
+      setModalReunionAbierto(false);
+      setReunionConflictos([]);
+      resetearFormularioReunion();
+      showAlert(reunionEditando ? "Reunión actualizada" : "Reunión creada y notificaciones enviadas", "success");
+    } catch (err) {
+      if (err?.status === 409 && Array.isArray(err?.data?.conflictos)) {
+        setReunionConflictos(err.data.conflictos);
+        showAlert(formatConflictosMensaje(err.data.conflictos), "warning");
+        return;
+      }
+      const nuevaReunion = {
+        id: reunionEditando?.id || Date.now(),
+        ...payload,
+        creador: user?.nickname || user?.name,
+        chat_tipo: tipoChat,
+        chat_id: chatId,
+        estado: "programada",
+        creada: new Date().toISOString(),
+      };
+      const nuevasReuniones = reunionEditando
+        ? reuniones.map((r) => (r.id === reunionEditando.id ? nuevaReunion : r))
+        : [...reuniones, nuevaReunion];
+      setReuniones(nuevasReuniones);
+      localStorage.setItem("COPMEC_reuniones", JSON.stringify(nuevasReuniones));
+      programarNotificacionesReunion(nuevaReunion);
+      await notificarReunionInvolucrados(nuevaReunion);
+      setModalReunionAbierto(false);
+      resetearFormularioReunion();
+      showAlert("Reunión guardada localmente (sin servidor)", "warning");
+    }
   };
 
   // Resetear formulario de reunión
@@ -3682,8 +4109,10 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
       hora: "",
       lugar: "",
       esVideollamada: false,
+      duracionMinutos: 60,
       participantes: []
     });
+    setReunionConflictos([]);
     setReunionEditando(null);
   };
 
@@ -3698,6 +4127,7 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
         hora: reunion.hora || "",
         lugar: reunion.lugar || "",
         esVideollamada: reunion.esVideollamada || false,
+        duracionMinutos: reunion.duracionMinutos || 60,
         participantes: reunion.participantes || []
       });
     } else {
@@ -3708,21 +4138,115 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
 
   // Eliminar reunión
   const eliminarReunion = async (reunionId) => {
-    const confirmado = await showConfirm('¿Eliminar esta reunión?', 'Eliminar reunión');
+    const confirmado = await showConfirm("¿Eliminar esta reunión?", "Eliminar reunión");
     if (!confirmado) return;
-    
-    const nuevasReuniones = reuniones.filter(r => r.id !== reunionId);
+
+    try {
+      if (typeof reunionId === "number") {
+        await authFetch(`${SERVER_URL}/api/chat/reuniones/${reunionId}`, { method: "DELETE" });
+      }
+    } catch {
+      /* fallback local */
+    }
+
+    const nuevasReuniones = reuniones.filter((r) => r.id !== reunionId);
     setReuniones(nuevasReuniones);
-    localStorage.setItem('COPMEC_reuniones', JSON.stringify(nuevasReuniones));
-    showAlert('Reunión eliminada', 'success');
+    localStorage.setItem("COPMEC_reuniones", JSON.stringify(nuevasReuniones));
+    showAlert("Reunión eliminada", "success");
   };
 
-  // Iniciar videollamada desde reunión
-  // eslint-disable-next-line no-unused-vars
-  const iniciarReunionVideollamada = (reunion) => {
-    if (reunion.esVideollamada) {
-      abrirVideollamada();
+  const unirseLlamadaPorRoom = async (room, { invitarA = [] } = {}) => {
+    const userDisplayName = user?.nickname || user?.name || "usuario";
+    const streamResult = await asegurarLocalStream().catch(() => null);
+    if (!streamResult) {
+      showAlert("No se pudo acceder a cámara/micrófono.", "error");
+      return false;
     }
+
+    callRoomRef.current = room;
+    marcarCallActivo(true);
+    setCallMainView("remote");
+    setCallMainRemoteId(null);
+    setCallOverlayMinimized(false);
+    placePipBottomRight();
+    guardarSesionLlamada();
+
+    const unir = () => {
+      socket.emit("set_in_call", { inCall: true });
+      socket.emit("call_join", { room, nickname: userDisplayName });
+    };
+
+    const connected = await esperarConexionSocket(3000);
+    if (connected && socket?.connected) {
+      callTransportRef.current = "socket";
+      unir();
+    } else {
+      callTransportRef.current = "rest";
+      await sendCallSignalFallback({
+        type: "join",
+        room,
+        toNicknames: invitarA,
+        nickname: userDisplayName,
+        fromPeerId: buildRestPeerId(userDisplayName),
+      }).catch(() => {});
+    }
+
+    setOpen(true);
+    return true;
+  };
+
+  const reingresarLlamadaGuardada = async () => {
+    const session = pendingCallRestore || readCallSession();
+    if (!session?.room) return;
+    try {
+      if (session.tipoChat) setTipoChat(session.tipoChat);
+      if (session.chatActual) setChatActual(session.chatActual);
+      setTabPrincipal("chats");
+      const ok = await unirseLlamadaPorRoom(session.room);
+      if (ok) setPendingCallRestore(null);
+    } catch {
+      showAlert("No se pudo reingresar a la videollamada.", "error");
+    }
+  };
+
+  const entrarReunionVideollamada = async (reunion) => {
+    if (!reunion?.esVideollamada) return;
+    let room = reunion.room;
+    if (!room) {
+      room = `copmec-reunion-${reunion.id}`;
+      if (typeof reunion.id === "number") {
+        try {
+          const actualizada = await authFetch(`${SERVER_URL}/api/chat/reuniones/${reunion.id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ estado: "activa", room }),
+          });
+          setReuniones((current) => current.map((r) => (r.id === actualizada.id ? actualizada : r)));
+        } catch {
+          /* local */
+        }
+      }
+    }
+
+    const participantes = Array.isArray(reunion.participantes) ? reunion.participantes : [];
+    const userDisplayName = user?.nickname || user?.name || "";
+    const invitarA = participantes.filter((n) => n && n !== userDisplayName);
+
+    const ok = await unirseLlamadaPorRoom(room, { invitarA });
+    if (!ok) return;
+
+    if (socket?.connected && invitarA.length) {
+      socket.emit("call_invite", {
+        room,
+        fromNickname: userDisplayName,
+        toNicknames: invitarA,
+        tipo: reunion.chat_tipo === "grupal" ? "grupal" : "extendida",
+      });
+    }
+  };
+
+  const iniciarReunionVideollamada = async (reunion) => {
+    await entrarReunionVideollamada(reunion);
   };
 
   // Obtener reuniones del chat actual
@@ -5781,7 +6305,7 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
     }
     localStreamRef.current = null;
     setLocalStream(null);
-    setCallActivo(false);
+    marcarCallActivo(false);
     setCallExpanded(false);
     setCallMainView("remote");
     setCallMainRemoteId(null);
@@ -5790,17 +6314,33 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
     setCallIncoming(null);
     setCallMuted(false);
     setCallVideoOff(false);
+    callFacingModeRef.current = "user";
     setCallFacingMode("user");
     setSwitchingCamera(false);
     setSharingScreen(false);
+    setCallOverlayMinimized(false);
+    setPendingCallRestore(null);
+    clearCallSession();
     callRoomRef.current = null;
     callTransportRef.current = null;
     pendingInviteTransportRef.current = null;
   };
 
+  const sincronizarTracksLocales = (pc) => {
+    const local = localStreamRef.current;
+    if (!local || !pc) return;
+    const senders = pc.getSenders();
+    local.getTracks().forEach((track) => {
+      const hasSender = senders.some((sender) => sender.track?.kind === track.kind);
+      if (!hasSender) pc.addTrack(track, local);
+    });
+  };
+
   const crearPeerConnection = (socketId, nickname) => {
     if (peerConnectionsRef.current[socketId]?.pc) {
-      return peerConnectionsRef.current[socketId].pc;
+      const existingPc = peerConnectionsRef.current[socketId].pc;
+      sincronizarTracksLocales(existingPc);
+      return existingPc;
     }
     const pc = new RTCPeerConnection({ iceServers: getIceServers() });
     const local = localStreamRef.current;
@@ -5835,15 +6375,19 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
         console.log('[ONTRACK] Creando nuevo MediaStream para', socketId);
         remoteStreamsRef.current[socketId] = new MediaStream();
       }
-      // Agregar todos los tracks del evento
-      event.streams.forEach((stream, idx) => {
-        stream.getTracks().forEach((track) => {
-          console.log('[ONTRACK] Agregando track:', track.kind, 'enabled:', track.enabled, '- stream idx:', idx);
-          if (!remoteStreamsRef.current[socketId].getTracks().find(t => t.id === track.id)) {
-            remoteStreamsRef.current[socketId].addTrack(track);
-          }
+      const remoteStream = remoteStreamsRef.current[socketId];
+      const addTrackIfNew = (track) => {
+        if (!track || remoteStream.getTracks().some((existing) => existing.id === track.id)) return;
+        console.log('[ONTRACK] Agregando track:', track.kind, 'enabled:', track.enabled);
+        remoteStream.addTrack(track);
+      };
+      if (event.streams?.length) {
+        event.streams.forEach((stream) => {
+          stream.getTracks().forEach(addTrackIfNew);
         });
-      });
+      } else {
+        addTrackIfNew(event.track);
+      }
       actualizarRemoteStreams();
     };
 
@@ -5924,7 +6468,7 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
       console.log('[STREAM] Solicitando acceso a cámara y micrófono...');
       const constraints = {
         video: {
-          facingMode: callFacingMode,
+          facingMode: callFacingModeRef.current || callFacingMode,
           width: { ideal: 1280 },
           height: { ideal: 720 }
         },
@@ -6023,11 +6567,12 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
         return;
       }
 
-      setCallActivo(true);
+      callRoomRef.current = room;
+      marcarCallActivo(true);
       setCallMainView("remote");
       setCallMainRemoteId(null);
       placePipBottomRight();
-      callRoomRef.current = room;
+      guardarSesionLlamada();
 
       const emitirInvitacion = () => {
         socket.emit("set_in_call", { inCall: true });
@@ -6094,11 +6639,12 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
         return;
       }
       
-      setCallActivo(true);
+      callRoomRef.current = room;
+      marcarCallActivo(true);
       setCallMainView("remote");
       setCallMainRemoteId(null);
       placePipBottomRight();
-      callRoomRef.current = room;
+      guardarSesionLlamada();
 
       const unirLlamada = () => {
         socket.emit("set_in_call", { inCall: true });
@@ -6197,36 +6743,61 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
 
   const replaceLocalVideoTrack = async (videoTrack, streamContainer, stopPreviousTrack = true) => {
     if (!videoTrack) return;
-    Object.values(peerConnectionsRef.current).forEach(({ pc }) => {
-      const sender = pc?.getSenders().find((s) => s.track?.kind === "video");
-      if (sender) sender.replaceTrack(videoTrack);
-    });
 
-    if (localStreamRef.current) {
-      const previousVideo = localStreamRef.current.getVideoTracks()[0];
-      if (previousVideo) {
-        localStreamRef.current.removeTrack(previousVideo);
-        if (stopPreviousTrack) previousVideo.stop();
+    const stream = localStreamRef.current;
+    const previousVideo = stream?.getVideoTracks?.()[0] || null;
+
+    await Promise.all(
+      Object.values(peerConnectionsRef.current).map(async ({ pc }) => {
+        if (!pc) return;
+        const videoSender = pc.getSenders().find((sender) => sender.track?.kind === "video");
+        if (videoSender) {
+          await videoSender.replaceTrack(videoTrack);
+          return;
+        }
+        const targetStream = stream || streamContainer;
+        if (targetStream) pc.addTrack(videoTrack, targetStream);
+      }),
+    );
+
+    if (stream) {
+      if (previousVideo && previousVideo !== videoTrack) {
+        stream.removeTrack(previousVideo);
+        if (stopPreviousTrack) {
+          try { previousVideo.stop(); } catch { /* noop */ }
+        }
       }
-      localStreamRef.current.addTrack(videoTrack);
+      if (!stream.getVideoTracks().includes(videoTrack)) {
+        stream.addTrack(videoTrack);
+      }
     } else {
       localStreamRef.current = streamContainer;
     }
 
     setLocalStream(localStreamRef.current);
-    if (localVideoRef.current) {
-      localVideoRef.current.srcObject = localStreamRef.current;
+    const node = localVideoRef.current;
+    if (node) {
+      node.srcObject = localStreamRef.current;
+      node.play().catch(() => {});
     }
   };
 
+  const isMobileCallDevice = () => {
+    const ua = String(navigator?.userAgent || "").toLowerCase();
+    return /android|iphone|ipad|ipod|mobile/.test(ua)
+      || Boolean(window.matchMedia?.("(pointer: coarse)")?.matches);
+  };
+
+  const liberarTrackVideoLocal = () => {
+    const stream = localStreamRef.current;
+    const currentVideo = stream?.getVideoTracks?.()[0];
+    if (!currentVideo || !stream) return;
+    stream.removeTrack(currentVideo);
+    try { currentVideo.stop(); } catch { /* noop */ }
+  };
+
   const getCameraStreamForFacingMode = async (facingMode, releaseCurrent = false) => {
-    if (releaseCurrent) {
-      const currentVideo = localStreamRef.current?.getVideoTracks?.()[0];
-      if (currentVideo && localStreamRef.current) {
-        localStreamRef.current.removeTrack(currentVideo);
-        try { currentVideo.stop(); } catch { /* noop */ }
-      }
-    }
+    if (releaseCurrent) liberarTrackVideoLocal();
 
     const common = {
       width: { ideal: 1280 },
@@ -6257,20 +6828,34 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
       return;
     }
 
-    const nextFacingMode = callFacingMode === "user" ? "environment" : "user";
+    const nextFacingMode = (callFacingModeRef.current || callFacingMode) === "user" ? "environment" : "user";
+    const mobile = isMobileCallDevice();
     setSwitchingCamera(true);
     try {
-      try {
-        const currentVideo = localStreamRef.current?.getVideoTracks?.()[0];
-        if (currentVideo?.applyConstraints) {
-          await currentVideo.applyConstraints({ facingMode: nextFacingMode });
-          setCallFacingMode(nextFacingMode);
-          setCallVideoOff(!currentVideo.enabled);
-          return;
+      if (!mobile) {
+        try {
+          const currentVideo = localStreamRef.current?.getVideoTracks?.()[0];
+          const supportedFacing = currentVideo?.getCapabilities?.()?.facingMode;
+          if (
+            currentVideo?.applyConstraints
+            && Array.isArray(supportedFacing)
+            && supportedFacing.includes(nextFacingMode)
+          ) {
+            await currentVideo.applyConstraints({ facingMode: nextFacingMode });
+            const switched = currentVideo.getSettings?.()?.facingMode === nextFacingMode;
+            if (switched) {
+              callFacingModeRef.current = nextFacingMode;
+              setCallFacingMode(nextFacingMode);
+              setCallVideoOff(!currentVideo.enabled);
+              return;
+            }
+          }
+        } catch {
+          // fallback con nuevo stream abajo
         }
-      } catch {
-        // fallback below
       }
+
+      liberarTrackVideoLocal();
 
       let camStream;
       try {
@@ -6278,7 +6863,8 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
       } catch (firstErr) {
         const firstName = String(firstErr?.name || "");
         if (firstName === "NotReadableError" || firstName === "AbortError" || firstName === "TrackStartError") {
-          camStream = await getCameraStreamForFacingMode(nextFacingMode, true);
+          await new Promise((resolve) => setTimeout(resolve, 250));
+          camStream = await getCameraStreamForFacingMode(nextFacingMode, false);
         } else {
           throw firstErr;
         }
@@ -6288,8 +6874,12 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
       if (!newVideo) {
         throw new Error("No se pudo obtener video de la cámara seleccionada.");
       }
+      if (callVideoOff) newVideo.enabled = false;
+
       await replaceLocalVideoTrack(newVideo, camStream, true);
+      callFacingModeRef.current = nextFacingMode;
       setCallFacingMode(nextFacingMode);
+      setCallVideoOff(!newVideo.enabled);
     } catch (err) {
       showAlert(err?.message || "No se pudo cambiar la cámara en este dispositivo.", "warning");
     } finally {
@@ -6305,7 +6895,7 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
     try {
       const camStream = await navigator.mediaDevices.getUserMedia({
         video: {
-          facingMode: callFacingMode,
+          facingMode: callFacingModeRef.current || callFacingMode,
           width: { ideal: 1280 },
           height: { ideal: 720 },
         },
@@ -6358,7 +6948,56 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
 
   const mainRemoteStream = remoteStreams.find((item) => item.id === callMainRemoteId) || remoteStreams[0] || null;
   const remoteThumbnails = remoteStreams.filter((item) => !mainRemoteStream || item.id !== mainRemoteStream.id);
+  const reunionActivaEnChat = obtenerReunionesChatActual().find((r) => r.estado === "activa" && r.esVideollamada);
   const callInviteCandidates = getCallCandidates();
+
+  const usuarioPickerItems = useMemo(() => (
+    (Array.isArray(usuariosCOPMEC) ? usuariosCOPMEC : [])
+      .map((u) => ({
+        id: u.id,
+        nickname: u.nickname || u.name,
+        name: u.name && u.name !== u.nickname ? u.name : "",
+        photo: u.photo,
+        subtitle: [u.jobTitle, u.area].filter(Boolean).join(" · "),
+      }))
+      .filter((item) => item.nickname)
+  ), [usuariosCOPMEC]);
+
+  const callInvitePickerItems = useMemo(() => {
+    const map = new Map(usuarioPickerItems.map((item) => [item.nickname, item]));
+    return callInviteCandidates.map((nick) => map.get(nick) || { id: nick, nickname: nick, name: nick });
+  }, [callInviteCandidates, usuarioPickerItems]);
+
+  const reunionPickerItems = useMemo(() => (
+    usuarioPickerItems.filter((item) => item.nickname !== (user?.nickname || user?.name))
+  ), [usuarioPickerItems, user]);
+
+  const agregarParticipantesPickerItems = useMemo(() => {
+    if (!modalAgregarParticipantesReunion) return [];
+    const actuales = new Set([
+      modalAgregarParticipantesReunion.creador,
+      ...(Array.isArray(modalAgregarParticipantesReunion.participantes)
+        ? modalAgregarParticipantesReunion.participantes
+        : []),
+    ]);
+    return usuarioPickerItems.filter((item) => item.nickname && !actuales.has(item.nickname));
+  }, [modalAgregarParticipantesReunion, usuarioPickerItems]);
+
+  const grupoAgregarPickerItems = useMemo(() => {
+    if (!grupoAgregarMiembros) return [];
+    const userDisplayName = user?.nickname || user?.name;
+    const grupoActual = Array.isArray(grupos)
+      ? grupos.find((g) => String(g.id) === String(grupoAgregarMiembros))
+      : null;
+    const miembros = Array.isArray(grupoActual?.miembros)
+      ? grupoActual.miembros
+      : (grupoActual?.miembros ? [grupoActual.miembros] : []);
+    return usuarioPickerItems.filter((item) => {
+      if (!item.nickname || item.nickname === userDisplayName) return false;
+      if (!grupoActual) return true;
+      return !miembros.includes(item.nickname);
+    });
+  }, [grupoAgregarMiembros, grupos, usuarioPickerItems, user]);
   const callIsMobile = /android|iphone|ipad|ipod|mobile/i.test(String(navigator?.userAgent || ""));
   const canShowScreenShare = !callIsMobile;
 
@@ -6379,6 +7018,30 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
     if (!callActivo) return;
     placePipBottomRight();
   }, [callActivo, callExpanded]);
+
+  useEffect(() => {
+    if (open && callActivo) setCallOverlayMinimized(false);
+  }, [open, callActivo]);
+
+  useEffect(() => {
+    const session = readCallSession();
+    if (session?.room && !callActivo) setPendingCallRestore(session);
+  }, []);
+
+  useEffect(() => {
+    const onVisibility = () => {
+      if (document.hidden && callActivoRef.current) solicitarPiPLlamada();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
+  }, []);
+
+  useEffect(() => {
+    const node = callFloatingVideoRef.current;
+    if (!node || !callActivo || !localStreamRef.current) return;
+    if (node.srcObject !== localStreamRef.current) node.srcObject = localStreamRef.current;
+    node.play().catch(() => {});
+  }, [callActivo, callOverlayMinimized, open, localStream, remoteStreams]);
 
   // blobToBase64 removida (no usada en web-only)
   // solicitarPermisoAlmacenamiento removida (no usada en web-only)
@@ -7816,6 +8479,11 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
                         const ahora = new Date();
                         const esHoy = fechaHora.toDateString() === ahora.toDateString();
                         const esProxima = fechaHora > ahora;
+                        const userNickname = user?.nickname || user?.name || "";
+                        const esCreadorReunion = userNickname && reunion.creador === userNickname;
+                        const esInvitadoReunion = userNickname
+                          && !esCreadorReunion
+                          && (reunion.participantes || []).includes(userNickname);
                         
                         return (
                           <div key={reunion.id} className="reunion-item-sidebar">
@@ -7832,7 +8500,15 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
                                 <div className="reunion-item-video">📹 Videollamada</div>
                               )}
                             </div>
-                            {esProxima && (
+                            {reunion.estado === "activa" && reunion.esVideollamada ? (
+                              <button
+                                className="reunion-item-btn reunion-item-btn-join"
+                                onClick={() => entrarReunionVideollamada(reunion)}
+                                title="Entrar a la reunión"
+                              >
+                                ▶
+                              </button>
+                            ) : esProxima && esCreadorReunion ? (
                               <button
                                 className="reunion-item-btn"
                                 onClick={() => abrirModalReunion(reunion)}
@@ -7840,7 +8516,15 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
                               >
                                 ✏️
                               </button>
-                            )}
+                            ) : esProxima && esInvitadoReunion ? (
+                              <button
+                                className="reunion-item-btn reunion-item-btn-solicitar"
+                                onClick={() => abrirSolicitudCambioReunion(reunion, "duracion_extendida")}
+                                title="Solicitar cambio de horario"
+                              >
+                                ⏱
+                              </button>
+                            ) : null}
                           </div>
                         );
                       })}
@@ -9186,12 +9870,16 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
                           }
                           
                           return (
-                            <ReunionesPerfilUsuario 
+                            <ReunionesPerfilUsuario
                               reuniones={reuniones}
-                              serverUrl={SERVER_URL}
-                              authFetch={authFetch}
-                              user={user}
-                              setReuniones={setReuniones}
+                              userNickname={userNickname}
+                              onEditar={abrirModalReunion}
+                              onEliminar={eliminarReunion}
+                              onIniciar={iniciarReunionVideollamada}
+                              onSolicitarCambio={abrirSolicitudCambioReunion}
+                              onAgregarParticipantes={abrirModalAgregarParticipantesReunion}
+                              onCopiarEnlace={copiarEnlaceInvitacionReunion}
+                              onSolicitarUnirse={solicitarUnirseReunion}
                             />
                           );
                         })()}
@@ -9986,6 +10674,15 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
                               {!isAxoAiChatNick(chatActual) && (
                               <button
                                 className="chat-header-icon-btn"
+                                onClick={() => abrirModalReunion()}
+                                title="Crear reunión"
+                              >
+                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                              </button>
+                              )}
+                              {!isAxoAiChatNick(chatActual) && (
+                              <button
+                                className="chat-header-icon-btn"
                                 onClick={abrirVideollamada}
                                 title="Videollamada"
                               >
@@ -10025,6 +10722,14 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
                               </span>
                             </div>
                             <div className="chat-header-actions">
+                              <button
+                                type="button"
+                                className="chat-header-icon-btn"
+                                onClick={() => abrirModalReunion()}
+                                title="Crear reunión"
+                              >
+                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                              </button>
                               <button
                                 type="button"
                                 className="chat-header-icon-btn"
@@ -10089,6 +10794,18 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
                       )}
 
                       <div className="chat-body-pro" ref={chatBodyRef}>
+                        {reunionActivaEnChat && !callActivo ? (
+                          <div className="chat-reunion-activa-banner">
+                            <div>
+                              <strong>Reunión activa</strong>
+                              <span>{reunionActivaEnChat.titulo}</span>
+                            </div>
+                            <button type="button" className="chat-reunion-entrar-btn" onClick={() => entrarReunionVideollamada(reunionActivaEnChat)}>
+                              Entrar a la videollamada
+                            </button>
+                          </div>
+                        ) : null}
+
                         {mensajesActuales.length === 0 && (
                           <div className="chat-empty-pro">No hay mensajes</div>
                         )}
@@ -11367,7 +12084,7 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
         </div>
       )}
 
-      {callActivo && (
+      {callActivo && !callOverlayMinimized && (
         <div className="call-overlay">
           <div ref={callWindowRef} className={`call-window ${callExpanded ? "call-window-expanded" : ""}`}>
             <div className="call-header">
@@ -11375,6 +12092,9 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
                 Videollamada {tipoChat === "grupal" ? "Grupal" : "Privada"}
               </div>
               <div className="call-header-actions">
+                <button className="call-close" onClick={() => { setCallOverlayMinimized(true); solicitarPiPLlamada(); }} title="Minimizar llamada">
+                  —
+                </button>
                 <button className="call-close" onClick={toggleCallExpanded} title={callExpanded ? "Salir de pantalla completa" : "Pantalla completa"}>
                   {callExpanded ? "🗗" : "🗖"}
                 </button>
@@ -11469,23 +12189,23 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
               {callInvitePickerOpen ? (
                 <div className="call-invite-panel">
                   <div className="call-invite-title">Agregar participantes</div>
-                  <div className="call-invite-list">
-                    {callInviteCandidates.length ? callInviteCandidates.map((nickname) => (
-                      <label key={nickname} className="call-invite-item">
-                        <input
-                          type="checkbox"
-                          checked={Boolean(callInviteSelection[nickname])}
-                          onChange={(event) => {
-                            setCallInviteSelection((current) => ({
-                              ...current,
-                              [nickname]: event.target.checked,
-                            }));
-                          }}
-                        />
-                        <span>{nickname}</span>
-                      </label>
-                    )) : <div className="call-invite-empty">No hay players disponibles para invitar.</div>}
-                  </div>
+                  <PlayerPickerList
+                    key={`call-invite-${callRoomRef.current || "room"}`}
+                    items={callInvitePickerItems}
+                    selected={Object.entries(callInviteSelection).filter(([, on]) => on).map(([nick]) => nick)}
+                    onToggle={(nickname, checked) => {
+                      setCallInviteSelection((current) => ({
+                        ...current,
+                        [nickname]: checked,
+                      }));
+                    }}
+                    variant="dark"
+                    searchPlaceholder="Buscar player para invitar..."
+                    emptyMessage="No hay players disponibles para invitar."
+                    getAvatarUrl={getAvatarUrl}
+                    makeInitialsAvatar={makeInitialsAvatar}
+                    getColorForName={getColorForName}
+                  />
                   <div className="call-invite-actions">
                     <button type="button" className="call-control" onClick={() => setCallInvitePickerOpen(false)}>Cancelar</button>
                     <button type="button" className="call-control" onClick={invitarParticipantesEnLlamada}>Invitar</button>
@@ -11511,7 +12231,7 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
                 <button
                   className={`call-control ${switchingCamera ? "active" : ""}`}
                   onClick={cambiarCamara}
-                  title="Cambiar cámara"
+                  title={callFacingMode === "user" ? "Cambiar a cámara trasera" : "Cambiar a cámara frontal"}
                   disabled={switchingCamera}
                 >
                   {switchingCamera ? "⏳" : "🔄"}
@@ -12063,68 +12783,19 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
                   </button>
                 </div>
                 <div className="modal-agregar-miembros-list">
-                  {(() => {
-                    const usuariosDisponibles = usuariosCOPMEC.filter((u) => {
-                      // Obtener nombre del usuario
-                      const nombreUsuario = u.nickname || u.name;
-                      
-                      // Debe tener nombre
-                      if (!nombreUsuario) return false;
-                      
-                      // No debe ser el usuario actual
-                      const userDisplayName = user?.nickname || user?.name;
-                      if (nombreUsuario === userDisplayName) return false;
-                      
-                      // Obtener el grupo actual
-                      const grupoActual = Array.isArray(grupos) ? grupos.find(
-                        (g) => String(g.id) === String(grupoAgregarMiembros)
-                      ) : null;
-                      
-                      // Si no hay grupo, mostrar todos los usuarios (excepto el actual)
-                      if (!grupoActual) return true;
-                      
-                      // Obtener lista de miembros (asegurar que sea array)
-                      const miembros = Array.isArray(grupoActual.miembros) 
-                        ? grupoActual.miembros 
-                        : (grupoActual.miembros ? [grupoActual.miembros] : []);
-                      
-                      // No debe estar ya en el grupo
-                      return !miembros.includes(nombreUsuario);
-                    });
-                    
-                    if (usuariosDisponibles.length === 0) {
-                      return (
-                        <div className="chat-empty-pro">
-                          No hay usuarios disponibles para agregar
-                        </div>
-                      );
-                    }
-                    
-                    return usuariosDisponibles.map((u) => (
-                      <div
-                        key={u.id}
-                        className="usuario-item-agregar"
-                        onClick={async () => {
-                          await agregarMiembroAGrupo(grupoAgregarMiembros, u.nickname);
-                          // NO cerrar el modal, permitir agregar más usuarios
-                          // El modal se actualizará automáticamente porque se recargan los grupos
-                        }}
-                      >
-                        <img
-                          src={getAvatarUrl(u)}
-                          alt={u.nickname}
-                          className="chat-avatar"
-                          onError={(e) => {
-                            e.target.src = makeInitialsAvatar(e.target.alt || '?');
-                          }}
-                        />
-                        <span style={{ color: getColorForName(u.nickname || u.name || "Usuario") }}>
-                          {u.nickname || u.name}
-                        </span>
-                        <span className="agregar-icon">➕</span>
-                      </div>
-                    ));
-                  })()}
+                  <PlayerPickerList
+                    key={`grupo-add-${grupoAgregarMiembros}`}
+                    items={grupoAgregarPickerItems}
+                    mode="action"
+                    onItemAction={async (item) => {
+                      await agregarMiembroAGrupo(grupoAgregarMiembros, item.nickname);
+                    }}
+                    searchPlaceholder="Buscar player para agregar..."
+                    emptyMessage="No hay usuarios disponibles para agregar"
+                    getAvatarUrl={getAvatarUrl}
+                    makeInitialsAvatar={makeInitialsAvatar}
+                    getColorForName={getColorForName}
+                  />
                 </div>
               </div>
             </div>
@@ -12191,7 +12862,42 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
                     className="reunion-input"
                   />
                 </div>
+
+                <div className="reunion-form-group">
+                  <label>Duración estimada</label>
+                  <select
+                    className="reunion-input"
+                    value={reunionForm.duracionMinutos}
+                    onChange={(e) => setReunionForm({ ...reunionForm, duracionMinutos: Number(e.target.value) })}
+                  >
+                    <option value={30}>30 minutos</option>
+                    <option value={60}>1 hora</option>
+                    <option value={90}>1 hora 30 min</option>
+                    <option value={120}>2 horas</option>
+                    <option value={180}>3 horas</option>
+                  </select>
+                </div>
               </div>
+
+              {(verificandoConflictosReunion || reunionConflictos.length > 0) && (
+                <div className={`reunion-conflictos-panel ${reunionConflictos.length ? "con-conflictos" : ""}`}>
+                  {verificandoConflictosReunion ? (
+                    <span>Verificando disponibilidad de participantes...</span>
+                  ) : (
+                    <>
+                      <strong>Conflicto de horario (ventana de 1 hora)</strong>
+                      <ul>
+                        {reunionConflictos.map((c) => (
+                          <li key={`${c.nickname}-${c.reunionId}`}>
+                            <strong>{c.nickname}</strong> ya tiene &quot;{c.titulo}&quot; a las {c.hora}
+                            {" "}(~{c.duracionMinutos} min). No podrá asistir si la nueva reunión termina después de esa hora.
+                          </li>
+                        ))}
+                      </ul>
+                    </>
+                  )}
+                </div>
+              )}
               
               <div className="reunion-form-group">
                 <label>Lugar</label>
@@ -12216,85 +12922,41 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
                 </label>
               </div>
               
-              {tipoChat === 'grupal' && (
+              {(tipoChat === "grupal" || tipoChat === "privado") && (
                 <div className="reunion-form-group">
-                  <label>Participantes (opcional)</label>
-                  
-                  {/* Participantes seleccionados */}
-                  {reunionForm.participantes.length > 0 && (
-                    <div className="reunion-participantes-seleccionados">
-                      {reunionForm.participantes.map((nickname) => {
-                        const usuario = usuariosCOPMEC.find(u => (u.nickname || u.name) === nickname);
-                        return (
-                          <span key={nickname} className="reunion-participante-tag">
-                            <img
-                              src={getAvatarUrl({
-                                photo: usuario?.photo,
-                                id: usuario?.id,
-                                nickname: usuario?.nickname || usuario?.name
-                              })}
-                              alt={usuario?.nickname || usuario?.name || nickname}
-                              className="reunion-participante-avatar"
-                              onError={(e) => {
-                                e.target.style.display = 'none';
-                              }}
-                            />
-                            <span className="reunion-participante-nombre">{usuario?.nickname || usuario?.name || nickname}</span>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setReunionForm({
-                                  ...reunionForm,
-                                  participantes: reunionForm.participantes.filter(p => p !== nickname)
-                                });
-                              }}
-                              className="reunion-participante-remove"
-                            >
-                              ✕
-                            </button>
-                          </span>
-                        );
-                      })}
-                    </div>
-                  )}
-                  
-                  {/* Lista de participantes disponibles */}
-                  <div className="reunion-participantes">
-                    {usuariosCOPMEC.filter(u => u.nickname !== (user?.nickname || user?.name)).map(u => (
-                      <label key={u.nickname} className="reunion-participante-item">
-                        <input
-                          type="checkbox"
-                          checked={reunionForm.participantes.includes(u.nickname)}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setReunionForm({
-                                ...reunionForm,
-                                participantes: [...reunionForm.participantes, u.nickname]
-                              });
-                            } else {
-                              setReunionForm({
-                                ...reunionForm,
-                                participantes: reunionForm.participantes.filter(p => p !== u.nickname)
-                              });
-                            }
-                          }}
-                        />
-                        <img
-                          src={getAvatarUrl({
-                            photo: u.photo,
-                            id: u.id,
-                            nickname: u.nickname || u.name
-                          })}
-                          alt={u.nickname || u.name}
-                          className="reunion-participante-avatar-small"
-                          onError={(e) => {
-                            e.target.style.display = 'none';
-                          }}
-                        />
-                        <span>{u.nickname || u.name}</span>
-                      </label>
-                    ))}
-                  </div>
+                  <label>{tipoChat === "grupal" ? "Participantes (opcional)" : "Invitar tambien a (opcional)"}</label>
+
+                  <PlayerPickerChips
+                    selected={reunionForm.participantes}
+                    items={reunionPickerItems}
+                    onRemove={(nickname) => {
+                      setReunionForm((current) => ({
+                        ...current,
+                        participantes: current.participantes.filter((p) => p !== nickname),
+                      }));
+                    }}
+                    getAvatarUrl={getAvatarUrl}
+                    makeInitialsAvatar={makeInitialsAvatar}
+                  />
+
+                  <PlayerPickerList
+                    key={`reunion-pick-${modalReunionAbierto}`}
+                    items={reunionPickerItems}
+                    selected={reunionForm.participantes}
+                    onToggle={(nickname, checked) => {
+                      setReunionForm((current) => ({
+                        ...current,
+                        participantes: checked
+                          ? Array.from(new Set([...current.participantes, nickname]))
+                          : current.participantes.filter((p) => p !== nickname),
+                      }));
+                    }}
+                    searchPlaceholder="Buscar player para la reunion..."
+                    emptyMessage="No hay players disponibles."
+                    getAvatarUrl={getAvatarUrl}
+                    makeInitialsAvatar={makeInitialsAvatar}
+                    getColorForName={getColorForName}
+                  />
                 </div>
               )}
             </div>
@@ -12312,6 +12974,15 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
                   🗑️ Eliminar
                 </button>
               )}
+              {reunionEditando?.id && reunionEditando.creador === (user?.nickname || user?.name) ? (
+                <button
+                  type="button"
+                  className="reunion-btn-enlace"
+                  onClick={() => copiarEnlaceInvitacionReunion(reunionEditando)}
+                >
+                  🔗 Copiar enlace
+                </button>
+              ) : null}
               <button
                 className="reunion-btn-cancelar"
                 onClick={() => {
@@ -12324,8 +12995,141 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
               <button
                 className="reunion-btn-guardar"
                 onClick={guardarReunion}
+                disabled={reunionConflictos.length > 0 || verificandoConflictosReunion}
               >
                 {reunionEditando ? 'Actualizar' : 'Crear'} reunión
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {reunionSolicitudModal?.reunion && (
+        <div className="chat-modal-reunion-backdrop" onClick={() => setReunionSolicitudModal(null)}>
+          <div className="chat-modal-reunion reunion-solicitud-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="chat-modal-reunion-header">
+              <h3>Solicitar cambio de horario</h3>
+              <button type="button" className="modal-close-btn" onClick={() => setReunionSolicitudModal(null)}>✕</button>
+            </div>
+            <div className="chat-modal-reunion-body">
+              <p className="reunion-solicitud-intro">
+                Reunión: <strong>{reunionSolicitudModal.reunion.titulo}</strong>
+                {" "}({reunionSolicitudModal.reunion.fecha} a las {reunionSolicitudModal.reunion.hora})
+              </p>
+              <div className="reunion-form-group">
+                <label>Motivo</label>
+                <select
+                  className="reunion-input"
+                  value={reunionSolicitudModal.motivo || "duracion_extendida"}
+                  onChange={(e) => setReunionSolicitudModal((current) => ({ ...current, motivo: e.target.value }))}
+                >
+                  <option value="duracion_extendida">Durará más de 1 hora</option>
+                  <option value="conflicto">Tengo otro compromiso en ese horario</option>
+                </select>
+              </div>
+              {reunionSolicitudModal.motivo === "duracion_extendida" ? (
+                <div className="reunion-form-group">
+                  <label>Duración estimada real</label>
+                  <select
+                    className="reunion-input"
+                    value={reunionSolicitudDuracion}
+                    onChange={(e) => setReunionSolicitudDuracion(Number(e.target.value))}
+                  >
+                    <option value={90}>1 hora 30 min</option>
+                    <option value={120}>2 horas</option>
+                    <option value={150}>2 horas 30 min</option>
+                    <option value={180}>3 horas</option>
+                    <option value={240}>4 horas</option>
+                  </select>
+                </div>
+              ) : null}
+              <div className="reunion-form-group">
+                <label>Mensaje para el creador (opcional)</label>
+                <textarea
+                  className="reunion-textarea"
+                  rows="3"
+                  value={reunionSolicitudMensaje}
+                  onChange={(e) => setReunionSolicitudMensaje(e.target.value)}
+                  placeholder="Explica por qué necesitas cambiar el horario..."
+                />
+              </div>
+            </div>
+            <div className="chat-modal-reunion-actions">
+              <button type="button" className="reunion-btn-cancelar" onClick={() => setReunionSolicitudModal(null)}>
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="reunion-btn-guardar"
+                onClick={() => solicitarCambioReunion({
+                  reunion: reunionSolicitudModal.reunion,
+                  motivo: reunionSolicitudModal.motivo,
+                  mensaje: reunionSolicitudMensaje,
+                  duracionEstimadaMinutos: reunionSolicitudModal.motivo === "duracion_extendida" ? reunionSolicitudDuracion : null,
+                })}
+              >
+                Enviar solicitud
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modalAgregarParticipantesReunion && (
+        <div className="chat-modal-reunion-backdrop" onClick={() => setModalAgregarParticipantesReunion(null)}>
+          <div className="chat-modal-reunion" onClick={(e) => e.stopPropagation()}>
+            <div className="chat-modal-reunion-header">
+              <h3>Agregar participantes</h3>
+              <button type="button" className="modal-close-btn" onClick={() => setModalAgregarParticipantesReunion(null)}>✕</button>
+            </div>
+            <div className="chat-modal-reunion-body">
+              <p className="reunion-solicitud-intro">
+                Reunión: <strong>{modalAgregarParticipantesReunion.titulo}</strong>
+              </p>
+              <p className="reunion-solicitud-intro">
+                Se enviará el enlace de invitación por mensaje privado a cada persona agregada.
+              </p>
+              <div className="reunion-form-group">
+                <PlayerPickerChips
+                  selected={participantesNuevosReunion}
+                  items={agregarParticipantesPickerItems}
+                  onRemove={(nickname) => {
+                    setParticipantesNuevosReunion((current) => current.filter((p) => p !== nickname));
+                  }}
+                  getAvatarUrl={getAvatarUrl}
+                  makeInitialsAvatar={makeInitialsAvatar}
+                />
+                <PlayerPickerList
+                  items={agregarParticipantesPickerItems}
+                  selected={participantesNuevosReunion}
+                  onToggle={(nickname, checked) => {
+                    setParticipantesNuevosReunion((current) => (
+                      checked
+                        ? Array.from(new Set([...current, nickname]))
+                        : current.filter((p) => p !== nickname)
+                    ));
+                  }}
+                  searchPlaceholder="Buscar player para agregar..."
+                  emptyMessage="No hay más players disponibles."
+                  getAvatarUrl={getAvatarUrl}
+                  makeInitialsAvatar={makeInitialsAvatar}
+                  getColorForName={getColorForName}
+                />
+              </div>
+              <button
+                type="button"
+                className="reunion-btn-enlace reunion-btn-enlace-block"
+                onClick={() => copiarEnlaceInvitacionReunion(modalAgregarParticipantesReunion)}
+              >
+                🔗 Copiar enlace para invitados externos
+              </button>
+            </div>
+            <div className="chat-modal-reunion-actions">
+              <button type="button" className="reunion-btn-cancelar" onClick={() => setModalAgregarParticipantesReunion(null)}>
+                Cancelar
+              </button>
+              <button type="button" className="reunion-btn-guardar" onClick={agregarParticipantesReunion}>
+                Agregar y notificar
               </button>
             </div>
           </div>
@@ -12511,6 +13315,19 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
           </div>
         </div>
       )}
+
+      {callActivo && callOverlayMinimized && (
+        <button type="button" className="call-floating-widget" onClick={restaurarVistaLlamada} title="Volver a la videollamada">
+          <video ref={callFloatingVideoRef} className="call-floating-widget-video" muted autoPlay playsInline />
+          <span className="call-floating-widget-label">Volver a la llamada</span>
+        </button>
+      )}
+
+      {pendingCallRestore && !callActivo ? (
+        <button type="button" className="call-rejoin-fab" onClick={reingresarLlamadaGuardada}>
+          Reingresar a videollamada
+        </button>
+      ) : null}
 
     </>
   );

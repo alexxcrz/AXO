@@ -22,11 +22,6 @@ function isRejectedProposal(proposal) {
   return status === "rejected" || status === "closed";
 }
 
-function isImplementationProposal(proposal) {
-  const status = normalizeProposalStatus(proposal?.status);
-  return status === "accepted" || status === "in_implementation";
-}
-
 /** Métricas del ciclo Mejora Continua (problemas, propuestas, autorización, seguimiento). */
 export function summarizeProcessAuditMetrics(audits = []) {
   const list = Array.isArray(audits) ? audits : [];

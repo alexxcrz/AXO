@@ -354,7 +354,7 @@ export function UserPermissionsPanel({
   toggleUserModalDelegationSection,
   toggleUserModalDelegationTab: _toggleUserModalDelegationTab,
   toggleUserModalDelegationEnabled,
-  editorIsMeta = false,
+  editorIsMeta: _editorIsMeta = false,
 }) {
   const overrides = userModal?.permissionOverrides || { pages: {}, actions: {} };
   const delegation = userModal?.delegationGrants || { enabled: false, pages: {}, actions: {} };

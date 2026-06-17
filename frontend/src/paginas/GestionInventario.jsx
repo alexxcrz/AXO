@@ -1,6 +1,8 @@
 import { useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import MantenimientoInsumosForm from "../components/MantenimientoInsumosForm";
+import { ORDER_INVENTORY_PRIMARY_WAREHOUSE } from "../utils/constantes.js";
+import { isOrderInventoryPrimaryWarehouse } from "../utils/utilidades.jsx";
 
 function InventoryLotBadges({ item, columnKey }) {
   const [open, setOpen] = useState(false);
@@ -47,25 +49,26 @@ function InventoryLotBadges({ item, columnKey }) {
         <span style={{ color: "#5c6f74", fontSize: "0.65rem", lineHeight: 1 }}>{open ? "▲" : "▼"}</span>
       ) : null}
       {open && pos ? createPortal(
-        <>
-          <div style={{ position: "fixed", inset: 0, zIndex: 9100 }} onClick={() => setOpen(false)} />
-          <div style={{
-            position: "fixed", top: pos.top, left: pos.left, minWidth: pos.width,
-            zIndex: 9200, background: "#ffffff", border: "1px solid rgba(162, 170, 181, 0.28)",
-            borderRadius: "0.7rem", boxShadow: "0 12px 24px rgba(49, 77, 105, 0.12)",
-            padding: "0.32rem", display: "flex", flexDirection: "column", gap: "0.2rem",
-            maxHeight: "12rem", overflowY: "auto",
-          }}>
+        <div className="inventory-lot-popover-root">
+          <div className="inventory-lot-popover-backdrop" onClick={() => setOpen(false)} aria-hidden="true" />
+          <div
+            className="inventory-lot-popover-panel"
+            style={{
+              top: pos.top,
+              left: pos.left,
+              minWidth: pos.width,
+            }}
+          >
             {allValues.map((val) => (
-              <span key={val} style={{
-                display: "block", padding: "0.3rem 0.5rem", borderRadius: "0.5rem",
-                fontSize: "0.78rem", fontWeight: val === displayValue ? 700 : 500,
-                background: val === displayValue ? "rgba(42, 96, 143, 0.08)" : "#f9fbfb",
-                color: "#244040",
-              }}>{val}</span>
+              <span
+                key={val}
+                className={val === displayValue ? "inventory-lot-popover-option is-active" : "inventory-lot-popover-option"}
+              >
+                {val}
+              </span>
             ))}
           </div>
-        </>,
+        </div>,
         document.body,
       ) : null}
     </span>
@@ -122,6 +125,7 @@ export default function GestionInventario({ contexto }) {
     openInventoryTransferViewer,
     openInventoryTransferHistory,
     openOrderInventoryTransfer,
+    returnAllInventoryToAlmacen,
     openInventoryDestinationModal,
     inventoryTransferAvailableWarehouses,
     orderInventoryTransferMovements,
@@ -203,6 +207,19 @@ export default function GestionInventario({ contexto }) {
   const isBaseInventoryTab = inventoryTab === INVENTORY_DOMAIN_BASE;
   const isCleaningInventoryTab = inventoryTab === INVENTORY_DOMAIN_CLEANING;
   const isOrderInventoryTab = inventoryTab === INVENTORY_DOMAIN_ORDERS;
+
+  const selectedWarehouseReturnUnits = useMemo(() => {
+    if (!isOrderInventoryTab || !inventoryDestinationWarehouse || isOrderInventoryPrimaryWarehouse(inventoryDestinationWarehouse)) {
+      return 0;
+    }
+    const normalizedWarehouse = String(inventoryDestinationWarehouse || "").trim().toLowerCase();
+    return orderInventoryTransferSummary.reduce((sum, item) => {
+      const targetUnits = (item.transferTargets || [])
+        .filter((target) => String(target.warehouse || "").trim().toLowerCase() === normalizedWarehouse)
+        .reduce((targetSum, target) => targetSum + Number(target.availableUnits || 0), 0);
+      return sum + targetUnits;
+    }, 0);
+  }, [inventoryDestinationWarehouse, isOrderInventoryTab, orderInventoryTransferSummary]);
   const isMaintenanceInventoryTab = inventoryTab === INVENTORY_DOMAIN_MAINTENANCE;
   const showPresentationColumn = isBaseInventoryTab || isCleaningInventoryTab;
   const currentInventoryColumns = useMemo(
@@ -321,7 +338,7 @@ export default function GestionInventario({ contexto }) {
     <section className="inventory-page-layout">
       <input ref={inventoryFileInputRef} type="file" accept=".csv,.xlsx,.xls" className="inventory-file-input" onChange={handleInventoryImport} />
 
-      <article className="surface-card admin-tabs full-width admin-tabs-shell">
+      <article className="surface-card admin-tabs full-width admin-tabs-shell inventory-tabs-card">
         <div className="card-header-row">
           <div>
             <div className="tab-strip">
@@ -351,7 +368,7 @@ export default function GestionInventario({ contexto }) {
             ) : null}
             {isOrderInventoryTab ? (
               <div className="tab-strip inventory-subtab-strip">
-                <button type="button" className="icon-button" title="Agregar nave de destino" onClick={() => openInventoryDestinationModal("create")} disabled={!currentInventoryManagePermission}>
+                <button type="button" className="icon-button" title="Agregar nave de destino (C1, C2, C3...)" onClick={() => openInventoryDestinationModal("create")} disabled={!currentInventoryManagePermission}>
                   <Plus size={14} /> Nueva nave
                 </button>
                 {inventoryTransferAvailableWarehouses.map((warehouse) => (
@@ -359,12 +376,23 @@ export default function GestionInventario({ contexto }) {
                     key={warehouse}
                     type="button"
                     className={inventoryDestinationWarehouse === warehouse ? "tab active" : "tab"}
-                    onClick={() => setInventoryDestinationWarehouse(inventoryDestinationWarehouse === warehouse ? "" : warehouse)}
+                    onClick={() => setInventoryDestinationWarehouse(warehouse)}
                   >
                     {warehouse}
                   </button>
                 ))}
-                {!inventoryTransferAvailableWarehouses.length ? <span className="subtle-line">Sin naves registradas</span> : null}
+                {inventoryDestinationWarehouse && !isOrderInventoryPrimaryWarehouse(inventoryDestinationWarehouse) ? (
+                  <button
+                    type="button"
+                    className="icon-button"
+                    title={`Devolver todo el saldo de ${inventoryDestinationWarehouse} a ${ORDER_INVENTORY_PRIMARY_WAREHOUSE}`}
+                    onClick={() => returnAllInventoryToAlmacen(inventoryDestinationWarehouse)}
+                    disabled={!currentInventoryManagePermission || !selectedWarehouseReturnUnits}
+                  >
+                    <ArrowUp size={14} style={{ transform: "rotate(180deg)" }} /> Devolver todo a {ORDER_INVENTORY_PRIMARY_WAREHOUSE}
+                    {selectedWarehouseReturnUnits ? <span className="chip soft">{selectedWarehouseReturnUnits}</span> : null}
+                  </button>
+                ) : null}
               </div>
             ) : null}
           </div>
@@ -568,8 +596,8 @@ export default function GestionInventario({ contexto }) {
         />
       ) : null}
 
-      <section className="page-grid">
-        <article className="surface-card inventory-surface-card full-width table-card">
+      <section className="page-grid inventory-main-grid">
+        <article className="surface-card inventory-surface-card full-width table-card inventory-items-card">
           <div className="card-header-row">
             <div>
               <h3>{inventoryTitle}</h3>
@@ -591,6 +619,12 @@ export default function GestionInventario({ contexto }) {
           {!currentInventoryItems.length ? (
             <div className="empty-state inventory-empty-state">
               <Package size={42} />
+              {isOrderInventoryTab && inventoryDestinationWarehouse && !isOrderInventoryPrimaryWarehouse(inventoryDestinationWarehouse) ? (
+                <p className="subtle-line inventory-empty-state-copy">
+                  No hay saldo transferido en <strong>{inventoryDestinationWarehouse}</strong>.
+                  {" "}Cambia a <strong>{ORDER_INVENTORY_PRIMARY_WAREHOUSE}</strong> para ver el stock central o registra una transferencia.
+                </p>
+              ) : null}
             </div>
           ) : (
             <>

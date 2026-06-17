@@ -4620,7 +4620,7 @@ span.chat-item-menu-btn:active {
   margin-bottom: 12px;
 }
 
-.reunion-form-group label {
+.reunion-form-group > label {
   display: block;
   margin-bottom: 4px;
   font-size: 0.72rem;
@@ -4653,8 +4653,80 @@ span.chat-item-menu-btn:active {
 
 .reunion-form-row {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, 1fr);
   gap: 8px;
+}
+
+@media (max-width: 640px) {
+  .reunion-form-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.reunion-conflictos-panel {
+  margin-top: 4px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--chat-border);
+  background: rgba(59, 130, 246, 0.08);
+  font-size: 0.85rem;
+  color: var(--chat-text);
+}
+
+.reunion-conflictos-panel.con-conflictos {
+  background: rgba(239, 68, 68, 0.1);
+  border-color: rgba(239, 68, 68, 0.45);
+}
+
+.reunion-conflictos-panel ul {
+  margin: 8px 0 0;
+  padding-left: 18px;
+}
+
+.reunion-conflictos-panel li + li {
+  margin-top: 6px;
+}
+
+.reunion-btn-guardar:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.reunion-btn-solicitar {
+  background: rgba(245, 158, 11, 0.15);
+  color: #d97706;
+  border: 1px solid rgba(245, 158, 11, 0.45);
+  border-radius: 8px;
+  padding: 8px 12px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.reunion-btn-enlace {
+  background: rgba(59, 130, 246, 0.12);
+  color: #2563eb;
+  border: 1px solid rgba(59, 130, 246, 0.35);
+  border-radius: 8px;
+  padding: 8px 12px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.reunion-btn-enlace-block {
+  width: 100%;
+  margin-top: 8px;
+}
+
+.reunion-solicitud-modal {
+  max-width: 480px;
+}
+
+.reunion-solicitud-intro {
+  margin: 0 0 12px;
+  font-size: 0.9rem;
+  color: var(--chat-text-muted, #94a3b8);
 }
 
 .reunion-checkbox-label {
@@ -7539,4 +7611,137 @@ span.chat-item-menu-btn,
 .grupo-item,
 .cp-section-header {
   cursor: context-menu;
+}
+
+.chat-reunion-activa-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin: 0.75rem 0.85rem 0.35rem;
+  padding: 0.75rem 0.9rem;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, #16a34a 35%, #cbd5e1);
+  background: color-mix(in srgb, #16a34a 10%, #fff);
+}
+
+.chat-reunion-activa-banner strong {
+  display: block;
+  font-size: 0.82rem;
+  color: #166534;
+}
+
+.chat-reunion-activa-banner span {
+  display: block;
+  font-size: 0.78rem;
+  color: #334155;
+}
+
+.chat-reunion-entrar-btn {
+  flex-shrink: 0;
+  border: none;
+  border-radius: 999px;
+  padding: 0.45rem 0.85rem;
+  background: #16a34a;
+  color: #fff;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.call-floating-widget {
+  position: fixed;
+  right: 1rem;
+  bottom: 5.5rem;
+  z-index: 12050;
+  width: 148px;
+  border: none;
+  border-radius: 16px;
+  padding: 0.35rem;
+  background: rgba(15, 23, 42, 0.92);
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.35);
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.call-floating-widget-video {
+  width: 100%;
+  height: 88px;
+  object-fit: cover;
+  border-radius: 12px;
+  background: #0f172a;
+}
+
+.call-floating-widget-label {
+  display: block;
+  margin-top: 0.35rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #fff;
+  text-align: center;
+}
+
+.call-rejoin-fab {
+  position: fixed;
+  right: 1rem;
+  bottom: 5.5rem;
+  z-index: 12040;
+  border: none;
+  border-radius: 999px;
+  padding: 0.7rem 1rem;
+  background: #0f766e;
+  color: #fff;
+  font-size: 0.82rem;
+  font-weight: 700;
+  box-shadow: 0 10px 24px rgba(15, 118, 110, 0.35);
+  cursor: pointer;
+}
+
+.reuniones-perfil-list {
+  display: grid;
+  gap: 0.75rem;
+  padding: 0.5rem 0;
+}
+
+.reunion-perfil-card {
+  border: 1px solid var(--chat-border, #e2e8f0);
+  border-radius: 12px;
+  padding: 0.85rem;
+  background: var(--chat-surface, #fff);
+}
+
+.reunion-perfil-card.activa {
+  border-color: #16a34a;
+  background: color-mix(in srgb, #16a34a 8%, #fff);
+}
+
+.reunion-perfil-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.reunion-perfil-meta,
+.reunion-perfil-desc {
+  margin: 0.35rem 0 0;
+  font-size: 0.8rem;
+  color: var(--chat-text-muted, #64748b);
+}
+
+.reunion-perfil-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-top: 0.65rem;
+}
+
+.reunion-item-btn-join {
+  background: #16a34a !important;
+  color: #fff !important;
+}
+
+.reunion-item-btn-solicitar {
+  background: rgba(245, 158, 11, 0.2) !important;
+  color: #d97706 !important;
 }

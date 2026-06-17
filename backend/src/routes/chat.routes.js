@@ -2,9 +2,10 @@ import { Router } from "express";
 import multer from "multer";
 import fs from "node:fs";
 import path from "node:path";
+import crypto from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { requireAuth } from "../middleware/auth.middleware.js";
-import { getIO, getUsuariosActivos } from "../config/socket.js";
+import { getIO, getUsuariosActivos, getSocketsByNickname } from "../config/socket.js";
 import {
   storeSubscriptionForUser,
   getVapidPublicKey,
@@ -301,7 +302,7 @@ chatRouter.post("/calls/signal", requireAuth, async (req, res) => {
         }).catch(() => {});
       } else if (type === "reject") {
         prisma.chatLlamada?.updateMany({
-          where: { room, estado: "perdida" },
+          where: { room, estado: { in: ["pendiente", "activa"] } },
           data: { estado: "rechazada", finalizadaEn: new Date() },
         }).catch(() => {});
       } else if (type === "leave") {
@@ -359,7 +360,10 @@ chatRouter.get("/calls/historial", requireAuth, async (req, res) => {
     if (!nombre) return res.status(401).json({ error: "No autenticado" });
     const limit = Math.min(Number(req.query.limit) || 50, 200);
 
-    if (!prisma.chatLlamada) return res.json([]);
+    if (!prisma.chatLlamada) {
+      console.warn("[historial] chatLlamada no disponible en prisma chat");
+      return res.json([]);
+    }
 
     const currentUser = findAuthUser(req);
     const userAliases = Array.from(new Set([
@@ -2218,6 +2222,732 @@ chatRouter.put("/notificaciones/config", requireAuth, async (req, res) => {
     res.json({ ok: true, config });
   } catch (e) {
     res.status(500).json({ error: "Error actualizando configuración" });
+  }
+});
+
+// ═════════════════════════════════════════════════════════════════════════════
+// REUNIONES
+// ═════════════════════════════════════════════════════════════════════════════
+
+function parseReunionParticipantes(raw) {
+  try {
+    const parsed = JSON.parse(raw || "[]");
+    return Array.isArray(parsed) ? parsed.map((p) => String(p || "").trim()).filter(Boolean) : [];
+  } catch {
+    return [];
+  }
+}
+
+function serializeReunion(row, { includeToken = true } = {}) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    titulo: row.titulo,
+    descripcion: row.descripcion || "",
+    fecha: row.fecha,
+    hora: row.hora,
+    lugar: row.lugar || "",
+    esVideollamada: Boolean(row.esVideollamada),
+    duracionMinutos: Number(row.duracionMinutos) > 0 ? Number(row.duracionMinutos) : 60,
+    invitacionToken: includeToken ? (row.invitacionToken || null) : null,
+    room: row.room || null,
+    creador: row.creador,
+    participantes: parseReunionParticipantes(row.participantes),
+    chat_tipo: row.chatTipo,
+    chat_id: row.chatId,
+    estado: row.estado || "programada",
+    creada: row.creadaEn?.toISOString?.() || row.creadaEn,
+    activadaEn: row.activadaEn?.toISOString?.() || null,
+  };
+}
+
+function reunionInvolucraUsuario(row, nombre, userAliasNorm) {
+  if (!row || !nombre) return false;
+  if (row.creador === nombre) return true;
+  const participantes = parseReunionParticipantes(row.participantes);
+  return participantes.some((p) => userAliasNorm.has(normalizeNick(p)));
+}
+
+function emitReunionActualizada(reunion, targetNicknames = []) {
+  try {
+    const io = getIO();
+    const payload = { reunion };
+    const targets = Array.from(new Set(targetNicknames.map((n) => String(n || "").trim()).filter(Boolean)));
+    targets.forEach((nick) => {
+      getSocketsByNickname(nick).forEach((socketId) => {
+        io.to(socketId).emit("reunion_actualizada", payload);
+      });
+    });
+  } catch {
+    /* noop */
+  }
+}
+
+function parseReunionDateTime(fecha, hora) {
+  const datePart = String(fecha || "").trim();
+  const timePart = String(hora || "00:00").trim();
+  const [hh, mm] = timePart.split(":").map((v) => Number(v));
+  const base = new Date(`${datePart}T00:00:00`);
+  if (Number.isNaN(base.getTime())) return null;
+  base.setHours(Number.isFinite(hh) ? hh : 0, Number.isFinite(mm) ? mm : 0, 0, 0);
+  return base;
+}
+
+function getReunionDurationMinutes(row) {
+  const raw = Number(row?.duracionMinutos);
+  if (Number.isFinite(raw) && raw > 0) return Math.min(raw, 480);
+  return 60;
+}
+
+function reunionesSeSolapan(inicioNueva, duracionNuevaMin, inicioExistente, duracionExistenteMin) {
+  if (!inicioNueva || !inicioExistente) return false;
+  const durNueva = duracionNuevaMin > 0 ? duracionNuevaMin : 60;
+  const finNueva = new Date(inicioNueva.getTime() + durNueva * 60000);
+  if (inicioNueva.getTime() < inicioExistente.getTime()) {
+    return finNueva.getTime() > inicioExistente.getTime();
+  }
+  return false;
+}
+
+async function obtenerReunionesActivasMismaFecha(fecha, excluirId = null) {
+  if (!prisma.chatReunion) return [];
+  const rows = await prisma.chatReunion.findMany({
+    where: {
+      fecha: String(fecha),
+      estado: { in: ["programada", "activa"] },
+      ...(excluirId != null ? { NOT: { id: Number(excluirId) } } : {}),
+    },
+    take: 500,
+  });
+  return rows;
+}
+
+function detectarConflictosReunion({
+  fecha,
+  hora,
+  duracionMinutos = 60,
+  participantes = [],
+  creador = "",
+  reunionesRows = [],
+}) {
+  const inicioNueva = parseReunionDateTime(fecha, hora);
+  if (!inicioNueva) return [];
+
+  const personas = Array.from(new Set(
+    [creador, ...participantes].map((p) => String(p || "").trim()).filter(Boolean),
+  ));
+
+  const conflictos = [];
+  const vistos = new Set();
+
+  reunionesRows.forEach((row) => {
+    const reunion = serializeReunion(row);
+    if (!reunion) return;
+    const inicioExistente = parseReunionDateTime(reunion.fecha, reunion.hora);
+    if (!inicioExistente) return;
+    const durExist = getReunionDurationMinutes(row);
+    if (!reunionesSeSolapan(inicioNueva, duracionMinutos, inicioExistente, durExist)) return;
+
+    const involucrados = Array.from(new Set([
+      reunion.creador,
+      ...(Array.isArray(reunion.participantes) ? reunion.participantes : []),
+    ].map((p) => String(p || "").trim()).filter(Boolean)));
+
+    personas.forEach((persona) => {
+      if (!involucrados.includes(persona)) return;
+      const key = `${persona}::${reunion.id}`;
+      if (vistos.has(key)) return;
+      vistos.add(key);
+      conflictos.push({
+        nickname: persona,
+        reunionId: reunion.id,
+        titulo: reunion.titulo,
+        fecha: reunion.fecha,
+        hora: reunion.hora,
+        duracionMinutos: durExist,
+        creador: reunion.creador,
+      });
+    });
+  });
+
+  return conflictos;
+}
+
+function emitReunionSolicitudCambio(payload) {
+  try {
+    const io = getIO();
+    const creador = payload?.creador;
+    if (!creador) return;
+    getSocketsByNickname(creador).forEach((socketId) => {
+      io.to(socketId).emit("reunion_solicitud_cambio", payload);
+    });
+  } catch {
+    /* noop */
+  }
+}
+
+function generarTokenInvitacionReunion() {
+  return crypto.randomBytes(18).toString("hex");
+}
+
+async function asegurarTokenInvitacionReunion(row) {
+  if (!row || row.invitacionToken) return row;
+  const token = generarTokenInvitacionReunion();
+  const updated = await prisma.chatReunion.update({
+    where: { id: row.id },
+    data: { invitacionToken: token },
+  });
+  return updated;
+}
+
+function buildReunionInviteUrlFromReq(req, token) {
+  const proto = req.headers["x-forwarded-proto"] || req.protocol || "https";
+  const host = req.headers["x-forwarded-host"] || req.get("host") || "localhost";
+  return `${proto}://${host}/reunion/join/${token}`;
+}
+
+function formatMensajeInvitacionReunion(reunion, url) {
+  const lineas = [
+    `📅 Invitación a reunión: ${reunion.titulo}`,
+    `📆 Fecha: ${reunion.fecha} a las ${reunion.hora}`,
+  ];
+  if (reunion.duracionMinutos) lineas.push(`⏱ Duración estimada: ${reunion.duracionMinutos} min`);
+  if (reunion.lugar) lineas.push(`📍 Lugar: ${reunion.lugar}`);
+  if (reunion.esVideollamada) lineas.push("📹 Videollamada");
+  lineas.push(`\n🔗 Enlace para unirse: ${url}`);
+  lineas.push("\nPuedes entrar como invitado sin cuenta del sistema usando ese enlace cuando la reunión esté activa.");
+  return lineas.join("\n");
+}
+
+chatRouter.get("/reuniones/proximas", requireAuth, async (req, res) => {
+  try {
+    if (!prisma.chatReunion) return res.json([]);
+    const aliasInfo = obtenerAliasUsuarioLlamadas(req);
+    if (!aliasInfo) return res.status(401).json({ error: "No autenticado" });
+
+    const rows = await prisma.chatReunion.findMany({
+      where: { estado: { in: ["programada", "activa"] } },
+      orderBy: [{ fecha: "asc" }, { hora: "asc" }],
+      take: 200,
+    });
+
+    const mias = rows
+      .filter((row) => reunionInvolucraUsuario(row, aliasInfo.nombre, aliasInfo.userAliasNorm))
+      .map(serializeReunion);
+
+    res.json(mias);
+  } catch (e) {
+    console.error("[reuniones/proximas]", e?.message);
+    res.json([]);
+  }
+});
+
+chatRouter.get("/reuniones/chat/:tipo/:chatId", requireAuth, async (req, res) => {
+  try {
+    if (!prisma.chatReunion) return res.json([]);
+    const { tipo, chatId } = req.params;
+    const rows = await prisma.chatReunion.findMany({
+      where: {
+        chatTipo: String(tipo || ""),
+        chatId: String(chatId || ""),
+        estado: { in: ["programada", "activa"] },
+      },
+      orderBy: [{ fecha: "asc" }, { hora: "asc" }],
+      take: 50,
+    });
+    res.json(rows.map(serializeReunion));
+  } catch {
+    res.json([]);
+  }
+});
+
+chatRouter.post("/reuniones/verificar-conflictos", requireAuth, async (req, res) => {
+  try {
+    if (!prisma.chatReunion) return res.json({ conflictos: [] });
+    const nombre = getNombre(req);
+    if (!nombre) return res.status(401).json({ error: "No autenticado" });
+
+    const {
+      fecha, hora, duracionMinutos, participantes, excluirReunionId,
+    } = req.body || {};
+
+    if (!fecha || !hora) {
+      return res.status(400).json({ error: "Fecha y hora requeridas" });
+    }
+
+    const participantesArr = Array.from(new Set(
+      (Array.isArray(participantes) ? participantes : [])
+        .map((p) => String(p || "").trim())
+        .filter(Boolean),
+    ));
+
+    const rows = await obtenerReunionesActivasMismaFecha(fecha, excluirReunionId);
+    const conflictos = detectarConflictosReunion({
+      fecha,
+      hora,
+      duracionMinutos: Number(duracionMinutos) > 0 ? Number(duracionMinutos) : 60,
+      participantes: participantesArr,
+      creador: nombre,
+      reunionesRows: rows,
+    });
+
+    res.json({ conflictos });
+  } catch (e) {
+    console.error("[reuniones/verificar-conflictos]", e?.message);
+    res.json({ conflictos: [] });
+  }
+});
+
+chatRouter.post("/reuniones", requireAuth, async (req, res) => {
+  try {
+    if (!prisma.chatReunion) return res.status(503).json({ error: "Reuniones no disponibles" });
+    const nombre = getNombre(req);
+    if (!nombre) return res.status(401).json({ error: "No autenticado" });
+
+    const {
+      titulo, descripcion, fecha, hora, lugar,
+      esVideollamada, participantes, chat_tipo, chat_id, duracionMinutos,
+    } = req.body || {};
+
+    if (!titulo?.trim() || !fecha || !hora || !chat_tipo || !chat_id) {
+      return res.status(400).json({ error: "Datos incompletos" });
+    }
+
+    const participantesArr = Array.from(new Set(
+      (Array.isArray(participantes) ? participantes : [])
+        .map((p) => String(p || "").trim())
+        .filter(Boolean),
+    ));
+
+    const duracion = Number(duracionMinutos) > 0 ? Math.min(Number(duracionMinutos), 480) : 60;
+    const rowsMismaFecha = await obtenerReunionesActivasMismaFecha(fecha);
+    const conflictos = detectarConflictosReunion({
+      fecha,
+      hora,
+      duracionMinutos: duracion,
+      participantes: participantesArr,
+      creador: nombre,
+      reunionesRows: rowsMismaFecha,
+    });
+
+    if (conflictos.length) {
+      return res.status(409).json({
+        error: "Conflicto de horario con otra reunion",
+        conflictos,
+      });
+    }
+
+    const created = await prisma.chatReunion.create({
+      data: {
+        titulo: titulo.trim(),
+        descripcion: descripcion?.trim() || null,
+        fecha: String(fecha),
+        hora: String(hora),
+        lugar: lugar?.trim() || null,
+        esVideollamada: esVideollamada ? 1 : 0,
+        duracionMinutos: duracion,
+        invitacionToken: generarTokenInvitacionReunion(),
+        room: null,
+        creador: nombre,
+        participantes: JSON.stringify(participantesArr),
+        chatTipo: String(chat_tipo),
+        chatId: String(chat_id),
+        estado: "programada",
+      },
+    });
+
+    const reunion = serializeReunion(created);
+    const notifyTargets = Array.from(new Set([nombre, ...participantesArr]));
+    emitReunionActualizada(reunion, notifyTargets);
+
+    notifyTargets.forEach((nick) => {
+      if (nick === nombre) return;
+      sendPushToNick(
+        nick,
+        {
+          type: "reunion_invite",
+          title: "Nueva reunión programada",
+          body: `${nombre} te invitó a "${reunion.titulo}" el ${reunion.fecha} a las ${reunion.hora}`,
+          url: "/",
+        },
+        { skipIfOnline: false },
+      ).catch(() => {});
+    });
+
+    res.json(reunion);
+  } catch (e) {
+    console.error("[reuniones POST]", e?.message);
+    res.status(500).json({ error: "No se pudo crear la reunión" });
+  }
+});
+
+chatRouter.patch("/reuniones/:id", requireAuth, async (req, res) => {
+  try {
+    if (!prisma.chatReunion) return res.status(503).json({ error: "Reuniones no disponibles" });
+    const nombre = getNombre(req);
+    if (!nombre) return res.status(401).json({ error: "No autenticado" });
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) return res.status(400).json({ error: "ID inválido" });
+
+    const existing = await prisma.chatReunion.findUnique({ where: { id } });
+    if (!existing) return res.status(404).json({ error: "Reunión no encontrada" });
+    if (existing.creador !== nombre) return res.status(403).json({ error: "Solo el creador puede modificar la reunión" });
+
+    const data = {};
+    const body = req.body || {};
+    if (body.titulo?.trim()) data.titulo = body.titulo.trim();
+    if (body.descripcion != null) data.descripcion = String(body.descripcion || "").trim() || null;
+    if (body.fecha) data.fecha = String(body.fecha);
+    if (body.hora) data.hora = String(body.hora);
+    if (body.lugar != null) data.lugar = String(body.lugar || "").trim() || null;
+    if (typeof body.esVideollamada === "boolean") data.esVideollamada = body.esVideollamada ? 1 : 0;
+    if (Number(body.duracionMinutos) > 0) data.duracionMinutos = Math.min(Number(body.duracionMinutos), 480);
+    if (Array.isArray(body.participantes)) data.participantes = JSON.stringify(body.participantes);
+    if (body.estado) data.estado = String(body.estado);
+    if (body.room) data.room = String(body.room);
+    if (body.estado === "activa") data.activadaEn = new Date();
+
+    const fechaFinal = data.fecha || existing.fecha;
+    const horaFinal = data.hora || existing.hora;
+    const duracionFinal = data.duracionMinutos || getReunionDurationMinutes(existing);
+    const participantesFinal = data.participantes
+      ? parseReunionParticipantes(data.participantes)
+      : parseReunionParticipantes(existing.participantes);
+
+    const rowsMismaFecha = await obtenerReunionesActivasMismaFecha(fechaFinal, id);
+    const conflictos = detectarConflictosReunion({
+      fecha: fechaFinal,
+      hora: horaFinal,
+      duracionMinutos: duracionFinal,
+      participantes: participantesFinal,
+      creador: nombre,
+      reunionesRows: rowsMismaFecha,
+    });
+    if (conflictos.length) {
+      return res.status(409).json({
+        error: "Conflicto de horario con otra reunion",
+        conflictos,
+      });
+    }
+
+    const updated = await prisma.chatReunion.update({ where: { id }, data });
+    const reunion = serializeReunion(updated);
+    const targets = Array.from(new Set([nombre, ...parseReunionParticipantes(updated.participantes)]));
+    emitReunionActualizada(reunion, targets);
+    res.json(reunion);
+  } catch (e) {
+    console.error("[reuniones PATCH]", e?.message);
+    res.status(500).json({ error: "No se pudo actualizar la reunión" });
+  }
+});
+
+chatRouter.delete("/reuniones/:id", requireAuth, async (req, res) => {
+  try {
+    if (!prisma.chatReunion) return res.json({ ok: true });
+    const nombre = getNombre(req);
+    if (!nombre) return res.status(401).json({ error: "No autenticado" });
+    const id = Number(req.params.id);
+    const existing = await prisma.chatReunion.findUnique({ where: { id } });
+    if (!existing) return res.json({ ok: true });
+    if (existing.creador !== nombre) return res.status(403).json({ error: "Solo el creador puede eliminar la reunión" });
+    await prisma.chatReunion.update({
+      where: { id },
+      data: { estado: "cancelada" },
+    });
+    const reunion = serializeReunion({ ...existing, estado: "cancelada" });
+    const targets = Array.from(new Set([nombre, ...parseReunionParticipantes(existing.participantes)]));
+    emitReunionActualizada(reunion, targets);
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: "No se pudo eliminar la reunión" });
+  }
+});
+
+chatRouter.post("/reuniones/:id/solicitar-cambio", requireAuth, async (req, res) => {
+  try {
+    if (!prisma.chatReunion) return res.status(503).json({ error: "Reuniones no disponibles" });
+    const nombre = getNombre(req);
+    if (!nombre) return res.status(401).json({ error: "No autenticado" });
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) return res.status(400).json({ error: "ID invalido" });
+
+    const reunionRow = await prisma.chatReunion.findUnique({ where: { id } });
+    if (!reunionRow) return res.status(404).json({ error: "Reunion no encontrada" });
+    const reunion = serializeReunion(reunionRow);
+
+    const { mensaje, motivo, duracionEstimadaMinutos } = req.body || {};
+    const motivoLabel = motivo === "duracion_extendida"
+      ? "durara mas de 1 hora"
+      : "conflicto de horario";
+
+    const textoSolicitud = [
+      `Solicitud de cambio de reunion: "${reunion.titulo}"`,
+      `Motivo: ${motivoLabel}`,
+      `Fecha propuesta: ${reunion.fecha} a las ${reunion.hora}`,
+      duracionEstimadaMinutos ? `Duracion estimada: ${duracionEstimadaMinutos} min` : null,
+      mensaje?.trim() ? `Mensaje: ${mensaje.trim()}` : null,
+      `Solicitado por: ${nombre}`,
+    ].filter(Boolean).join("\n");
+
+    const creador = reunion.creador;
+    if (!creador) return res.status(400).json({ error: "Reunion sin creador" });
+
+    await prisma.chatPrivado.create({
+      data: {
+        deNickname: nombre,
+        paraNickname: creador,
+        mensaje: textoSolicitud,
+        tipoMensaje: "texto",
+      },
+    });
+
+    const payload = {
+      reunionId: reunion.id,
+      reunion,
+      creador,
+      solicitante: nombre,
+      motivo: motivo || "conflicto",
+      mensaje: mensaje?.trim() || "",
+      duracionEstimadaMinutos: Number(duracionEstimadaMinutos) || null,
+    };
+
+    emitReunionSolicitudCambio(payload);
+    sendPushToNick(
+      creador,
+      {
+        type: "reunion_solicitud_cambio",
+        title: "Solicitud de cambio de reunion",
+        body: `${nombre} pide revisar "${reunion.titulo}" (${motivoLabel})`,
+        url: "/",
+      },
+      { skipIfOnline: false },
+    ).catch(() => {});
+
+    res.json({ ok: true });
+  } catch (e) {
+    console.error("[reuniones solicitar-cambio]", e?.message);
+    res.status(500).json({ error: "No se pudo enviar la solicitud" });
+  }
+});
+
+chatRouter.get("/reuniones/invitacion/:token", async (req, res) => {
+  try {
+    if (!prisma.chatReunion) return res.status(503).json({ error: "Reuniones no disponibles" });
+    const token = String(req.params.token || "").trim();
+    if (!token) return res.status(400).json({ error: "Token invalido" });
+
+    let row = await prisma.chatReunion.findUnique({ where: { invitacionToken: token } });
+    if (!row) return res.status(404).json({ error: "Invitacion no encontrada" });
+
+    const reunion = serializeReunion(row, { includeToken: false });
+    const room = reunion.estado === "activa"
+      ? (reunion.room || `copmec-reunion-${reunion.id}`)
+      : null;
+
+    res.json({
+      titulo: reunion.titulo,
+      descripcion: reunion.descripcion,
+      fecha: reunion.fecha,
+      hora: reunion.hora,
+      lugar: reunion.lugar,
+      esVideollamada: reunion.esVideollamada,
+      duracionMinutos: reunion.duracionMinutos,
+      estado: reunion.estado,
+      creador: reunion.creador,
+      room,
+      puedeUnirse: Boolean(reunion.esVideollamada && reunion.estado === "activa" && room),
+    });
+  } catch (e) {
+    console.error("[reuniones invitacion GET]", e?.message);
+    res.status(500).json({ error: "No se pudo cargar la invitacion" });
+  }
+});
+
+chatRouter.get("/reuniones/invitacion/:token/rtc-config", async (req, res) => {
+  try {
+    if (!prisma.chatReunion) return res.status(503).json({ error: "Reuniones no disponibles" });
+    const token = String(req.params.token || "").trim();
+    const row = await prisma.chatReunion.findUnique({ where: { invitacionToken: token } });
+    if (!row) return res.status(404).json({ error: "Invitacion no encontrada" });
+    const iceServers = [{ urls: process.env.STUN_URL || "stun:stun.l.google.com:19302" }];
+    if (process.env.TURN_URL && process.env.TURN_USER && process.env.TURN_PASS) {
+      iceServers.push({ urls: process.env.TURN_URL, username: process.env.TURN_USER, credential: process.env.TURN_PASS });
+    }
+    res.json({ iceServers });
+  } catch {
+    res.status(500).json({ error: "RTC no disponible" });
+  }
+});
+
+chatRouter.get("/reuniones/:id/enlace", requireAuth, async (req, res) => {
+  try {
+    if (!prisma.chatReunion) return res.status(503).json({ error: "Reuniones no disponibles" });
+    const nombre = getNombre(req);
+    if (!nombre) return res.status(401).json({ error: "No autenticado" });
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) return res.status(400).json({ error: "ID invalido" });
+
+    const row = await prisma.chatReunion.findUnique({ where: { id } });
+    if (!row) return res.status(404).json({ error: "Reunion no encontrada" });
+    if (row.creador !== nombre) return res.status(403).json({ error: "Solo el creador puede obtener el enlace" });
+
+    const withToken = await asegurarTokenInvitacionReunion(row);
+    const reunion = serializeReunion(withToken);
+    const url = buildReunionInviteUrlFromReq(req, reunion.invitacionToken);
+    res.json({ url, token: reunion.invitacionToken, reunion });
+  } catch (e) {
+    console.error("[reuniones enlace]", e?.message);
+    res.status(500).json({ error: "No se pudo generar el enlace" });
+  }
+});
+
+chatRouter.post("/reuniones/:id/agregar-participantes", requireAuth, async (req, res) => {
+  try {
+    if (!prisma.chatReunion) return res.status(503).json({ error: "Reuniones no disponibles" });
+    const nombre = getNombre(req);
+    if (!nombre) return res.status(401).json({ error: "No autenticado" });
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) return res.status(400).json({ error: "ID invalido" });
+
+    const row = await prisma.chatReunion.findUnique({ where: { id } });
+    if (!row) return res.status(404).json({ error: "Reunion no encontrada" });
+    if (row.creador !== nombre) return res.status(403).json({ error: "Solo el creador puede agregar participantes" });
+
+    const nuevos = Array.from(new Set(
+      (Array.isArray(req.body?.participantes) ? req.body.participantes : [])
+        .map((p) => String(p || "").trim())
+        .filter(Boolean),
+    ));
+    if (!nuevos.length) return res.status(400).json({ error: "Sin participantes nuevos" });
+
+    const actuales = parseReunionParticipantes(row.participantes);
+    const merged = Array.from(new Set([...actuales, ...nuevos]));
+    const agregados = nuevos.filter((p) => !actuales.includes(p));
+    if (!agregados.length) return res.json({ reunion: serializeReunion(row), agregados: [] });
+
+    const fechaFinal = row.fecha;
+    const horaFinal = row.hora;
+    const duracionFinal = getReunionDurationMinutes(row);
+    const rowsMismaFecha = await obtenerReunionesActivasMismaFecha(fechaFinal, id);
+    const conflictos = detectarConflictosReunion({
+      fecha: fechaFinal,
+      hora: horaFinal,
+      duracionMinutos: duracionFinal,
+      participantes: agregados,
+      creador: nombre,
+      reunionesRows: rowsMismaFecha,
+    });
+    if (conflictos.length) {
+      return res.status(409).json({
+        error: "Conflicto de horario con otra reunion",
+        conflictos,
+      });
+    }
+
+    const withToken = await asegurarTokenInvitacionReunion(row);
+    const updated = await prisma.chatReunion.update({
+      where: { id },
+      data: { participantes: JSON.stringify(merged) },
+    });
+    const reunion = serializeReunion(updated.invitacionToken ? updated : withToken);
+    const url = buildReunionInviteUrlFromReq(req, reunion.invitacionToken);
+    const texto = formatMensajeInvitacionReunion(reunion, url);
+
+    await Promise.all(agregados.map(async (nick) => {
+      await prisma.chatPrivado.create({
+        data: {
+          deNickname: nombre,
+          paraNickname: nick,
+          mensaje: texto,
+          tipoMensaje: "texto",
+        },
+      });
+      sendPushToNick(
+        nick,
+        {
+          type: "reunion_invite",
+          title: "Invitación a reunión",
+          body: `${nombre} te agregó a "${reunion.titulo}"`,
+          url: `/reunion/join/${reunion.invitacionToken}`,
+        },
+        { skipIfOnline: false },
+      ).catch(() => {});
+    }));
+
+    const notifyTargets = Array.from(new Set([nombre, ...merged]));
+    emitReunionActualizada(reunion, notifyTargets);
+    res.json({ reunion, agregados, url });
+  } catch (e) {
+    console.error("[reuniones agregar-participantes]", e?.message);
+    res.status(500).json({ error: "No se pudieron agregar participantes" });
+  }
+});
+
+chatRouter.post("/reuniones/:id/solicitar-unirse", requireAuth, async (req, res) => {
+  try {
+    if (!prisma.chatReunion) return res.status(503).json({ error: "Reuniones no disponibles" });
+    const nombre = getNombre(req);
+    if (!nombre) return res.status(401).json({ error: "No autenticado" });
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) return res.status(400).json({ error: "ID invalido" });
+
+    const row = await prisma.chatReunion.findUnique({ where: { id } });
+    if (!row) return res.status(404).json({ error: "Reunion no encontrada" });
+    const reunion = serializeReunion(row);
+    const participantes = parseReunionParticipantes(row.participantes);
+    if (row.creador === nombre || participantes.includes(nombre)) {
+      return res.status(400).json({ error: "Ya formas parte de la reunion" });
+    }
+
+    const { mensaje } = req.body || {};
+    const withToken = await asegurarTokenInvitacionReunion(row);
+    const url = buildReunionInviteUrlFromReq(req, withToken.invitacionToken);
+    const texto = [
+      `Solicitud para unirse a la reunión "${reunion.titulo}"`,
+      `Fecha: ${reunion.fecha} a las ${reunion.hora}`,
+      `Solicitante: ${nombre}`,
+      mensaje?.trim() ? `Mensaje: ${mensaje.trim()}` : null,
+      `Enlace de la reunión: ${url}`,
+    ].filter(Boolean).join("\n");
+
+    await prisma.chatPrivado.create({
+      data: {
+        deNickname: nombre,
+        paraNickname: row.creador,
+        mensaje: texto,
+        tipoMensaje: "texto",
+      },
+    });
+
+    try {
+      const io = getIO();
+      getSocketsByNickname(row.creador).forEach((socketId) => {
+        io.to(socketId).emit("reunion_solicitud_unirse", {
+          reunionId: reunion.id,
+          reunion: serializeReunion(withToken),
+          creador: row.creador,
+          solicitante: nombre,
+          mensaje: mensaje?.trim() || "",
+          url,
+        });
+      });
+    } catch { /* noop */ }
+
+    sendPushToNick(
+      row.creador,
+      {
+        type: "reunion_solicitud_unirse",
+        title: "Solicitud para unirse a reunión",
+        body: `${nombre} quiere unirse a "${reunion.titulo}"`,
+        url: `/reunion/join/${withToken.invitacionToken}`,
+      },
+      { skipIfOnline: false },
+    ).catch(() => {});
+
+    res.json({ ok: true, url });
+  } catch (e) {
+    console.error("[reuniones solicitar-unirse]", e?.message);
+    res.status(500).json({ error: "No se pudo enviar la solicitud" });
   }
 });
 

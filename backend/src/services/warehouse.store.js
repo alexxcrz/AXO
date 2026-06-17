@@ -1497,8 +1497,15 @@ function normalizeInventoryItemRecord(item, fallbackId = null) {
   };
 }
 
+const ORDER_INVENTORY_PRIMARY_WAREHOUSE = "Almacen";
+
+function isOrderInventoryPrimaryWarehouse(warehouse) {
+  return normalizeKey(warehouse) === normalizeKey(ORDER_INVENTORY_PRIMARY_WAREHOUSE);
+}
+
 function normalizeInventoryDestination(destination = EMPTY_OBJECT, fallbackId = null) {
   const warehouse = String(destination?.warehouse || "").trim();
+  if (isOrderInventoryPrimaryWarehouse(warehouse)) return null;
   const storageLocation = String(destination?.storageLocation || "").trim();
   if (!warehouse || !storageLocation) return null;
 
@@ -1522,6 +1529,7 @@ function normalizeInventoryMovementType(value) {
   const key = String(value || "").trim().toLowerCase();
   if (["restock", "entrada", "reabasto", "reabastecimiento"].includes(key)) return "restock";
   if (["consume", "consumo", "usage", "uso"].includes(key)) return "consume";
+  if (["transfer_return", "devolucion", "retorno"].includes(key)) return "transfer_return";
   if (["transfer", "transferencia", "traslado"].includes(key)) return "transfer";
   return "restock";
 }
@@ -6112,6 +6120,100 @@ export function createWarehouseInventoryMovement(auth, payload) {
     movementId: movement.id,
     itemId: currentItem.id,
     itemCode: currentItem.code,
+  };
+}
+
+export function returnOrderInventoryWarehouseToAlmacen(auth, payload = {}) {
+  const currentUser = findWarehouseUserById(auth?.userId);
+  if (!currentUser?.isActive) return { ok: false, reason: "auth_required" };
+
+  const currentState = getRawWarehouseState();
+  if (!canUserDoWarehouseAction(currentUser, "manageOrderInventory", currentState.permissions)) {
+    return { ok: false, reason: "forbidden" };
+  }
+
+  const warehouse = String(payload?.warehouse || "").trim();
+  if (!warehouse || isOrderInventoryPrimaryWarehouse(warehouse)) {
+    return { ok: false, reason: "invalid_warehouse" };
+  }
+
+  const normalizedWarehouse = normalizeKey(warehouse);
+  const movementCreatedAt = new Date().toISOString();
+  const newMovements = [];
+  let returnedItems = 0;
+  let returnedUnits = 0;
+
+  const nextInventoryItems = (currentState.inventoryItems || []).map((item) => {
+    if (normalizeInventoryDomain(item.domain) !== "orders") return item;
+
+    const currentTransferTargets = normalizeInventoryTransferTargets(item.transferTargets, item.unitLabel || "pzas");
+    let nextStockUnits = Number(item.stockUnits || 0);
+    let itemChanged = false;
+    const remainingTargets = [];
+
+    currentTransferTargets.forEach((target) => {
+      const targetWarehouse = normalizeKey(target.warehouse);
+      if (targetWarehouse !== normalizedWarehouse) {
+        remainingTargets.push(target);
+        return;
+      }
+
+      const quantity = Math.max(0, Number(target.availableUnits || 0));
+      if (quantity <= 0) {
+        itemChanged = true;
+        return;
+      }
+
+      nextStockUnits += quantity;
+      returnedUnits += quantity;
+      itemChanged = true;
+
+      newMovements.push(normalizeInventoryMovementRecord({
+        itemId: item.id,
+        itemCode: item.code,
+        itemName: item.name,
+        domain: item.domain,
+        movementType: "transfer_return",
+        quantity,
+        notes: `Devolución masiva a ${ORDER_INVENTORY_PRIMARY_WAREHOUSE}`,
+        warehouse: target.warehouse,
+        storageLocation: target.storageLocation,
+        recipientName: target.recipientName || "",
+        unitLabel: target.unitLabel || item.unitLabel || "pzas",
+        remainingUnits: 0,
+        destinationBalanceUnits: 0,
+        destinationKey: target.destinationKey,
+        performedById: currentUser.id,
+        createdAt: movementCreatedAt,
+      }, item));
+    });
+
+    if (!itemChanged) return item;
+    returnedItems += 1;
+    return normalizeInventoryItemRecord({
+      ...item,
+      stockUnits: nextStockUnits,
+      transferTargets: remainingTargets,
+      stockTrackingMode: "source",
+    }, item.id);
+  });
+
+  if (!newMovements.length) {
+    return { ok: false, reason: "no_stock_to_return" };
+  }
+
+  const nextState = {
+    ...currentState,
+    inventoryItems: nextInventoryItems,
+    inventoryMovements: [...newMovements, ...(currentState.inventoryMovements || [])],
+  };
+
+  return {
+    ok: true,
+    state: replaceWarehouseState(nextState),
+    returnedItems,
+    returnedUnits,
+    movementCount: newMovements.length,
   };
 }
 

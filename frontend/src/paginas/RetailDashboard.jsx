@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
   AlertTriangle,
   Boxes,
@@ -43,7 +43,8 @@ function toTime(value) {
   return Number.isFinite(t) ? t : NaN;
 }
 
-function KpiCard({ icon: Icon, label, value, hint, accent = "#0f4c81", tone }) {
+function KpiCard({ icon, label, value, hint, accent = "#0f4c81", tone }) {
+  const Icon = icon;
   return (
     <article className={`retail-kpi-card ${tone ? `retail-kpi-card--${tone}` : ""}`} style={{ "--kpi-accent": accent }}>
       <span className="retail-kpi-icon-wrap"><Icon size={18} /></span>
@@ -88,7 +89,7 @@ function DonutChart({ rows }) {
   );
 }
 
-function ColumnChart({ rows, unit = "" }) {
+function ColumnChart({ rows, unit: _unit = "" }) {
   const max = Math.max(1, ...rows.map((r) => r.value));
   if (!rows.length) return <p className="subtle-line">Sin datos para graficar.</p>;
   return (
@@ -188,6 +189,7 @@ function PlayerRankingList({ rows }) {
 
 export default function RetailDashboard({ retail, purchaseOrders, products, printLog, incidents, users = [], can, onGoTab }) {
   void can;
+  const [metricsNow] = useState(() => Date.now());
   const m = useMemo(() => {
     const clients = retail.clients || [];
     const suppliers = retail.suppliers || [];
@@ -200,7 +202,7 @@ export default function RetailDashboard({ retail, purchaseOrders, products, prin
     const totalLots = products.reduce((s, p) => s + (Array.isArray(p.lots) ? p.lots.length : 0), 0);
     const outOfStock = products.filter((p) => (Number(p.stockPieces) || 0) <= 0).length;
 
-    const now = Date.now();
+    const now = metricsNow;
     const limit30 = now + 30 * DAY_MS;
     let expired = 0;
     let expiringSoon = 0;
@@ -333,7 +335,7 @@ export default function RetailDashboard({ retail, purchaseOrders, products, prin
       openIncidents, resolvedIncidents, incidentsTotal: incidents.length, printsTotal: printLog.length, reprints,
       poToday, poMonth, trend, topStock, topClients, topPlayers, statusRows, incidentRows,
     };
-  }, [retail, products, purchaseOrders, incidents, printLog, users]);
+  }, [retail, products, purchaseOrders, incidents, printLog, users, metricsNow]);
 
   const recentOrders = [...purchaseOrders]
     .sort((a, b) => toTime(b.createdAt) - toTime(a.createdAt))

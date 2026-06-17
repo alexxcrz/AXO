@@ -18,6 +18,7 @@ import './index.css'
 import './app/uiThemeExtensions.css'
 import './components/modals.css'
 import App from './App.jsx'
+import ReunionGuestJoin from './components/ReunionGuestJoin.jsx'
 import copmecLogo from './assets/axo-logo.png'
 import { syncNotificationPrefsToServiceWorker } from './utils/pushBridge.js'
 import { preloadCoreUiWebFonts } from './app/uiPreferencesConfig.js'
@@ -61,7 +62,11 @@ export function RootWithSplash() {
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    <RootWithSplash />
+    {(() => {
+      const match = window.location.pathname.match(/^\/reunion\/join\/([a-zA-Z0-9]+)\/?$/);
+      if (match) return <ReunionGuestJoin token={match[1]} />;
+      return <RootWithSplash />;
+    })()}
   </StrictMode>,
 )
 

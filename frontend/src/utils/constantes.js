@@ -116,6 +116,7 @@ export const STATUS_PENDING = "Pendiente";
 export const STATUS_RUNNING = "En curso";
 export const STATUS_PAUSED = "Pausado";
 export const STATUS_FINISHED = "Terminado";
+export const CUSTOM_PAUSE_REASON_VALUE = "__custom__";
 export const INVENTORY_DOMAIN_BASE = "base";
 export const INVENTORY_DOMAIN_CLEANING = "cleaning";
 export const INVENTORY_DOMAIN_ORDERS = "orders";
@@ -124,6 +125,8 @@ export const INVENTORY_DOMAIN_DESTINATIONS = "destinations";
 export const INVENTORY_MOVEMENT_RESTOCK = "restock";
 export const INVENTORY_MOVEMENT_CONSUME = "consume";
 export const INVENTORY_MOVEMENT_TRANSFER = "transfer";
+export const INVENTORY_MOVEMENT_TRANSFER_RETURN = "transfer_return";
+export const ORDER_INVENTORY_PRIMARY_WAREHOUSE = "Almacen";
 
 export const CONTROL_STATUS_OPTIONS = ["Pendiente", "En curso", "Completado", "Bloqueado"];
 export const USER_ROLES = [ROLE_LEAD, ROLE_SR, ROLE_SSR, ROLE_JR];

@@ -19,6 +19,60 @@ const HORIZONTAL_SCROLL_INTERACTIVE_SELECTOR = [
   "[contenteditable='']",
 ].join(",");
 
+function ensureHorizontalScrollAnchor(container) {
+  if (!container.dataset.horizontalScrollAnchor) {
+    container.dataset.horizontalScrollAnchor = `hs-${Math.random().toString(36).slice(2, 10)}`;
+  }
+  return container.dataset.horizontalScrollAnchor;
+}
+
+function restoreLegacyScrollShell(container) {
+  const parent = container.parentElement;
+  if (!parent?.classList.contains("table-scroll-shell")) {
+    return container.parentElement;
+  }
+
+  const scrollHost = parent.parentElement;
+  if (!scrollHost) return parent;
+
+  const topScrollbar = parent.querySelector(":scope > .table-scroll-top");
+  parent.removeChild(container);
+  if (topScrollbar) parent.removeChild(topScrollbar);
+  scrollHost.insertBefore(container, parent);
+  if (topScrollbar) scrollHost.insertBefore(topScrollbar, container);
+  parent.remove();
+
+  return scrollHost;
+}
+
+function getScrollHost(container) {
+  const host = restoreLegacyScrollShell(container);
+  if (!host) return null;
+
+  const isLayoutCard = host.classList.contains("table-card")
+    || host.classList.contains("surface-card")
+    || host.tagName === "ARTICLE"
+    || host.tagName === "SECTION";
+
+  if (!isLayoutCard) {
+    host.classList.add("table-scroll-shell");
+  }
+
+  return host;
+}
+
+function getHorizontalScrollMetrics(container) {
+  const table = container.querySelector("table");
+  const contentWidth = Math.max(
+    table?.scrollWidth || 0,
+    table?.offsetWidth || 0,
+    container.scrollWidth,
+  );
+  const viewportWidth = container.clientWidth;
+  const maxScroll = Math.max(0, contentWidth - viewportWidth);
+  return { contentWidth, viewportWidth, maxScroll };
+}
+
 export function setupGlobalHorizontalScrollEnhancements() {
   if (typeof document === "undefined") {
     return () => {};
@@ -41,20 +95,31 @@ export function setupGlobalHorizontalScrollEnhancements() {
   const enhanceContainer = (container) => {
     if (!container || bindings.has(container)) return;
 
-    const topScrollbar = document.createElement("div");
-    topScrollbar.className = "table-scroll-top";
-    topScrollbar.setAttribute("aria-hidden", "true");
+    const scrollHost = getScrollHost(container);
+    if (!scrollHost) return;
 
-    const topScrollbarTrack = document.createElement("div");
-    topScrollbarTrack.className = "table-scroll-top-track";
-    topScrollbar.appendChild(topScrollbarTrack);
+    const anchor = ensureHorizontalScrollAnchor(container);
 
-    container.parentNode?.insertBefore(topScrollbar, container);
+    let topScrollbar = scrollHost.querySelector(`:scope > .table-scroll-top[data-scroll-anchor="${anchor}"]`);
+    if (!topScrollbar) {
+      topScrollbar = document.createElement("div");
+      topScrollbar.className = "table-scroll-top";
+      topScrollbar.dataset.scrollAnchor = anchor;
+      topScrollbar.setAttribute("aria-hidden", "true");
+
+      const topTrack = document.createElement("div");
+      topTrack.className = "table-scroll-top-track";
+      topScrollbar.appendChild(topTrack);
+      scrollHost.insertBefore(topScrollbar, container);
+    }
+
+    const topTrack = topScrollbar.querySelector(".table-scroll-top-track");
 
     const binding = {
       container,
+      shell: scrollHost,
       topScrollbar,
-      topScrollbarTrack,
+      topTrack,
       isDragging: false,
       dragStartX: 0,
       dragStartScrollLeft: 0,
@@ -69,26 +134,31 @@ export function setupGlobalHorizontalScrollEnhancements() {
     };
 
     binding.updateMetrics = () => {
-      const maxScroll = Math.max(0, container.scrollWidth - container.clientWidth);
-      topScrollbarTrack.style.width = `${container.scrollWidth}px`;
-      topScrollbar.style.display = maxScroll > 0 ? "block" : "none";
-      if (Math.abs(topScrollbar.scrollLeft - container.scrollLeft) > 1) {
-        topScrollbar.scrollLeft = container.scrollLeft;
+      const { contentWidth, maxScroll } = getHorizontalScrollMetrics(container);
+      if (binding.topTrack) {
+        binding.topTrack.style.width = `${contentWidth}px`;
+      }
+      binding.topScrollbar.style.display = maxScroll > 0 ? "block" : "none";
+      if (Math.abs(binding.topScrollbar.scrollLeft - container.scrollLeft) > 1) {
+        binding.topScrollbar.scrollLeft = container.scrollLeft;
       }
       container.classList.toggle("is-horizontal-draggable", maxScroll > 0);
+      if (scrollHost.classList.contains("table-scroll-shell")) {
+        scrollHost.classList.toggle("has-horizontal-scroll", maxScroll > 0);
+      }
     };
 
     binding.handleContainerScroll = () => {
       if (binding.syncingSource === "top") return;
       binding.syncingSource = "container";
-      topScrollbar.scrollLeft = container.scrollLeft;
+      binding.topScrollbar.scrollLeft = container.scrollLeft;
       binding.syncingSource = "";
     };
 
     binding.handleTopScroll = () => {
       if (binding.syncingSource === "container") return;
       binding.syncingSource = "top";
-      container.scrollLeft = topScrollbar.scrollLeft;
+      container.scrollLeft = binding.topScrollbar.scrollLeft;
       binding.syncingSource = "";
     };
 
@@ -105,8 +175,23 @@ export function setupGlobalHorizontalScrollEnhancements() {
 
     binding.handleMouseDown = (event) => {
       if (event.button !== 0) return;
-      if (event.target instanceof Element && event.target.closest(HORIZONTAL_SCROLL_INTERACTIVE_SELECTOR)) return;
-      if (container.scrollWidth <= container.clientWidth) return;
+      if (document.body.classList.contains("board-column-resizing")) return;
+      if (event.target instanceof Element) {
+        if (event.target.closest(HORIZONTAL_SCROLL_INTERACTIVE_SELECTOR)) return;
+        if (event.target.closest(".table-scroll-top")) return;
+        if (event.target.closest(".board-column-resize-handle")) return;
+
+        const headerCell = event.target.closest("th");
+        if (headerCell) {
+          const rect = headerCell.getBoundingClientRect();
+          const nearResizeEdge = event.clientX >= rect.right - 14;
+          if (nearResizeEdge || headerCell.classList.contains("resizing")) return;
+          return;
+        }
+      }
+
+      const { maxScroll } = getHorizontalScrollMetrics(container);
+      if (maxScroll <= 0) return;
 
       binding.isDragging = true;
       binding.dragStartX = event.clientX;
@@ -119,12 +204,14 @@ export function setupGlobalHorizontalScrollEnhancements() {
     };
 
     container.addEventListener("scroll", binding.handleContainerScroll, { passive: true });
-    topScrollbar.addEventListener("scroll", binding.handleTopScroll, { passive: true });
+    binding.topScrollbar.addEventListener("scroll", binding.handleTopScroll, { passive: true });
     container.addEventListener("mousedown", binding.handleMouseDown);
+    scrollHost.addEventListener("mousedown", binding.handleMouseDown);
 
     if (typeof ResizeObserver !== "undefined") {
       binding.resizeObserver = new ResizeObserver(() => binding.updateMetrics());
       binding.resizeObserver.observe(container);
+      binding.resizeObserver.observe(scrollHost);
       const tableElement = container.querySelector("table");
       if (tableElement) {
         binding.resizeObserver.observe(tableElement);
@@ -132,7 +219,8 @@ export function setupGlobalHorizontalScrollEnhancements() {
     }
 
     bindings.set(container, binding);
-    binding.updateMetrics();
+    requestAnimationFrame(() => binding.updateMetrics());
+    setTimeout(() => binding.updateMetrics(), 120);
   };
 
   const cleanupMissingContainers = () => {
@@ -142,8 +230,9 @@ export function setupGlobalHorizontalScrollEnhancements() {
       binding.resizeObserver?.disconnect();
       container.removeEventListener("scroll", binding.handleContainerScroll);
       container.removeEventListener("mousedown", binding.handleMouseDown);
-      binding.topScrollbar.removeEventListener("scroll", binding.handleTopScroll);
-      binding.topScrollbar.remove();
+      binding.shell?.removeEventListener("mousedown", binding.handleMouseDown);
+      binding.topScrollbar?.removeEventListener("scroll", binding.handleTopScroll);
+      binding.topScrollbar?.remove();
       bindings.delete(container);
     });
   };
@@ -151,6 +240,7 @@ export function setupGlobalHorizontalScrollEnhancements() {
   const scan = () => {
     document.querySelectorAll(selector).forEach((container) => enhanceContainer(container));
     cleanupMissingContainers();
+    document.querySelectorAll(".table-scroll-sync").forEach((node) => node.remove());
   };
 
   const scheduleScan = () => {
@@ -162,7 +252,10 @@ export function setupGlobalHorizontalScrollEnhancements() {
   };
 
   const mutationObserver = new MutationObserver(() => scheduleScan());
-  mutationObserver.observe(document.body, { childList: true, subtree: true });
+  const observeRoot = document.getElementById("root");
+  if (observeRoot) {
+    mutationObserver.observe(observeRoot, { childList: true, subtree: true });
+  }
   window.addEventListener("resize", scheduleScan);
 
   scan();
@@ -179,9 +272,11 @@ export function setupGlobalHorizontalScrollEnhancements() {
       binding.resizeObserver?.disconnect();
       binding.container.removeEventListener("scroll", binding.handleContainerScroll);
       binding.container.removeEventListener("mousedown", binding.handleMouseDown);
-      binding.topScrollbar.removeEventListener("scroll", binding.handleTopScroll);
-      binding.topScrollbar.remove();
+      binding.shell?.removeEventListener("mousedown", binding.handleMouseDown);
+      binding.topScrollbar?.removeEventListener("scroll", binding.handleTopScroll);
+      binding.topScrollbar?.remove();
       binding.container.classList.remove("is-horizontal-draggable");
+      binding.shell?.classList.remove("has-horizontal-scroll");
     });
     bindings.clear();
     document.body.classList.remove("horizontal-dragging-active");

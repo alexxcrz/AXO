@@ -14,6 +14,7 @@ backend/data/warehouse-state.previous.json
 backend/data/warehouse-state-backups/
 backend/data/uploads/
 backend/data/biblioteca/
+backend/data/chat.db
 !backend/data/warehouse-state-backups/.gitkeep
 !backend/data/uploads/.gitkeep
 !backend/data/uploads/chat/.gitkeep
@@ -23,6 +24,7 @@ backend/data/biblioteca/
 .vscode/
 dist/
 frontend/dist/
+frontend/tmp/
 coverage/
 .cache/
 .render/

@@ -285,3 +285,47 @@ model ChatNotificacionConfig {
 
   @@map("chat_notificaciones_config")
 }
+
+model ChatReunion {
+  id             Int       @id @default(autoincrement())
+  titulo         String
+  descripcion    String?
+  fecha          String
+  hora           String
+  lugar          String?
+  esVideollamada Int       @default(0)
+  duracionMinutos Int      @default(60)
+  invitacionToken String?  @unique
+  room           String?
+  creador        String
+  participantes  String    @default("[]")
+  chatTipo       String    @default("privado")
+  chatId         String
+  estado         String    @default("programada")
+  creadaEn       DateTime  @default(now())
+  activadaEn     DateTime?
+  updatedAt      DateTime  @updatedAt
+
+  @@index([creador])
+  @@index([chatTipo, chatId])
+  @@index([estado])
+  @@map("chat_reuniones")
+}
+
+model ChatLlamada {
+  id               Int       @id @default(autoincrement())
+  room             String
+  iniciador        String
+  receptores       String    @default("[]")
+  tipo             String    @default("privado")
+  estado           String    @default("pendiente")
+  iniciadaEn       DateTime  @default(now())
+  aceptadaEn       DateTime?
+  finalizadaEn     DateTime?
+  duracionSegundos Int?
+
+  @@index([iniciador])
+  @@index([iniciadaEn])
+  @@index([room])
+  @@map("chat_llamadas")
+}

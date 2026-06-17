@@ -1,3 +1,5 @@
+/* eslint-disable no-unused-vars -- props desde App.jsx */
+import { Plus, Trash2 } from "lucide-react";
 import { Modal } from "../Modal";
 import { createEmptyCatalogModalState } from "../../app/catalogHelpers.js";
 import {
@@ -7,94 +9,40 @@ import {
 } from "../../utils/utilidades.jsx";
 
 /** Modales extra�dos de App.jsx � AppCatalogModals */
-
-/** Modales extraidos de App.jsx � AppCatalogModals */
 export function AppCatalogModals(props) {
   const {
-  actionPermissions,
-  addActivityToWeek,
-  Agregar,
-  Alcance,
-  Area,
-  areaDeleteModal,
-  areaModal,
-  areaName,
-  areaOption,
-  Boolean,
-  bySite,
-  CATALOG_WEEKDAY_OPTIONS,
-  catalogAreaOptions,
-  catalogMap,
-  catalogModal,
-  CLEANING_SITE_OPTIONS,
-  cleaningSites,
-  confirmAddArea,
-  confirmDeleteArea,
-  createEmptyCatalogModalState,
-  currentDays,
-  currentSites,
-  deleteWeekActivity,
-  Dias,
-  editWeekActivityId,
-  editWeekId,
-  Esta,
-  fallbackDays,
-  filter,
-  find,
-  General,
-  getActivityLabel,
-  hasDay,
-  hasSite,
-  isActive,
-  isDeleted,
-  isDisabled,
-  Lista,
-  map,
-  Naves,
-  nextBySite,
-  nextDays,
-  nextSites,
-  Nombre,
-  normalizeCatalogCleaningSites,
-  normalizeCatalogScheduledDays,
-  normalizeCatalogScheduledDaysBySite,
-  Obligatoria,
-  Ocasional,
-  parentArea,
-  Plus,
-  Por,
-  Quitar,
-  removeWeekActivity,
-  scheduledDays,
-  scheduledDaysBySite,
-  Selecciona,
-  Seleccionar,
-  setAreaDeleteModal,
-  setAreaModal,
-  setCatalogModal,
-  setEditWeekActivityId,
-  setEditWeekId,
-  Si,
-  siteDays,
-  siteLabel,
-  siteMode,
-  siteValue,
-  sort,
-  String,
-  submitCatalogModal,
-  submitting,
-  Tiempo,
-  Tipo,
-  toUpperCase,
-  Vas,
-  weekId,
+    catalogModal,
+    setCatalogModal,
+    createEmptyCatalogModalState,
+    submitCatalogModal,
+    catalogAreaOptions,
+    normalizeCatalogCleaningSites,
+    normalizeCatalogScheduledDays,
+    normalizeCatalogScheduledDaysBySite,
+    CATALOG_WEEKDAY_OPTIONS,
+    CLEANING_SITE_OPTIONS,
+    areaModal,
+    setAreaModal,
+    AREA_T,
+    confirmAddArea,
+    areaDeleteModal,
+    setAreaDeleteModal,
+    confirmDeleteArea,
+    editWeekId,
+    setEditWeekId,
+    editWeekActivityId,
+    setEditWeekActivityId,
+    addActivityToWeek,
+    state,
+    getActivityLabel,
+    catalogMap,
+    actionPermissions,
+    removeWeekActivity,
   } = props;
 
   return (
     <>
-return (
-    <>
-    <Modal className="modal-wide catalog-activity-modal" open={catalogModal.open} title={catalogModal.mode === "create" ? "Nueva actividad" : "Editar actividad"} confirmLabel={catalogModal.mode === "create" ? "Guardar" : "Guardar cambios"} cancelLabel="Cancelar" onClose={() => setCatalogModal(createEmptyCatalogModalState())} onConfirm={submitCatalogModal} confirmDisabled={catalogModal.submitting}>
+<Modal className="modal-wide catalog-activity-modal" open={catalogModal.open} title={catalogModal.mode === "create" ? "Nueva actividad" : "Editar actividad"} confirmLabel={catalogModal.mode === "create" ? "Guardar" : "Guardar cambios"} cancelLabel="Cancelar" onClose={() => setCatalogModal(createEmptyCatalogModalState())} onConfirm={submitCatalogModal} confirmDisabled={catalogModal.submitting}>
       <div className="modal-form-grid catalog-activity-modal-grid">
         <label className="app-modal-field">
           <span>Area propietaria</span>
@@ -234,29 +182,29 @@ return (
       </div>
     </Modal>
 
-    <Modal open={areaModal.open} backdropClassName="area-modal-backdrop" title="Agregar área" confirmLabel="Guardar área" cancelLabel="Cancelar" onClose={() => setAreaModal({ open: false, target: "user", name: "", parentArea: "", error: "" })} onConfirm={confirmAddArea}>
+    <Modal open={areaModal.open} backdropClassName="area-modal-backdrop" title={AREA_T.addArea} confirmLabel={AREA_T.saveArea} cancelLabel={AREA_T.cancel} onClose={() => setAreaModal({ open: false, target: "user", name: "", parentArea: "", error: "" })} onConfirm={confirmAddArea}>
       <div className="modal-form-grid">
         <label className="app-modal-field">
-          <span>Nombre del área</span>
-          <input value={areaModal.name} onChange={(event) => setAreaModal((current) => ({ ...current, name: event.target.value, error: "" }))} placeholder="Ej: LOGISTICA" />
+          <span>{AREA_T.areaName}</span>
+          <input value={areaModal.name} onChange={(event) => setAreaModal((current) => ({ ...current, name: event.target.value, error: "" }))} placeholder={AREA_T.areaPlaceholder} />
         </label>
         {areaModal.error ? <p className="validation-text">{areaModal.error}</p> : null}
-        <p className="modal-footnote">La nueva área se agregará al catálogo y se seleccionará automáticamente.</p>
+        <p className="modal-footnote">{AREA_T.footnoteArea}</p>
       </div>
     </Modal>
 
     <Modal
       open={areaDeleteModal.open}
-      title="Eliminar área"
-      confirmLabel={areaDeleteModal.submitting ? "Eliminando..." : "Eliminar"}
-      cancelLabel="Cancelar"
+      title={AREA_T.deleteTitle}
+      confirmLabel={areaDeleteModal.submitting ? AREA_T.deleting : AREA_T.delete}
+      cancelLabel={AREA_T.cancel}
       onClose={() => setAreaDeleteModal({ open: false, areaName: "", label: "", error: "", submitting: false })}
       onConfirm={confirmDeleteArea}
       confirmDisabled={areaDeleteModal.submitting || !areaDeleteModal.areaName}
     >
       <div className="modal-form-grid">
-        <p>Vas a eliminar {areaDeleteModal.label || "esta área"}.</p>
-        <p className="modal-footnote">Si es subárea, los players migran al área raíz. Si es área raíz, se limpia el área de los players asignados.</p>
+        <p>{AREA_T.deleteConfirm(areaDeleteModal.label)}</p>
+        <p className="modal-footnote">{AREA_T.deleteFootnote}</p>
         {areaDeleteModal.error ? <p className="validation-text">{areaDeleteModal.error}</p> : null}
       </div>
     </Modal>
@@ -284,9 +232,6 @@ return (
         </div>
       </div>
     </Modal>
-
-    </>
-
     </>
   );
 }

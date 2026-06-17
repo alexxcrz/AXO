@@ -1,5 +1,85 @@
+.inventory-page-layout {
+  display: grid;
+  gap: 1rem;
+  width: 100%;
+  max-width: 100%;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: stretch;
+}
+
+.inventory-page-layout > *,
+.inventory-page-layout .inventory-main-grid,
+.inventory-page-layout .inventory-items-card,
+.inventory-page-layout .inventory-tabs-card,
+.inventory-page-layout .inventory-transfer-panel-card,
+.inventory-page-layout .inventory-stat-collapsible {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.inventory-main-grid {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.inventory-empty-state-copy {
+  max-width: 36rem;
+  margin: 0.75rem 0 0;
+  text-align: center;
+  line-height: 1.45;
+}
+
+.inventory-lot-popover-root {
+  position: fixed;
+  inset: 0;
+  z-index: 9100;
+  pointer-events: none;
+}
+
+.inventory-lot-popover-backdrop {
+  position: absolute;
+  inset: 0;
+  pointer-events: auto;
+}
+
+.inventory-lot-popover-panel {
+  position: fixed;
+  z-index: 9200;
+  background: #ffffff;
+  border: 1px solid rgba(162, 170, 181, 0.28);
+  border-radius: 0.7rem;
+  box-shadow: 0 12px 24px rgba(49, 77, 105, 0.12);
+  padding: 0.32rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  max-height: 12rem;
+  overflow-y: auto;
+  pointer-events: auto;
+}
+
+.inventory-lot-popover-option {
+  display: block;
+  padding: 0.3rem 0.5rem;
+  border-radius: 0.5rem;
+  font-size: 0.78rem;
+  font-weight: 500;
+  background: #f9fbfb;
+  color: #244040;
+}
+
+.inventory-lot-popover-option.is-active {
+  font-weight: 700;
+  background: rgba(42, 96, 143, 0.08);
+}
+
 .inventory-subtab-strip {
   margin-top: 0.75rem;
+  align-items: center;
+}
+
+.inventory-subtab-strip .icon-button {
+  flex-shrink: 0;
 }
 
 .inventory-activity-consumption-field {
@@ -116,11 +196,48 @@ html {
   min-height: 100vh;
   display: grid;
   grid-template-columns: 264px minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  align-items: stretch;
   transition: grid-template-columns 180ms ease;
 }
 
 .warehouse-app.sidebar-collapsed {
   grid-template-columns: 68px minmax(0, 1fr);
+}
+
+/* Evita que overlays/modales/chat ocupen celdas del grid y empujen content-shell a la columna estrecha */
+.warehouse-app > .sidebar-shell {
+  grid-column: 1;
+  grid-row: 1;
+  min-width: 0;
+}
+
+.warehouse-app > .content-shell {
+  grid-column: 2;
+  grid-row: 1;
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+}
+
+.warehouse-app > .app-toast-stack,
+.warehouse-app > .global-capture-shield,
+.warehouse-app > .sidebar-overlay,
+.warehouse-app > .warehouse-app-floating-layer {
+  grid-column: 1 / -1;
+  grid-row: 1;
+}
+
+.warehouse-app-floating-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.warehouse-app-floating-layer > * {
+  pointer-events: auto;
 }
 
 .sidebar-overlay,
@@ -4004,9 +4121,12 @@ html[data-ui-theme] .app-notification-badge {
 
 .mis-tableros-shell .table-wrap {
   overflow-x: auto;
+  overflow-y: hidden;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-x: contain;
   max-width: 100%;
+  min-width: 0;
+  width: 100%;
 }
 
 .mis-tableros-shell .card-header-row {
@@ -4946,26 +5066,73 @@ html[data-ui-theme] .app-notification-badge {
 .table-card {
   display: grid;
   gap: 1rem;
+  min-width: 0;
+}
+
+.table-card > * {
+  min-width: 0;
+}
+
+.table-scroll-shell {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.table-scroll-shell > .table-wrap,
+.table-scroll-shell > .board-table-wrap,
+.table-scroll-shell > .custom-board-table-wrap,
+.table-scroll-shell > .board-preview-table-wrap,
+.table-scroll-shell > .dashboard-table-wrap,
+.table-scroll-shell > .smart-grid-table-wrap {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
 }
 
 .table-wrap {
   overflow-x: auto;
   overflow-y: hidden;
   max-width: 100%;
+  min-width: 0;
+  width: 100%;
 }
 
 .table-scroll-top {
   overflow-x: auto;
   overflow-y: hidden;
   max-width: 100%;
+  width: 100%;
+  min-width: 0;
   height: 0.7rem;
-  margin-bottom: 0.32rem;
+  margin-bottom: 0.2rem;
   border-radius: 999px;
   background: rgba(49, 77, 105, 0.05);
 }
 
 .table-scroll-top-track {
   height: 1px;
+}
+
+.table-scroll-shell.has-horizontal-scroll > .table-wrap,
+.table-scroll-shell.has-horizontal-scroll > .board-table-wrap,
+.table-scroll-shell.has-horizontal-scroll > .custom-board-table-wrap,
+.table-scroll-shell.has-horizontal-scroll > .board-preview-table-wrap,
+.table-scroll-shell.has-horizontal-scroll > .dashboard-table-wrap,
+.table-scroll-shell.has-horizontal-scroll > .smart-grid-table-wrap {
+  cursor: grab;
+}
+
+.mis-tableros-shell .table-card,
+.mis-tableros-shell .board-pdf-root {
+  min-height: 0;
+  height: auto;
 }
 
 .table-wrap.is-horizontal-draggable,
@@ -4987,6 +5154,25 @@ html[data-ui-theme] .app-notification-badge {
 }
 
 body.horizontal-dragging-active {
+  user-select: none;
+}
+
+body.board-column-resizing,
+body.board-column-resizing .table-wrap,
+body.board-column-resizing .table-scroll-shell > .table-wrap {
+  cursor: col-resize !important;
+}
+
+body.board-column-resizing .table-wrap.is-horizontal-dragging {
+  cursor: col-resize !important;
+}
+
+.board-column-resize-handle {
+  touch-action: none;
+}
+
+.board-runtime-table th.resizing,
+.board-runtime-table th.resizing ~ th {
   user-select: none;
 }
 
@@ -9180,10 +9366,6 @@ html[data-ui-theme] body .switch-thumb {
   display: grid;
   gap: 1rem;
 }
-.inventory-page-layout {
-  display: grid;
-  gap: 1rem;
-}
 .inventory-hero-card {
   display: flex;
   justify-content: space-between;
@@ -12402,6 +12584,10 @@ html[data-ui-theme] body .switch-thumb {
   .warehouse-app,
   .warehouse-app.sidebar-collapsed {
     grid-template-columns: 1fr;
+  }
+
+  .warehouse-app > .content-shell {
+    grid-column: 1 / -1;
   }
 
   .sidebar-overlay.visible {

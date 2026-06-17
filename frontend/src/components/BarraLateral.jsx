@@ -3,7 +3,7 @@
 // InventoryActivityConsumptionEditor: editor de consumos por actividad.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   BadgeCheck,
   Boxes,
@@ -27,6 +27,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   ScanSearch,
+  Search,
   Settings2,
   Sparkles,
   Store,
@@ -208,10 +209,6 @@ export const Sidebar = React.memo(function Sidebar({ currentUser, page, onPageCh
     }))
     .sort((left, right) => String(left?.label || "").localeCompare(String(right?.label || ""), "es-MX"));
 
-  const [collapsedAreaSections, setCollapsedAreaSections] = useState(() => Object.fromEntries(
-    sortedAreaSections.map((section) => [section.id, true]),
-  ));
-
   const utilityGroups = (() => {
     const groups = [];
     const groupMap = {};
@@ -232,276 +229,349 @@ export const Sidebar = React.memo(function Sidebar({ currentUser, page, onPageCh
       .sort((left, right) => String(left?.label || "").localeCompare(String(right?.label || ""), "es-MX"));
   })();
 
-  const sortedSidebarSections = [
-    ...sortedAreaSections.map((section) => ({ type: "area", id: section.id, label: section.label, section })),
-    ...utilityGroups.map((group) => ({ type: "utility", id: `util-${group.label}`, label: group.label, group })),
-  ].sort((left, right) => String(left?.label || "").localeCompare(String(right?.label || ""), "es-MX", { sensitivity: "base" }));
+  const [navSearch, setNavSearch] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [systemOpen, setSystemOpen] = useState(false);
+  const searchInputRef = useRef(null);
+  const [focusedAreaId, setFocusedAreaId] = useState(() => {
+    const activeId = String(selectedAreaSectionId || "").trim().toLowerCase();
+    if (activeId && activeId !== "all" && activeId !== "admin") return activeId;
+    return sortedAreaSections[0]?.id || "";
+  });
 
-  const [collapsedUtilityGroups, setCollapsedUtilityGroups] = useState(() =>
-    Object.fromEntries(utilityGroups.map((g) => [g.label, true])),
-  );
+  const normalizedNavSearch = navSearch.trim().toLowerCase();
 
-  function toggleUtilityGroup(label) {
-    setCollapsedUtilityGroups((current) => ({ ...current, [label]: !current[label] }));
+  const filteredAreaSections = useMemo(() => {
+    if (!normalizedNavSearch) return sortedAreaSections;
+    return sortedAreaSections
+      .map((section) => {
+        const sectionMatches = String(section.label || "").toLowerCase().includes(normalizedNavSearch);
+        if (sectionMatches) return section;
+        const items = section.items.filter((item) => {
+          const label = String(item.shortLabel || item.label || "").toLowerCase();
+          return label.includes(normalizedNavSearch);
+        });
+        return items.length ? { ...section, items } : null;
+      })
+      .filter(Boolean);
+  }, [normalizedNavSearch, sortedAreaSections]);
+
+  const filteredUtilityGroups = useMemo(() => {
+    if (!normalizedNavSearch) return utilityGroups;
+    return utilityGroups
+      .map((group) => {
+        const groupMatches = String(group.label || "").toLowerCase().includes(normalizedNavSearch);
+        if (groupMatches) return group;
+        const items = group.items.filter((item) => {
+          const label = String(item.shortLabel || item.label || "").toLowerCase();
+          return label.includes(normalizedNavSearch);
+        });
+        return items.length ? { ...group, items } : null;
+      })
+      .filter(Boolean);
+  }, [normalizedNavSearch, utilityGroups]);
+
+  const focusedSection = filteredAreaSections.find((section) => section.id === focusedAreaId)
+    || filteredAreaSections[0]
+    || null;
+
+  useEffect(() => {
+    const activeId = String(selectedAreaSectionId || "").trim().toLowerCase();
+    if (!activeId || activeId === "all" || activeId === "admin") return;
+    setFocusedAreaId(activeId);
+  }, [selectedAreaSectionId]);
+
+  useEffect(() => {
+    if (!searchOpen) return;
+    globalThis.setTimeout(() => searchInputRef.current?.focus?.(), 0);
+  }, [searchOpen]);
+
+  useEffect(() => {
+    const activeId = String(selectedAreaSectionId || "").trim().toLowerCase();
+    if (activeId === "admin" || activeId === "all") {
+      setSystemOpen(true);
+    }
+  }, [selectedAreaSectionId, page]);
+
+  function handleAreaChipClick(section) {
+    setFocusedAreaId(section.id);
+    if (!section.items?.length && AREA_SECTIONS_WITHOUT_TABS.has(section.id)) {
+      onPageChange(PAGE_AREA_SHELL, section.id, "", "", null, "");
+      onClose?.();
+    }
   }
 
-  useEffect(() => {
-    setCollapsedUtilityGroups((current) => {
-      const next = { ...current };
-      const knownGroupLabels = new Set(utilityGroups.map((group) => group.label));
-      let changed = false;
+  function renderAreaNavLink(section, item, index) {
+    const activeInSection = isSelectedAreaSection(section, selectedAreaSectionId);
+    const itemActive = page === item.pageId && activeInSection && (
+      !item.transportSection || navTransportSection === item.transportSection
+    ) && (!item.transportTab || navTransportTab === item.transportTab) && (
+      !item.retailTab || navRetailTab === item.retailTab
+    ) && (
+      !item.auditPreset?.tab || item.auditPreset.tab === navAuditTab
+    );
 
-      utilityGroups.forEach((group) => {
-        if (!(group.label in next)) {
-          next[group.label] = true;
-          changed = true;
-        }
-      });
+    return (
+      <a
+        key={`${section.id}-${item.pageId}-${item.transportSection || ""}-${item.transportTab || ""}-${normalizeSidebarKey(item.label)}-${index}`}
+        className={`sidebar-pro-link ${itemActive ? "is-active" : ""}`}
+        href={getPageHref(item.pageId, section.id, item.transportSection)}
+        title={item.label}
+        aria-label={`${section.label} · ${item.label}`}
+        onClick={(event) => {
+          event.preventDefault();
+          onPageChange(item.pageId, section.id, item.transportSection, item.transportTab, item.auditPreset, item.retailTab);
+          onClose?.();
+        }}
+      >
+        <SidebarIcon icon={getSidebarTabIcon(item)} className="nav-item-icon" />
+        <span className="sidebar-pro-link-label">{item.label || item.shortLabel}</span>
+        {formatNavNotificationCount(item.notificationCount) ? (
+          <span className="nav-item-badge-count" aria-label={`${item.notificationCount} pendientes`}>
+            {formatNavNotificationCount(item.notificationCount)}
+          </span>
+        ) : null}
+      </a>
+    );
+  }
 
-      Object.keys(next).forEach((groupLabel) => {
-        if (!knownGroupLabels.has(groupLabel)) {
-          delete next[groupLabel];
-          changed = true;
-        }
-      });
+  function renderUtilityNavLink(group, item) {
+    const Icon = item.icon;
+    const isAuditHistory = item.id === "auditHistory";
+    const isAuditCapture = item.id === PAGE_PROCESS_AUDITS;
+    const isAuditDashboard = item.id === "auditDashboard";
+    const isGlobalDashboard = item.id === PAGE_GLOBAL_DASHBOARD;
+    const isAdminGroup = group.label === "Admin";
+    const nextAreaId = isAdminGroup ? "admin" : "all";
+    const hrefPageId = isGlobalDashboard
+      ? PAGE_DASHBOARD
+      : ((isAuditHistory || isAuditDashboard) ? PAGE_PROCESS_AUDITS : item.id);
+    const itemActive = resolveUtilityItemActive(
+      item,
+      group.label,
+      page,
+      selectedAreaSectionId,
+      navAuditTab,
+    );
 
-      return changed ? next : current;
-    });
-  }, [utilityGroups]);
-
-  useEffect(() => {
-    setCollapsedAreaSections((current) => {
-      const next = { ...current };
-      const knownSectionIds = new Set(sortedAreaSections.map((section) => section.id));
-      let changed = false;
-
-      sortedAreaSections.forEach((section) => {
-        if (!(section.id in next)) {
-          next[section.id] = true;
-          changed = true;
-        }
-      });
-
-      Object.keys(next).forEach((sectionId) => {
-        if (!knownSectionIds.has(sectionId)) {
-          delete next[sectionId];
-          changed = true;
-        }
-      });
-
-      return changed ? next : current;
-    });
-  }, [sortedAreaSections]);
-
-  useEffect(() => {
-    const activeSectionId = String(selectedAreaSectionId || "").trim().toLowerCase();
-    if (!activeSectionId) return;
-
-    if (activeSectionId === "admin") {
-      setCollapsedUtilityGroups((current) => (
-        current.Admin === false ? current : { ...current, Admin: false }
-      ));
-      return;
-    }
-
-    if (activeSectionId === "all") {
-      const groupLabels = new Set();
-      (Array.isArray(utilityNavItems) ? utilityNavItems : []).forEach((item) => {
-        const groupLabel = item.group || "";
-        if (!groupLabel || groupLabel === "Admin") return;
-        if (resolveUtilityItemActive(item, groupLabel, page, selectedAreaSectionId, navAuditTab)) {
-          groupLabels.add(groupLabel);
-        }
-      });
-      if (groupLabels.size === 0) return;
-      setCollapsedUtilityGroups((current) => {
-        let next = current;
-        groupLabels.forEach((label) => {
-          if (current[label] !== false) {
-            next = next === current ? { ...current } : next;
-            next[label] = false;
+    return (
+      <a
+        key={item.id}
+        className={`sidebar-pro-link ${itemActive ? "is-active" : ""}`}
+        href={getPageHref(hrefPageId, nextAreaId)}
+        title={item.label}
+        aria-label={item.label}
+        onClick={(event) => {
+          event.preventDefault();
+          if (isGlobalDashboard) {
+            onPageChange(PAGE_DASHBOARD, "admin");
+          } else if (isAuditHistory) {
+            onPageChange(PAGE_PROCESS_AUDITS, "all", undefined, undefined, { tab: "history" });
+          } else if (isAuditDashboard) {
+            onPageChange(PAGE_PROCESS_AUDITS, "all", undefined, undefined, { tab: "dashboard" });
+          } else if (isAuditCapture) {
+            onPageChange(PAGE_PROCESS_AUDITS, "all", undefined, undefined, { tab: "capture" });
+          } else {
+            onPageChange(item.id, nextAreaId);
           }
-        });
-        return next;
-      });
-      return;
-    }
-
-    setCollapsedAreaSections((current) => (
-      current[activeSectionId] === false ? current : { ...current, [activeSectionId]: false }
-    ));
-  }, [selectedAreaSectionId, page, navAuditTab, utilityNavItems]);
-
-  function toggleAreaSection(sectionId) {
-    setCollapsedAreaSections((current) => ({
-      ...current,
-      [sectionId]: !current[sectionId],
-    }));
+          onClose?.();
+        }}
+      >
+        <SidebarIcon icon={Icon || getSidebarTabIcon(item)} className="nav-item-icon" />
+        <span className="sidebar-pro-link-label">{item.label || item.shortLabel}</span>
+      </a>
+    );
   }
 
   return (
-    <aside className={`sidebar-shell ui-surface-dark ${isOpen ? "open" : ""} ${isCollapsed && !isOpen ? "collapsed" : ""}`}>
+    <aside className={`sidebar-shell sidebar-pro ui-surface-dark ${isOpen ? "open" : ""} ${isCollapsed && !isOpen ? "collapsed" : ""}`}>
       <div className="sidebar-mobile-actions">
         <button type="button" className="sidebar-close-button" onClick={onClose} aria-label="Cerrar menú">
           <X size={18} />
         </button>
       </div>
-      <div className="sidebar-desktop-toggle">
-        <button type="button" className="sidebar-collapse-button" onClick={onToggleCollapsed} aria-label={isCollapsed ? "Expandir menú lateral" : "Contraer menú lateral"} title={isCollapsed ? "Expandir menú" : "Contraer menú"}>
-          {isCollapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
-        </button>
-      </div>
-      <div className="brand-block">
-        <CopmecBrand headingTag="h1" compact={isCollapsed} showKicker={false} />
+
+      <div className="sidebar-v3-header">
+        <div className="brand-block">
+          <CopmecBrand headingTag="h1" compact={isCollapsed} showKicker={false} />
+        </div>
+        <div className="sidebar-v3-header-tools">
+          {!isCollapsed ? (
+            searchOpen || navSearch ? (
+              <div className="sidebar-v3-search-inline" role="search">
+                <Search size={14} className="sidebar-v3-search-icon" aria-hidden="true" />
+                <input
+                  ref={searchInputRef}
+                  type="search"
+                  className="sidebar-v3-search-input"
+                  value={navSearch}
+                  onChange={(event) => setNavSearch(event.target.value)}
+                  placeholder="Buscar..."
+                  aria-label="Buscar en el menú"
+                  onBlur={() => {
+                    if (!navSearch.trim()) setSearchOpen(false);
+                  }}
+                />
+                <button
+                  type="button"
+                  className="sidebar-v3-icon-btn"
+                  aria-label={navSearch ? "Limpiar búsqueda" : "Cerrar búsqueda"}
+                  onClick={() => {
+                    if (navSearch) {
+                      setNavSearch("");
+                      globalThis.setTimeout(() => searchInputRef.current?.focus?.(), 0);
+                    } else {
+                      setSearchOpen(false);
+                    }
+                  }}
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                className="sidebar-v3-icon-btn"
+                onClick={() => setSearchOpen(true)}
+                aria-label="Abrir búsqueda"
+                title="Buscar"
+              >
+                <Search size={15} aria-hidden="true" />
+              </button>
+            )
+          ) : null}
+          <button type="button" className="sidebar-v3-icon-btn sidebar-collapse-button" onClick={onToggleCollapsed} aria-label={isCollapsed ? "Expandir menú lateral" : "Contraer menú lateral"} title={isCollapsed ? "Expandir menú" : "Contraer menú"}>
+            {isCollapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
+          </button>
+        </div>
       </div>
 
-      <nav className="sidebar-nav">
-        {(() => {
-          const elements = [];
-          sortedSidebarSections.forEach((entry) => {
-            if (entry.type === "area") {
-              const section = entry.section;
-              const activeInSection = isSelectedAreaSection(section, selectedAreaSectionId);
-              const sectionCollapsed = Boolean(collapsedAreaSections[section.id]);
-              elements.push(
-                <section key={`area-group-${section.id}`} className={`nav-section sidebar-area-section ${sectionCollapsed ? "collapsed" : "expanded"} ${activeInSection ? "active is-current-area" : ""}`}>
+      <nav className="sidebar-nav sidebar-pro-nav" aria-label="Navegación principal">
+        <div className="sidebar-pro-rail" aria-label="Accesos rápidos por área">
+          {sortedAreaSections.map((section) => {
+            const activeInSection = isSelectedAreaSection(section, selectedAreaSectionId);
+            const isFocused = focusedAreaId === section.id;
+            return (
+              <button
+                key={`rail-${section.id}`}
+                type="button"
+                className={`sidebar-pro-rail-btn ${isFocused ? "is-active" : ""} ${activeInSection ? "is-route" : ""}`.trim()}
+                title={section.label}
+                aria-label={section.label}
+                onClick={() => {
+                  handleAreaChipClick(section);
+                  if (isCollapsed) onToggleCollapsed?.();
+                }}
+              >
+                <SidebarIcon icon={getSidebarSectionIcon(section.id)} />
+              </button>
+            );
+          })}
+          {utilityGroups.map((group) => {
+            const activeInGroup = isSelectedUtilityGroup(group, page, selectedAreaSectionId, navAuditTab);
+            return (
+              <button
+                key={`rail-util-${group.label}`}
+                type="button"
+                className={`sidebar-pro-rail-btn ${activeInGroup ? "is-active is-route" : ""}`.trim()}
+                title={group.label}
+                aria-label={group.label}
+                onClick={() => {
+                  if (isCollapsed) onToggleCollapsed?.();
+                }}
+              >
+                <SidebarIcon icon={getSidebarSectionIcon(group.label)} />
+              </button>
+            );
+          })}
+        </div>
+
+        {normalizedNavSearch ? (
+          <div className="sidebar-pro-search-results">
+            {filteredAreaSections.length === 0 && filteredUtilityGroups.length === 0 ? (
+              <p className="sidebar-pro-empty">Sin resultados para “{navSearch.trim()}”.</p>
+            ) : null}
+            {filteredAreaSections.map((section) => (
+              <div key={`search-area-${section.id}`} className="sidebar-pro-search-group">
+                <span className="sidebar-pro-search-group-label">{section.label}</span>
+                {section.items.map((item, index) => renderAreaNavLink(section, item, index))}
+              </div>
+            ))}
+            {filteredUtilityGroups.map((group) => (
+              <div key={`search-util-${group.label}`} className="sidebar-pro-search-group">
+                <span className="sidebar-pro-search-group-label">{group.label}</span>
+                {group.items.map((item) => renderUtilityNavLink(group, item))}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="sidebar-pro-split">
+            <div className="sidebar-pro-areas" role="listbox" aria-label="Áreas operativas">
+              {sortedAreaSections.map((section) => {
+                const activeInSection = isSelectedAreaSection(section, selectedAreaSectionId);
+                const isFocused = focusedAreaId === section.id;
+                return (
                   <button
+                    key={section.id}
                     type="button"
-                    className={`nav-section-toggle ${activeInSection ? "active" : ""}`.trim()}
-                    onClick={() => {
-                      if (!section.items?.length && AREA_SECTIONS_WITHOUT_TABS.has(section.id)) {
-                        onPageChange(PAGE_AREA_SHELL, section.id, "", "", null, "");
-                        if (sectionCollapsed) toggleAreaSection(section.id);
-                        onClose?.();
-                        return;
-                      }
-                      toggleAreaSection(section.id);
-                    }}
-                    aria-expanded={!sectionCollapsed}
-                    aria-controls={`nav-section-panel-${section.id}`}
-                    aria-current={activeInSection ? "true" : undefined}
+                    role="option"
+                    aria-selected={isFocused}
+                    className={`sidebar-pro-area-btn ${isFocused ? "is-active" : ""} ${activeInSection ? "is-route" : ""}`.trim()}
+                    onClick={() => handleAreaChipClick(section)}
+                    title={section.label}
                   >
-                    <SidebarIcon icon={getSidebarSectionIcon(section.id)} className="nav-section-toggle-icon" />
-                    <span className="nav-section-toggle-label">{section.label}</span>
+                    <SidebarIcon icon={getSidebarSectionIcon(section.id)} />
+                    <span className="sidebar-pro-area-label">{section.label}</span>
                     {formatNavNotificationCount(section.sectionNotificationCount) ? (
-                      <span className="nav-section-badge" aria-label={`${section.sectionNotificationCount} pendientes en ${section.label}`}>
+                      <span className="sidebar-pro-area-badge" aria-label={`${section.sectionNotificationCount} pendientes`}>
                         {formatNavNotificationCount(section.sectionNotificationCount)}
                       </span>
                     ) : null}
-                    <span className="nav-section-toggle-chevron" aria-hidden="true">
-                      {sectionCollapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
-                    </span>
                   </button>
-                  <div id={`nav-section-panel-${section.id}`} className="nav-section-items" hidden={sectionCollapsed}>
-                    {section.items.map((item, _idx) => {
-                      const itemActive = page === item.pageId && activeInSection && (
-                        !item.transportSection || navTransportSection === item.transportSection
-                      ) && (!item.transportTab || navTransportTab === item.transportTab) && (
-                        !item.retailTab || navRetailTab === item.retailTab
-                      ) && (
-                        !item.auditPreset?.tab || item.auditPreset.tab === navAuditTab
-                      );
-                      return (
-                        <a
-                          key={`${section.id}-${item.pageId}-${item.transportSection || ""}-${item.transportTab || ""}-${normalizeSidebarKey(item.label)}-${_idx}`}
-                          className={`nav-item nav-area-item ${itemActive ? "active" : ""}`}
-                          href={getPageHref(item.pageId, section.id, item.transportSection)}
-                          title={item.label}
-                          aria-label={`${section.label} · ${item.label}`}
-                          onClick={(event) => {
-                            event.preventDefault();
-                            onPageChange(item.pageId, section.id, item.transportSection, item.transportTab, item.auditPreset, item.retailTab);
-                            onClose?.();
-                          }}
-                        >
-                          <SidebarIcon icon={getSidebarTabIcon(item)} className="nav-item-icon" />
-                          <span className="nav-item-label">{item.shortLabel || item.label}</span>
-                          {formatNavNotificationCount(item.notificationCount) ? (
-                            <span className="nav-item-badge-count" aria-label={`${item.notificationCount} pendientes`}>
-                              {formatNavNotificationCount(item.notificationCount)}
-                            </span>
-                          ) : null}
-                        </a>
-                      );
-                    })}
-                  </div>
-                </section>,
-              );
-              return;
-            }
+                );
+              })}
+            </div>
 
-            const group = entry.group;
-            const activeInGroup = isSelectedUtilityGroup(group, page, selectedAreaSectionId, navAuditTab);
-            const groupCollapsed = Boolean(collapsedUtilityGroups[group.label]);
-            elements.push(
-              <section key={`util-group-${group.label}`} className={`nav-section sidebar-area-section ${groupCollapsed ? "collapsed" : "expanded"} ${activeInGroup ? "active is-current-area" : ""}`}>
-                <button
-                  type="button"
-                  className={`nav-section-toggle ${activeInGroup ? "active" : ""}`.trim()}
-                  onClick={() => toggleUtilityGroup(group.label)}
-                  aria-expanded={!groupCollapsed}
-                  aria-controls={`nav-util-panel-${group.label}`}
-                  aria-current={activeInGroup ? "true" : undefined}
-                >
-                  <SidebarIcon icon={getSidebarSectionIcon(group.label)} className="nav-section-toggle-icon" />
-                  <span className="nav-section-toggle-label">{group.label}</span>
-                  <span className="nav-section-toggle-chevron" aria-hidden="true">
-                    {groupCollapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
-                  </span>
-                </button>
-                <div id={`nav-util-panel-${group.label}`} className="nav-section-items" hidden={groupCollapsed}>
-                  {group.items.map((item) => {
-                    const Icon = item.icon;
-                    const isAuditHistory = item.id === "auditHistory";
-                    const isAuditCapture = item.id === PAGE_PROCESS_AUDITS;
-                    const isAuditDashboard = item.id === "auditDashboard";
-                    const isGlobalDashboard = item.id === PAGE_GLOBAL_DASHBOARD;
-                    const isAdminGroup = group.label === "Admin";
-                    const nextAreaId = isAdminGroup ? "admin" : "all";
-                    const hrefPageId = isGlobalDashboard
-                      ? PAGE_DASHBOARD
-                      : ((isAuditHistory || isAuditDashboard) ? PAGE_PROCESS_AUDITS : item.id);
-                    const itemActive = resolveUtilityItemActive(
-                      item,
-                      group.label,
-                      page,
-                      selectedAreaSectionId,
-                      navAuditTab,
-                    );
-                    return (
-                      <a
-                        key={item.id}
-                        className={`nav-item ${itemActive ? "active" : ""}`}
-                        href={getPageHref(hrefPageId, nextAreaId)}
-                        title={item.label}
-                        aria-label={item.label}
-                        onClick={(event) => {
-                          event.preventDefault();
-                          if (isGlobalDashboard) {
-                            onPageChange(PAGE_DASHBOARD, "admin");
-                          } else if (isAuditHistory) {
-                            onPageChange(PAGE_PROCESS_AUDITS, "all", undefined, undefined, { tab: "history" });
-                          } else if (isAuditDashboard) {
-                            onPageChange(PAGE_PROCESS_AUDITS, "all", undefined, undefined, { tab: "dashboard" });
-                          } else if (isAuditCapture) {
-                            onPageChange(PAGE_PROCESS_AUDITS, "all", undefined, undefined, { tab: "capture" });
-                          } else {
-                            onPageChange(item.id, nextAreaId);
-                          }
-                          onClose?.();
-                        }}
-                      >
-                        <SidebarIcon icon={Icon || getSidebarTabIcon(item)} className="nav-item-icon" />
-                        <span>{item.shortLabel || item.label}</span>
-                      </a>
-                    );
-                  })}
+            <div className="sidebar-pro-detail">
+              {focusedSection ? (
+                <>
+                  <p className="sidebar-pro-detail-title">{focusedSection.label}</p>
+                  <div className="sidebar-pro-links">
+                    {focusedSection.items.length
+                      ? focusedSection.items.map((item, index) => renderAreaNavLink(focusedSection, item, index))
+                      : <p className="sidebar-pro-empty">Sin módulos visibles.</p>}
+                  </div>
+                </>
+              ) : null}
+
+              {utilityGroups.length ? (
+                <div className="sidebar-pro-system">
+                  <button
+                    type="button"
+                    className="sidebar-pro-system-toggle"
+                    onClick={() => setSystemOpen((current) => !current)}
+                    aria-expanded={systemOpen}
+                  >
+                    <span>Sistema</span>
+                    {systemOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                  </button>
+                  {systemOpen ? (
+                    <div className="sidebar-pro-system-body">
+                      {utilityGroups.map((group) => (
+                        <div key={group.label} className="sidebar-pro-system-group">
+                          <span className="sidebar-pro-system-group-name">{group.label}</span>
+                          <div className="sidebar-pro-links">
+                            {group.items.map((item) => renderUtilityNavLink(group, item))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
                 </div>
-              </section>,
-            );
-          });
-          return elements;
-        })()}
+              ) : null}
+            </div>
+          </div>
+        )}
       </nav>
 
       {canUseAI && (

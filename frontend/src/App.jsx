@@ -34,14 +34,11 @@ import {
   Type,
   Upload,
   Eye,
-  EyeOff,
   X,
   Users,
   Zap,
 } from "lucide-react";
 import { Modal } from "./components/Modal";
-const BoardBuilderModal = lazy(() => import("./components/ModalesConstructorTableros").then((m) => ({ default: m.BoardBuilderModal })));
-const BoardComponentStudioModal = lazy(() => import("./components/ModalesConstructorTableros").then((m) => ({ default: m.BoardComponentStudioModal })));
 const GestionInventario = lazy(() => import("./paginas/GestionInventario"));
 const GestionTransporte = lazy(() => import("./paginas/GestionTransporte"));
 const GestionIncidencias = lazy(() => import("./paginas/GestionIncidencias"));
@@ -58,6 +55,7 @@ const BibliotecaPage = lazy(() => import("./paginas/BibliotecaPage"));
 const CopmecAIWidget = lazy(() => import("./components/CopmecAIWidget"));
 
 import "./App.css";
+import "./app/sidebarNav.css";
 import "./app/uiContrast.css";
 
 const PageFallback = () => (
@@ -83,7 +81,7 @@ import {
 
 import { LoginScreen, BootstrapLeadSetup } from "./components/ComponentesAutenticacion";
 
-import { Sidebar, InventoryActivityConsumptionEditor } from "./components/BarraLateral";
+import { Sidebar } from "./components/BarraLateral";
 
 import {
 
@@ -94,10 +92,6 @@ import {
   EmployeeProfilePasswordSection,
 
   EmployeeProfileMessages,
-
-  EmployeeProfileModal,
-
-  ForcedPasswordChangeModal,
 
 } from "./components/PerfilEmpleado";
 
@@ -121,7 +115,7 @@ import {
 
 } from "./utils/utilidadesImportExcel.js";
 import { normalizeOperationalInspectionTemplate } from "./utils/operationalInspectionTemplate";
-import { isDeprecatedDynamicArea, migrateDeprecatedAreaValue } from "./config/deprecatedAreas.js";
+import { isDeprecatedDynamicArea } from "./config/deprecatedAreas.js";
 import { isMobileShellActive } from "./app/mobileAppShell.js";
 
 // â”€â”€ Constantes globales â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -146,11 +140,12 @@ import {
 
   ROLE_LEAD, ROLE_SR, ROLE_SSR, ROLE_JR,
 
-  STATUS_PENDING, STATUS_RUNNING, STATUS_PAUSED, STATUS_FINISHED,
+  STATUS_PENDING, STATUS_RUNNING, STATUS_PAUSED, STATUS_FINISHED, CUSTOM_PAUSE_REASON_VALUE,
 
   INVENTORY_DOMAIN_BASE, INVENTORY_DOMAIN_CLEANING, INVENTORY_DOMAIN_ORDERS, INVENTORY_DOMAIN_MAINTENANCE, INVENTORY_DOMAIN_DESTINATIONS,
 
   INVENTORY_MOVEMENT_RESTOCK, INVENTORY_MOVEMENT_CONSUME, INVENTORY_MOVEMENT_TRANSFER,
+  ORDER_INVENTORY_PRIMARY_WAREHOUSE,
 
   CONTROL_STATUS_OPTIONS, USER_ROLES, PERMISSION_SCHEMA_VERSION, ROLE_LEVEL,
 
@@ -204,8 +199,6 @@ import {
 
   sortBoardFieldsByColumnOrder,
 
-  syncBoardFieldOrderIntoColumnOrder,
-
   reorderBoardColumnOrderTokens,
 
   getOrderedBoardColumns,
@@ -216,28 +209,20 @@ import {
 
   inventoryDomainUsesPackagingMetrics,
 
-  getInventoryPresentationLabel,
-
-  getInventoryPresentationPlaceholder,
-
-  getInventoryUnitPlaceholder,
-
-  getInventoryStoragePlaceholder,
-
-  getInventoryEntityLabel,
-
   normalizeCleaningSite,
 
   normalizeBoardOperationalContextValue,
 
   normalizeInventoryItemRecord,
 
+  collectOrderInventorySecondaryWarehouses,
+
+  filterOrderInventoryItemsByWarehouse,
+
   normalizeInventoryMovementRecord,
   normalizeInventoryTransferTargetRecord,
 
   findInventoryTransferTarget,
-
-  hasInventoryBalanceInput,
 
   getInventoryAllocatedUnits,
 
@@ -248,8 +233,6 @@ import {
   getInventorySavedStorageLocations,
 
   getInventorySavedTransferDestinations,
-
-  getInventoryDefaultTransferDestination,
 
   formatInventoryTransferDestinationLabel,
 
@@ -313,8 +296,6 @@ import {
 
   normalizeAdminTab,
 
-  normalizeActivityFrequency,
-
   getActivityFrequencyLabel,
 
   normalizeCatalogScheduledDays,
@@ -324,8 +305,6 @@ import {
   normalizeCatalogArea,
 
   normalizeCatalogScheduledDaysBySite,
-
-  buildWeekActivitiesFromCatalogItem,
 
   isStrongPassword,
 
@@ -359,17 +338,11 @@ import {
 
   getFieldColorRule,
 
-  formatInventoryLookupLabel,
-
   resolveInventoryPropertySourceFieldId,
 
   resolveInventoryPropertyValue,
 
   getBoardFieldDisplayType,
-
-  buildInventoryBundleFields,
-
-  buildUpdatedDraftColumns,
 
   createEmptyFieldDraft,
 
@@ -389,23 +362,13 @@ import {
 
   getHeaderEyebrowText,
 
-  buildTemplateColumns,
-
   getBoardTemplateCategory,
 
-  isBoardFieldValueFilled,
-
   getBoardSectionGroups,
-
-  mapColumnToFieldDraft,
 
   triggerBrowserDownload,
 
   parseInventoryImportFile,
-
-  buildImportedBoardRowValuesPatch,
-
-  buildBoardSavePayload,
 
   formatBoardExportFieldValue,
 
@@ -508,8 +471,6 @@ import {
 
   findActiveBoardRowsForUser,
 
-  getBoardRowActivityLabel,
-
   getNormalizedFormulaTerms,
 
   evaluateFormulaFieldValue,
@@ -517,12 +478,6 @@ import {
   normalizeWarehouseState,
 
   loadState,
-
-  updateElapsedForFinish,
-
-  mergeInventoryColumnsWithSystem,
-
-  normalizeSystemOperationalSettings,
 
 } from "./utils/utilidades.jsx";
 import {
@@ -583,10 +538,18 @@ import {
 } from "./app/permissionRegistry.js";
 import { useDashboardMetrics } from "./hooks/useDashboardMetrics.js";
 import { buildPaginasContexto } from "./app/buildPageContext.js";
+import { assembleAppModalContext } from "./app/assembleAppModalContext.js";
+import { useInventoryModalPresentation } from "./app/useInventoryModalPresentation.js";
+import { createInventoryModalActions } from "./app/inventoryModalActions.js";
+import { createBoardToolModalActions } from "./app/createBoardToolModalActions.js";
+import { createBoardRuntimeModalActions } from "./app/createBoardRuntimeModalActions.js";
+import { createCatalogAreaActions } from "./app/createCatalogAreaActions.js";
+import { createPauseModalActions } from "./app/createPauseModalActions.js";
+import { AppModals } from "./components/AppModals.jsx";
 import { ES_MX_AREA_MODAL as AREA_T } from "./locale/esMXAreaModal.js";
 import { AppToastStack, AppNotificationCenter } from "./components/Notificaciones.jsx";
 import { InventoryLookupInput } from "./components/BuscadorInventario.jsx";
-import { io } from "socket.io-client";
+import { createAppSocket } from "./utils/socketClient.js";
 const ChatPro = lazy(() => import("./components/ChatPro.jsx"));
 import { AlertModalProvider } from "./components/AlertModal.jsx";
 import {
@@ -734,7 +697,7 @@ function App() { // NOSONAR
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [mobilePageTransitionKey, setMobilePageTransitionKey] = useState(0);
   const mobileOverlayStackRef = useRef(0);
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "true");
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => localStorage.getItem(SIDEBAR_COLLAPSED_KEY) !== "false");
   const [selectedCustomBoardId, setSelectedCustomBoardId] = useState(INITIAL_ROUTE_STATE.selectedBoardId);
   const [selectedCustomBoardViewId, setSelectedCustomBoardViewId] = useState("current");
   const [selectedCustomBoardRowId, setSelectedCustomBoardRowId] = useState("");
@@ -798,7 +761,6 @@ function App() { // NOSONAR
   const boardPauseIsOutOfTime = Number(boardPauseState.authorizedPauseSeconds || 0) > 0
     && boardPauseRemainingSeconds <= 0;
   const boardPauseOvertimeSeconds = Math.max(0, boardPauseElapsedSeconds - Number(boardPauseState.authorizedPauseSeconds || 0));
-  const CUSTOM_PAUSE_REASON_VALUE = "__custom__";
   const sessionRole = normalizeRole(state.users.find((user) => user.id === sessionUserId)?.role);
   const antiCaptureEnabled = import.meta.env.PROD && sessionRole !== ROLE_LEAD;
   const [isDemoMode, setIsDemoMode] = useState(false);
@@ -1436,7 +1398,7 @@ function App() { // NOSONAR
           uiPrefsHydratedRef.current = true;
           return;
         }
-      } catch {}
+      } catch { /* ignore server prefs */ }
       // Fallback a localStorage si falla el servidor
       try {
         const savedTheme = String(localStorage.getItem(getUserUiThemeKey(sessionUserId)) || "").trim();
@@ -2010,6 +1972,18 @@ function App() { // NOSONAR
       queueWarehouseRefresh(data);
     };
 
+    const showOrderInventoryDeviceAlertIfNeeded = async (showAlert) => {
+      if (!document.hidden) return;
+      try {
+        const registration = await navigator.serviceWorker?.ready;
+        const subscription = await registration?.pushManager?.getSubscription();
+        if (subscription) return;
+      } catch {
+        // Sin push activo: mostrar alerta local como respaldo.
+      }
+      showAlert();
+    };
+
     const handleOrderInventoryTransferCreated = async (data) => {
       if (ignoreResponse) return;
       if (!data?.movement) return;
@@ -2022,9 +1996,8 @@ function App() { // NOSONAR
         .filter(Boolean)
         .join(" · ") || "destino";
 
-      showOrderInventoryTransferNotification(movement, data?.performedByName || "", { alertMode: "sound-vibration" });
       pushNotificationToInbox({
-        id: `order-inv-transfer-${movement.id}-${data.ts || Date.now()}`,
+        id: `order-inv-transfer-${movement.id}`,
         title: "Transferencia de insumos para pedidos",
         message: `${movement.quantity || 0} ${movement.unitLabel || "pzas"} de ${movement.itemName || "insumo"} → ${destination}`,
         meta: `Transferido por: ${data?.performedByName || "Operador"}`,
@@ -2032,6 +2005,9 @@ function App() { // NOSONAR
         timestamp: new Date(data.ts || Date.now()).toISOString(),
         targetPage: PAGE_INVENTORY,
         targetDomain: INVENTORY_DOMAIN_ORDERS,
+      });
+      await showOrderInventoryDeviceAlertIfNeeded(() => {
+        showOrderInventoryTransferNotification(movement, data?.performedByName || "", { alertMode: "sound-vibration" });
       });
       queueWarehouseRefresh(data);
     };
@@ -2046,9 +2022,8 @@ function App() { // NOSONAR
       const location = String(movement?.storageLocation || "").trim();
       const locationSuffix = location ? ` · ${location}` : "";
 
-      showOrderInventoryRestockNotification(movement, data?.performedByName || "", { alertMode: "sound-vibration" });
       pushNotificationToInbox({
-        id: `order-inv-restock-${movement.id}-${data.ts || Date.now()}`,
+        id: `order-inv-restock-${movement.id}`,
         title: "Surtido de insumos para pedidos",
         message: `+${movement.quantity || 0} ${movement.unitLabel || "pzas"} de ${movement.itemName || "insumo"}${locationSuffix}`,
         meta: `Surtido por: ${data?.performedByName || "Operador"}`,
@@ -2056,6 +2031,9 @@ function App() { // NOSONAR
         timestamp: new Date(data.ts || Date.now()).toISOString(),
         targetPage: PAGE_INVENTORY,
         targetDomain: INVENTORY_DOMAIN_ORDERS,
+      });
+      await showOrderInventoryDeviceAlertIfNeeded(() => {
+        showOrderInventoryRestockNotification(movement, data?.performedByName || "", { alertMode: "sound-vibration" });
       });
       queueWarehouseRefresh(data);
     };
@@ -2072,9 +2050,8 @@ function App() { // NOSONAR
         ? ` · stock inicial: ${stockUnits} ${item.unitLabel || "pzas"}`
         : "";
 
-      showOrderInventoryItemCreatedNotification(item, data?.performedByName || "", { alertMode: "sound-vibration" });
       pushNotificationToInbox({
-        id: `order-inv-item-${item.id}-${data.ts || Date.now()}`,
+        id: `order-inv-item-${item.id}`,
         title: "Nuevo insumo para pedidos",
         message: `${item.code || "sin código"} · ${item.name || "insumo"}${stockSuffix}`,
         meta: `Registrado por: ${data?.performedByName || "Operador"}`,
@@ -2082,6 +2059,9 @@ function App() { // NOSONAR
         timestamp: new Date(data.ts || Date.now()).toISOString(),
         targetPage: PAGE_INVENTORY,
         targetDomain: INVENTORY_DOMAIN_ORDERS,
+      });
+      await showOrderInventoryDeviceAlertIfNeeded(() => {
+        showOrderInventoryItemCreatedNotification(item, data?.performedByName || "", { alertMode: "sound-vibration" });
       });
       queueWarehouseRefresh(data);
     };
@@ -2456,22 +2436,13 @@ function App() { // NOSONAR
     userMap,
     activeWeek,
     historyWeek,
-    visibleDashboardActivities,
-    completedActivities,
     dashboardVisibleControlBoards,
-    dashboardVisibleBoardHistorySnapshots,
     dashboardRecords,
     dateFilteredDashboardRecords,
     dashboardPeriodOptions,
     dashboardEffectiveAreaFilter,
     filteredDashboardRecords,
-    filteredDashboardActivities,
-    filteredDashboardCompleted,
-    dashboardPauseLogs,
     dashboardMetrics,
-    rankingByUser,
-    distributionByUser,
-    activityVsLimit,
     pauseAnalysis,
     dashboardDynamicMetricRows,
     dashboardInventoryProductTimeRows,
@@ -2627,9 +2598,7 @@ function App() { // NOSONAR
       return items.filter((item) => item.cleaningSite === inventoryCleaningSite);
     }
     if (inventoryTab === INVENTORY_DOMAIN_ORDERS) {
-      if (!inventoryDestinationWarehouse) return items;
-      const normalizedWarehouse = String(inventoryDestinationWarehouse || "").trim().toLowerCase();
-      return items.filter((item) => (item.transferTargets || []).some((target) => String(target.warehouse || "").trim().toLowerCase() === normalizedWarehouse));
+      return filterOrderInventoryItemsByWarehouse(items, inventoryDestinationWarehouse);
     }
     if (inventoryTab === INVENTORY_DOMAIN_MAINTENANCE) {
       return items;
@@ -2643,9 +2612,7 @@ function App() { // NOSONAR
       return items.filter((item) => item.cleaningSite === inventoryCleaningSite);
     }
     if (inventoryTab === INVENTORY_DOMAIN_ORDERS) {
-      if (!inventoryDestinationWarehouse) return items;
-      const normalizedWarehouse = String(inventoryDestinationWarehouse || "").trim().toLowerCase();
-      return items.filter((item) => (item.transferTargets || []).some((target) => String(target.warehouse || "").trim().toLowerCase() === normalizedWarehouse));
+      return filterOrderInventoryItemsByWarehouse(items, inventoryDestinationWarehouse);
     }
     if (inventoryTab === INVENTORY_DOMAIN_MAINTENANCE) {
       return items;
@@ -2755,26 +2722,18 @@ function App() { // NOSONAR
     [state.inventoryDestinations],
   );
 
-  const inventoryTransferDefaultWarehouse = useMemo(() => {
-    const counts = new Map();
-    const rememberWarehouse = (warehouse) => {
-      const normalized = String(warehouse || "").trim();
-      if (!normalized) return;
-      counts.set(normalized, (counts.get(normalized) || 0) + 1);
-    };
+  const inventoryTransferDestinationWarehouses = useMemo(
+    () => collectOrderInventorySecondaryWarehouses(
+      inventoryDestinations,
+      [...orderInventoryTransferSummary, ...maintenanceInventoryTransferSummary],
+    ),
+    [inventoryDestinations, orderInventoryTransferSummary, maintenanceInventoryTransferSummary],
+  );
 
-    inventoryDestinations.forEach((destination) => rememberWarehouse(destination.warehouse));
-    [...orderInventoryTransferSummary, ...maintenanceInventoryTransferSummary].forEach((item) => {
-      (item.transferTargets || []).forEach((target) => rememberWarehouse(target.warehouse));
-    });
-
-    const sorted = Array.from(counts.entries()).sort(([warehouseA, countA], [warehouseB, countB]) => {
-      if (countA !== countB) return countB - countA;
-      return warehouseA.localeCompare(warehouseB, "es-MX");
-    });
-
-    return sorted[0]?.[0] || "";
-  }, [inventoryDestinations, orderInventoryTransferSummary, maintenanceInventoryTransferSummary]);
+  const inventoryTransferAvailableWarehouses = useMemo(
+    () => [ORDER_INVENTORY_PRIMARY_WAREHOUSE, ...inventoryTransferDestinationWarehouses],
+    [inventoryTransferDestinationWarehouses],
+  );
 
   const inventoryMovementSelectedSavedLocation = useMemo(() => {
     const normalizedStorageLocation = normalizeKey(inventoryMovementModal.storageLocation);
@@ -2824,31 +2783,15 @@ function App() { // NOSONAR
     return grouped;
   }, [inventoryDestinations, inventoryMovementSelectedItem]);
 
-  const inventoryTransferAvailableWarehouses = useMemo(() => {
-    const warehouses = new Set();
-    inventoryDestinations.forEach((destination) => {
-      const warehouse = String(destination.warehouse || "").trim();
-      if (warehouse) warehouses.add(warehouse);
-    });
-    [...orderInventoryTransferSummary, ...maintenanceInventoryTransferSummary].forEach((item) => {
-      (item.transferTargets || []).forEach((target) => {
-        const warehouse = String(target.warehouse || "").trim();
-        if (warehouse) warehouses.add(warehouse);
-      });
-    });
-    return [...warehouses].sort((left, right) => left.localeCompare(right, "es-MX"));
-  }, [inventoryDestinations, orderInventoryTransferSummary, maintenanceInventoryTransferSummary]);
-
   useEffect(() => {
-    if (!inventoryDestinationWarehouse && !inventoryDestinationWarehouseAutoSet && inventoryTransferAvailableWarehouses.length) {
-      setInventoryDestinationWarehouse(inventoryTransferDefaultWarehouse || inventoryTransferAvailableWarehouses[0]);
+    if (!inventoryDestinationWarehouse && !inventoryDestinationWarehouseAutoSet) {
+      setInventoryDestinationWarehouse(ORDER_INVENTORY_PRIMARY_WAREHOUSE);
       setInventoryDestinationWarehouseAutoSet(true);
     }
-  }, [inventoryDestinationWarehouse, inventoryDestinationWarehouseAutoSet, inventoryTransferAvailableWarehouses, inventoryTransferDefaultWarehouse]);
+  }, [inventoryDestinationWarehouse, inventoryDestinationWarehouseAutoSet]);
 
   const isOrderTransferMovementModal = inventoryMovementModal.movementType === INVENTORY_MOVEMENT_TRANSFER && inventoryMovementModal.domain === INVENTORY_DOMAIN_ORDERS;
   const inventoryMovementModalTitle = isOrderTransferMovementModal ? "Registrar transferencia" : "Registrar movimiento";
-  const hasOrderTransferTargets = [...orderInventoryTransferSummary, ...maintenanceInventoryTransferSummary].some((item) => item.transferTargets.length > 0);
   const inventoryTransferViewerItem = useMemo(
     () => (inventoryTransferViewerState.itemId ? inventoryItemsById.get(inventoryTransferViewerState.itemId) || null : null),
     [inventoryItemsById, inventoryTransferViewerState.itemId],
@@ -2932,6 +2875,9 @@ function App() { // NOSONAR
   const inventoryTransferViewerTitle = inventoryTransferViewerItem
     ? `Historial de transferencias · ${inventoryTransferViewerItem.name}`
     : "Transferencias por destino";
+
+  const inventoryModalPresentation = useInventoryModalPresentation({ inventoryModal, state, allInventoryItems });
+  const { inventorySystemColumnSuggestions } = inventoryModalPresentation;
 
   const inventoryStats = useMemo(() => ({
     total: currentInventoryItems.length,
@@ -3074,44 +3020,6 @@ function App() { // NOSONAR
     setAreaModal({ open: true, target: "bootstrap", name: "", parentArea: "", error: "" });
   }
 
-  async function confirmAddArea() {
-    const nextArea = normalizeAreaOption(areaModal.name);
-    if (!nextArea) {
-      setAreaModal((current) => ({ ...current, error: "Escribe el nombre del área." }));
-      return;
-    }
-    if (isDeprecatedDynamicArea(nextArea)) {
-      setAreaModal((current) => ({ ...current, error: "Esa área ya no está disponible. Usa OPERACIONES." }));
-      return;
-    }
-    if (departmentOptions.includes(nextArea)) {
-      setAreaModal((current) => ({ ...current, error: "Esa área ya existe." }));
-      return;
-    }
-
-    try {
-      const result = await requestJson("/warehouse/areas", {
-        method: "POST",
-        body: JSON.stringify({ name: areaModal.name }),
-      });
-      applyRemoteWarehouseState(result.data.state, setState, setLoginDirectory, skipNextSyncRef, setSyncStatus);
-    } catch (error) {
-      setAreaModal((current) => ({ ...current, error: error?.message || "No se pudo agregar el área." }));
-      return;
-    }
-
-    if (areaModal.target === "bootstrap") {
-      setBootstrapLeadForm((current) => ({ ...current, area: nextArea }));
-    } else {
-      setUserModal((current) => ({
-        ...current,
-        area: nextArea,
-      }));
-    }
-
-    setAreaModal({ open: false, target: "user", name: "", parentArea: "", error: "" });
-  }
-
   function openDeleteAreaModal(areaName, label = "") {
     if (!areaName || currentUser?.role !== ROLE_LEAD) return;
     setAreaDeleteModal({ open: true, areaName, label: label || areaName, error: "", submitting: false });
@@ -3157,36 +3065,6 @@ function App() { // NOSONAR
     }
   }
 
-  async function confirmDeleteArea() {
-    if (!areaDeleteModal.areaName) return;
-    setAreaDeleteModal((current) => ({ ...current, submitting: true, error: "" }));
-    try {
-      const result = await requestJson(`/warehouse/areas/${encodeURIComponent(areaDeleteModal.areaName)}`, {
-        method: "DELETE",
-      });
-      applyRemoteWarehouseState(result.data.state, setState, setLoginDirectory, skipNextSyncRef, setSyncStatus);
-
-      const removedArea = normalizeAreaOption(areaDeleteModal.areaName);
-      const removedRoot = getAreaRoot(removedArea);
-      setUserModal((current) => {
-        const currentArea = normalizeAreaOption(current.area);
-        if (currentArea === removedArea || currentArea === removedRoot) {
-          return { ...current, area: "" };
-        }
-        return current;
-      });
-
-      setAreaDeleteModal({ open: false, areaName: "", label: "", error: "", submitting: false });
-      pushAppToast("Área eliminada correctamente.", "success");
-    } catch (error) {
-      setAreaDeleteModal((current) => ({
-        ...current,
-        submitting: false,
-        error: error?.message || "No se pudo eliminar el área.",
-      }));
-    }
-  }
-
   const normalizedPermissions = useMemo(
     () => normalizePermissions(state.permissions),
     [state.permissions],
@@ -3216,15 +3094,6 @@ function App() { // NOSONAR
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allowedPagesKey, currentUser?.role, page, selectedAreaSectionId]);
-
-  function resolveDefaultAreaSectionIdForUser(user) {
-    const userAreaRoot = normalizeAreaOption(getAreaRoot(getUserArea(user)));
-    if (!userAreaRoot) return "all";
-    const matchedStatic = APP_AREA_SECTIONS.find((section) => (section.scopes || []).some((scope) => (
-      normalizeAreaOption(scope) === userAreaRoot
-    ))) || null;
-    return matchedStatic?.id || "all";
-  }
 
   function resolveLandingPageForUser(user, permissions, areaSectionId) {
     if (areaSectionId === "retail" && userHasAnyRetailAreaScope(user, permissions)) {
@@ -3623,6 +3492,24 @@ function App() { // NOSONAR
     prevUnreadNotificationsCountRef.current = unreadNotificationsCount;
   }, [unreadNotificationsCount, sessionUserId]);
 
+  const areaBoardScopeTokens = useMemo(() => {
+    if (selectedAreaSectionId === "all") return [];
+    const staticSection = APP_AREA_SECTIONS.find((section) => section.id === selectedAreaSectionId);
+    if (staticSection) {
+      const scopes = Array.isArray(staticSection.scopes) ? staticSection.scopes : [staticSection.id];
+      return Array.from(new Set(
+        scopes.map((scope) => String(scope || "").trim().toUpperCase()).filter(Boolean),
+      ));
+    }
+    const matchedDynamic = dynamicAreaSectionRoots.find(
+      (root) => normalizeAreaSectionId(root) === selectedAreaSectionId,
+    );
+    if (matchedDynamic) {
+      return [normalizeAreaOption(matchedDynamic)];
+    }
+    return [String(selectedAreaSectionId).trim().toUpperCase()].filter(Boolean);
+  }, [selectedAreaSectionId, dynamicAreaSectionRoots]);
+
   const visibleControlBoards = useMemo(() => {
     if (!currentUser) return [];
     const canViewHistoricalBoardScopes = canDoAction(currentUser, "viewHistoricalBoardScopes", normalizedPermissions);
@@ -3631,12 +3518,32 @@ function App() { // NOSONAR
     ));
   }, [currentUser, normalizedPermissions, state.controlBoards]);
 
+  const areaScopedVisibleControlBoards = useMemo(() => {
+    if (!areaBoardScopeTokens.length) return visibleControlBoards;
+    return visibleControlBoards.filter((board) => {
+      const directArea = String(board?.settings?.ownerArea || board?.ownerArea || "").trim().toUpperCase();
+      const ownerArea = String(userMap.get(board?.ownerId)?.area || "").trim().toUpperCase();
+      const boardArea = directArea || ownerArea || "SIN AREA";
+      return areaBoardScopeTokens.includes(boardArea);
+    });
+  }, [areaBoardScopeTokens, userMap, visibleControlBoards]);
+
   const filteredVisibleControlBoards = useMemo(() => {
+    const sourceBoards = areaBoardScopeTokens.length ? areaScopedVisibleControlBoards : visibleControlBoards;
     const term = customBoardSearch.trim().toLowerCase();
-    if (!term) return visibleControlBoards;
-    return visibleControlBoards.filter((board) => [board.name, board.description, userMap.get(board.ownerId)?.name, ...(board.sharedDepartments || [])]
+    if (!term) return sourceBoards;
+    return sourceBoards.filter((board) => [board.name, board.description, userMap.get(board.ownerId)?.name, ...(board.sharedDepartments || [])]
       .some((value) => String(value || "").toLowerCase().includes(term)));
-  }, [customBoardSearch, userMap, visibleControlBoards]);
+  }, [customBoardSearch, userMap, visibleControlBoards, areaBoardScopeTokens, areaScopedVisibleControlBoards]);
+
+  useEffect(() => {
+    if (!areaBoardScopeTokens.length) return;
+    if (!areaScopedVisibleControlBoards.length) return;
+    const currentInArea = areaScopedVisibleControlBoards.some((board) => board.id === selectedCustomBoardId);
+    if (!currentInArea) {
+      setSelectedCustomBoardId(areaScopedVisibleControlBoards[0].id);
+    }
+  }, [selectedAreaSectionId, areaBoardScopeTokens, areaScopedVisibleControlBoards, selectedCustomBoardId]);
 
   const selectedCustomBoard = useMemo(() => {
     return filteredVisibleControlBoards.find((board) => board.id === selectedCustomBoardId) || filteredVisibleControlBoards[0] || null;
@@ -3837,7 +3744,7 @@ function App() { // NOSONAR
     return Boolean(resolveProtectedSystemTemplate(entry));
   }
 
-  function canDeleteControlBoardEntry(entry) {
+  function canDeleteControlBoardEntry(_entry) {
     // Los tableros creados siempre se pueden eliminar; solo las plantillas del sistema están protegidas.
     return true;
   }
@@ -3864,7 +3771,6 @@ function App() { // NOSONAR
     authorizationCount: processAuditAuthorizationCount,
     implementationCount: processAuditImplementationCount,
     rejectedCount: processAuditRejectedCount,
-    acceptedCount: processAuditAcceptedCount,
     attentionCount: processAuditAttentionCount,
   } = processAuditMetrics;
 
@@ -3998,6 +3904,86 @@ function App() { // NOSONAR
     () => areaNavSections.find((section) => section.id === selectedAreaSectionId) || null,
     [areaNavSections, selectedAreaSectionId],
   );
+
+  const inventoryModalActions = createInventoryModalActions({
+    actionPermissions,
+    inventoryTab,
+    inventoryCleaningSite,
+    inventoryModal,
+    inventoryMovementModal,
+    inventoryTransferConfirmModal,
+    inventoryRestockModal,
+    inventoryRestockModalItems,
+    inventoryMovementAvailableUnits,
+    inventoryMovementTransferTarget,
+    inventoryItemsById,
+    inventoryMovements,
+    inventoryTransferDestinationWarehouses,
+    currentInventoryDomainItems,
+    allInventoryItemsByDomain,
+    inventoryMovementSavedLocations,
+    inventoryDestinationModal,
+    state,
+    setInventoryModal,
+    setInventoryMovementModal,
+    setInventoryTransferConfirmModal,
+    setInventoryRestockModal,
+    setInventoryDestinationModal,
+    setInventoryTransferViewerState,
+    setDeleteInventoryId,
+    setInventoryImportFeedback,
+    setInventoryDestinationWarehouse,
+    requestJson,
+    setState,
+    setLoginDirectory,
+    skipNextSyncRef,
+    setSyncStatus,
+  });
+
+  const {
+    openCreateInventoryItem,
+    openEditInventoryItem,
+    openInventoryMovement,
+    openOrderInventoryTransfer,
+    openInventoryTransferViewer,
+    openInventoryTransferHistory,
+    openInventoryRestockModal,
+    openInventoryBulkRestockModal,
+    openInventoryDestinationModal,
+    closeInventoryDestinationModal,
+    submitInventoryDestinationModal,
+    deleteInventoryDestination,
+    returnAllInventoryToAlmacen,
+  } = inventoryModalActions;
+
+  const pauseModalActions = createPauseModalActions({
+    pauseState, setPauseState, pauseContinueTimerRef,
+    boardPauseState, setBoardPauseState, boardPauseContinueTimerRef,
+    operationalPauseState, setState, requestJson, applyRemoteWarehouseState,
+    setLoginDirectory, skipNextSyncRef, setSyncStatus, enabledPauseReasons, pauseReasonOptions,
+  });
+  const catalogAreaActions = createCatalogAreaActions({
+    areaModal, setAreaModal, areaDeleteModal, setAreaDeleteModal,
+    catalogModal, setCatalogModal, departmentOptions,
+    userModal, setUserModal, bootstrapLeadForm, setBootstrapLeadForm,
+    editWeekId, editWeekActivityId, setEditWeekActivityId,
+    state, setState, actionPermissions, currentUser,
+    requestJson, setLoginDirectory, skipNextSyncRef, setSyncStatus, pushAppToast,
+  });
+  const boardToolModalActions = createBoardToolModalActions({
+    controlBoardDraft, setControlBoardDraft, editingDraftColumnId, setEditingDraftColumnId,
+    setComponentStudioOpen, setControlBoardFeedback, templateEditorModal, setTemplateEditorModal,
+    templateDeleteModal, setTemplateDeleteModal, templatePreviewId, setTemplatePreviewId,
+    boardBuilderModal, setBoardBuilderModal, isBoardSaveSubmitting, setIsBoardSaveSubmitting,
+    boardImportedRowsDraft, setBoardImportedRowsDraft, setExcelFormulaWizard,
+    hiddenBaseTemplateIds, setHiddenBaseTemplateIds, customTemplateIds, availableBoardTemplates,
+    currentUser, actionPermissions, selectedAreaSectionId, selectedAreaSection, userMap,
+    visibleUsers, state, setState, setPage, setSelectedCustomBoardId, setSelectedCustomBoardViewId,
+    setBoardRuntimeFeedback, activeAreaScopes, canDeleteBoardTemplateEntry, resolveProtectedSystemTemplate,
+    getBoardVisibleToUser, requestJson, setLoginDirectory, skipNextSyncRef, setSyncStatus, EMPTY_OBJECT,
+  });
+  const { openCatalogCreate, openCatalogEdit, removeWeekActivity, softDeleteCatalog } = catalogAreaActions;
+  const { resolveBoardOwnerAreaByUserId } = boardToolModalActions;
 
   useEffect(() => {
     if (selectedAreaSectionId === "all") return;
@@ -4193,20 +4179,6 @@ function App() { // NOSONAR
     ));
   }, [boardPauseState.open, boardPauseState.completed, boardPauseState.reason, pauseReasonOptions]);
 
-  function resolvePauseReasonValue(pauseEntry) {
-    const isCustomReasonSelected = String(pauseEntry?.reason || "").trim() === CUSTOM_PAUSE_REASON_VALUE;
-    const customReason = String(pauseEntry?.customReason || "").trim();
-    if (isCustomReasonSelected) return customReason;
-    if (customReason) return customReason;
-    return String(pauseEntry?.reason || "").trim();
-  }
-
-  function findEnabledPauseReasonByLabel(label) {
-    const normalizedLabel = String(label || "").trim().toLowerCase();
-    if (!normalizedLabel) return null;
-    return enabledPauseReasons.find((entry) => String(entry.label || "").trim().toLowerCase() === normalizedLabel) || null;
-  }
-
   function invalidateClientSession(message) {
     clearSessionExpiredHandler();
     localStorage.removeItem(SESSION_STORAGE_KEY);
@@ -4214,77 +4186,6 @@ function App() { // NOSONAR
     setProfileModalOpen(false);
     setPasswordForm({ password: "", confirmPassword: "", message: "" });
     setLoginError(message || "");
-  }
-
-  function handleConfirmPause() {
-    if (pauseState.completed) {
-      if (!pauseState.continueReady) return;
-      // Reanudar actividad al presionar Continuar
-      const resumeIso = new Date().toISOString();
-      setState((current) => ({
-        ...current,
-        activities: current.activities.map((activity) => {
-          if (activity.id !== pauseState.activityId) return activity;
-          return { ...activity, status: STATUS_RUNNING, lastResumedAt: resumeIso };
-        }),
-        pauseLogs: current.pauseLogs.map((log) => {
-          if (log.id !== pauseState.pauseLogId) return log;
-          const pausedAt = new Date(log.pausedAt).getTime();
-          const resumedAt = new Date(resumeIso).getTime();
-          return { ...log, resumedAt: resumeIso, pauseDurationSeconds: Math.round((resumedAt - pausedAt) / 1000) };
-        }),
-      }));
-      if (pauseContinueTimerRef.current) clearTimeout(pauseContinueTimerRef.current);
-      setPauseState({ open: false, activityId: null, reason: "", customReason: "", error: "", completed: false, continueReady: false, pauseLogId: null });
-      return;
-    }
-
-    const pauseReasonValue = resolvePauseReasonValue(pauseState);
-    if (!pauseReasonValue) {
-      setPauseState((current) => ({ ...current, error: "El motivo es obligatorio para poder pausar." }));
-      return;
-    }
-    if (String(pauseReasonValue).trim().toLowerCase() === "ajuste manual de contadores") {
-      setPauseState((current) => ({ ...current, error: "Este motivo no está permitido para pausar actividades." }));
-      return;
-    }
-
-    const nowIso = new Date().toISOString();
-    const pauseLogId = makeId("pause");
-
-    setState((current) => ({
-      ...current,
-      activities: current.activities.map((activity) => {
-        if (activity.id !== pauseState.activityId) return activity;
-        return {
-          ...activity,
-          status: STATUS_PAUSED,
-            accumulatedSeconds: updateElapsedForFinish(activity, nowIso, operationalPauseState),
-          lastResumedAt: null,
-        };
-      }),
-      pauseLogs: current.pauseLogs.concat({
-        id: pauseLogId,
-        weekActivityId: pauseState.activityId,
-        pauseReason: pauseReasonValue,
-        pausedAt: nowIso,
-        resumedAt: null,
-        pauseDurationSeconds: 0,
-      }),
-    }));
-
-    if (pauseContinueTimerRef.current) clearTimeout(pauseContinueTimerRef.current);
-    pauseContinueTimerRef.current = setTimeout(() => {
-      setPauseState((current) => (current.completed ? { ...current, continueReady: true } : current));
-    }, 3000);
-
-    setPauseState((current) => ({
-      ...current,
-      error: "",
-      completed: true,
-      continueReady: false,
-      pauseLogId,
-    }));
   }
 
   function openBoardPauseModal(boardId, rowId) {
@@ -4308,87 +4209,6 @@ function App() { // NOSONAR
       authorizedPauseSeconds: 0,
       pauseStartedAtMs: 0,
     });
-  }
-
-  function handleConfirmBoardPause() {
-    if (boardPauseState.completed) {
-      if (!boardPauseState.continueReady) return;
-      // Reanudar fila al presionar Continuar
-      const resumeEndpoint = boardPauseState.historySnapshotId
-        ? `/warehouse/board-history/${boardPauseState.historySnapshotId}/rows/${boardPauseState.rowId}`
-        : `/warehouse/boards/${boardPauseState.boardId}/rows/${boardPauseState.rowId}`;
-      requestJson(resumeEndpoint, {
-        method: "PATCH",
-        body: JSON.stringify({ status: STATUS_RUNNING }),
-      }).then((remoteState) => {
-        applyRemoteWarehouseState(remoteState, setState, setLoginDirectory, skipNextSyncRef, setSyncStatus);
-      }).catch(() => {});
-      if (boardPauseContinueTimerRef.current) clearTimeout(boardPauseContinueTimerRef.current);
-      setBoardPauseState({
-        open: false,
-        boardId: null,
-        rowId: null,
-        historySnapshotId: null,
-        reason: "",
-        customReason: "",
-        error: "",
-        completed: false,
-        continueReady: false,
-        authorizedPauseSeconds: 0,
-        pauseStartedAtMs: 0,
-      });
-      return;
-    }
-
-    const boardPauseReasonValue = resolvePauseReasonValue(boardPauseState);
-    if (!boardPauseReasonValue) {
-      setBoardPauseState((current) => ({ ...current, error: "El motivo es obligatorio para poder pausar." }));
-      return;
-    }
-    if (String(boardPauseReasonValue).trim().toLowerCase() === "ajuste manual de contadores") {
-      setBoardPauseState((current) => ({ ...current, error: "Este motivo no está permitido para pausar filas." }));
-      return;
-    }
-
-    const pauseEndpoint = boardPauseState.historySnapshotId
-      ? `/warehouse/board-history/${boardPauseState.historySnapshotId}/rows/${boardPauseState.rowId}`
-      : `/warehouse/boards/${boardPauseState.boardId}/rows/${boardPauseState.rowId}`;
-    requestJson(pauseEndpoint, {
-      method: "PATCH",
-      body: JSON.stringify({
-        status: STATUS_PAUSED,
-        lastPauseReason: boardPauseReasonValue,
-      }),
-    }).then((remoteState) => {
-      const normalizedState = applyRemoteWarehouseState(remoteState, setState, setLoginDirectory, skipNextSyncRef, setSyncStatus);
-      const pausedBoard = boardPauseState.historySnapshotId
-        ? (normalizedState?.boardWeekHistory || []).find((snapshot) => snapshot.id === boardPauseState.historySnapshotId)
-        : (normalizedState?.controlBoards || []).find((board) => board.id === boardPauseState.boardId);
-      const pausedRow = (pausedBoard?.rows || []).find((row) => row.id === boardPauseState.rowId);
-      const pauseRule = findEnabledPauseReasonByLabel(boardPauseReasonValue);
-      const startedAtMsCandidate = pausedRow?.pauseStartedAt ? new Date(pausedRow.pauseStartedAt).getTime() : Date.now();
-      const fallbackAuthorizedSeconds = Math.max(0, Math.round(Number(pauseRule?.authorizedMinutes || 0) * 60));
-      const authorizedPauseSeconds = Math.max(0, Number(pausedRow?.pauseAuthorizedSeconds ?? fallbackAuthorizedSeconds));
-      if (boardPauseContinueTimerRef.current) clearTimeout(boardPauseContinueTimerRef.current);
-      boardPauseContinueTimerRef.current = setTimeout(() => {
-        setBoardPauseState((current) => (current.completed ? { ...current, continueReady: true } : current));
-      }, 3000);
-      setBoardPauseState((current) => ({
-        ...current,
-        error: "",
-        completed: true,
-        continueReady: false,
-        authorizedPauseSeconds,
-        pauseStartedAtMs: Number.isFinite(startedAtMsCandidate) ? startedAtMsCandidate : Date.now(),
-      }));
-    }).catch((error) => {
-      setBoardPauseState((current) => ({ ...current, error: error?.message || "No se pudo pausar la fila." }));
-    });
-  }
-
-  function openCatalogCreate(preferredCategory = "General") {
-    const normalizedCategory = String(preferredCategory || "General").trim() || "General";
-    setCatalogModal({ ...createEmptyCatalogModalState(), open: true, mode: "create", category: normalizedCategory, area: normalizeCatalogArea(normalizedCategory) });
   }
 
   function exportCatalogToCsv() {
@@ -4511,105 +4331,6 @@ function App() { // NOSONAR
   }
 
 
-
-  function openCatalogEdit(item) {
-    const itemCleaningSites = normalizeCatalogCleaningSites(item.cleaningSites);
-    setCatalogModal({
-      ...createEmptyCatalogModalState(),
-      open: true,
-      mode: "edit",
-      id: item.id,
-      name: item.name,
-      limit: String(item.timeLimitMinutes),
-      mandatory: String(item.isMandatory),
-      frequency: normalizeActivityFrequency(item.frequency),
-      category: String(item.category || "General").trim() || "General",
-      area: normalizeCatalogArea(item.area, item.category),
-      scheduledDays: normalizeCatalogScheduledDays(item.scheduledDays, item.frequency),
-      scheduledDaysBySite: normalizeCatalogScheduledDaysBySite(item.scheduledDaysBySite, normalizeCatalogScheduledDays(item.scheduledDays, item.frequency)),
-      cleaningSites: itemCleaningSites,
-      siteMode: itemCleaningSites.length ? "bySite" : "general",
-    });
-  }
-
-  async function submitCatalogModal() {
-    setCatalogModal((current) => ({ ...current, submitting: true }));
-    const siteMode = catalogModal.siteMode === "bySite" ? "bySite" : "general";
-    const normalizedCleaningSites = siteMode === "bySite"
-      ? normalizeCatalogCleaningSites(catalogModal.cleaningSites)
-      : [];
-    const normalizedScheduledDays = normalizeCatalogScheduledDays(catalogModal.scheduledDays, catalogModal.frequency);
-    const payload = {
-      name: catalogModal.name.trim(),
-      timeLimitMinutes: Number(catalogModal.limit || 0),
-      isMandatory: catalogModal.mandatory === "true",
-      frequency: normalizeActivityFrequency(catalogModal.frequency),
-      scheduledDays: normalizedScheduledDays,
-      cleaningSites: normalizedCleaningSites,
-      scheduledDaysBySite: siteMode === "bySite"
-        ? normalizeCatalogScheduledDaysBySite(catalogModal.scheduledDaysBySite, normalizedScheduledDays)
-        : {},
-      category: String(catalogModal.category || "General").trim() || "General",
-      area: normalizeCatalogArea(catalogModal.area, catalogModal.category),
-      isDeleted: false,
-    };
-
-    if (!payload.name || payload.timeLimitMinutes <= 0) {
-      setCatalogModal((current) => ({ ...current, submitting: false }));
-      return;
-    }
-
-    try {
-      const result = await requestJson(
-        catalogModal.mode === "create" ? "/warehouse/catalog" : `/warehouse/catalog/${catalogModal.id}`,
-        {
-          method: catalogModal.mode === "create" ? "POST" : "PATCH",
-          body: JSON.stringify(payload),
-        },
-      );
-      applyRemoteWarehouseState(result.data.state, setState, setLoginDirectory, skipNextSyncRef, setSyncStatus);
-      setCatalogModal(createEmptyCatalogModalState());
-    } catch {
-      setCatalogModal((current) => ({ ...current, submitting: false }));
-      // Keep modal open if the save fails.
-    }
-  }
-
-  async function softDeleteCatalog(id) {
-    try {
-      const result = await requestJson(`/warehouse/catalog/${id}`, {
-        method: "DELETE",
-      });
-      applyRemoteWarehouseState(result.data.state, setState, setLoginDirectory, skipNextSyncRef, setSyncStatus);
-    } catch {
-      // Ignore delete failures silently for now.
-    }
-  }
-
-  function addActivityToWeek() {
-    if (!editWeekId || !editWeekActivityId) return;
-    const targetWeek = state.weeks.find((week) => week.id === editWeekId);
-    const catalogItem = state.catalog.find((item) => item.id === editWeekActivityId);
-    const defaultResponsible = state.users.find((user) => user.isActive) || state.users[0] || null;
-    if (!targetWeek || !catalogItem) return;
-    const generatedActivities = buildWeekActivitiesFromCatalogItem(editWeekId, catalogItem, new Date(targetWeek.startDate), defaultResponsible?.id || null);
-
-    setState((current) => ({
-      ...current,
-      activities: current.activities.concat(generatedActivities),
-    }));
-
-    setEditWeekActivityId("");
-  }
-
-  function removeWeekActivity(activityId) {
-    if (!actionPermissions.deleteWeekActivity) return;
-    setState((current) => ({
-      ...current,
-      activities: current.activities.filter((activity) => activity.id !== activityId),
-      pauseLogs: current.pauseLogs.filter((log) => log.weekActivityId !== activityId),
-    }));
-  }
 
   function buildUserRecordFromModalDraft(draft, fallbackId = "user-modal-preview") {
     const fallbackAccess = buildUniquePlayerAccess(draft.name || draft.role || "player", state.users || [], draft.id || null);
@@ -4808,13 +4529,6 @@ function App() { // NOSONAR
         permissionOverrides: buildPermissionSelectionFromModalDraft(nextDraft, normalizedPermissions, { preserveDisabled: true }),
       };
     });
-  }
-
-  function buildAllPermissionsOn() {
-    return {
-      pages: Object.fromEntries(permissionPages.map((item) => [item.id, true])),
-      actions: Object.fromEntries(ACTION_DEFINITIONS.map((item) => [item.id, true])),
-    };
   }
 
   function buildEmptyPermissionSelection() {
@@ -5129,337 +4843,6 @@ function App() { // NOSONAR
     return result;
   }
 
-  function addDraftColumn() {
-    if (!controlBoardDraft.fieldLabel.trim()) {
-      setControlBoardFeedback("Escribe una etiqueta para el campo antes de agregarlo.");
-      return;
-    }
-    const resolvedInventorySourceFieldId = controlBoardDraft.fieldType === "inventoryProperty"
-      ? resolveInventoryPropertySourceFieldId(controlBoardDraft.columns, controlBoardDraft.sourceFieldId)
-      : controlBoardDraft.sourceFieldId || null;
-    if (controlBoardDraft.fieldType === "inventoryProperty" && !resolvedInventorySourceFieldId) {
-      setControlBoardFeedback("Agrega primero un Buscador de inventario y luego enlaza este dato derivado.");
-      return;
-    }
-    const normalizedFormulaTerms = getNormalizedFormulaTerms(controlBoardDraft.formulaTerms, controlBoardDraft);
-    if (controlBoardDraft.fieldType === "formula" && normalizedFormulaTerms.length < 2) {
-      setControlBoardFeedback("Agrega al menos 2 términos para completar la fórmula o cálculo.");
-      return;
-    }
-    const isActivityListField = controlBoardDraft.fieldType === BOARD_ACTIVITY_LIST_FIELD;
-    const colorRules = controlBoardDraft.colorValue
-      ? [{ operator: controlBoardDraft.colorOperator, value: controlBoardDraft.colorValue, color: controlBoardDraft.colorBg, textColor: controlBoardDraft.colorText }]
-      : [];
-    const normalizedWidthPx = Number(controlBoardDraft.fieldWidthPx || 0);
-    const widthPx = Number.isFinite(normalizedWidthPx) && normalizedWidthPx >= 90 ? Math.round(normalizedWidthPx) : null;
-    const field = {
-      id: makeId("fld"),
-      label: controlBoardDraft.fieldLabel.trim(),
-      type: isActivityListField ? "select" : controlBoardDraft.fieldType,
-      optionSource: isActivityListField ? "catalogByCategory" : controlBoardDraft.optionSource,
-      optionCatalogCategory: controlBoardDraft.optionCatalogCategory,
-      options: isActivityListField ? [] : controlBoardDraft.optionsText.split(",").map((item) => item.trim()).filter(Boolean),
-      inventoryProperty: controlBoardDraft.inventoryProperty,
-      sourceFieldId: resolvedInventorySourceFieldId,
-      formulaOperation: controlBoardDraft.formulaOperation,
-      formulaLeftFieldId: controlBoardDraft.formulaLeftFieldId || null,
-      formulaRightFieldId: controlBoardDraft.formulaRightFieldId || null,
-      formulaTerms: normalizedFormulaTerms,
-      helpText: controlBoardDraft.fieldHelp.trim(),
-      placeholder: controlBoardDraft.placeholder.trim(),
-      defaultValue: controlBoardDraft.defaultValue,
-      width: controlBoardDraft.fieldWidth,
-      widthPx,
-      required: controlBoardDraft.isRequired === "true",
-      groupName: controlBoardDraft.groupName.trim() || "General",
-      groupColor: controlBoardDraft.groupColor,
-      colorRules,
-    };
-    const isBundleField = controlBoardDraft.fieldType === INVENTORY_LOOKUP_LOGISTICS_FIELD;
-    const fieldsToInsert = controlBoardDraft.fieldType === INVENTORY_LOOKUP_LOGISTICS_FIELD
-      ? buildInventoryBundleFields(controlBoardDraft, editingDraftColumnId || null)
-      : [field];
-    setControlBoardDraft((current) => {
-      const nextColumns = buildUpdatedDraftColumns(current.columns, editingDraftColumnId, isBundleField, fieldsToInsert);
-      const currentSettings = current.settings ?? EMPTY_OBJECT;
-      const nextColumnOrder = syncBoardFieldOrderIntoColumnOrder(nextColumns, currentSettings);
-      return {
-        ...current,
-        columns: nextColumns,
-        settings: {
-          ...currentSettings,
-          columnOrder: nextColumnOrder,
-        },
-        ...createEmptyFieldDraft(),
-      };
-    });
-    setEditingDraftColumnId(null);
-    setComponentStudioOpen(false);
-    let feedbackMessage = "Componente agregado al tablero borrador.";
-    if (editingDraftColumnId) {
-      feedbackMessage = "Componente actualizado correctamente.";
-    } else if (fieldsToInsert.length > 1) {
-      feedbackMessage = "Buscador agregado con sus columnas automáticas.";
-    }
-    setControlBoardFeedback(feedbackMessage);
-  }
-
-  function removeDraftColumn(columnId) {
-    setControlBoardDraft((current) => {
-      const nextColumns = current.columns.filter((column) => column.id !== columnId);
-      const currentSettings = current.settings ?? EMPTY_OBJECT;
-      return {
-        ...current,
-        columns: nextColumns,
-        settings: {
-          ...currentSettings,
-          columnOrder: getNormalizedBoardColumnOrder({ fields: nextColumns, settings: currentSettings }),
-        },
-      };
-    });
-    setControlBoardFeedback("Columna eliminada del borrador.");
-  }
-
-  function editDraftColumn(columnId) {
-    const column = controlBoardDraft.columns.find((item) => item.id === columnId);
-    if (!column) return;
-    setControlBoardDraft((current) => ({
-      ...current,
-      ...mapColumnToFieldDraft(column, current.columns),
-    }));
-    setEditingDraftColumnId(columnId);
-    setComponentStudioOpen(true);
-    setControlBoardFeedback("");
-  }
-
-  function duplicateDraftColumn(columnId) {
-    setControlBoardDraft((current) => {
-      const index = current.columns.findIndex((item) => item.id === columnId);
-      if (index === -1) return current;
-      const currentSettings = current.settings ?? EMPTY_OBJECT;
-      const source = current.columns[index];
-      const duplicate = {
-        ...source,
-        id: makeId("fld"),
-        label: `${source.label} copia`,
-      };
-      const nextColumns = [...current.columns];
-      nextColumns.splice(index + 1, 0, duplicate);
-      return {
-        ...current,
-        columns: nextColumns,
-        settings: {
-          ...currentSettings,
-          columnOrder: syncBoardFieldOrderIntoColumnOrder(nextColumns, currentSettings),
-        },
-      };
-    });
-    setControlBoardFeedback("Componente duplicado.");
-  }
-
-  function moveDraftColumn(columnId, direction) {
-    setControlBoardDraft((current) => {
-      const index = current.columns.findIndex((item) => item.id === columnId);
-      if (index === -1) return current;
-      const currentSettings = current.settings ?? EMPTY_OBJECT;
-      const targetIndex = direction === "up" ? index - 1 : index + 1;
-      if (targetIndex < 0 || targetIndex >= current.columns.length) return current;
-      const nextColumns = [...current.columns];
-      const [moved] = nextColumns.splice(index, 1);
-      nextColumns.splice(targetIndex, 0, moved);
-      return {
-        ...current,
-        columns: nextColumns,
-        settings: {
-          ...currentSettings,
-          columnOrder: syncBoardFieldOrderIntoColumnOrder(nextColumns, currentSettings),
-        },
-      };
-    });
-  }
-
-  function reorderDraftColumn(sourceColumnId, targetColumnId) {
-    if (!sourceColumnId || !targetColumnId || sourceColumnId === targetColumnId) return;
-    setControlBoardDraft((current) => {
-      const sourceIndex = current.columns.findIndex((item) => item.id === sourceColumnId);
-      const targetIndex = current.columns.findIndex((item) => item.id === targetColumnId);
-      if (sourceIndex === -1 || targetIndex === -1) return current;
-      const currentSettings = current.settings ?? EMPTY_OBJECT;
-      const nextColumns = [...current.columns];
-      const [moved] = nextColumns.splice(sourceIndex, 1);
-      nextColumns.splice(targetIndex, 0, moved);
-      return {
-        ...current,
-        columns: nextColumns,
-        settings: {
-          ...currentSettings,
-          columnOrder: syncBoardFieldOrderIntoColumnOrder(nextColumns, currentSettings),
-        },
-      };
-    });
-  }
-
-  function applyBoardTemplate(templateId) {
-    const template = availableBoardTemplates.find((item) => item.id === templateId);
-    if (!template) return;
-
-    const templateColumns = buildTemplateColumns(template);
-    if (!templateColumns.length) {
-      setControlBoardFeedback(`La plantilla ${template.name} no tiene columnas configuradas. Contacta al administrador.`);
-      return;
-    }
-
-    const ownerId = currentUser?.id || "";
-    const ownerArea = resolveBoardOwnerAreaByUserId(ownerId);
-    const isSystemTemplate = PROTECTED_SYSTEM_BOARD_TEMPLATE_IDS.has(String(template.id || "").trim());
-    const templateSettings = template.settings && typeof template.settings === "object" ? template.settings : undefined;
-
-    setControlBoardDraft((current) => ({
-      ...current,
-      name: template.name,
-      description: template.description,
-      ownerId: ownerId || current.ownerId,
-      visibilityType: isSystemTemplate && ownerArea ? "department" : current.visibilityType,
-      sharedDepartments: isSystemTemplate && ownerArea ? normalizeBoardSharedDepartments([ownerArea]) : current.sharedDepartments,
-      accessUserIds: isSystemTemplate ? [] : current.accessUserIds,
-      settings: withDefaultBoardSettings({
-        ...current.settings,
-        ...templateSettings,
-        ownerArea: ownerArea || current.settings?.ownerArea || "",
-        columnOrder: [],
-      }),
-      columns: templateColumns,
-      ...createEmptyFieldDraft(),
-    }));
-    setEditingDraftColumnId(null);
-    setTemplatePreviewId(null);
-    setControlBoardFeedback(`Plantilla ${template.name} cargada al borrador (${templateColumns.length} campos). Revisa el área y guarda el tablero.`);
-  }
-
-  function previewBoardTemplate(templateId) {
-    setTemplatePreviewId(templateId);
-  }
-
-  function getPagePermissionActions(pageId) {
-    return ACTION_DEFINITIONS.filter((item) => (PAGE_ACTION_GROUPS[pageId] || []).includes(item.id));
-  }
-
-  function getPermissionActionGroups(pageId, actions = []) {
-    if (pageId === PAGE_DASHBOARD) {
-      const groups = [
-        {
-          id: "dashboard-core",
-          label: "Dashboard AXO",
-          accent: "#355f88",
-          actions: actions.filter((action) => (
-            action.id === "exportDashboardData"
-            || action.id === "manageDashboardState"
-          )),
-        },
-        {
-          id: "dashboard-nav",
-          label: "Navegación lateral",
-          accent: "#334155",
-          actions: actions.filter((action) => action.category === "Navegación lateral"),
-        },
-      ].filter((group) => group.actions.length > 0);
-
-      return groups.length ? groups : [{ id: "dashboard-default", label: "Acciones disponibles", accent: getPermissionSectionTone(pageId, "").accent, actions }];
-    }
-
-    if (pageId !== PAGE_TRANSPORT) {
-      return [{ id: `${pageId}-default`, label: "Acciones disponibles", accent: getPermissionSectionTone(pageId, "").accent, actions }];
-    }
-
-    const groups = [
-      {
-        id: "transport-areas",
-        label: "Áreas operativas",
-        accent: "#7c3aed",
-        actions: actions.filter((action) => (
-          action.id.includes("Retail")
-          || action.id.includes("Pedidos")
-          || action.id.includes("Inventario")
-        )),
-      },
-      {
-        id: "transport-ops",
-        label: "Solo transporte",
-        accent: "#355f88",
-        actions: actions.filter((action) => (
-          action.id.includes("Documentacion")
-          || action.id.includes("Assignments")
-          || action.id.includes("Postponed")
-          || action.id.includes("MyRoutes")
-          || action.id.includes("Consolidated")
-          || action.id === "deleteTransportRecord"
-        )),
-      },
-    ].filter((group) => group.actions.length > 0);
-
-    return groups.length ? groups : [{ id: "transport-default", label: "Acciones disponibles", accent: "#7c3aed", actions }];
-  }
-
-  function getPermissionSectionTone(pageId, actionId = "") {
-    const normalizedActionId = String(actionId || "").trim();
-    if (pageId === PAGE_INVENTORY) {
-      if (normalizedActionId.includes("BaseInventory") || normalizedActionId.includes("manageInventory") || normalizedActionId.includes("deleteInventory") || normalizedActionId.includes("importInventory")) {
-        return { accent: "#355f88", soft: "rgba(15, 118, 110, 0.1)" };
-      }
-      if (normalizedActionId.includes("CleaningInventory")) {
-        return { accent: "#2563eb", soft: "rgba(37, 99, 235, 0.1)" };
-      }
-      if (normalizedActionId.includes("OrderInventory")) {
-        return { accent: "#b45309", soft: "rgba(180, 83, 9, 0.1)" };
-      }
-      return { accent: "#355f88", soft: "rgba(15, 118, 110, 0.1)" };
-    }
-
-    if (pageId === PAGE_TRANSPORT) {
-      if (normalizedActionId.includes("Retail")) {
-        return { accent: "#7c3aed", soft: "rgba(124, 58, 237, 0.1)" };
-      }
-      if (normalizedActionId.includes("Pedidos")) {
-        return { accent: "#be123c", soft: "rgba(190, 18, 60, 0.1)" };
-      }
-      if (normalizedActionId.includes("Inventario")) {
-        return { accent: "#0e7490", soft: "rgba(14, 116, 144, 0.1)" };
-      }
-      if (normalizedActionId.includes("Documentacion")) {
-        return { accent: "#6d28d9", soft: "rgba(109, 40, 217, 0.1)" };
-      }
-      if (normalizedActionId.includes("Assignments")) {
-        return { accent: "#2563eb", soft: "rgba(37, 99, 235, 0.1)" };
-      }
-      if (normalizedActionId.includes("Postponed")) {
-        return { accent: "#b45309", soft: "rgba(180, 83, 9, 0.1)" };
-      }
-      if (normalizedActionId.includes("MyRoutes")) {
-        return { accent: "#3f678f", soft: "rgba(34, 77, 115, 0.1)" };
-      }
-      if (normalizedActionId.includes("Consolidated")) {
-        return { accent: "#355f88", soft: "rgba(15, 118, 110, 0.1)" };
-      }
-      if (normalizedActionId === "deleteTransportRecord") {
-        return { accent: "#b91c1c", soft: "rgba(185, 28, 28, 0.1)" };
-      }
-      return { accent: "#475569", soft: "rgba(71, 85, 105, 0.1)" };
-    }
-
-    const pageToneMap = {
-      [PAGE_BOARD]: { accent: "#2d4f72", soft: "rgba(32, 63, 91, 0.1)" },
-      [PAGE_CUSTOM_BOARDS]: { accent: "#3b6288", soft: "rgba(28, 64, 96, 0.1)" },
-      [PAGE_HISTORY]: { accent: "#1d4ed8", soft: "rgba(29, 78, 216, 0.1)" },
-      [PAGE_PROCESS_AUDITS]: { accent: "#6d28d9", soft: "rgba(109, 40, 217, 0.1)" },
-      [PAGE_BIBLIOTECA]: { accent: "#355f88", soft: "rgba(15, 118, 110, 0.1)" },
-      [PAGE_INCIDENCIAS]: { accent: "#b91c1c", soft: "rgba(185, 28, 28, 0.1)" },
-      [PAGE_USERS]: { accent: "#374151", soft: "rgba(55, 65, 81, 0.1)" },
-      [PAGE_SYSTEM_SETTINGS]: { accent: "#9a3412", soft: "rgba(154, 52, 18, 0.1)" },
-    };
-
-    return pageToneMap[pageId] || { accent: "#4b5563", soft: "rgba(75, 85, 99, 0.08)" };
-  }
-
   async function updatePermissionEntry(scope, key, field, value) {
     if (!actionPermissions.managePermissions) return;
     const nextPermissions = {
@@ -5628,253 +5011,6 @@ function App() { // NOSONAR
     updatePermissionEntry(scope, key, "roles", nextRoles);
   }
 
-  async function saveDraftAsBoardTemplate() {
-    if (!controlBoardDraft.name.trim() || !controlBoardDraft.columns.length || !actionPermissions.saveTemplate) {
-      setControlBoardFeedback("Define nombre y al menos un componente antes de guardar una plantilla reutilizable.");
-      return;
-    }
-
-    const templateName = controlBoardDraft.name.trim();
-    const templatePayload = {
-      name: templateName,
-      description: controlBoardDraft.description.trim() || `Plantilla reutilizable para ${templateName}.`,
-      category: "Personalizada",
-      visibilityType: currentUser?.department ? "department" : "users",
-      sharedDepartments: currentUser?.department ? [currentUser.department] : [],
-      sharedUserIds: currentUser ? [currentUser.id] : [],
-      settings: { ...controlBoardDraft.settings },
-      columns: (controlBoardDraft.columns || []).map((column) => ({
-        ...column,
-        templateKey: column.templateKey || column.id,
-      })),
-    };
-
-    try {
-      const result = await requestJson("/warehouse/templates", {
-        method: "POST",
-        body: JSON.stringify(templatePayload),
-      });
-      applyRemoteWarehouseState(result.data.state, setState, setLoginDirectory, skipNextSyncRef, setSyncStatus);
-      setControlBoardFeedback(`Plantilla ${templateName} guardada para reutilizarla cuando quieras.`);
-    } catch (error) {
-      setControlBoardFeedback(error?.message || "No se pudo guardar la plantilla.");
-    }
-  }
-
-  async function submitBoardTemplateEdit() {
-    setTemplateEditorModal((current) => ({ ...current, submitting: true }));
-    if (!templateEditorModal.id || !templateEditorModal.name.trim() || !actionPermissions.editTemplate) {
-      setTemplateEditorModal((current) => ({ ...current, submitting: false }));
-      setControlBoardFeedback("La plantilla debe tener nombre para guardar los cambios.");
-      return;
-    }
-
-    try {
-      const result = await requestJson(`/warehouse/templates/${templateEditorModal.id}`, {
-        method: "PATCH",
-        body: JSON.stringify({
-          name: templateEditorModal.name.trim(),
-          description: templateEditorModal.description.trim(),
-          category: templateEditorModal.category.trim() || "Personalizada",
-          visibilityType: templateEditorModal.visibilityType,
-          sharedDepartments: templateEditorModal.sharedDepartments,
-          sharedUserIds: templateEditorModal.sharedUserIds,
-        }),
-      });
-      applyRemoteWarehouseState(result.data.state, setState, setLoginDirectory, skipNextSyncRef, setSyncStatus);
-      setTemplateEditorModal({ open: false, id: null, name: "", description: "", category: "", visibilityType: "department", sharedDepartments: [], sharedUserIds: [], submitting: false });
-      setControlBoardFeedback("Plantilla actualizada correctamente.");
-    } catch (error) {
-      setTemplateEditorModal((current) => ({ ...current, submitting: false }));
-      setControlBoardFeedback(error?.message || "No se pudo actualizar la plantilla.");
-    }
-  }
-
-  function openDeleteBoardTemplateModal(template) {
-    if (!template) return;
-    if (!canDeleteBoardTemplateEntry(template)) return;
-    setTemplateDeleteModal({ open: true, id: template.id, name: template.name || "Plantilla" });
-  }
-
-  async function confirmDeleteBoardTemplate() {
-    if (!templateDeleteModal.id) return;
-
-    const templateToDelete = availableBoardTemplates.find((template) => template.id === templateDeleteModal.id) || null;
-    if (templateToDelete && !canDeleteBoardTemplateEntry(templateToDelete)) {
-      setTemplateDeleteModal({ open: false, id: null, name: "" });
-      return;
-    }
-
-    if (!customTemplateIds.has(templateDeleteModal.id)) {
-      setHiddenBaseTemplateIds((current) => current.includes(templateDeleteModal.id)
-        ? current
-        : current.concat(templateDeleteModal.id));
-      if (templatePreviewId === templateDeleteModal.id) {
-        setTemplatePreviewId(null);
-      }
-      setControlBoardFeedback(`Plantilla ${templateDeleteModal.name} eliminada correctamente.`);
-      setTemplateDeleteModal({ open: false, id: null, name: "" });
-      return;
-    }
-
-    try {
-      const result = await requestJson(`/warehouse/templates/${templateDeleteModal.id}`, {
-        method: "DELETE",
-      });
-      applyRemoteWarehouseState(result.data.state, setState, setLoginDirectory, skipNextSyncRef, setSyncStatus);
-      if (templatePreviewId === templateDeleteModal.id) {
-        setTemplatePreviewId(null);
-      }
-      setControlBoardFeedback(`Plantilla ${templateDeleteModal.name} eliminada correctamente.`);
-      setTemplateDeleteModal({ open: false, id: null, name: "" });
-    } catch (error) {
-      setControlBoardFeedback(error?.message || "No se pudo eliminar la plantilla.");
-    }
-  }
-
-  async function importDraftRowsIntoBoard(createdBoardId, payload, initialState) {
-    const rowsToImport = boardImportedRowsDraft.slice(0, 500);
-    const yesValues = new Set(["si", "sí", "true", "1", "yes", "y"]);
-
-    const bulkRows = rowsToImport.map((importedRow) => {
-      const values = buildImportedBoardRowValuesPatch(importedRow, payload.columns, visibleUsers, state.inventoryItems || [], yesValues);
-      return { values };
-    }).filter((item) => Object.keys(item.values).length > 0);
-
-    if (!bulkRows.length) return initialState;
-
-    const latestRemoteState = await requestJson(`/warehouse/boards/${createdBoardId}/rows/bulk`, {
-      method: "POST",
-      body: JSON.stringify({ rows: bulkRows }),
-    });
-
-    return latestRemoteState;
-  }
-
-  function resolveBoardOwnerAreaByUserId(userId) {
-    const sectionScopes = Array.isArray(selectedAreaSection?.scopes)
-      ? selectedAreaSection.scopes.map((scope) => normalizeAreaOption(scope)).filter((scope) => scope && scope !== "SIN AREA")
-      : [];
-    if (selectedAreaSectionId !== "all" && sectionScopes.length) {
-      return sectionScopes[0];
-    }
-    const responsibleUser = userMap.get(userId) || null;
-    const normalizedArea = normalizeAreaOption(getAreaRoot(getUserArea(responsibleUser)) || getUserArea(responsibleUser));
-    return normalizedArea && normalizedArea !== "SIN AREA" ? normalizedArea : "";
-  }
-
-  async function saveControlBoard() {
-    if (isBoardSaveSubmitting) return;
-    const isEditing = boardBuilderModal.mode === "edit" && boardBuilderModal.boardId;
-    const hasPermission = isEditing ? actionPermissions.editBoard : actionPermissions.createBoard;
-    if (!currentUser || !hasPermission || !controlBoardDraft.name.trim() || !controlBoardDraft.columns.length) {
-      setControlBoardFeedback("Agrega nombre, dueño y al menos un campo para guardar el tablero.");
-      return;
-    }
-
-    const sectionScopedBoardAreas = selectedAreaSectionId !== "all" && Array.isArray(selectedAreaSection?.scopes)
-      ? selectedAreaSection.scopes.map((scope) => normalizeAreaOption(scope)).filter((scope) => scope && scope !== "SIN AREA")
-      : [];
-    const forcedBoardArea = sectionScopedBoardAreas[0] || "";
-    const selectedBoardArea = forcedBoardArea || normalizeAreaOption(controlBoardDraft.settings?.ownerArea || "");
-    if (!selectedBoardArea || selectedBoardArea === "SIN AREA") {
-      setControlBoardFeedback("Selecciona el area duena del tablero para evitar cruces de datos en indicadores.");
-      return;
-    }
-
-    const ownerId = controlBoardDraft.ownerId || currentUser.id;
-    const { payload } = buildBoardSavePayload(controlBoardDraft, ownerId);
-    const protectedTemplate = resolveProtectedSystemTemplate(controlBoardDraft);
-    if (protectedTemplate) {
-      payload.settings = {
-        ...payload.settings,
-        systemBoardTemplateId: protectedTemplate.id,
-        systemBoardLocked: true,
-      };
-      if (!forcedBoardArea && selectedBoardArea) {
-        payload.visibilityType = "department";
-        payload.sharedDepartments = normalizeBoardSharedDepartments([selectedBoardArea]);
-        payload.accessUserIds = [];
-      }
-    }
-    if (forcedBoardArea) {
-      payload.settings = {
-        ...payload.settings,
-        ownerArea: forcedBoardArea,
-      };
-    }
-    setIsBoardSaveSubmitting(true);
-    setControlBoardFeedback("");
-
-    try {
-      const result = await requestJson(
-        isEditing ? `/warehouse/boards/${boardBuilderModal.boardId}` : "/warehouse/boards",
-        {
-          method: isEditing ? "PATCH" : "POST",
-          body: JSON.stringify(payload),
-        },
-      );
-      applyRemoteWarehouseState(result.data.state, setState, setLoginDirectory, skipNextSyncRef, setSyncStatus);
-      const createdBoardId = result.data.boardId || boardBuilderModal.boardId || "";
-
-      if (!isEditing && createdBoardId && boardImportedRowsDraft.length) {
-        const latestRemoteState = await importDraftRowsIntoBoard(createdBoardId, payload, result.data.state);
-        applyRemoteWarehouseState(latestRemoteState, setState, setLoginDirectory, skipNextSyncRef, setSyncStatus);
-        setBoardRuntimeFeedback({
-          tone: "success",
-          message: `Se creó ${payload.name} y se importaron ${Math.min(boardImportedRowsDraft.length, 500)} fila(s) desde Excel.${boardImportedRowsDraft.length > 500 ? " Solo se importaron las primeras 500 por rendimiento." : ""}`,
-        });
-      }
-
-      const savedBoard = (result.data.state?.controlBoards || []).find((board) => board.id === createdBoardId) || null;
-      const boardVisibleInList = savedBoard && (() => {
-        if (!getBoardVisibleToUser(savedBoard, currentUser)) return false;
-        if (!activeAreaScopes.length) return true;
-        const boardAreas = [
-          ...(savedBoard?.settings?.ownerArea ? [savedBoard.settings.ownerArea] : []),
-          ...(savedBoard.sharedDepartments || []),
-        ];
-        return boardAreas.some((area) =>
-          activeAreaScopes.some((selectedArea) => normalizeAreaOption(area) === normalizeAreaOption(selectedArea)),
-        );
-      })();
-
-      setSelectedCustomBoardId(createdBoardId);
-      setSelectedCustomBoardViewId("current");
-      if (!isEditing) {
-        setPage(PAGE_CUSTOM_BOARDS);
-      }
-      setBoardBuilderModal({ open: false, mode: "create", boardId: null });
-      setTemplatePreviewId(null);
-      setControlBoardDraft({
-        ...createEmptyBoardDraft(),
-        ownerId: currentUser.id,
-        settings: {
-          ...withDefaultBoardSettings(createEmptyBoardDraft().settings),
-          ownerArea: resolveBoardOwnerAreaByUserId(currentUser.id),
-        },
-      });
-      setBoardImportedRowsDraft([]);
-      setExcelFormulaWizard({ open: false, items: [] });
-      setControlBoardFeedback("");
-      if (isEditing || !boardImportedRowsDraft.length) {
-        const boardAreaLabel = savedBoard?.settings?.ownerArea || payload.settings?.ownerArea || "sin área";
-        setBoardRuntimeFeedback({
-          tone: boardVisibleInList ? "success" : "warning",
-          message: isEditing
-            ? `Se actualizó ${payload.name} sin cambiarte de pantalla.`
-            : boardVisibleInList
-              ? `Se creó ${payload.name} y ya aparece en Mis tableros.`
-              : `Se creó ${payload.name} (área ${boardAreaLabel}), pero no se ve en el filtro actual del menú lateral. Abre "Todas las áreas" o el área ${boardAreaLabel}.`,
-        });
-      }
-    } catch (error) {
-      setControlBoardFeedback(error?.message || "No se pudo guardar el tablero.");
-    } finally {
-      setIsBoardSaveSubmitting(false);
-    }
-  }
-
   function clearControlBoardDraft() {
     const ownerId = currentUser?.id || "";
     setControlBoardDraft({
@@ -5989,475 +5125,6 @@ function App() { // NOSONAR
     setTemplatePreviewId(null);
     setEditingDraftColumnId(null);
     setControlBoardFeedback("");
-  }
-
-  function openCreateInventoryItem(domain = inventoryTab) {
-    if (!actionPermissions[getInventoryManageActionId(domain)]) return;
-    setInventoryImportFeedback({ tone: "", message: "" });
-    setInventoryModal({
-      ...createInventoryModalState("create", {}, domain),
-      cleaningSite: domain === INVENTORY_DOMAIN_CLEANING ? inventoryCleaningSite : DEFAULT_CLEANING_SITE,
-      open: true,
-    });
-  }
-
-  function openEditInventoryItem(item) {
-    if (!actionPermissions[getInventoryManageActionId(item?.domain)]) return;
-    setInventoryModal({ ...createInventoryModalState("edit", item, item.domain), open: true });
-  }
-
-  function toggleInventoryModalActivityCatalog(itemId, isChecked) {
-    setInventoryModal((current) => {
-      const nextActivityCatalogIds = isChecked
-        ? Array.from(new Set(current.activityCatalogIds.concat(itemId)))
-        : current.activityCatalogIds.filter((catalogId) => catalogId !== itemId);
-      const nextActivityConsumptions = isChecked
-        ? current.activityConsumptions.some((entry) => entry.catalogActivityId === itemId)
-          ? current.activityConsumptions
-          : current.activityConsumptions.concat({ catalogActivityId: itemId, quantity: "" })
-        : current.activityConsumptions.filter((entry) => entry.catalogActivityId !== itemId);
-
-      return {
-        ...current,
-        activityCatalogIds: nextActivityCatalogIds,
-        activityConsumptions: nextActivityConsumptions,
-      };
-    });
-  }
-
-  function updateInventoryModalActivityConsumption(itemId, value) {
-    setInventoryModal((current) => ({
-      ...current,
-      activityConsumptions: current.activityConsumptions.map((entry) => (
-        entry.catalogActivityId === itemId ? { ...entry, quantity: value } : entry
-      )),
-    }));
-  }
-
-  function closeInventoryMovementModal() {
-    setInventoryMovementModal(createInventoryMovementModalState());
-  }
-
-  function closeInventoryTransferConfirmModal(shouldReopenMovementModal = false) {
-    if (shouldReopenMovementModal && inventoryTransferConfirmModal.draftMovementModal) {
-      setInventoryMovementModal(inventoryTransferConfirmModal.draftMovementModal);
-    }
-    setInventoryTransferConfirmModal(createInventoryTransferConfirmModalState());
-  }
-
-  function updateInventoryMovementModal(updates) {
-    setInventoryMovementModal((current) => {
-      const next = { ...current, ...updates };
-      const hasItemChange = Object.hasOwn(updates, "itemId");
-      const hasWarehouseChange = Object.hasOwn(updates, "warehouse");
-      const hasStorageChange = Object.hasOwn(updates, "storageLocation");
-      const hasMovementTypeChange = Object.hasOwn(updates, "movementType");
-      const selectedItem = next.itemId ? inventoryItemsById.get(next.itemId) || null : null;
-      const defaultTransferDestination = next.movementType === INVENTORY_MOVEMENT_TRANSFER && selectedItem?.domain === INVENTORY_DOMAIN_ORDERS
-        ? getInventoryDefaultTransferDestination(selectedItem, inventoryMovements)
-        : null;
-
-      if (hasItemChange) {
-        next.itemCode = selectedItem?.code || "";
-        next.itemName = selectedItem?.name || "";
-        next.unitLabel = selectedItem?.unitLabel || "pzas";
-        next.domain = selectedItem?.domain || current.domain;
-        if (next.movementType === INVENTORY_MOVEMENT_TRANSFER && selectedItem?.domain === INVENTORY_DOMAIN_ORDERS) {
-          next.warehouse = defaultTransferDestination?.warehouse || "";
-          next.storageLocation = defaultTransferDestination?.storageLocation || "";
-          next.recipientName = defaultTransferDestination?.recipientName || "";
-          next.transferTargetKey = defaultTransferDestination?.destinationKey || "";
-        } else {
-          next.storageLocation = selectedItem?.storageLocation || "";
-        }
-      }
-
-      if (hasMovementTypeChange && next.movementType !== INVENTORY_MOVEMENT_TRANSFER) {
-        next.warehouse = "";
-        next.recipientName = "";
-        next.remainingUnits = "";
-        next.transferTargetKey = "";
-        next.storageLocation = selectedItem?.storageLocation || next.storageLocation;
-      }
-
-      if (next.movementType === INVENTORY_MOVEMENT_TRANSFER && selectedItem?.domain === INVENTORY_DOMAIN_ORDERS) {
-        const matchedTarget = findInventoryTransferTarget(selectedItem, next.warehouse, next.storageLocation);
-        const nextTargetKey = matchedTarget?.destinationKey || "";
-        const shouldResetRemaining = (hasItemChange || hasWarehouseChange || hasStorageChange) && current.transferTargetKey !== nextTargetKey;
-        next.transferTargetKey = nextTargetKey;
-        if (shouldResetRemaining) {
-          next.remainingUnits = "";
-        }
-      } else {
-        next.transferTargetKey = "";
-        if (next.movementType !== INVENTORY_MOVEMENT_TRANSFER) {
-          next.remainingUnits = "";
-        }
-      }
-
-      return next;
-    });
-  }
-
-  function openInventoryMovement(item, movementType = INVENTORY_MOVEMENT_RESTOCK) {
-    if (!actionPermissions[getInventoryManageActionId(item?.domain)]) return;
-    setInventoryImportFeedback({ tone: "", message: "" });
-    const defaultTransferDestination = movementType === INVENTORY_MOVEMENT_TRANSFER && item?.domain === INVENTORY_DOMAIN_ORDERS
-      ? getInventoryDefaultTransferDestination(item, inventoryMovements)
-      : null;
-    setInventoryMovementModal({
-      ...createInventoryMovementModalState(item, movementType, item?.domain || inventoryTab, { defaultDestination: defaultTransferDestination }),
-      selectedTransferDestinationTab: inventoryTransferDefaultWarehouse || defaultTransferDestination?.warehouse || "",
-      open: true,
-    });
-  }
-
-  function openOrderInventoryTransfer(item = null) {
-    const transferDomain = inventoryTab === INVENTORY_DOMAIN_MAINTENANCE ? INVENTORY_DOMAIN_MAINTENANCE : INVENTORY_DOMAIN_ORDERS;
-    if (!actionPermissions[getInventoryManageActionId(transferDomain)]) return;
-    setInventoryImportFeedback({ tone: "", message: "" });
-    setInventoryMovementModal({
-      ...createInventoryMovementModalState(item, INVENTORY_MOVEMENT_TRANSFER, transferDomain),
-      selectedTransferDestinationTab: inventoryTransferDefaultWarehouse || "",
-      open: true,
-    });
-  }
-
-  function openInventoryTransferViewer() {
-    const transferDomain = inventoryTab === INVENTORY_DOMAIN_MAINTENANCE ? INVENTORY_DOMAIN_MAINTENANCE : INVENTORY_DOMAIN_ORDERS;
-    if (!actionPermissions[getInventoryManageActionId(transferDomain)]) return;
-    setInventoryTransferViewerState({ open: true, itemId: null });
-  }
-
-  function openInventoryTransferHistory(item = null) {
-    const transferDomain = inventoryTab === INVENTORY_DOMAIN_MAINTENANCE ? INVENTORY_DOMAIN_MAINTENANCE : INVENTORY_DOMAIN_ORDERS;
-    if (!actionPermissions[getInventoryManageActionId(transferDomain)]) return;
-    setInventoryTransferViewerState({ open: true, itemId: item?.id || null });
-  }
-
-  function closeInventoryRestockModal() {
-    setInventoryRestockModal(createInventoryRestockModalState(inventoryTab));
-  }
-
-  function openInventoryRestockModal(item) {
-    if (!item || item.domain === INVENTORY_DOMAIN_BASE || !actionPermissions[getInventoryManageActionId(item.domain)]) return;
-    setInventoryImportFeedback({ tone: "", message: "" });
-    setInventoryRestockModal({
-      ...createInventoryRestockModalState(item.domain, [item.id]),
-      open: true,
-    });
-  }
-
-  function openInventoryBulkRestockModal(domain = inventoryTab) {
-    if (domain === INVENTORY_DOMAIN_BASE || !actionPermissions[getInventoryManageActionId(domain)]) return;
-    const items = domain === INVENTORY_DOMAIN_CLEANING
-      ? currentInventoryDomainItems
-      : allInventoryItemsByDomain[domain] || [];
-    if (!items.length) {
-      setInventoryImportFeedback({ tone: "danger", message: "No hay insumos disponibles para surtir en esta sección." });
-      return;
-    }
-    setInventoryImportFeedback({ tone: "", message: "" });
-    setInventoryRestockModal({
-      ...createInventoryRestockModalState(domain, items.map((item) => item.id)),
-      open: true,
-    });
-  }
-
-  function updateInventoryRestockQuantity(itemId, value) {
-    setInventoryRestockModal((current) => ({
-      ...current,
-      quantities: {
-        ...current.quantities,
-        [itemId]: value,
-      },
-    }));
-  }
-
-  function applySavedInventoryLocation(locationKey) {
-    const selectedLocation = inventoryMovementSavedLocations.find((entry) => entry.key === locationKey);
-    if (!selectedLocation) return;
-    updateInventoryMovementModal({ storageLocation: selectedLocation.label });
-  }
-
-  async function requestInventoryMovement(payload) {
-    const result = await requestJson("/warehouse/inventory/movements", {
-      method: "POST",
-      body: JSON.stringify(payload),
-    });
-    applyRemoteWarehouseState(result.data.state, setState, setLoginDirectory, skipNextSyncRef, setSyncStatus);
-    return result;
-  }
-
-  async function persistInventoryMovement(payload, successMessage) {
-    try {
-      await requestInventoryMovement(payload);
-      setInventoryTransferConfirmModal(createInventoryTransferConfirmModalState());
-      closeInventoryMovementModal();
-      setInventoryImportFeedback({ tone: "success", message: successMessage });
-    } catch (error) {
-      setInventoryImportFeedback({ tone: "danger", message: error?.message || "No se pudo registrar el movimiento." });
-    }
-  }
-
-  async function submitInventoryRestockModal() {
-    if (!actionPermissions[getInventoryManageActionId(inventoryRestockModal.domain)]) return;
-
-    const pendingRestocks = inventoryRestockModalItems
-      .map((item) => ({
-        item,
-        quantity: Number(inventoryRestockModal.quantities[item.id] || 0),
-      }))
-      .filter(({ quantity }) => quantity > 0 && !Number.isNaN(quantity));
-
-    if (!pendingRestocks.length) {
-      closeInventoryRestockModal();
-      setInventoryImportFeedback({ tone: "success", message: "No se agregó surtido porque todas las cantidades quedaron en 0." });
-      return;
-    }
-
-    try {
-      for (const { item, quantity } of pendingRestocks) {
-        await requestInventoryMovement({
-          itemId: item.id,
-          movementType: INVENTORY_MOVEMENT_RESTOCK,
-          quantity,
-          notes: inventoryRestockModal.itemIds.length === 1 ? "Surtido por insumo" : "Surtido general",
-          warehouse: "",
-          recipientName: "",
-          storageLocation: item.storageLocation || "",
-          unitLabel: item.unitLabel || "pzas",
-          remainingUnits: null,
-        });
-      }
-
-      closeInventoryRestockModal();
-      setInventoryImportFeedback({
-        tone: "success",
-        message: pendingRestocks.length === 1
-          ? `Surtido registrado para ${pendingRestocks[0].item.name}.`
-          : `Surtido general aplicado a ${pendingRestocks.length} insumos.`,
-      });
-    } catch (error) {
-      setInventoryImportFeedback({ tone: "danger", message: error?.message || "No se pudo registrar el surtido." });
-    }
-  }
-
-  async function submitInventoryModal() {
-    setInventoryModal((current) => ({ ...current, submitting: true }));
-    if (!actionPermissions[getInventoryManageActionId(inventoryModal.domain)]) {
-      setInventoryModal((current) => ({ ...current, submitting: false }));
-      return;
-    }
-    const usesPresentation = inventoryDomainUsesPresentation(inventoryModal.domain);
-    const usesPackagingMetrics = inventoryDomainUsesPackagingMetrics(inventoryModal.domain);
-    const normalizedActivityConsumptions = inventoryModal.domain === INVENTORY_DOMAIN_CLEANING
-      ? inventoryModal.activityConsumptions
-        .map((entry) => ({
-          catalogActivityId: entry.catalogActivityId,
-          quantity: Number(entry.quantity || 0),
-        }))
-        .filter((entry) => entry.catalogActivityId)
-      : [];
-    const payload = {
-      domain: inventoryModal.domain,
-      code: inventoryModal.code.trim(),
-      name: inventoryModal.name.trim(),
-      presentation: usesPresentation ? inventoryModal.presentation.trim() : "",
-      piecesPerBox: usesPackagingMetrics ? Number(inventoryModal.piecesPerBox || 0) : 0,
-      boxesPerPallet: usesPackagingMetrics ? Number(inventoryModal.boxesPerPallet || 0) : 0,
-      stockUnits: inventoryModal.domain === INVENTORY_DOMAIN_BASE ? 0 : Number(inventoryModal.stockUnits || 0),
-      minStockUnits: inventoryModal.domain === INVENTORY_DOMAIN_BASE ? 0 : Number(inventoryModal.minStockUnits || 0),
-      storageLocation: inventoryModal.domain === INVENTORY_DOMAIN_BASE ? "" : inventoryModal.storageLocation.trim(),
-      family: inventoryModal.domain === INVENTORY_DOMAIN_MAINTENANCE ? inventoryModal.family.trim() : "",
-      price: inventoryModal.domain === INVENTORY_DOMAIN_MAINTENANCE ? Number(inventoryModal.price || 0) : 0,
-      cost: inventoryModal.domain === INVENTORY_DOMAIN_MAINTENANCE ? Number(inventoryModal.cost || 0) : 0,
-      cleaningSite: inventoryModal.domain === INVENTORY_DOMAIN_CLEANING ? normalizeCleaningSite(inventoryModal.cleaningSite) : "",
-      unitLabel: inventoryModal.unitLabel.trim() || "pzas",
-      activityCatalogIds: inventoryModal.domain === INVENTORY_DOMAIN_CLEANING ? normalizedActivityConsumptions.map((entry) => entry.catalogActivityId) : [],
-      activityConsumptions: normalizedActivityConsumptions,
-      consumptionPerStart: inventoryModal.domain === INVENTORY_DOMAIN_CLEANING ? Number(normalizedActivityConsumptions[0]?.quantity || 0) : 0,
-      customFields: Object.fromEntries(
-        Object.entries(inventoryModal.customFields || {})
-          .map(([key, value]) => [String(key || "").trim(), String(value || "").trim()])
-          .filter(([key]) => key),
-      ),
-    };
-
-    if (!payload.code || !payload.name) {
-      setInventoryModal((current) => ({ ...current, submitting: false }));
-      return;
-    }
-
-    if (usesPackagingMetrics && Number(payload.boxesPerPallet || 0) <= 0) {
-      setInventoryModal((current) => ({ ...current, submitting: false }));
-      setInventoryImportFeedback({ tone: "danger", message: "Indica cuántas cajas trae una tarima completa (mayor a 0)." });
-      return;
-    }
-
-    if (usesPackagingMetrics && Number(payload.piecesPerBox || 0) <= 0) {
-      setInventoryModal((current) => ({ ...current, submitting: false }));
-      setInventoryImportFeedback({ tone: "danger", message: "Indica cuántas piezas trae cada caja (mayor a 0)." });
-      return;
-    }
-
-    try {
-      const result = await requestJson(
-        inventoryModal.mode === "create" ? "/warehouse/inventory" : `/warehouse/inventory/${inventoryModal.id}`,
-        {
-          method: inventoryModal.mode === "create" ? "POST" : "PATCH",
-          body: JSON.stringify(payload),
-        },
-      );
-      applyRemoteWarehouseState(result.data.state, setState, setLoginDirectory, skipNextSyncRef, setSyncStatus);
-      setInventoryModal(createInventoryModalState());
-      setInventoryImportFeedback({ tone: "success", message: inventoryModal.mode === "create" ? "Artículo agregado al inventario." : "Artículo actualizado correctamente." });
-    } catch (error) {
-      setInventoryModal((current) => ({ ...current, submitting: false }));
-      setInventoryImportFeedback({ tone: "danger", message: error?.message || "No se pudo guardar el artículo de inventario." });
-    }
-  }
-
-  async function submitInventoryMovementModal() {
-    if (!actionPermissions[getInventoryManageActionId(inventoryMovementModal.domain)] || !inventoryMovementModal.itemId) return;
-
-    const selectedItem = inventoryItemsById.get(inventoryMovementModal.itemId) || null;
-    const quantity = Number(inventoryMovementModal.quantity || 0);
-    const isOrderTransfer = inventoryMovementModal.movementType === INVENTORY_MOVEMENT_TRANSFER && selectedItem?.domain === INVENTORY_DOMAIN_ORDERS;
-
-    if (!selectedItem || !quantity || Number.isNaN(quantity)) {
-      setInventoryImportFeedback({ tone: "danger", message: "Define el artículo y una cantidad válida para continuar." });
-      return;
-    }
-
-    if (isOrderTransfer) {
-      if (!inventoryMovementModal.warehouse.trim() && !inventoryMovementModal.storageLocation.trim()) {
-        setInventoryImportFeedback({ tone: "danger", message: "Define una nave destino o un punto de entrega destino para registrar la transferencia." });
-        return;
-      }
-      if (quantity > inventoryMovementAvailableUnits) {
-        setInventoryImportFeedback({ tone: "danger", message: `Solo hay ${inventoryMovementAvailableUnits} ${selectedItem.unitLabel || "pzas"} disponibles para transferir con el saldo actual.` });
-        return;
-      }
-    }
-
-    setInventoryMovementModal((current) => ({ ...current, submitting: true }));
-
-    const payload = {
-      itemId: selectedItem.id,
-      movementType: inventoryMovementModal.movementType,
-      quantity,
-      notes: inventoryMovementModal.notes.trim(),
-      warehouse: inventoryMovementModal.warehouse.trim(),
-      recipientName: inventoryMovementModal.recipientName.trim(),
-      storageLocation: inventoryMovementModal.storageLocation.trim(),
-      unitLabel: inventoryMovementModal.unitLabel.trim() || "pzas",
-      remainingUnits: hasInventoryBalanceInput(inventoryMovementModal.remainingUnits) ? Number(inventoryMovementModal.remainingUnits || 0) : null,
-    };
-
-    if (isOrderTransfer && inventoryMovementTransferTarget && !hasInventoryBalanceInput(inventoryMovementModal.remainingUnits)) {
-      setInventoryMovementModal((current) => ({ ...current, submitting: false }));
-      setInventoryTransferConfirmModal({
-        open: true,
-        itemId: selectedItem.id,
-        itemName: selectedItem.name,
-        warehouse: payload.warehouse,
-        storageLocation: payload.storageLocation,
-        recipientName: payload.recipientName,
-        quantity,
-        unitLabel: payload.unitLabel,
-        remainingUnits: "",
-        lastKnownUnits: inventoryMovementTransferTarget.availableUnits,
-        pendingPayload: payload,
-        draftMovementModal: { ...inventoryMovementModal, open: true },
-      });
-      setInventoryMovementModal((current) => ({ ...current, open: false }));
-      return;
-    }
-
-    try {
-      await persistInventoryMovement(payload, isOrderTransfer ? "Transferencia registrada." : "Movimiento de inventario registrado.");
-    } catch (_error) {
-      setInventoryMovementModal((current) => ({ ...current, submitting: false }));
-    }
-  }
-
-  async function submitInventoryTransferConfirmModal() {
-    const quantity = Number(inventoryTransferConfirmModal.quantity || 0);
-    const remainingUnits = Number(inventoryTransferConfirmModal.remainingUnits || 0);
-
-    if (!inventoryTransferConfirmModal.pendingPayload || !quantity || Number.isNaN(quantity)) {
-      setInventoryImportFeedback({ tone: "danger", message: "No se encontró la transferencia pendiente para confirmar." });
-      return;
-    }
-
-    if (!hasInventoryBalanceInput(inventoryTransferConfirmModal.remainingUnits) || Number.isNaN(remainingUnits)) {
-      setInventoryImportFeedback({ tone: "danger", message: "Indica cuántas piezas quedan actualmente en ese destino para completar la transferencia." });
-      return;
-    }
-
-    await persistInventoryMovement({
-      ...inventoryTransferConfirmModal.pendingPayload,
-      remainingUnits,
-    }, "Transferencia registrada y saldo destino actualizado.");
-  }
-
-  function openInventoryDestinationModal(mode = "create", destination = {}) {
-    if (!actionPermissions.manageOrderInventory) return;
-    setInventoryImportFeedback({ tone: "", message: "" });
-    setInventoryDestinationModal({ ...createInventoryDestinationModalState(mode, destination), open: true });
-  }
-
-  function closeInventoryDestinationModal() {
-    setInventoryDestinationModal(createInventoryDestinationModalState());
-  }
-
-  async function submitInventoryDestinationModal() {
-    if (!actionPermissions.manageOrderInventory) return;
-
-    const { mode, warehouse, storageLocation, recipientName } = inventoryDestinationModal;
-    if (!warehouse.trim() || !storageLocation.trim()) {
-      setInventoryImportFeedback({ tone: "danger", message: "Define la nave y punto de entrega para continuar." });
-      return;
-    }
-
-    setInventoryDestinationModal((current) => ({ ...current, submitting: true }));
-
-    try {
-      const payload = {
-        warehouse: warehouse.trim(),
-        storageLocation: storageLocation.trim(),
-        recipientName: recipientName.trim(),
-      };
-
-      const result = await requestJson(
-        mode === "create" ? "/warehouse/inventory/destinations" : `/warehouse/inventory/destinations/${inventoryDestinationModal.id}`,
-        {
-          method: mode === "create" ? "POST" : "PATCH",
-          body: JSON.stringify(payload),
-        },
-      );
-      applyRemoteWarehouseState(result.data.state, setState, setLoginDirectory, skipNextSyncRef, setSyncStatus);
-      setInventoryDestinationModal(createInventoryDestinationModalState());
-      setInventoryImportFeedback({ tone: "success", message: mode === "create" ? "Nave destino agregada." : "Nave destino actualizada." });
-    } catch (error) {
-      setInventoryDestinationModal((current) => ({ ...current, submitting: false }));
-      setInventoryImportFeedback({ tone: "danger", message: error?.message || "No se pudo guardar la nave destino." });
-    }
-  }
-
-  async function deleteInventoryDestination(destinationId) {
-    if (!actionPermissions.manageOrderInventory || !destinationId) return;
-
-    try {
-      const result = await requestJson(`/warehouse/inventory/destinations/${destinationId}`, {
-        method: "DELETE",
-      });
-      applyRemoteWarehouseState(result.data.state, setState, setLoginDirectory, skipNextSyncRef, setSyncStatus);
-      setInventoryImportFeedback({ tone: "success", message: "Nave destino eliminada." });
-    } catch (error) {
-      setInventoryImportFeedback({ tone: "danger", message: error?.message || "No se pudo eliminar la nave destino." });
-    }
   }
 
   async function createTransportRecord(payload = {}) {
@@ -6605,37 +5272,26 @@ function App() { // NOSONAR
         const selectedItem = inventoryItemsById.get(usage.itemId);
         if (!selectedItem || !usage.quantity || Number.isNaN(Number(usage.quantity)) || Number(usage.quantity) <= 0) continue;
 
-        await requestInventoryMovement({
-          itemId: selectedItem.id,
-          movementType: INVENTORY_MOVEMENT_CONSUME,
-          quantity: Number(usage.quantity),
-          notes: usage.note?.trim() || "Uso en mantenimiento",
-          warehouse: "",
-          recipientName: "",
-          storageLocation: selectedItem.storageLocation || "",
-          unitLabel: selectedItem.unitLabel || "pzas",
-          remainingUnits: null,
+        const result = await requestJson("/warehouse/inventory/movements", {
+          method: "POST",
+          body: JSON.stringify({
+            itemId: selectedItem.id,
+            movementType: INVENTORY_MOVEMENT_CONSUME,
+            quantity: Number(usage.quantity),
+            notes: usage.note?.trim() || "Uso en mantenimiento",
+            warehouse: "",
+            recipientName: "",
+            storageLocation: selectedItem.storageLocation || "",
+            unitLabel: selectedItem.unitLabel || "pzas",
+            remainingUnits: null,
+          }),
         });
+        applyRemoteWarehouseState(result.data.state, setState, setLoginDirectory, skipNextSyncRef, setSyncStatus);
       }
 
       setInventoryImportFeedback({ tone: "success", message: "Uso de insumos de mantenimiento registrado." });
     } catch (error) {
       setInventoryImportFeedback({ tone: "danger", message: error?.message || "No se pudo registrar el uso de mantenimiento." });
-    }
-  }
-
-  async function deleteInventoryItem(itemId) {
-    const item = (state.inventoryItems || []).find((entry) => entry.id === itemId);
-    if (!itemId || !actionPermissions[getInventoryDeleteActionId(item?.domain)]) return;
-    try {
-      const result = await requestJson(`/warehouse/inventory/${itemId}`, {
-        method: "DELETE",
-      });
-      applyRemoteWarehouseState(result.data.state, setState, setLoginDirectory, skipNextSyncRef, setSyncStatus);
-      setDeleteInventoryId(null);
-      setInventoryImportFeedback({ tone: "success", message: "Artículo eliminado del inventario." });
-    } catch (error) {
-      setInventoryImportFeedback({ tone: "danger", message: error?.message || "No se pudo eliminar el artículo de inventario." });
     }
   }
 
@@ -6751,17 +5407,6 @@ function App() { // NOSONAR
     }
   }
 
-  function isCleaningActivityRow(row) {
-    if (!row) return false;
-    const activityCatalogId = String(row.catalogActivityId || "").trim();
-    if (!activityCatalogId) return false;
-    const matchedCatalogItem = (state.catalog || []).find((item) => {
-      if (!item || item.isDeleted) return false;
-      return String(item.id || "").trim() === activityCatalogId;
-    });
-    return String(matchedCatalogItem?.category || "").trim().toLowerCase() === "limpieza";
-  }
-
   const [boardRowCreationPending, setBoardRowCreationPending] = useState(false);
 
   async function createBoardRow(boardId) {
@@ -6784,42 +5429,6 @@ function App() { // NOSONAR
     } finally {
       setBoardRowCreationPending(false);
     }
-  }
-
-  function deleteBoardRow(boardId, rowId) {
-    const board = (state.controlBoards || []).find((item) => item.id === boardId);
-    const row = board?.rows?.find((item) => item.id === rowId);
-    if (!board || !row || !canDeleteBoardRowRecord(currentUser, board, row, normalizedPermissions)) {
-      setDeleteBoardRowState({ open: false, boardId: null, rowId: null });
-      setBoardRuntimeFeedback({ tone: "danger", message: "No tienes permiso para eliminar filas en este tablero." });
-      return;
-    }
-
-    requestJson(`/warehouse/boards/${boardId}/rows/${rowId}`, {
-      method: "DELETE",
-    }).then((remoteState) => {
-      applyRemoteWarehouseState(remoteState, setState, setLoginDirectory, skipNextSyncRef, setSyncStatus);
-      setDeleteBoardRowState({ open: false, boardId: null, rowId: null });
-      setBoardRuntimeFeedback({ tone: "success", message: "La fila fue eliminada del tablero." });
-    }).catch((error) => {
-      if (error?.status === 404) {
-        // Another device/process may have already removed this row.
-        setState((current) => ({
-          ...current,
-          controlBoards: (current.controlBoards || []).map((controlBoard) => {
-            if (controlBoard.id !== boardId) return controlBoard;
-            return {
-              ...controlBoard,
-              rows: (controlBoard.rows || []).filter((boardRow) => boardRow.id !== rowId),
-            };
-          }),
-        }));
-        setDeleteBoardRowState({ open: false, boardId: null, rowId: null });
-        setBoardRuntimeFeedback({ tone: "warning", message: "La fila ya no existía. Se actualizó la vista." });
-        return;
-      }
-      setBoardRuntimeFeedback({ tone: "danger", message: error?.message || "No se pudo eliminar la fila." });
-    });
   }
 
   function resolveBoardMutationBoard(boardId) {
@@ -7001,279 +5610,6 @@ function App() { // NOSONAR
       setBoardRuntimeFeedback({ tone: "success", message: `Se duplicó ${board.name} y ya quedó listo como ${result.data.boardName || "la copia"}.` });
     } catch (error) {
       setBoardRuntimeFeedback({ tone: "danger", message: error?.message || "No se pudo duplicar el tablero." });
-    }
-  }
-
-  function changeBoardRowStatus(boardId, rowId, status, options = {}) {
-    const permissionBoard = selectedCustomBoard?.id === boardId ? selectedCustomBoard : resolveBoardMutationBoard(boardId);
-    const board = resolveBoardMutationBoard(boardId);
-    const row = board?.rows?.find((item) => item.id === rowId);
-    if (!board || !row || !canOperateBoardRowRecord(currentUser, permissionBoard, row, normalizedPermissions)) return false;
-
-    // Control de permiso para pausar/finalizar:
-    // - El botón de inicio puede accionarlo cualquier persona con permiso de operación sobre la fila.
-    // - Pausa y fin están reservados al iniciador o a cualquier player seleccionado en la actividad.
-    if (status === STATUS_PAUSED || status === STATUS_FINISHED) {
-      const rawResponsible = Array.isArray(row?.responsibleIds) ? row.responsibleIds : (row?.responsibleId ? [row.responsibleId] : []);
-      const responsibleIds = (rawResponsible || []).map((id) => String(id || "").trim()).filter(Boolean);
-      const currentId = String(currentUser?.id || "");
-      const starterId = String(starterByRowIdRef.current[rowId] || "");
-      const isResponsibleUser = responsibleIds.includes(currentId);
-      const isStarter = starterId && starterId === currentId;
-
-      if (!isResponsibleUser && !isStarter && !canManageDashboardState) {
-        setBoardRuntimeFeedback({
-          tone: "danger",
-          message: "Solo la persona que inició o los players asignados a esta actividad pueden pausarla o finalizarla (excepto Leads).",
-        });
-        return;
-      }
-    }
-
-    if (status === STATUS_RUNNING && row.status !== STATUS_RUNNING && !options.skipStartConfirm) {
-      setBoardStartConfirm({
-        open: true,
-        boardId,
-        rowId,
-        title: row.status === STATUS_PAUSED ? "Confirmar reanudación" : "Confirmar inicio",
-        message: row.status === STATUS_PAUSED
-          ? "Vas a reanudar esta actividad."
-          : "Vas a iniciar esta actividad.",
-      });
-      return true;
-    }
-
-    // When starting a row, check if there are linked cleaning inventory items measured in piezas
-    if (status === STATUS_RUNNING && row.status !== STATUS_RUNNING) {
-      const activityCatalogId = row.catalogActivityId || null;
-      if (activityCatalogId) {
-        const pieceItems = (state.inventory || []).filter((invItem) => {
-          if (invItem.isDeleted) return false;
-          const unit = String(invItem.unitLabel || "").trim().toLowerCase();
-          const isPieces = unit === "pzas" || unit === "piezas" || unit === "pz";
-          if (!isPieces) return false;
-          return (invItem.activityConsumptions || []).some((entry) => entry.catalogActivityId === activityCatalogId && Number(entry.quantity) > 0);
-        });
-        if (pieceItems.length) {
-          setPieceDeductionModal({
-            open: true,
-            boardId,
-            rowId,
-            items: pieceItems.map((invItem) => {
-              const consumption = invItem.activityConsumptions.find((entry) => entry.catalogActivityId === activityCatalogId);
-              return { id: invItem.id, name: invItem.name, quantity: consumption?.quantity || 1, unit: invItem.unitLabel || "pzas", stock: invItem.stockUnits };
-            }),
-          });
-          return;
-        }
-      }
-    }
-
-    executeBoardRowStatusChange(boardId, rowId, status);
-    return true;
-  }
-
-  function closeBoardStartConfirm() {
-    setBoardStartConfirm({ open: false, boardId: null, rowId: null, title: "", message: "" });
-  }
-
-  function confirmStartBoardRow() {
-    if (!boardStartConfirm.boardId || !boardStartConfirm.rowId) return;
-    const boardId = boardStartConfirm.boardId;
-    const rowId = boardStartConfirm.rowId;
-    closeBoardStartConfirm();
-    changeBoardRowStatus(boardId, rowId, STATUS_RUNNING, { skipStartConfirm: true });
-  }
-
-  async function finishPreviousActivityAndStart() {
-    const conflict = boardStartConflictRows[0];
-    const { boardId, rowId } = boardStartConfirm;
-    if (!boardId || !rowId) return;
-    closeBoardStartConfirm();
-    if (conflict?.boardId && conflict?.rowId) {
-      try {
-        await executeBoardRowStatusChange(conflict.boardId, conflict.rowId, STATUS_FINISHED);
-      } catch {
-        return;
-      }
-    }
-    changeBoardRowStatus(boardId, rowId, STATUS_RUNNING, { skipStartConfirm: true });
-  }
-
-  function applyOptimisticBoardRowStatus(boardId, rowId, updater) {
-    applyOptimisticBoardRowPatch(boardId, rowId, updater);
-  }
-
-  function executeBoardRowStatusChange(boardId, rowId, status) {
-    const permissionBoard = selectedCustomBoard?.id === boardId ? selectedCustomBoard : resolveBoardMutationBoard(boardId);
-    const board = resolveBoardMutationBoard(boardId);
-    const row = board?.rows?.find((item) => item.id === rowId);
-    if (!board || !row || !canOperateBoardRowRecord(currentUser, permissionBoard, row, normalizedPermissions)) {
-      return Promise.resolve(false);
-    }
-
-    const nowTime = new Date().toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
-    const autoTimeValues = (board.fields || []).reduce((accumulator, field) => {
-      if (field.type !== "time") return accumulator;
-      const normalizedLabel = normalizeKey(field.label || "");
-      const currentValue = String(row.values?.[field.id] || "").trim();
-      if (status === STATUS_RUNNING && (normalizedLabel.includes("inicio") || normalizedLabel.includes("start")) && !currentValue) {
-        accumulator[field.id] = nowTime;
-      }
-      if (status === STATUS_FINISHED && (normalizedLabel.includes("fin") || normalizedLabel.includes("final") || normalizedLabel.includes("end"))) {
-        accumulator[field.id] = nowTime;
-      }
-      return accumulator;
-    }, {});
-
-    if (status === STATUS_FINISHED) {
-      const missingFields = (board.fields || []).filter((field) => {
-        if (!field.required) return false;
-        const effectiveValue = Object.hasOwn(autoTimeValues, field.id)
-          ? autoTimeValues[field.id]
-          : getBoardFieldValue(board, row, field);
-        return !isBoardFieldValueFilled(effectiveValue, field.type);
-      });
-
-      if (missingFields.length) {
-        setBoardRuntimeFeedback({
-          tone: "danger",
-          message: `Completa los campos obligatorios antes de terminar: ${missingFields.map((field) => field.label).join(", ")}.`,
-        });
-        return Promise.resolve(false);
-      }
-    }
-
-    setBoardRuntimeFeedback({ tone: "", message: "" });
-    const nowIso = new Date().toISOString();
-    const previousRowSnapshot = JSON.parse(JSON.stringify(row));
-
-    applyOptimisticBoardRowStatus(boardId, rowId, (currentRow) => {
-      const optimisticValues = {
-        ...(currentRow.values || {}),
-        ...autoTimeValues,
-      };
-      const currentElapsedSeconds = getElapsedSeconds(currentRow, Date.now(), operationalPauseState);
-
-      if (status === STATUS_RUNNING) {
-        return {
-          ...currentRow,
-          status,
-          values: optimisticValues,
-          startTime: currentRow.startTime || nowIso,
-          endTime: currentRow.status === STATUS_FINISHED ? null : currentRow.endTime,
-          lastResumedAt: nowIso,
-          pauseStartedAt: null,
-          pauseAffectsTimer: false,
-          pauseAuthorizedSeconds: 0,
-          // Preserve the stored accumulatedSeconds on resume to avoid adding paused duration
-          // (some pause overflow is shown in `totalTime` but should not be merged into `time`).
-          accumulatedSeconds: Math.max(0, Number(currentRow.accumulatedSeconds || 0)),
-        };
-      }
-
-      if (status === STATUS_PAUSED) {
-        return {
-          ...currentRow,
-          status,
-          values: optimisticValues,
-          accumulatedSeconds: currentElapsedSeconds,
-          lastResumedAt: null,
-          pauseStartedAt: nowIso,
-        };
-      }
-
-      if (status === STATUS_FINISHED) {
-        return {
-          ...currentRow,
-          status,
-          values: optimisticValues,
-          accumulatedSeconds: currentElapsedSeconds,
-          endTime: nowIso,
-          lastResumedAt: null,
-          pauseStartedAt: null,
-          pauseAffectsTimer: false,
-          pauseAuthorizedSeconds: 0,
-        };
-      }
-
-      return {
-        ...currentRow,
-        status,
-        values: optimisticValues,
-      };
-    });
-
-    // Registrar localmente quién inició la fila (para control de pausa/fin)
-    try {
-      if (previousRowSnapshot.status !== STATUS_RUNNING && status === STATUS_RUNNING) {
-        starterByRowIdRef.current[rowId] = String(currentUser?.id || "");
-      }
-      if (status === STATUS_FINISHED) {
-        delete starterByRowIdRef.current[rowId];
-      }
-    } catch (e) {
-      // ignore
-    }
-
-    return requestJson(getBoardRowPatchEndpoint(boardId, rowId), {
-      method: "PATCH",
-      body: JSON.stringify({
-        status,
-        ...(Object.keys(autoTimeValues).length ? { values: autoTimeValues } : {}),
-      }),
-    }).then((remoteState) => {
-      applyRemoteWarehouseState(remoteState, setState, setLoginDirectory, skipNextSyncRef, setSyncStatus);
-      return true;
-    }).catch((error) => {
-      applyOptimisticBoardRowStatus(boardId, rowId, () => previousRowSnapshot);
-      setBoardRuntimeFeedback({ tone: "danger", message: error?.message || "No se pudo cambiar el estado de la fila." });
-      throw error;
-    });
-  }
-
-  async function confirmPieceDeductionAndStart(deduct) {
-    const { boardId, rowId, items } = pieceDeductionModal;
-    setPieceDeductionModal({ open: false, boardId: null, rowId: null, items: [] });
-    if (deduct && items.length) {
-      try {
-        for (const item of items) {
-          await requestJson(`/warehouse/inventory/movements`, {
-            method: "POST",
-            body: JSON.stringify({
-              itemId: item.id,
-              movementType: "Salida",
-              quantity: item.quantity,
-              notes: "Descuento automático al iniciar actividad en tablero",
-              storageLocation: "",
-            }),
-          });
-        }
-      } catch {
-        // Non-blocking: proceed to start row even if deduction fails
-      }
-    }
-    executeBoardRowStatusChange(boardId, rowId, STATUS_RUNNING);
-  }
-
-  function openFinishBoardRowConfirm(boardId, rowId) {
-    const permissionBoard = selectedCustomBoard?.id === boardId ? selectedCustomBoard : resolveBoardMutationBoard(boardId);
-    const board = resolveBoardMutationBoard(boardId);
-    const row = board?.rows?.find((item) => item.id === rowId);
-    if (!board || !row || !canOperateBoardRowRecord(currentUser, permissionBoard, row, normalizedPermissions)) return;
-    setBoardFinishConfirm({
-      open: true,
-      boardId,
-      rowId,
-      message: "Al finalizar esta fila, su información quedará bloqueada para mantener la trazabilidad del registro.",
-    });
-  }
-
-  function confirmFinishBoardRow() {
-    if (!boardFinishConfirm.boardId || !boardFinishConfirm.rowId) return;
-    const success = changeBoardRowStatus(boardFinishConfirm.boardId, boardFinishConfirm.rowId, STATUS_FINISHED);
-    if (success) {
-      setBoardFinishConfirm({ open: false, boardId: null, rowId: null, message: "" });
     }
   }
 
@@ -7764,6 +6100,17 @@ function App() { // NOSONAR
     return rawValue ?? "";
   }
 
+  const boardRuntimeModalActions = createBoardRuntimeModalActions({
+    state, currentUser, normalizedPermissions, operationalPauseState,
+    selectedCustomBoard, boardStartConfirm, setBoardStartConfirm, boardStartConflictRows,
+    boardFinishConfirm, setBoardFinishConfirm, pieceDeductionModal, setPieceDeductionModal,
+    deleteBoardRowState, setDeleteBoardRowState, canOperateBoardRowRecord, canDeleteBoardRowRecord,
+    canManageDashboardState, resolveBoardMutationBoard, getBoardRowPatchEndpoint,
+    applyOptimisticBoardRowPatch, getBoardFieldValue, starterByRowIdRef, setBoardRuntimeFeedback,
+    requestJson, setState, setLoginDirectory, skipNextSyncRef, setSyncStatus,
+  });
+  const { changeBoardRowStatus, openFinishBoardRowConfirm } = boardRuntimeModalActions;
+
   function getBoardFieldCellStyle(field) {
     const typeMinimum = BOARD_FIELD_MIN_WIDTH_BY_TYPE[field?.type] || 120;
     const widthPx = Number(field?.widthPx || 0);
@@ -7775,16 +6122,6 @@ function App() { // NOSONAR
     const fallbackValue = Number.parseInt(String(fallbackStyle.minWidth || "180").replace("px", ""), 10);
     const normalizedFallback = Math.max(typeMinimum, Number.isFinite(fallbackValue) ? fallbackValue : 180);
     return { minWidth: `${normalizedFallback}px`, width: `${normalizedFallback}px` };
-  }
-
-  function openComponentStudio() {
-    setControlBoardDraft((current) => ({
-      ...current,
-      ...createEmptyFieldDraft(),
-    }));
-    setEditingDraftColumnId(null);
-    setComponentStudioOpen(true);
-    setControlBoardFeedback("");
   }
 
   async function submitPasswordReset() {
@@ -7903,69 +6240,6 @@ function App() { // NOSONAR
     actionPermissions,
   };
 
-  const inventoryEntityLabel = getInventoryEntityLabel(inventoryModal.domain);
-  const shouldShowInventoryPresentationField = inventoryDomainUsesPresentation(inventoryModal.domain);
-  const shouldShowInventoryPackagingFields = inventoryDomainUsesPackagingMetrics(inventoryModal.domain);
-  const shouldShowInventoryStockFields = inventoryModal.domain !== INVENTORY_DOMAIN_BASE;
-  const shouldShowCleaningLinkFields = inventoryModal.domain === INVENTORY_DOMAIN_CLEANING;
-  const inventoryPresentationLabel = getInventoryPresentationLabel(inventoryModal.domain);
-  const inventoryPresentationPlaceholder = getInventoryPresentationPlaceholder(inventoryModal.domain);
-  const inventoryUnitPlaceholder = getInventoryUnitPlaceholder(inventoryModal.domain);
-  const inventoryStoragePlaceholder = getInventoryStoragePlaceholder(inventoryModal.domain);
-
-  const inventoryUnitOptions = useMemo(() => {
-    const PRESET_UNITS = ["pzas", "piezas", "rollos", "bidones", "bolsas", "litros", "kg", "cajas", "paquetes", "galones", "latas", "metros", "sacos", "cubetas"];
-    const existing = new Set(PRESET_UNITS);
-    (state.inventory || []).forEach((item) => {
-      const u = String(item.unitLabel || "").trim().toLowerCase();
-      if (u) existing.add(u);
-    });
-    return Array.from(existing).sort((a, b) => a.localeCompare(b, "es-MX"));
-  }, [state.inventory]);
-  const inventoryCustomColumnsForModal = useMemo(
-    () => mergeInventoryColumnsWithSystem(state.inventoryColumns || []).filter((column) => column.domain === inventoryModal.domain),
-    [inventoryModal.domain, state.inventoryColumns],
-  );
-  const inventorySystemColumnSuggestions = useMemo(() => {
-    const lots = new Set();
-    const expiries = new Set();
-    const etiquetas = new Set();
-
-    allInventoryItems
-      .filter((item) => normalizeInventoryDomain(item.domain) === normalizeInventoryDomain(inventoryModal.domain))
-      .forEach((item) => {
-        const lotValue = String(item?.customFields?.lote || "").trim();
-        const expiryValue = String(item?.customFields?.caducidad || "").trim();
-        const etiquetaValue = String(item?.customFields?.etiqueta || "").trim();
-        if (lotValue) lots.add(lotValue);
-        if (expiryValue) expiries.add(expiryValue);
-        if (etiquetaValue) etiquetas.add(etiquetaValue);
-
-        try {
-          const history = JSON.parse(String(item?.customFields?.lotesCaducidades || "[]"));
-          if (!Array.isArray(history)) return;
-          history.forEach((entry) => {
-            const lot = String(entry?.lot || "").trim();
-            const expiry = String(entry?.expiry || "").trim();
-            const etiqueta = String(entry?.etiqueta || "").trim();
-            if (lot) lots.add(lot);
-            if (expiry) expiries.add(expiry);
-            if (etiqueta) etiquetas.add(etiqueta);
-          });
-        } catch {
-          // Ignorar historiales corruptos para no romper el modal.
-        }
-      });
-
-    return {
-      lote: Array.from(lots).sort((a, b) => a.localeCompare(b, "es-MX")),
-      caducidad: Array.from(expiries).sort((a, b) => a.localeCompare(b, "es-MX")),
-      etiqueta: Array.from(etiquetas).sort((a, b) => a.localeCompare(b, "es-MX")),
-    };
-  }, [allInventoryItems, inventoryModal.domain]);
-  const _shouldShowTransferTargetEmptyState = !hasOrderTransferTargets;
-  const shouldShowTransferRemainingUnits = (movement) => movement.remainingUnits !== null;
-  const _shouldShowTransferMovementEmptyState = orderInventoryTransferMovements.length === 0;
 
   const boardSectionOptions = useMemo(() => {
     const options = new Set(DEFAULT_BOARD_SECTION_OPTIONS);
@@ -8172,6 +6446,7 @@ function App() { // NOSONAR
     INVENTORY_DOMAIN_BASE,
     INVENTORY_DOMAIN_CLEANING,
     INVENTORY_DOMAIN_MAINTENANCE,
+    INVENTORY_DOMAIN_DESTINATIONS,
     INVENTORY_DOMAIN_ORDERS,
     INVENTORY_MOVEMENT_CONSUME,
     INVENTORY_MOVEMENT_RESTOCK,
@@ -8194,6 +6469,8 @@ function App() { // NOSONAR
     inventorySystemColumnSuggestions,
     inventoryTab,
     inventoryTransferAvailableWarehouses,
+    inventoryTransferDestinationWarehouses,
+    ORDER_INVENTORY_PRIMARY_WAREHOUSE,
     inventoryTransferDestinationsByWarehouse,
     isDemoMode,
     isHistoricalCustomBoardView,
@@ -8238,6 +6515,7 @@ function App() { // NOSONAR
     openInventoryTransferHistory,
     openInventoryTransferViewer,
     openOrderInventoryTransfer,
+    returnAllInventoryToAlmacen,
     orderInventoryTransferMovements,
     orderInventoryTransferSummary,
     Package,
@@ -8277,6 +6555,7 @@ function App() { // NOSONAR
     selectedAreaSectionId,
     selectedBoardActionPermissions,
     selectedCustomBoard,
+    selectedCustomBoardId,
     selectedCustomBoardDisplay,
     selectedCustomBoardHistoryOptions,
     selectedCustomBoardRowId,
@@ -8379,6 +6658,155 @@ function App() { // NOSONAR
     Zap,
   });
 
+  const appModalContext = assembleAppModalContext({
+    core: {
+      state,
+      currentUser,
+      now,
+      operationalPauseState,
+      actionPermissions,
+      STATUS_RUNNING,
+      FORMULA_OPERATIONS,
+      TEMPORARY_PASSWORD_MIN_LENGTH,
+      DEFAULT_CLEANING_SITE,
+      INVENTORY_DOMAIN_MAINTENANCE,
+      INVENTORY_DOMAIN_CLEANING,
+      INVENTORY_DOMAIN_OPTIONS,
+      normalizeInventoryDomain,
+      inventoryDomainUsesPresentation,
+      inventoryDomainUsesPackagingMetrics,
+      inventoryCleaningSite,
+      normalizeCatalogCleaningSites,
+      normalizeCatalogScheduledDays,
+      normalizeCatalogScheduledDaysBySite,
+      CATALOG_WEEKDAY_OPTIONS,
+      CLEANING_SITE_OPTIONS,
+      AREA_T,
+      createEmptyCatalogModalState,
+      createEmptyFieldDraft,
+      createInventoryModalState,
+      getActivityLabel,
+      catalogMap,
+      BOARD_OPERATIONAL_CONTEXT_OPTIONS,
+      boardSectionOptions,
+      activityCatalogCategoryOptions,
+      contextoConstructor,
+      orderInventoryItems,
+      UI_THEME_OPTIONS,
+      UI_FONT_OPTIONS,
+      UI_FONT_SIZE_OPTIONS,
+    },
+    pause: {
+      ...pauseModalActions,
+      pauseState, setPauseState, pauseContinueTimerRef, pauseReasonOptions, CUSTOM_PAUSE_REASON_VALUE,
+      boardPauseState, setBoardPauseState, boardPauseContinueTimerRef,
+      boardPauseIsOutOfTime, boardPauseOvertimeSeconds, boardPauseRemainingSeconds,
+      historyPauseActivityId, setHistoryPauseActivityId, historyPauseLogs,
+    },
+    board: {
+      ...boardRuntimeModalActions,
+      boardFinishConfirm, setBoardFinishConfirm,
+      boardStartConfirm,
+      boardStartConflictRows,
+      deleteBoardRowState, setDeleteBoardRowState,
+      pieceDeductionModal,
+      deleteBoardId, setDeleteBoardId, deleteControlBoard,
+    },
+    catalog: {
+      ...catalogAreaActions,
+      catalogModal, setCatalogModal, createEmptyCatalogModalState, catalogAreaOptions,
+      areaModal, setAreaModal, AREA_T, areaDeleteModal, setAreaDeleteModal,
+      editWeekId, setEditWeekId, editWeekActivityId, setEditWeekActivityId,
+      getActivityLabel, catalogMap, actionPermissions,
+    },
+    boardTools: {
+      ...boardToolModalActions,
+      templateEditorModal, setTemplateEditorModal, departmentOptions, activeAssignableUsers,
+      templateDeleteModal, setTemplateDeleteModal, boardBuilderModal, controlBoardDraft, setControlBoardDraft,
+      closeBoardBuilderModal, isBoardSaveSubmitting, openBoardExcelImportPicker, clearControlBoardDraft,
+      controlBoardFeedback, templateSearch, setTemplateSearch, templateCategoryFilter, setTemplateCategoryFilter,
+      templateCategories, filteredBoardTemplates, canDeleteBoardTemplateEntry,
+      selectedPreviewTemplate, setTemplatePreviewId, boardBuilderPreview, draftColumnGroups,
+      visibleUsers, userMap, selectedAreaSectionId, selectedAreaSection,
+      boardExcelFileInputRef, importBoardStructureFromExcel, componentStudioOpen, setComponentStudioOpen,
+      editingDraftColumnId, setEditingDraftColumnId, createEmptyFieldDraft,
+      boardSectionOptions, activityCatalogCategoryOptions, contextoConstructor,
+      excelFormulaWizard, setExcelFormulaWizard, applyExcelFormulaWizard,
+      updateExcelFormulaWizardItem, removeExcelFormulaWizardItem,
+      actionPermissions, currentUser, state,
+    },
+    user: {
+      profileModalOpen,
+      setProfileModalOpen,
+      passwordForm,
+      setPasswordForm,
+      submitPasswordReset,
+      updateCurrentUserIdentity,
+      uiTheme,
+      setUiTheme,
+      uiFont,
+      setUiFont,
+      uiFontSize,
+      setUiFontSize,
+      handleLogout,
+      excelSheetSelector,
+      setExcelSheetSelector,
+      applyImportedSheet,
+      isForcedPasswordChange,
+      resetUserPasswordModal,
+      setResetUserPasswordModal,
+      showResetUserPassword,
+      setShowResetUserPassword,
+      submitUserPasswordReset,
+      deleteUserId,
+      setDeleteUserId,
+      deleteUser,
+      transferLeadTargetId,
+      setTransferLeadTargetId,
+      transferLead,
+    },
+    inventory: {
+      ...inventoryModalPresentation,
+      ...inventoryModalActions,
+      inventoryModal,
+      setInventoryModal,
+      activeCatalogItems,
+      inventoryMovementModal,
+      inventoryMovementModalTitle,
+      isOrderTransferMovementModal,
+      inventoryMovementTypeOptions,
+      inventoryMovementSavedLocations,
+      inventoryMovementSelectedSavedLocation,
+      inventoryMovementSelectedItem,
+      inventoryMovementAvailableUnits,
+      inventoryMovementTransferTarget,
+      inventoryTransferAvailableWarehouses,
+    inventoryTransferDestinationWarehouses,
+    ORDER_INVENTORY_PRIMARY_WAREHOUSE,
+      inventoryTransferDestinationsByWarehouse,
+      setInventoryTransferConfirmModal,
+      inventoryDestinationModal,
+      setInventoryDestinationModal,
+      inventoryTransferConfirmModal,
+      inventoryRestockModal,
+      inventoryRestockModalTitle,
+      inventoryRestockModalItems,
+      inventoryTransferViewerState,
+      setInventoryTransferViewerState,
+      inventoryTransferViewerTitle,
+      inventoryTransferViewerItem,
+      viewedOrderInventoryTransferTargets,
+      viewedOrderInventoryTransferMovements,
+      deleteInventoryId,
+      setDeleteInventoryId,
+      closeInventoryDestinationModal,
+      submitInventoryDestinationModal,
+      deleteInventoryDestination,
+    },
+  });
+
+
+
   // Socket.IO — reconexión automática gestionada por Socket.IO internamente.
   //
   // Por qué reconnection:true resuelve el bucle de 400 "Session ID unknown":
@@ -8408,20 +6836,7 @@ function App() { // NOSONAR
       socketBaseUrl = parsedApiUrl.origin;
     } catch (_) { /* noop */ }
 
-    const usePollingOnly = import.meta.env.PROD;
-    const socket = io(socketBaseUrl, {
-      withCredentials: true,
-      path: "/socket.io",
-      // En producción (Render/PWA): solo polling evita "WebSocket is already in CLOSING or CLOSED".
-      transports: usePollingOnly ? ["polling"] : ["polling", "websocket"],
-      upgrade: !usePollingOnly,
-      reconnection: true,
-      reconnectionDelay: 5000,
-      reconnectionDelayMax: 15000,
-      reconnectionAttempts: Infinity,
-      timeout: 30000,
-      forceNew: true,
-    });
+    const socket = createAppSocket(socketBaseUrl, { forceNew: true });
 
     socket.on("connect", () => {
       socket.emit("login_chat", { nickname: userName, photo: currentUser?.photo || null });
@@ -8582,1114 +6997,21 @@ function App() { // NOSONAR
         </div>
       </section>
 
-      <Modal open={pauseState.open} title="Actividad en pausa" confirmLabel={pauseState.completed ? (pauseState.continueReady ? "Continuar" : "Espera un momento...") : "Confirmar pausa"} cancelLabel="Cancelar" hideCancel={pauseState.completed} confirmDisabled={pauseState.completed && !pauseState.continueReady} onClose={() => { if (pauseContinueTimerRef.current) clearTimeout(pauseContinueTimerRef.current); setPauseState({ open: false, activityId: null, reason: "", customReason: "", error: "", completed: false, continueReady: false, pauseLogId: null }); }} onConfirm={handleConfirmPause}>
-        <div className="modal-form-grid">
-          {pauseState.completed ? (
-            <>
-              <p className="validation-text success">Continuemos. La pausa de la actividad quedó registrada correctamente.</p>
-              <p className="modal-footnote">{pauseState.continueReady ? "Cuando pulses continuar la actividad se reanudará." : "El botón Continuar se habilitará en unos segundos..."}</p>
-            </>
-          ) : (
-            <>
-              <label className="app-modal-field">
-                <span>Motivo de pausa</span>
-                <select value={pauseState.reason} onChange={(event) => setPauseState((current) => ({ ...current, reason: event.target.value, error: "" }))}>
-                  {pauseReasonOptions.map((optionLabel) => <option key={optionLabel} value={optionLabel}>{optionLabel}</option>)}
-                  <option value={CUSTOM_PAUSE_REASON_VALUE}>Otro (especificar)</option>
-                </select>
-              </label>
-              {pauseState.reason === CUSTOM_PAUSE_REASON_VALUE ? (
-                <label className="app-modal-field">
-                  <span>Otro motivo</span>
-                  <input value={pauseState.customReason} onChange={(event) => setPauseState((current) => ({ ...current, customReason: event.target.value, error: "" }))} placeholder="Especifica el motivo" />
-                </label>
-              ) : null}
-              {pauseState.error ? <p className="validation-text">{pauseState.error}</p> : null}
-            </>
-          )}
-        </div>
-      </Modal>
+      <div className="warehouse-app-floating-layer">
+        <AppModals {...appModalContext} />
 
-      <Modal open={boardPauseState.open} title="Pausar fila" confirmLabel={boardPauseState.completed ? (boardPauseState.continueReady ? "Continuar" : "Espera un momento...") : "Confirmar pausa"} cancelLabel="Cancelar" hideCancel={boardPauseState.completed} confirmDisabled={boardPauseState.completed && !boardPauseState.continueReady} onClose={() => { if (boardPauseContinueTimerRef.current) clearTimeout(boardPauseContinueTimerRef.current); setBoardPauseState({ open: false, boardId: null, rowId: null, historySnapshotId: null, reason: "", customReason: "", error: "", completed: false, continueReady: false, authorizedPauseSeconds: 0, pauseStartedAtMs: 0 }); }} onConfirm={handleConfirmBoardPause} className="board-pause-reason-modal">
-        <div className="modal-form-grid">
-          {boardPauseState.completed ? (
-            <>
-              <p className="validation-text success">Continuemos. La fila quedó pausada y el motivo se guardó correctamente.</p>
-              <p className="modal-footnote">{boardPauseState.continueReady ? "Pulsa continuar para reanudar la fila." : "El botón Continuar se habilitará en unos segundos..."}</p>
-              {Number(boardPauseState.authorizedPauseSeconds || 0) > 0 ? (
-                boardPauseIsOutOfTime ? (
-                  <div className="board-pause-overtime-alert">
-                    <span className="board-pause-overtime-icon" aria-hidden="true">ÔÜá</span>
-                    <div>
-                      <strong>Tiempo de pausa excedido</strong>
-                          <span>El tiempo autorizado se agotó. Reanuda la fila cuanto antes.</span>
-                          {boardPauseOvertimeSeconds > 0 ? (
-                            <div className="board-pause-overtime-detail">Tiempo fuera: {formatDurationClock(boardPauseOvertimeSeconds)}</div>
-                          ) : null}
-                    </div>
-                  </div>
-                ) : (
-                  <p className="modal-footnote">
-                    {`Tiempo autorizado restante: ${formatDurationClock(boardPauseRemainingSeconds)}`}
-                  </p>
-                )
-              ) : null}
-            </>
-          ) : (
-            <>
-              <label className="app-modal-field">
-                <span>Motivo de pausa</span>
-                <select value={boardPauseState.reason} onChange={(event) => setBoardPauseState((current) => ({ ...current, reason: event.target.value, error: "" }))}>
-                  {pauseReasonOptions.map((optionLabel) => <option key={optionLabel} value={optionLabel}>{optionLabel}</option>)}
-                  <option value={CUSTOM_PAUSE_REASON_VALUE}>Otro (especificar)</option>
-                </select>
-              </label>
-              {boardPauseState.reason === CUSTOM_PAUSE_REASON_VALUE ? (
-                <label className="app-modal-field">
-                  <span>Otro motivo</span>
-                  <input value={boardPauseState.customReason} onChange={(event) => setBoardPauseState((current) => ({ ...current, customReason: event.target.value, error: "" }))} placeholder="Especifica el motivo" />
-                </label>
-              ) : null}
-              {boardPauseState.error ? <p className="validation-text">{boardPauseState.error}</p> : null}
-            </>
-          )}
-        </div>
-      </Modal>
-
-      <Modal className="modal-wide board-finish-modal" open={boardFinishConfirm.open} title="Finalizar fila" confirmLabel="Confirmar fin" cancelLabel="Cancelar" onClose={() => setBoardFinishConfirm({ open: false, boardId: null, rowId: null, message: "" })} onConfirm={confirmFinishBoardRow}>
-        <div className="modal-form-grid">
-          {(() => {
-            const finBoard = boardFinishConfirm.boardId ? (state.controlBoards || []).find((b) => b.id === boardFinishConfirm.boardId) : null;
-            const finRow = finBoard?.rows?.find((r) => r.id === boardFinishConfirm.rowId) || null;
-            if (!finRow) return null;
-            const productionSecs = getElapsedSeconds(finRow, now, operationalPauseState);
-            const totalSecs = finRow.startTime
-              ? Math.max(productionSecs, getOperationalElapsedSeconds(finRow.startTime, now, operationalPauseState))
-              : productionSecs;
-            const pauseSecs = Math.max(0, totalSecs - productionSecs);
-            const efficiency = totalSecs > 0 ? Math.round((productionSecs / totalSecs) * 100) : 100;
-            return (
-              <div className="board-finish-time-breakdown">
-                <div className="board-finish-time-row production">
-                  <div className="board-finish-time-icon production-icon" />
-                  <div className="board-finish-time-info">
-                    <span className="board-finish-time-label">Tiempo de producción</span>
-                    <small className="board-finish-time-hint">Solo cuando estuvo activa</small>
-                  </div>
-                  <strong className="board-finish-time-value">{formatDurationClock(productionSecs)}</strong>
-                </div>
-                <div className="board-finish-time-row pause">
-                  <div className="board-finish-time-icon pause-icon" />
-                  <div className="board-finish-time-info">
-                    <span className="board-finish-time-label">Tiempo en pausa</span>
-                    <small className="board-finish-time-hint">Tiempo detenida (no productivo)</small>
-                  </div>
-                  <strong className="board-finish-time-value">{formatDurationClock(pauseSecs)}</strong>
-                </div>
-                <div className="board-finish-time-row total">
-                  <div className="board-finish-time-icon total-icon" />
-                  <div className="board-finish-time-info">
-                    <span className="board-finish-time-label">Tiempo total</span>
-                    <small className="board-finish-time-hint">Desde inicio hasta ahora</small>
-                  </div>
-                  <strong className="board-finish-time-value">{formatDurationClock(totalSecs)}</strong>
-                </div>
-                <div className="board-finish-efficiency-bar">
-                  <div className="board-finish-efficiency-track">
-                    <div className="board-finish-efficiency-fill" style={{ width: `${efficiency}%` }} />
-                  </div>
-                  <span className="board-finish-efficiency-label">{efficiency}% eficiencia productiva</span>
-                </div>
-              </div>
-            );
-          })()}
-          <p className="board-finish-confirm-note">{boardFinishConfirm.message}</p>
-        </div>
-      </Modal>
-
-      <Modal
-        open={boardStartConfirm.open}
-        title={boardStartConfirm.title || "Confirmar inicio"}
-        confirmLabel={boardStartConflictRows.length ? "Iniciar de todos modos" : "Confirmar"}
-        cancelLabel="Cancelar"
-        onClose={closeBoardStartConfirm}
-        onConfirm={confirmStartBoardRow}
-        footerActions={boardStartConflictRows.length ? (
-          <button
-            type="button"
-            className="sicfla-button danger"
-            onClick={() => { void finishPreviousActivityAndStart(); }}
-          >
-            Terminar anterior e iniciar esta
-          </button>
+        {currentUser ? (
+          <AlertModalProvider>
+            <Suspense fallback={null}>
+              <ChatPro socket={socketRef.current} user={currentUser} connectCount={socketConnectCount} />
+            </Suspense>
+          </AlertModalProvider>
         ) : null}
-      >
-        <div className="modal-form-grid">
-          <p>{boardStartConfirm.message || "¿Deseas iniciar esta actividad?"}</p>
-          {boardStartConflictRows.length ? (
-            <div className="board-start-conflict-alert" role="alert">
-              <strong>Ya tienes otra actividad en curso</strong>
-              <p>
-                Detectamos {boardStartConflictRows.length === 1 ? "una actividad activa" : `${boardStartConflictRows.length} actividades activas`} vinculada a tu usuario.
-                Puedes terminarla desde aquí o iniciar esta actividad de todos modos si la anterior la iniciaste para otra persona.
-              </p>
-              <div className="board-start-conflict-list">
-                {boardStartConflictRows.map((conflict) => {
-                  const elapsedSecs = conflict.row?.startTime
-                    ? Math.max(
-                      getElapsedSeconds(conflict.row, Date.now(), operationalPauseState),
-                      getOperationalElapsedSeconds(conflict.row.startTime, Date.now(), operationalPauseState),
-                    )
-                    : 0;
-                  return (
-                    <article key={`${conflict.boardId}-${conflict.rowId}`} className="board-start-conflict-card">
-                      <div className="board-start-conflict-card-main">
-                        <strong>{conflict.activityLabel}</strong>
-                        <span>{conflict.boardName}</span>
-                      </div>
-                      <div className="board-start-conflict-card-meta">
-                        <span className={`chip ${conflict.status === STATUS_RUNNING ? "success" : "soft"}`.trim()}>
-                          {conflict.status}
-                        </span>
-                        {elapsedSecs > 0 ? <span>{formatDurationClock(elapsedSecs)} transcurridos</span> : null}
-                        {conflict.isStarter && !conflict.isAssignedPlayer ? (
-                          <span className="board-start-conflict-note">La iniciaste tú</span>
-                        ) : null}
-                      </div>
-                    </article>
-                  );
-                })}
-              </div>
-            </div>
-          ) : (
-            <p className="modal-footnote">Solo puedes tener una actividad en curso por player, entre actividades y tableros.</p>
-          )}
-        </div>
-      </Modal>
 
-      <Modal open={deleteBoardRowState.open} title="Eliminar fila" confirmLabel="Eliminar fila" cancelLabel="Cancelar" onClose={() => setDeleteBoardRowState({ open: false, boardId: null, rowId: null })} onConfirm={() => deleteBoardRow(deleteBoardRowState.boardId, deleteBoardRowState.rowId)}>
-        <div className="modal-form-grid">
-          <p>Esta fila se eliminará del tablero.</p>
-          <p>Ásalo cuando la actividad se creó por error o ya no se va a realizar.</p>
-        </div>
-      </Modal>
-
-      <Modal className="modal-wide catalog-activity-modal" open={catalogModal.open} title={catalogModal.mode === "create" ? "Nueva actividad" : "Editar actividad"} confirmLabel={catalogModal.mode === "create" ? "Guardar" : "Guardar cambios"} cancelLabel="Cancelar" onClose={() => setCatalogModal(createEmptyCatalogModalState())} onConfirm={submitCatalogModal} confirmDisabled={catalogModal.submitting}>
-        <div className="modal-form-grid catalog-activity-modal-grid">
-          <label className="app-modal-field">
-            <span>Area propietaria</span>
-            <select value={catalogModal.area} onChange={(event) => setCatalogModal((current) => ({ ...current, area: event.target.value }))}>
-              {catalogAreaOptions.map((areaOption) => <option key={areaOption} value={areaOption}>{areaOption}</option>)}
-            </select>
-          </label>
-          <label className="app-modal-field">
-            <span>Lista de actividades</span>
-            <input value={catalogModal.category} onChange={(event) => setCatalogModal((current) => ({ ...current, category: event.target.value }))} placeholder="Ej: Limpieza, Seguridad, Producción" />
-          </label>
-          <label className="app-modal-field">
-            <span>Nombre de la actividad</span>
-            <input value={catalogModal.name} onChange={(event) => setCatalogModal((current) => ({ ...current, name: event.target.value }))} />
-          </label>
-          <label className="app-modal-field catalog-activity-limit-field">
-            <span>Tiempo límite (minutos)</span>
-            <input type="number" value={catalogModal.limit} onChange={(event) => setCatalogModal((current) => ({ ...current, limit: event.target.value }))} />
-          </label>
-          <label className="app-modal-field">
-            <span>Tipo</span>
-            <select value={catalogModal.mandatory} onChange={(event) => setCatalogModal((current) => ({ ...current, mandatory: event.target.value }))}>
-              <option value="true">Obligatoria</option>
-              <option value="false">Ocasional</option>
-            </select>
-          </label>
-          <label className="app-modal-field catalog-activity-chip-field">
-            <span>Alcance de naves</span>
-            <div className="catalog-activity-chip-row">
-              <button
-                type="button"
-                className={`catalog-site-chip ${catalogModal.siteMode !== "bySite" ? "active" : ""}`.trim()}
-                onClick={() => setCatalogModal((current) => ({
-                  ...current,
-                  siteMode: "general",
-                  cleaningSites: [],
-                  scheduledDaysBySite: {},
-                }))}
-              >
-                General (todas)
-              </button>
-              <button
-                type="button"
-                className={`catalog-site-chip ${catalogModal.siteMode === "bySite" ? "active" : ""}`.trim()}
-                onClick={() => setCatalogModal((current) => ({
-                  ...current,
-                  siteMode: "bySite",
-                }))}
-              >
-                Por nave
-              </button>
-            </div>
-          </label>
-          <label className="app-modal-field catalog-activity-chip-field">
-            <span>Naves {catalogModal.siteMode === "bySite" ? "(seleccion obligatoria)" : "(no aplica en general)"}</span>
-            <div className="catalog-activity-chip-row">
-              {CLEANING_SITE_OPTIONS.map((site) => {
-                const siteValue = String(site.value || "").trim().toUpperCase();
-                const isActive = (catalogModal.cleaningSites || []).includes(siteValue);
-                const isDisabled = catalogModal.siteMode !== "bySite";
-                return (
-                  <button
-                    key={siteValue}
-                    type="button"
-                    disabled={isDisabled}
-                    onClick={() => setCatalogModal((current) => {
-                      if (current.siteMode !== "bySite") return current;
-                      const currentSites = normalizeCatalogCleaningSites(current.cleaningSites);
-                      const hasSite = currentSites.includes(siteValue);
-                      const nextSites = hasSite
-                        ? currentSites.filter((entry) => entry !== siteValue)
-                        : currentSites.concat([siteValue]).sort();
-                      const nextBySite = { ...(current.scheduledDaysBySite || {}) };
-                      if (hasSite) {
-                        delete nextBySite[siteValue];
-                      } else {
-                        nextBySite[siteValue] = normalizeCatalogScheduledDays(current.scheduledDays, current.frequency);
-                      }
-                      return { ...current, cleaningSites: nextSites, scheduledDaysBySite: nextBySite };
-                    })}
-                    className={`catalog-site-chip ${isActive ? "active" : ""}`.trim()}
-                  >
-                    {site.label}
-                  </button>
-                );
-              })}
-            </div>
-          </label>
-          <label className="app-modal-field catalog-activity-chip-field">
-            <span>Dias por nave</span>
-            <div className="modal-form-grid catalog-days-by-site-grid">
-              {catalogModal.siteMode !== "bySite" ? (
-                <p className="modal-footnote">Esta actividad queda en modo general. Si hay incidencia, la nave se podra elegir al reportarla.</p>
-              ) : (catalogModal.cleaningSites || []).length ? (catalogModal.cleaningSites || []).map((siteValue) => {
-                const siteLabel = CLEANING_SITE_OPTIONS.find((site) => String(site.value || "").trim().toUpperCase() === siteValue)?.label || siteValue;
-                const siteDays = normalizeCatalogScheduledDaysBySite(catalogModal.scheduledDaysBySite, normalizeCatalogScheduledDays(catalogModal.scheduledDays, catalogModal.frequency))[siteValue]
-                  || normalizeCatalogScheduledDays(catalogModal.scheduledDays, catalogModal.frequency);
-                return (
-                  <div key={siteValue} className="app-modal-field">
-                    <span>{siteLabel}</span>
-                    <div className="catalog-activity-chip-row">
-                      {CATALOG_WEEKDAY_OPTIONS.map((option) => {
-                        const isActive = siteDays.includes(option.value);
-                        return (
-                          <button
-                            key={`${siteValue}-${option.value}`}
-                            type="button"
-                            onClick={() => setCatalogModal((current) => {
-                              const fallbackDays = normalizeCatalogScheduledDays(current.scheduledDays, current.frequency);
-                              const bySite = normalizeCatalogScheduledDaysBySite(current.scheduledDaysBySite, fallbackDays);
-                              const currentDays = bySite[siteValue] || fallbackDays;
-                              const hasDay = currentDays.includes(option.value);
-                              const nextDays = hasDay
-                                ? currentDays.filter((day) => day !== option.value)
-                                : currentDays.concat([option.value]).sort((a, b) => a - b);
-                              return {
-                                ...current,
-                                scheduledDaysBySite: {
-                                  ...bySite,
-                                  [siteValue]: nextDays,
-                                },
-                              };
-                            })}
-                            className={`catalog-day-chip ${isActive ? "active" : ""}`.trim()}
-                            title={option.label}
-                          >
-                            {option.short}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              }) : <p className="modal-footnote">Selecciona una o mas naves para configurar dias especificos por nave.</p>}
-            </div>
-          </label>
-        </div>
-      </Modal>
-
-      <Modal open={areaModal.open} backdropClassName="area-modal-backdrop" title={AREA_T.addArea} confirmLabel={AREA_T.saveArea} cancelLabel={AREA_T.cancel} onClose={() => setAreaModal({ open: false, target: "user", name: "", parentArea: "", error: "" })} onConfirm={confirmAddArea}>
-        <div className="modal-form-grid">
-          <label className="app-modal-field">
-            <span>{AREA_T.areaName}</span>
-            <input value={areaModal.name} onChange={(event) => setAreaModal((current) => ({ ...current, name: event.target.value, error: "" }))} placeholder={AREA_T.areaPlaceholder} />
-          </label>
-          {areaModal.error ? <p className="validation-text">{areaModal.error}</p> : null}
-          <p className="modal-footnote">{AREA_T.footnoteArea}</p>
-        </div>
-      </Modal>
-
-      <Modal
-        open={areaDeleteModal.open}
-        title={AREA_T.deleteTitle}
-        confirmLabel={areaDeleteModal.submitting ? AREA_T.deleting : AREA_T.delete}
-        cancelLabel={AREA_T.cancel}
-        onClose={() => setAreaDeleteModal({ open: false, areaName: "", label: "", error: "", submitting: false })}
-        onConfirm={confirmDeleteArea}
-        confirmDisabled={areaDeleteModal.submitting || !areaDeleteModal.areaName}
-      >
-        <div className="modal-form-grid">
-          <p>{AREA_T.deleteConfirm(areaDeleteModal.label)}</p>
-          <p className="modal-footnote">{AREA_T.deleteFootnote}</p>
-          {areaDeleteModal.error ? <p className="validation-text">{areaDeleteModal.error}</p> : null}
-        </div>
-      </Modal>
-
-      <Modal open={Boolean(editWeekId)} title="Editar semana" confirmLabel="Cerrar" hideCancel onClose={() => { setEditWeekId(null); setEditWeekActivityId(""); }}>
-        <div className="modal-form-grid">
-          <label className="app-modal-field">
-            <span>Seleccionar actividad del catálogo</span>
-            <select value={editWeekActivityId} onChange={(event) => setEditWeekActivityId(event.target.value)}>
-              <option value="">Seleccionar...</option>
-              {state.catalog.filter((item) => !item.isDeleted).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
-            </select>
-          </label>
-          <button type="button" className="primary-button" onClick={addActivityToWeek}><Plus size={16} /> Agregar a semana</button>
-          <div className="week-activity-list">
-            {state.activities.filter((activity) => activity.weekId === editWeekId).map((activity) => (
-              <div key={activity.id} className="week-activity-item">
-                <div>
-                  <strong>{getActivityLabel(activity, catalogMap)}</strong>
-                  <span>{activity.status}</span>
-                </div>
-                {actionPermissions.deleteWeekActivity ? <button type="button" className="icon-button danger" onClick={() => removeWeekActivity(activity.id)}><Trash2 size={15} /> Quitar</button> : null}
-              </div>
-            ))}
-          </div>
-        </div>
-      </Modal>
-
-      <Modal open={templateEditorModal.open} title="Editar plantilla guardada" confirmLabel="Guardar cambios" cancelLabel="Cancelar" onClose={() => setTemplateEditorModal({ open: false, id: null, name: "", description: "", category: "", visibilityType: "department", sharedDepartments: [], sharedUserIds: [], submitting: false })} onConfirm={submitBoardTemplateEdit} confirmDisabled={templateEditorModal.submitting}>
-        <div className="modal-form-grid">
-          <label className="app-modal-field">
-            <span>Nombre de plantilla</span>
-            <input value={templateEditorModal.name} onChange={(event) => setTemplateEditorModal((current) => ({ ...current, name: event.target.value }))} />
-          </label>
-          <label className="app-modal-field">
-            <span>Categoría</span>
-            <input value={templateEditorModal.category} onChange={(event) => setTemplateEditorModal((current) => ({ ...current, category: event.target.value }))} placeholder="Ej: Embarques, Calidad, Producción" />
-          </label>
-          <label className="app-modal-field">
-            <span>Compartir con</span>
-            <select value={templateEditorModal.visibilityType} onChange={(event) => setTemplateEditorModal((current) => ({ ...current, visibilityType: event.target.value }))}>
-              <option value="department">Departamento</option>
-                        <option value="users">Players específicos</option>
-              <option value="all">Todos</option>
-            </select>
-          </label>
-          {templateEditorModal.visibilityType === "department" ? (
-            <label className="app-modal-field">
-              <span>Departamentos con acceso</span>
-              <select multiple value={templateEditorModal.sharedDepartments} onChange={(event) => setTemplateEditorModal((current) => ({ ...current, sharedDepartments: Array.from(event.target.selectedOptions).map((option) => option.value) }))}>
-                {departmentOptions.map((department) => <option key={department} value={department}>{department}</option>)}
-              </select>
-            </label>
-          ) : null}
-          {templateEditorModal.visibilityType === "users" ? (
-            <label className="app-modal-field">
-                        <span>Players con acceso</span>
-              <select multiple value={templateEditorModal.sharedUserIds} onChange={(event) => setTemplateEditorModal((current) => ({ ...current, sharedUserIds: Array.from(event.target.selectedOptions).map((option) => option.value) }))}>
-                {activeAssignableUsers.map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}
-              </select>
-            </label>
-          ) : null}
-          <label className="app-modal-field">
-            <span>Descripción</span>
-            <input value={templateEditorModal.description} onChange={(event) => setTemplateEditorModal((current) => ({ ...current, description: event.target.value }))} placeholder="Explica para qué sirve esta plantilla" />
-          </label>
-        </div>
-      </Modal>
-
-      <Modal
-        open={templateDeleteModal.open}
-        backdropClassName="template-delete-backdrop"
-        title="Eliminar plantilla"
-        confirmLabel="Eliminar plantilla"
-        cancelLabel="Cancelar"
-        onClose={() => setTemplateDeleteModal({ open: false, id: null, name: "" })}
-        onConfirm={confirmDeleteBoardTemplate}
-      >
-        <div className="modal-form-grid">
-          <p className="subtle-line">Esta acción eliminará la plantilla guardada para todos los usuarios con acceso.</p>
-          <p><strong>{templateDeleteModal.name || "Plantilla"}</strong></p>
-          <p className="validation-text">No se puede deshacer.</p>
-        </div>
-      </Modal>
-
-      <Suspense fallback={null}>
-      <BoardBuilderModal
-        open={boardBuilderModal.open}
-        mode={boardBuilderModal.mode}
-        selectedAreaSectionId={selectedAreaSectionId}
-        selectedAreaSection={selectedAreaSection}
-        draft={controlBoardDraft}
-        onChange={setControlBoardDraft}
-        onClose={closeBoardBuilderModal}
-        onConfirm={saveControlBoard}
-        confirmDisabled={isBoardSaveSubmitting}
-        confirmLabel={isBoardSaveSubmitting ? (boardBuilderModal.mode === "edit" ? "Guardando cambios..." : "Creando tablero...") : undefined}
-        onOpenComponentStudio={openComponentStudio}
-        onImportFromExcel={openBoardExcelImportPicker}
-        onSaveTemplate={actionPermissions.saveTemplate ? saveDraftAsBoardTemplate : null}
-        onClear={clearControlBoardDraft}
-        feedback={controlBoardFeedback}
-        templateSearch={templateSearch}
-        onTemplateSearchChange={setTemplateSearch}
-        templateCategoryFilter={templateCategoryFilter}
-        onTemplateCategoryChange={setTemplateCategoryFilter}
-        templateCategories={templateCategories}
-        filteredBoardTemplates={filteredBoardTemplates}
-        onPreviewTemplate={previewBoardTemplate}
-        onApplyTemplate={applyBoardTemplate}
-        onDeleteTemplate={openDeleteBoardTemplateModal}
-        canDeleteTemplate={canDeleteBoardTemplateEntry}
-        selectedPreviewTemplate={selectedPreviewTemplate}
-        onClearTemplatePreview={() => setTemplatePreviewId(null)}
-        previewBoard={boardBuilderPreview}
-        draftColumnGroups={draftColumnGroups}
-        onMoveDraftColumn={moveDraftColumn}
-        onReorderDraftColumn={reorderDraftColumn}
-        onDuplicateDraftColumn={duplicateDraftColumn}
-        onEditDraftColumn={editDraftColumn}
-        onRemoveDraftColumn={removeDraftColumn}
-        visibleUsers={visibleUsers}
-        catalog={state.catalog}
-        departmentOptions={departmentOptions}
-        currentUser={currentUser}
-        userMap={userMap}
-        inventoryItems={state.inventoryItems}
-        contextoConstructor={contextoConstructor}
-        boardOperationalContextOptions={BOARD_OPERATIONAL_CONTEXT_OPTIONS}
-        canSaveTemplate={actionPermissions.saveTemplate}
-        canSaveBoard={actionPermissions.createBoard || actionPermissions.editBoard}
-      />
-
-      <input
-        ref={boardExcelFileInputRef}
-        type="file"
-        accept=".xlsx"
-        hidden
-        onChange={importBoardStructureFromExcel}
-      />
-
-      <BoardComponentStudioModal open={componentStudioOpen} mode={editingDraftColumnId ? "edit" : "create"} draft={controlBoardDraft} onChange={setControlBoardDraft} onClose={() => { setComponentStudioOpen(false); setEditingDraftColumnId(null); setControlBoardDraft((current) => ({ ...current, ...createEmptyFieldDraft() })); }} onConfirm={addDraftColumn} catalog={state.catalog} inventoryItems={state.inventoryItems} visibleUsers={visibleUsers} sectionOptions={boardSectionOptions} activityCategoryOptions={activityCatalogCategoryOptions} contextoConstructor={contextoConstructor} />
-      </Suspense>
-
-      <Modal open={excelFormulaWizard.open} title="Asistente de fórmulas de Excel" confirmLabel="Aplicar mapeo" cancelLabel="Cerrar" onClose={() => setExcelFormulaWizard({ open: false, items: [] })} onConfirm={applyExcelFormulaWizard}>
-        <div className="modal-form-grid">
-          <p className="modal-footnote">Estas columnas tenían fórmulas que no se pudieron convertir automáticamente. Elige cómo debe comportarse cada campo en el tablero.</p>
-          {(excelFormulaWizard.items || []).map((item, index) => (
-            <section key={`${item.targetFieldId || item.targetLabel}-${index}`} className="surface-card" style={{ padding: "0.8rem" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap", marginBottom: "0.25rem" }}>
-                <strong>{item.targetLabel}</strong>
-                {item.fromMemory ? (
-                  <span style={{ fontSize: "0.7rem", background: "#314d69", color: "#ffffff", borderRadius: "999px", padding: "0.1rem 0.55rem", fontWeight: 600 }}>Desde memoria</span>
-                ) : item.fromClassification ? (
-                  <span style={{ fontSize: "0.7rem", background: "#1d4ed8", color: "#ffffff", borderRadius: "999px", padding: "0.1rem 0.55rem", fontWeight: 600 }}>Auto-detectado</span>
-                ) : null}
-                {item.classification?.label ? (
-                  <span style={{ fontSize: "0.7rem", background: "#f3f4f6", color: "#374151", borderRadius: "999px", padding: "0.1rem 0.55rem" }}>{item.classification.label}</span>
-                ) : null}
-                <button
-                  type="button"
-                  className="icon-button danger"
-                  style={{ marginLeft: "auto", fontSize: "0.75rem" }}
-                  onClick={() => removeExcelFormulaWizardItem(index)}
-                  title="Omitir este campo del asistente"
-                >
-                  <Trash2 size={13} /> Omitir
-                </button>
-              </div>
-              {item.classification?.description ? (
-                <p className="modal-footnote" style={{ marginBottom: "0.35rem", color: "#374151" }}>{item.classification.description}</p>
-              ) : null}
-              <p className="modal-footnote" style={{ marginBottom: "0.5rem" }}>
-                Fórmula original: <code style={{ fontSize: "0.78rem", background: "#f1f5f9", padding: "0.1rem 0.3rem", borderRadius: "4px" }}>{item.formula}</code>
-              </p>
-
-              <label className="app-modal-field" style={{ marginBottom: "0.6rem" }}>
-                <span>Convertir como</span>
-                <select
-                  value={item.targetType || "formula"}
-                  onChange={(event) => updateExcelFormulaWizardItem(index, "targetType", event.target.value)}
-                  style={{ fontWeight: 600 }}
-                >
-                  <option value="formula">Fórmula (operación entre campos)</option>
-                  <option value="inventoryLookup">Buscador de inventario</option>
-                  <option value="number">Número (valor estático)</option>
-                  <option value="text">Texto (valor estático)</option>
-                  <option value="select">Menú desplegable</option>
-                </select>
-              </label>
-
-              {(item.targetType === "inventoryLookup") ? (
-                <p className="modal-footnote" style={{ color: "#2c4b6b", background: "#dfe9f4", borderRadius: "8px", padding: "0.4rem 0.6rem" }}>
-                  Este campo se configurará como Buscador de inventario. Los operadores podrán buscar y vincular artículos del inventario del sistema.
-                </p>
-              ) : (item.targetType === "text" || item.targetType === "number" || item.targetType === "select") ? (
-                <p className="modal-footnote" style={{ color: "#92400e", background: "#fef3c7", borderRadius: "8px", padding: "0.4rem 0.6rem" }}>
-                  El campo se importará como <strong>{item.targetType === "text" ? "Texto" : item.targetType === "number" ? "Número" : "Menú desplegable"}</strong> con los valores calculados por Excel.
-                </p>
-              ) : (
-                <div className="modal-form-grid" style={{ gridTemplateColumns: "repeat(3, minmax(0, 1fr))" }}>
-                  <label className="app-modal-field">
-                    <span>Operando izquierdo<span className="required-mark" aria-hidden="true"> *</span></span>
-                    <select value={item.formulaLeftFieldId || ""} onChange={(event) => updateExcelFormulaWizardItem(index, "formulaLeftFieldId", event.target.value)}>
-                      <option value="">Seleccionar...</option>
-                      {(controlBoardDraft.columns || []).filter((field) => field.id !== item.targetFieldId).map((field) => <option key={field.id} value={field.id}>{field.label}</option>)}
-                    </select>
-                  </label>
-                  <label className="app-modal-field">
-                    <span>Operación<span className="required-mark" aria-hidden="true"> *</span></span>
-                    <select value={item.operation || "add"} onChange={(event) => updateExcelFormulaWizardItem(index, "operation", event.target.value)}>
-                      {FORMULA_OPERATIONS.map((operation) => <option key={operation.value} value={operation.value}>{operation.label}</option>)}
-                    </select>
-                  </label>
-                  <label className="app-modal-field">
-                    <span>Operando derecho<span className="required-mark" aria-hidden="true"> *</span></span>
-                    <select value={item.formulaRightFieldId || ""} onChange={(event) => updateExcelFormulaWizardItem(index, "formulaRightFieldId", event.target.value)}>
-                      <option value="">Seleccionar...</option>
-                      {(controlBoardDraft.columns || []).filter((field) => field.id !== item.targetFieldId).map((field) => <option key={field.id} value={field.id}>{field.label}</option>)}
-                    </select>
-                  </label>
-                </div>
-              )}
-            </section>
-          ))}
-        </div>
-      </Modal>
-
-      {currentUser ? (
-        <AlertModalProvider>
-          <Suspense fallback={null}>
-            <ChatPro socket={socketRef.current} user={currentUser} connectCount={socketConnectCount} />
-          </Suspense>
-        </AlertModalProvider>
-      ) : null}
-
-      {profileModalOpen ? <EmployeeProfileModal currentUser={currentUser} passwordForm={passwordForm} onPasswordChange={setPasswordForm} onSubmit={submitPasswordReset} onUpdateIdentity={updateCurrentUserIdentity} currentTheme={uiTheme} themeOptions={UI_THEME_OPTIONS} onThemeChange={setUiTheme} currentFont={uiFont} fontOptions={UI_FONT_OPTIONS} onFontChange={setUiFont} currentFontSize={uiFontSize} fontSizeOptions={UI_FONT_SIZE_OPTIONS} onFontSizeChange={setUiFontSize} onClose={() => { setProfileModalOpen(false); setPasswordForm({ password: "", confirmPassword: "", message: "" }); }} onLogout={() => { setProfileModalOpen(false); setPasswordForm({ password: "", confirmPassword: "", message: "" }); handleLogout(); }} /> : null}
-
-      <Modal
-        open={excelSheetSelector.open}
-        title={`Hojas en "${excelSheetSelector.fileName}"`}
-        confirmLabel="Importar hoja seleccionada"
-        cancelLabel="Cancelar"
-        onClose={() => setExcelSheetSelector({ open: false, sheets: [], fileName: "" })}
-        onConfirm={() => {
-          const checked = excelSheetSelector.sheets.filter((s) => s._selected);
-          if (!checked.length) return;
-          setExcelSheetSelector({ open: false, sheets: [], fileName: "" });
-          checked.forEach((sheet) => applyImportedSheet(sheet));
-        }}
-      >
-        <div className="modal-form-grid">
-          <p className="modal-footnote">
-            Este archivo tiene <strong>{excelSheetSelector.sheets.length} hojas</strong>. Selecciona las que quieres importar. Cada hoja seleccionada reemplazará los componentes actuales del tablero (la última seleccionada quedará activa). Para crear tableros separados, importa una hoja a la vez.
-          </p>
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-            {excelSheetSelector.sheets.map((sheet, idx) => (
-              <button
-                key={sheet.name}
-                type="button"
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "0.75rem",
-                  padding: "0.75rem 1rem",
-                  borderRadius: "12px",
-                  border: `2px solid ${sheet._selected ? "#314d69" : "#e5e7eb"}`,
-                  background: sheet._selected ? "#f2f6fb" : "#ffffff",
-                  cursor: "pointer",
-                  textAlign: "left",
-                  transition: "border-color 0.15s",
-                }}
-                onClick={() => setExcelSheetSelector((current) => ({
-                  ...current,
-                  sheets: current.sheets.map((s, i) => i === idx ? { ...s, _selected: !s._selected } : s),
-                }))}
-              >
-                <span style={{
-                  width: "20px", height: "20px", borderRadius: "4px", flexShrink: 0,
-                  border: `2px solid ${sheet._selected ? "#314d69" : "#d1d5db"}`,
-                  background: sheet._selected ? "#314d69" : "#ffffff",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                }}>
-                  {sheet._selected ? <span style={{ color: "#ffffff", fontSize: "12px", fontWeight: 700 }}>Ô£ô</span> : null}
-                </span>
-                <div>
-                  <strong style={{ fontSize: "0.95rem" }}>{sheet.name}</strong>
-                  <p style={{ margin: 0, fontSize: "0.77rem", color: "#6b7280" }}>
-                    {sheet.columnCount} columnas · {sheet.rowCount} filas de datos
-                    {(sheet.supportedFormulaCount || 0) > 0 ? ` · ${sheet.supportedFormulaCount} fórmula(s) detectada(s)` : ""}
-                  </p>
-                </div>
-              </button>
-            ))}
-          </div>
-        </div>
-      </Modal>
-
-      {isForcedPasswordChange ? <ForcedPasswordChangeModal passwordForm={passwordForm} onPasswordChange={setPasswordForm} onSubmit={submitPasswordReset} /> : null}
-
-      <Modal
-        open={resetUserPasswordModal.open}
-        title="Restablecer contraseña"
-        confirmLabel="Guardar contraseña temporal"
-        cancelLabel="Cancelar"
-        onClose={() => {
-          setShowResetUserPassword(false);
-          setResetUserPasswordModal({ open: false, userId: null, userName: "", password: "", message: "", submitting: false });
-        }}
-        onConfirm={submitUserPasswordReset}
-        confirmDisabled={resetUserPasswordModal.submitting}
-      >
-        <div className="modal-form-grid">
-          <p className="modal-footnote">La sesión activa de {resetUserPasswordModal.userName || "este player"} se cerrará y en su siguiente acceso deberá capturar una contraseña nueva.</p>
-          <label className="app-modal-field">
-            <span>Contraseña temporal</span>
-            <div className="password-visibility-field">
-              <input
-                type={showResetUserPassword ? "text" : "password"}
-                value={resetUserPasswordModal.password}
-                onChange={(event) => setResetUserPasswordModal((current) => ({ ...current, password: event.target.value, message: "" }))}
-              />
-              <button
-                type="button"
-                className="password-visibility-toggle"
-                aria-label={showResetUserPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
-                onClick={() => setShowResetUserPassword((current) => !current)}
-              >
-                {showResetUserPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-              </button>
-            </div>
-          </label>
-          {resetUserPasswordModal.message ? <p className="validation-text">{resetUserPasswordModal.message}</p> : null}
-          <p className="modal-footnote">Solo Lead y Senior pueden restablecer la contraseña de otros players. La contraseña temporal puede tener desde {TEMPORARY_PASSWORD_MIN_LENGTH} caracteres.</p>
-        </div>
-      </Modal>
-
-      <Modal className="inventory-item-modal" open={inventoryModal.open} title={inventoryModal.mode === "create" ? `Agregar ${inventoryEntityLabel}` : `Editar ${inventoryEntityLabel}`} confirmLabel={inventoryModal.mode === "create" ? `Guardar ${inventoryEntityLabel}` : "Guardar cambios"} cancelLabel="Cancelar" onClose={() => setInventoryModal(createInventoryModalState())} onConfirm={submitInventoryModal} confirmDisabled={inventoryModal.submitting}>
-        <div className="modal-form-grid">
-          {inventoryModal.domain !== INVENTORY_DOMAIN_MAINTENANCE ? (
-            <label className="app-modal-field">
-              <span>Dominio</span>
-              <select
-                value={inventoryModal.domain}
-                onChange={(event) => {
-                  const nextDomain = normalizeInventoryDomain(event.target.value);
-                  setInventoryModal((current) => ({
-                    ...current,
-                    domain: nextDomain,
-                    presentation: inventoryDomainUsesPresentation(nextDomain) ? current.presentation : "",
-                    piecesPerBox: inventoryDomainUsesPackagingMetrics(nextDomain) ? current.piecesPerBox : "",
-                    boxesPerPallet: inventoryDomainUsesPackagingMetrics(nextDomain) ? current.boxesPerPallet : "",
-                    cleaningSite: nextDomain === INVENTORY_DOMAIN_CLEANING ? current.cleaningSite || inventoryCleaningSite || DEFAULT_CLEANING_SITE : DEFAULT_CLEANING_SITE,
-                    activityCatalogIds: nextDomain === INVENTORY_DOMAIN_CLEANING ? current.activityCatalogIds : [],
-                    activityConsumptions: nextDomain === INVENTORY_DOMAIN_CLEANING ? current.activityConsumptions : [],
-                  }));
-                }}
-              >
-                {INVENTORY_DOMAIN_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-              </select>
-            </label>
-          ) : null}
-          <label className="app-modal-field">
-            <span>Código</span>
-            <input value={inventoryModal.code} onChange={(event) => setInventoryModal((current) => ({ ...current, code: event.target.value }))} />
-          </label>
-          <label className="app-modal-field">
-            <span>Nombre</span>
-            <input value={inventoryModal.name} onChange={(event) => setInventoryModal((current) => ({ ...current, name: event.target.value }))} />
-          </label>
-          {inventoryModal.domain === INVENTORY_DOMAIN_MAINTENANCE ? (
-            <>
-              <label className="app-modal-field">
-                <span>Familia</span>
-                <input value={inventoryModal.family} onChange={(event) => setInventoryModal((current) => ({ ...current, family: event.target.value }))} />
-              </label>
-              <label className="app-modal-field">
-                <span>Precio unitario</span>
-                <input type="number" value={inventoryModal.price} onChange={(event) => setInventoryModal((current) => ({ ...current, price: event.target.value }))} />
-              </label>
-              <label className="app-modal-field">
-                <span>Costo</span>
-                <input type="number" value={inventoryModal.cost} onChange={(event) => setInventoryModal((current) => ({ ...current, cost: event.target.value }))} />
-              </label>
-            </>
-          ) : null}
-          {shouldShowInventoryPresentationField ? (
-            <label className="app-modal-field">
-              <span>{inventoryPresentationLabel}</span>
-              <input value={inventoryModal.presentation} onChange={(event) => setInventoryModal((current) => ({ ...current, presentation: event.target.value }))} placeholder={inventoryPresentationPlaceholder} />
-            </label>
-          ) : null}
-          {shouldShowInventoryPackagingFields ? (
-            <>
-              <label className="app-modal-field">
-                <span>Piezas por caja</span>
-                <input type="number" value={inventoryModal.piecesPerBox} onChange={(event) => setInventoryModal((current) => ({ ...current, piecesPerBox: event.target.value }))} />
-              </label>
-              <label className="app-modal-field">
-                <span>Cajas por tarima</span>
-                <input type="number" value={inventoryModal.boxesPerPallet} onChange={(event) => setInventoryModal((current) => ({ ...current, boxesPerPallet: event.target.value }))} />
-              </label>
-            </>
-          ) : null}
-          {shouldShowInventoryStockFields && (
-            <>
-              <label className="app-modal-field">
-                <span>Stock actual</span>
-                <input type="number" value={inventoryModal.stockUnits} onChange={(event) => setInventoryModal((current) => ({ ...current, stockUnits: event.target.value }))} />
-              </label>
-              <label className="app-modal-field">
-                <span>Stock mínimo</span>
-                <input type="number" value={inventoryModal.minStockUnits} onChange={(event) => setInventoryModal((current) => ({ ...current, minStockUnits: event.target.value }))} />
-              </label>
-              <label className="app-modal-field">
-                <span>Unidad</span>
-                <input list="inventory-unit-datalist" value={inventoryModal.unitLabel} onChange={(event) => setInventoryModal((current) => ({ ...current, unitLabel: event.target.value }))} placeholder={inventoryUnitPlaceholder} />
-                <datalist id="inventory-unit-datalist">
-                  {inventoryUnitOptions.map((unit) => <option key={unit} value={unit} />)}
-                </datalist>
-              </label>
-              <label className="app-modal-field">
-                <span>Ubicación / resguardo</span>
-                <input value={inventoryModal.storageLocation} onChange={(event) => setInventoryModal((current) => ({ ...current, storageLocation: event.target.value }))} placeholder={inventoryStoragePlaceholder} />
-              </label>
-            </>
-          )}
-          {inventoryCustomColumnsForModal.map((column) => (
-            <label key={column.id} className="app-modal-field">
-              <span>{column.label}</span>
-              <input
-                list={
-                  column.key === "lote"
-                    ? "inventory-system-lote-options"
-                    : column.key === "caducidad"
-                      ? "inventory-system-caducidad-options"
-                      : column.key === "etiqueta"
-                        ? "inventory-system-etiqueta-options"
-                        : undefined
-                }
-                value={inventoryModal.customFields?.[column.key] || ""}
-                onChange={(event) => setInventoryModal((current) => ({
-                  ...current,
-                  customFields: {
-                    ...(current.customFields || {}),
-                    [column.key]: event.target.value,
-                  },
-                }))}
-                placeholder={`Captura ${String(column.label || "dato").toLowerCase()}`}
-              />
-            </label>
-          ))}
-          <datalist id="inventory-system-lote-options">
-            {inventorySystemColumnSuggestions.lote.map((option) => <option key={option} value={option} />)}
-          </datalist>
-          <datalist id="inventory-system-caducidad-options">
-            {inventorySystemColumnSuggestions.caducidad.map((option) => <option key={option} value={option} />)}
-          </datalist>
-          <datalist id="inventory-system-etiqueta-options">
-            {inventorySystemColumnSuggestions.etiqueta.map((option) => <option key={option} value={option} />)}
-          </datalist>
-          {shouldShowCleaningLinkFields ? (
-            <>
-              <label className="app-modal-field">
-                <span>Sede de limpieza</span>
-                <select value={inventoryModal.cleaningSite} onChange={(event) => setInventoryModal((current) => ({ ...current, cleaningSite: event.target.value }))}>
-                  {CLEANING_SITE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-                </select>
-              </label>
-              <div className="app-modal-field app-modal-field-full inventory-activity-consumption-field">
-                <span>Actividades y consumo por inicio</span>
-                <InventoryActivityConsumptionEditor
-                  activeCatalogItems={activeCatalogItems}
-                  activityConsumptions={inventoryModal.activityConsumptions}
-                  onToggle={toggleInventoryModalActivityCatalog}
-                  onQuantityChange={updateInventoryModalActivityConsumption}
-                />
-              </div>
-            </>
-          ) : null}
-        </div>
-      </Modal>
-
-      <Modal
-        open={pieceDeductionModal.open}
-        title="¿Descontar insumos al iniciar?"
-        confirmLabel="Sí, descontar y comenzar"
-        cancelLabel="Comenzar sin descontar"
-        onClose={() => confirmPieceDeductionAndStart(false)}
-        onConfirm={() => confirmPieceDeductionAndStart(true)}
-      >
-        <div className="modal-form-grid">
-          <p className="modal-footnote">Esta actividad tiene insumos en piezas vinculados. ¿Quieres descontar automáticamente del inventario al iniciar?</p>
-          <div className="piece-deduction-list">
-            {pieceDeductionModal.items.map((item) => (
-              <div key={item.id} className="piece-deduction-row">
-                <strong>{item.name}</strong>
-                <span className="chip">{item.quantity} {item.unit} · Stock actual: {item.stock}</span>
-              </div>
-            ))}
-          </div>
-          <p className="modal-footnote">Si eliges "Comenzar sin descontar", la actividad inicia normalmente y el inventario no cambia.</p>
-        </div>
-      </Modal>
-
-      <Modal open={inventoryMovementModal.open} title={inventoryMovementModalTitle} confirmLabel={isOrderTransferMovementModal ? "Guardar transferencia" : "Guardar movimiento"} cancelLabel="Cancelar" onClose={closeInventoryMovementModal} onConfirm={submitInventoryMovementModal} confirmDisabled={inventoryMovementModal.submitting}>
-        <div className="modal-form-grid">
-          {isOrderTransferMovementModal ? (
-            <label className="app-modal-field">
-              <span>Insumo</span>
-              <select value={inventoryMovementModal.itemId || ""} onChange={(event) => updateInventoryMovementModal({ itemId: event.target.value || null })}>
-                <option value="">Selecciona un insumo</option>
-                {orderInventoryItems.map((item) => <option key={item.id} value={item.id}>{item.code} · {item.name}</option>)}
-              </select>
-            </label>
-          ) : (
-            <label className="app-modal-field">
-              <span>Artículo</span>
-              <input value={inventoryMovementModal.itemName} readOnly />
-            </label>
-          )}
-          <label className="app-modal-field">
-            <span>Tipo de movimiento</span>
-            {isOrderTransferMovementModal ? (
-              <input value="Transferencia" readOnly />
-            ) : (
-              <select value={inventoryMovementModal.movementType} onChange={(event) => updateInventoryMovementModal({ movementType: event.target.value })}>
-                {inventoryMovementTypeOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-              </select>
-            )}
-          </label>
-          <label className="app-modal-field">
-            <span>{isOrderTransferMovementModal ? "Cantidad a transferir" : "Cantidad"}</span>
-            <input type="number" min="0" value={inventoryMovementModal.quantity} onChange={(event) => updateInventoryMovementModal({ quantity: event.target.value })} />
-          </label>
-          {!isOrderTransferMovementModal && inventoryMovementSavedLocations.length ? (
-            <label className="app-modal-field">
-              <span>Ubicaciones guardadas</span>
-              <select value={inventoryMovementSelectedSavedLocation} onChange={(event) => applySavedInventoryLocation(event.target.value)}>
-                <option value="">Selecciona una ubicación previa</option>
-                {inventoryMovementSavedLocations.map((entry) => <option key={entry.key} value={entry.key}>{entry.label}</option>)}
-              </select>
-            </label>
-          ) : null}
-          {!isOrderTransferMovementModal ? (
-            <label className="app-modal-field">
-              <span>Ubicación / resguardo</span>
-              <input value={inventoryMovementModal.storageLocation} onChange={(event) => updateInventoryMovementModal({ storageLocation: event.target.value })} placeholder="Ej: Nave 2 · Estante 4" />
-            </label>
-          ) : null}
-          {isOrderTransferMovementModal ? (
-            <>
-              <label className="app-modal-field">
-                <span>Resguardo actual del insumo</span>
-                <input value={inventoryMovementSelectedItem?.storageLocation || "Sin resguardo asignado"} readOnly />
-              </label>
-
-              <div className="app-modal-field app-modal-field-full">
-                <span>Nave destino</span>
-                <div className="inventory-transfer-warehouse-tabs">
-                  {inventoryTransferAvailableWarehouses.map((warehouse) => (
-                    <button key={warehouse} type="button" className={`warehouse-tab ${inventoryMovementModal.selectedTransferDestinationTab === warehouse ? "active" : ""}`} onClick={() => updateInventoryMovementModal({ selectedTransferDestinationTab: warehouse })}>
-                      {warehouse}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {inventoryMovementModal.selectedTransferDestinationTab && (
-                <div className="app-modal-field app-modal-field-full">
-                  <span>Punto de entrega en {inventoryMovementModal.selectedTransferDestinationTab}</span>
-                  <div className="inventory-transfer-destinations-list">
-                    {(inventoryTransferDestinationsByWarehouse[inventoryMovementModal.selectedTransferDestinationTab] || []).map((destination) => (
-                      <button key={destination.destinationKey} type="button" className={`destination-button ${inventoryMovementModal.transferTargetKey === destination.destinationKey ? "selected" : ""}`} onClick={() => updateInventoryMovementModal({ warehouse: destination.warehouse, storageLocation: destination.storageLocation, recipientName: destination.recipientName, transferTargetKey: destination.destinationKey })}>
-                        <div className="destination-name">{destination.storageLocation || "Sin nombre"}</div>
-                        {destination.recipientName && <div className="destination-recipient">{destination.recipientName}</div>}
-                        <div className="destination-stock">{destination.availableUnits} {destination.unitLabel || "pzas"}</div>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              <label className="app-modal-field">
-                <span>Quién recibe el material</span>
-                <input value={inventoryMovementModal.recipientName} onChange={(event) => updateInventoryMovementModal({ recipientName: event.target.value })} placeholder="Nombre del responsable destino" />
-              </label>
-
-              <div className="app-modal-field app-modal-field-full inventory-transfer-modal-summary">
-                <span>Resumen actual</span>
-                <div className="inventory-transfer-modal-summary-grid">
-                  <p><strong>Stock origen:</strong> {inventoryMovementSelectedItem?.stockUnits || 0} {inventoryMovementSelectedItem?.unitLabel || "pzas"}</p>
-                  <p><strong>Disponible para transferir:</strong> {inventoryMovementAvailableUnits} {inventoryMovementSelectedItem?.unitLabel || "pzas"}</p>
-                </div>
-                {inventoryMovementTransferTarget ? (
-                  <p className="subtle-line">Áltimo saldo registrado en el destino {inventoryMovementTransferTarget.warehouse || "sin nave"} / {inventoryMovementTransferTarget.storageLocation || "sin punto de entrega"}: {inventoryMovementTransferTarget.availableUnits} {inventoryMovementTransferTarget.unitLabel || inventoryMovementSelectedItem?.unitLabel || "pzas"}. Ese saldo solo actualiza el destino y no devuelve piezas al stock origen.</p>
-                ) : (
-                  <p className="subtle-line">Este destino se registrará como un nuevo punto de resguardo para el insumo seleccionado.</p>
-                )}
-              </div>
-            </>
-          ) : null}
-          <label className="app-modal-field">
-            <span>Notas</span>
-            <input value={inventoryMovementModal.notes} onChange={(event) => updateInventoryMovementModal({ notes: event.target.value })} placeholder="Detalle del movimiento" />
-          </label>
-        </div>
-      </Modal>
-
-      <Modal open={inventoryDestinationModal.open} title={inventoryDestinationModal.mode === "create" ? "Agregar nueva nave" : "Editar nave"} confirmLabel={inventoryDestinationModal.mode === "create" ? "Guardar nave" : "Guardar cambios"} cancelLabel="Cancelar" onClose={closeInventoryDestinationModal} onConfirm={submitInventoryDestinationModal} confirmDisabled={inventoryDestinationModal.submitting}>
-        <div className="modal-form-grid">
-          <label className="app-modal-field">
-            <span>Nave</span>
-            <input value={inventoryDestinationModal.warehouse} onChange={(event) => setInventoryDestinationModal((current) => ({ ...current, warehouse: event.target.value }))} placeholder="Ej: Nave 1" />
-          </label>
-          <label className="app-modal-field">
-            <span>Punto de entrega</span>
-            <input value={inventoryDestinationModal.storageLocation} onChange={(event) => setInventoryDestinationModal((current) => ({ ...current, storageLocation: event.target.value }))} placeholder="Ej: Estante 4 / Área de empaque" />
-          </label>
-          <label className="app-modal-field">
-            <span>Quién recibe el material</span>
-            <input value={inventoryDestinationModal.recipientName} onChange={(event) => setInventoryDestinationModal((current) => ({ ...current, recipientName: event.target.value }))} placeholder="Nombre del responsable destino" />
-          </label>
-        </div>
-      </Modal>
-
-      <Modal open={inventoryTransferConfirmModal.open} title="Confirmar saldo del destino" confirmLabel="Aplicar ajuste y transferir" cancelLabel="Volver" onClose={() => closeInventoryTransferConfirmModal(true)} onConfirm={submitInventoryTransferConfirmModal}>
-        <div className="modal-form-grid">
-          <div className="app-modal-field app-modal-field-full inventory-transfer-modal-summary">
-            <span>Destino a actualizar</span>
-            <div className="inventory-transfer-modal-summary-grid">
-              <p><strong>Insumo:</strong> {inventoryTransferConfirmModal.itemName || "Sin insumo"}</p>
-              <p><strong>Nueva transferencia:</strong> {inventoryTransferConfirmModal.quantity || 0} {inventoryTransferConfirmModal.unitLabel || "pzas"}</p>
-              <p><strong>Nave destino:</strong> {inventoryTransferConfirmModal.warehouse || "Sin nave"}</p>
-              <p><strong>Punto de entrega destino:</strong> {inventoryTransferConfirmModal.storageLocation || "Sin punto de entrega"}</p>
-            </div>
-            <p className="subtle-line">Antes de sumar esta nueva transferencia, confirma cuántas piezas siguen quedando actualmente en ese mismo destino. Ese dato solo ajusta el control del destino.</p>
-          </div>
-          <label className="app-modal-field app-modal-field-full">
-            <span>¿Cuántas piezas quedan ahorita en ese destino?</span>
-            <input type="number" min="0" value={inventoryTransferConfirmModal.remainingUnits} onChange={(event) => setInventoryTransferConfirmModal((current) => ({ ...current, remainingUnits: event.target.value }))} placeholder={inventoryTransferConfirmModal.lastKnownUnits === null ? "Ej: 50" : `Áltimo saldo registrado: ${inventoryTransferConfirmModal.lastKnownUnits}`} />
-          </label>
-        </div>
-      </Modal>
-
-      <Modal open={inventoryRestockModal.open} title={inventoryRestockModalTitle} confirmLabel="Surtir" cancelLabel="Cancelar" onClose={closeInventoryRestockModal} onConfirm={submitInventoryRestockModal}>
-        <div className="inventory-restock-modal">
-          <p className="subtle-line">Escribe solo las cantidades a sumar. Si una queda en 0, no se agrega nada a ese insumo.</p>
-          <div className="inventory-restock-modal-list">
-            {inventoryRestockModalItems.map((item) => (
-              <label key={item.id} className="inventory-restock-row">
-                <span className="inventory-restock-name">{item.name}</span>
-                <input type="number" min="0" value={inventoryRestockModal.quantities[item.id] || ""} onChange={(event) => updateInventoryRestockQuantity(item.id, event.target.value)} placeholder="0" />
-              </label>
-            ))}
-            {inventoryRestockModalItems.length ? null : <p className="subtle-line">No hay insumos disponibles para surtir.</p>}
-          </div>
-        </div>
-      </Modal>
-
-      <Modal open={inventoryTransferViewerState.open} title={inventoryTransferViewerTitle} confirmLabel="Cerrar" hideCancel onClose={() => setInventoryTransferViewerState({ open: false, itemId: null })}>
-        <div className="inventory-transfer-view">
-          <section className="surface-card inventory-transfer-view-card">
-            <div className="card-header-row">
-              <div>
-                <h3>Saldos por destino</h3>
-                <p>Resumen compacto de lo que sigue disponible en cada destino.</p>
-              </div>
-              <span className="chip primary">{viewedOrderInventoryTransferTargets.length}</span>
-            </div>
-            <div className="inventory-transfer-compact-list">
-              {viewedOrderInventoryTransferTargets.map((target) => (
-                <article key={`${target.itemId}-${target.destinationKey}`} className="inventory-transfer-compact-row">
-                  <div className="inventory-transfer-compact-main">
-                    <strong>{target.warehouse || target.storageLocation || "Destino sin nombre"}</strong>
-                    {inventoryTransferViewerItem ? null : <p>{target.itemCode} · {target.itemName}</p>}
-                    <p className="subtle-line">{target.storageLocation || "Sin punto de entrega"}{target.recipientName ? ` · ${target.recipientName}` : ""}</p>
-                  </div>
-                  <div className="inventory-transfer-compact-side">
-                    <span className="chip">{target.availableUnits} {target.unitLabel || target.itemUnitLabel}</span>
-                    <small>{target.updatedAt ? formatDateTime(target.updatedAt) : "Sin fecha"}</small>
-                  </div>
-                </article>
-              ))}
-              {!viewedOrderInventoryTransferTargets.length && <p className="subtle-line">Todavía no hay saldos por destino registrados para este filtro.</p>}
-            </div>
-          </section>
-
-          <section className="surface-card inventory-transfer-view-card">
-            <div className="card-header-row">
-              <div>
-                <h3>Movimientos recientes</h3>
-                <p>Áltimas transferencias registradas, sin detalle duplicado.</p>
-              </div>
-              <span className="chip">{Math.min(viewedOrderInventoryTransferMovements.length, 10)}</span>
-            </div>
-            <div className="inventory-transfer-compact-list">
-              {viewedOrderInventoryTransferMovements.slice(0, 10).map((movement) => (
-                <article key={movement.id} className="inventory-transfer-compact-row">
-                  <div className="inventory-transfer-compact-main">
-                    <strong>{movement.warehouse || movement.storageLocation || "Destino sin nombre"}</strong>
-                    <p>{movement.quantity} {movement.unitLabel || "pzas"}{movement.recipientName ? ` · ${movement.recipientName}` : ""}</p>
-                    <p className="subtle-line">{movement.storageLocation || "Sin punto de entrega"}{shouldShowTransferRemainingUnits(movement) ? ` · Antes quedaban ${movement.remainingUnits} ${movement.unitLabel || "pzas"}` : ""}</p>
-                  </div>
-                  <div className="inventory-transfer-compact-side">
-                    <span className="chip">Saldo {movement.destinationBalanceUnits ?? movement.quantity}</span>
-                    <small>{formatDateTime(movement.createdAt)}</small>
-                  </div>
-                </article>
-              ))}
-              {!viewedOrderInventoryTransferMovements.length && <p className="subtle-line">No hay transferencias registradas para este filtro.</p>}
-            </div>
-          </section>
-        </div>
-      </Modal>
-
-      <Modal open={Boolean(deleteUserId)} title="Eliminar player" confirmLabel="Eliminar player" cancelLabel="Cancelar" onClose={() => setDeleteUserId(null)} onConfirm={() => deleteUser(deleteUserId)}>
-        <p>Esta acción no se puede deshacer.</p>
-        <p>Se perderá el acceso y los registros del player quedarán sin responsabilidad asignada.</p>
-      </Modal>
-
-      <Modal open={Boolean(transferLeadTargetId)} title="Transferir rol de Lead" confirmLabel="Transferir Lead" cancelLabel="Cancelar" onClose={() => setTransferLeadTargetId(null)} onConfirm={() => transferLead(transferLeadTargetId)}>
-        <p>El player <strong>{state.users?.find((u) => u.id === transferLeadTargetId)?.name || ""}</strong> pasará a ser Lead.</p>
-        <p>Tu cuenta quedará como Senior. Esta acción no se puede deshacer desde aquí.</p>
-      </Modal>
-
-      <Modal open={Boolean(deleteInventoryId)} title="Eliminar artículo" confirmLabel="Eliminar artículo" cancelLabel="Cancelar" onClose={() => setDeleteInventoryId(null)} onConfirm={() => deleteInventoryItem(deleteInventoryId)}>
-        <p>Esta acción quitará el artículo del inventario compartido.</p>
-        <p>La información dejará de estar disponible para todos los dispositivos conectados.</p>
-      </Modal>
-
-      <Modal open={Boolean(deleteBoardId)} title="Eliminar tablero" confirmLabel="Eliminar tablero" cancelLabel="Cancelar" onClose={() => setDeleteBoardId(null)} onConfirm={() => deleteControlBoard(deleteBoardId)}>
-        <p>Esta acción eliminará el tablero completo junto con sus filas guardadas.</p>
-        <p>Ásalo cuando el tablero ya no se vaya a ocupar para que no quede abandonado.</p>
-      </Modal>
-
-      <Modal open={Boolean(historyPauseActivityId)} title="Pausas de la actividad" confirmLabel="Aceptar" cancelLabel="Cerrar" onClose={() => setHistoryPauseActivityId(null)}>
-        <div className="modal-form-grid">
-          {historyPauseLogs.length ? historyPauseLogs.map((log) => (
-            <div key={log.id} className="week-activity-item pause-item">
-              <div>
-                <strong>{log.pauseReason}</strong>
-                <span>Pausado: {formatDateTime(log.pausedAt)}</span>
-                <span>Reanudado: {formatDateTime(log.resumedAt)}</span>
-              </div>
-              <strong>{formatDurationClock(log.pauseDurationSeconds)}</strong>
-            </div>
-          )) : <p>No hay pausas registradas para esta actividad.</p>}
-        </div>
-      </Modal>
-      <Suspense fallback={null}>
-        <CopmecAIWidget canUseAI={!!actionPermissions.useCopmecAI} isOpen={aiOpen} onClose={() => setAiOpen(false)} sidebarCollapsed={isSidebarCollapsed} />
-      </Suspense>
+        <Suspense fallback={null}>
+          <CopmecAIWidget canUseAI={!!actionPermissions.useCopmecAI} isOpen={aiOpen} onClose={() => setAiOpen(false)} sidebarCollapsed={isSidebarCollapsed} />
+        </Suspense>
+      </div>
     </main>
   );
 }

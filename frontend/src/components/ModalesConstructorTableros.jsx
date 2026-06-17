@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ArrowDown,
   ArrowUp,
@@ -10,7 +10,6 @@ import {
   Trash2,
 } from "lucide-react";
 import { Modal } from "./Modal";
-import { normalizeOperationalInspectionTemplate, OPERATIONAL_INSPECTION_TEMPLATE } from "../utils/operationalInspectionTemplate";
 const COMPONENT_TYPE_CATEGORIES = [
   {
     label: "Texto y contacto",
@@ -764,7 +763,7 @@ export function BoardBuilderModal({
   onEditDraftColumn,
   onRemoveDraftColumn,
   visibleUsers,
-  catalog = [],
+  _catalog = [],
   departmentOptions = [],
   currentUser,
   userMap,
@@ -871,16 +870,6 @@ export function BoardBuilderModal({
   const operationalContextValue = String(draft.settings?.operationalContextValue || "").trim()
     || operationalContextOptions[0]
     || "";
-  const checklistConfigRaw = draft.settings?.operationalChecklistConfig && typeof draft.settings.operationalChecklistConfig === "object"
-    ? draft.settings.operationalChecklistConfig
-    : {};
-  const checklistEnabled = Boolean(checklistConfigRaw.enabled);
-  const checklistLinkedActivities = Array.isArray(checklistConfigRaw.linkedActivityNames)
-    ? checklistConfigRaw.linkedActivityNames.map((item) => String(item || "").trim()).filter(Boolean)
-    : [];
-  const checklistTemplate = normalizeOperationalInspectionTemplate(
-    checklistConfigRaw.template || OPERATIONAL_INSPECTION_TEMPLATE,
-  );
   const selectedPreviewTemplateId = selectedPreviewTemplate?.id || "";
   const defaultAuxWidths = Object.fromEntries(Object.values(BOARD_AUX_COLUMN_DEFINITIONS).map((item) => [item.id, item.defaultWidth]));
   const fieldTypeMinWidths = {
@@ -1086,67 +1075,6 @@ export function BoardBuilderModal({
         operationalContextValue: resolvedValue,
       },
     }));
-  }
-
-  function updateChecklistConfig(nextConfig) {
-    onChange((current) => ({
-      ...current,
-      settings: {
-        ...current.settings,
-        operationalChecklistConfig: {
-          ...nextConfig,
-          linkedActivityNames: Array.from(new Set((nextConfig?.linkedActivityNames || []).map((item) => String(item || "").trim()).filter(Boolean))),
-        },
-      },
-    }));
-  }
-
-  function toggleChecklistLinkedActivity(activityName) {
-    const normalizedName = String(activityName || "").trim();
-    if (!normalizedName) return;
-    const hasActivity = checklistLinkedActivities.some((item) => item.toLowerCase() === normalizedName.toLowerCase());
-    updateChecklistConfig({
-      ...checklistConfigRaw,
-      enabled: checklistEnabled,
-      template: checklistTemplate,
-      linkedActivityNames: hasActivity
-        ? checklistLinkedActivities.filter((item) => item.toLowerCase() !== normalizedName.toLowerCase())
-        : [...checklistLinkedActivities, normalizedName],
-    });
-  }
-
-  function updateChecklistSection(sectionId, patch) {
-    const nextSections = checklistTemplate.sections.map((section) => (
-      section.id === sectionId ? { ...section, ...patch } : section
-    ));
-    updateChecklistConfig({
-      ...checklistConfigRaw,
-      enabled: checklistEnabled,
-      linkedActivityNames: checklistLinkedActivities,
-      template: {
-        ...checklistTemplate,
-        sections: nextSections,
-      },
-    });
-  }
-
-  function updateChecklistCheck(sectionId, checkId, patch) {
-    const nextSections = checklistTemplate.sections.map((section) => {
-      if (section.id !== sectionId) return section;
-      return {
-        ...section,
-        checks: section.checks.map((check) => (check.id === checkId ? { ...check, ...patch } : check)),
-      };
-    });
-    updateChecklistConfig({
-      ...checklistConfigRaw,
-      enabled: checklistEnabled,
-      linkedActivityNames: checklistLinkedActivities,
-      template: {
-        ...checklistTemplate,
-        sections: nextSections,
-      },
-    });
   }
 
   function handlePreviewColumnDrop(targetToken, fromTokenOverride = "") {

@@ -69,6 +69,7 @@ import {
   createWarehouseInventoryDestination,
   updateWarehouseInventoryDestination,
   deleteWarehouseInventoryDestination,
+  returnOrderInventoryWarehouseToAlmacen,
   createWarehouseTransportRecord,
   updateWarehouseTransportRecord,
   updateWarehouseTransportLogistics,
@@ -1602,6 +1603,41 @@ warehouseRouter.post("/inventory/import", requireAuth, (req, res) => {
     revision: result.state?.revision,
   });
   res.status(201).json({ ok: true, data: { state: result.state, createdCount: result.createdCount, updatedCount: result.updatedCount } });
+});
+
+warehouseRouter.post("/inventory/return-to-almacen", requireAuth, (req, res) => {
+  const result = returnOrderInventoryWarehouseToAlmacen(req.auth, req.body || {});
+  if (!result.ok) {
+    const status = result.reason === "auth_required"
+      ? 401
+      : result.reason === "forbidden"
+        ? 403
+        : result.reason === "no_stock_to_return"
+          ? 409
+          : 400;
+    const messages = {
+      invalid_warehouse: "Selecciona una nave destino válida para devolver el saldo.",
+      no_stock_to_return: "No hay saldo transferido en esa nave para devolver a Almacén.",
+    };
+    res.status(status).json({ ok: false, message: messages[result.reason] || "No fue posible devolver el saldo a Almacén." });
+    return;
+  }
+
+  auditSecurityEvent("warehouse_inventory_returned_to_almacen", req, {
+    warehouse: req.body?.warehouse,
+    returnedItems: result.returnedItems,
+    returnedUnits: result.returnedUnits,
+    revision: result.state?.revision,
+  });
+  res.json({
+    ok: true,
+    data: {
+      state: result.state,
+      returnedItems: result.returnedItems,
+      returnedUnits: result.returnedUnits,
+      movementCount: result.movementCount,
+    },
+  });
 });
 
 warehouseRouter.post("/inventory/movements", requireAuth, (req, res) => {

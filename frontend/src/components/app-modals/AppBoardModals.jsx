@@ -1,60 +1,39 @@
+/* eslint-disable no-unused-vars -- props desde App.jsx */
 import { Modal } from "../Modal";
 import {
   formatDurationClock,
   getElapsedSeconds,
   getOperationalElapsedSeconds,
 } from "../../utils/utilidades.jsx";
+import { STATUS_RUNNING } from "../../utils/constantes.js";
 
 /** Modales extra�dos de App.jsx � AppBoardModals */
-
-/** Modales extraidos de App.jsx � AppBoardModals */
 export function AppBoardModals(props) {
   const {
-  boardFinishConfirm,
-  boardId,
-  boardStartConfirm,
-  Boolean,
-  confirmFinishBoardRow,
-  confirmPieceDeductionAndStart,
-  confirmStartBoardRow,
-  controlBoards,
-  deleteBoardId,
-  deleteBoardRow,
-  deleteBoardRowState,
-  deleteControlBoard,
-  Desde,
-  Esta,
-  finBoard,
-  find,
-  finRow,
-  formatDurationClock,
-  getElapsedSeconds,
-  getOperationalElapsedSeconds,
-  map,
-  Math,
-  operationalPauseState,
-  pauseSecs,
-  pieceDeductionModal,
-  productionSecs,
-  Quieres,
-  rowId,
-  setBoardFinishConfirm,
-  setBoardStartConfirm,
-  setDeleteBoardId,
-  setDeleteBoardRowState,
-  Si,
-  Solo,
-  startTime,
-  Stock,
-  Tiempo,
-  totalSecs,
+    boardFinishConfirm,
+    setBoardFinishConfirm,
+    confirmFinishBoardRow,
+    state,
+    now,
+    operationalPauseState,
+    boardStartConfirm,
+    boardStartConflictRows,
+    closeBoardStartConfirm,
+    confirmStartBoardRow,
+    finishPreviousActivityAndStart,
+    deleteBoardRowState,
+    setDeleteBoardRowState,
+    deleteBoardRow,
+    pieceDeductionModal,
+    confirmPieceDeductionAndStart,
+    deleteBoardId,
+    setDeleteBoardId,
+    deleteControlBoard,
   } = props;
 
   return (
     <>
-return (
-    <>
-    <Modal className="modal-wide board-finish-modal" open={boardFinishConfirm.open} title="Finalizar fila" confirmLabel="Confirmar fin" cancelLabel="Cancelar" onClose={() => setBoardFinishConfirm({ open: false, boardId: null, rowId: null, message: "" })} onConfirm={confirmFinishBoardRow}>
+<Modal className="modal-wide board-finish-modal" open={boardFinishConfirm.open} title="Finalizar fila" confirmLabel="Confirmar fin" cancelLabel="Cancelar" onClose={() => setBoardFinishConfirm({ open: false, boardId: null, rowId: null, message: "" })} onConfirm={confirmFinishBoardRow}>
       <div className="modal-form-grid">
         {(() => {
           const finBoard = boardFinishConfirm.boardId ? (state.controlBoards || []).find((b) => b.id === boardFinishConfirm.boardId) : null;
@@ -108,24 +87,69 @@ return (
     <Modal
       open={boardStartConfirm.open}
       title={boardStartConfirm.title || "Confirmar inicio"}
-      confirmLabel="Confirmar"
+      confirmLabel={boardStartConflictRows.length ? "Iniciar de todos modos" : "Confirmar"}
       cancelLabel="Cancelar"
-      onClose={() => setBoardStartConfirm({ open: false, boardId: null, rowId: null, title: "", message: "" })}
+      onClose={closeBoardStartConfirm}
       onConfirm={confirmStartBoardRow}
+      footerActions={boardStartConflictRows.length ? (
+        <button
+          type="button"
+          className="sicfla-button danger"
+          onClick={() => { void finishPreviousActivityAndStart(); }}
+        >
+          Terminar anterior e iniciar esta
+        </button>
+      ) : null}
     >
       <div className="modal-form-grid">
         <p>{boardStartConfirm.message || "¿Deseas iniciar esta actividad?"}</p>
-        <p className="modal-footnote">Solo puedes tener una actividad en curso por player, entre actividades y tableros.</p>
+        {boardStartConflictRows.length ? (
+          <div className="board-start-conflict-alert" role="alert">
+            <strong>Ya tienes otra actividad en curso</strong>
+            <p>
+              Detectamos {boardStartConflictRows.length === 1 ? "una actividad activa" : `${boardStartConflictRows.length} actividades activas`} vinculada a tu usuario.
+              Puedes terminarla desde aquí o iniciar esta actividad de todos modos si la anterior la iniciaste para otra persona.
+            </p>
+            <div className="board-start-conflict-list">
+              {boardStartConflictRows.map((conflict) => {
+                const elapsedSecs = conflict.row?.startTime
+                  ? Math.max(
+                    getElapsedSeconds(conflict.row, now, operationalPauseState),
+                    getOperationalElapsedSeconds(conflict.row.startTime, now, operationalPauseState),
+                  )
+                  : 0;
+                return (
+                  <article key={`${conflict.boardId}-${conflict.rowId}`} className="board-start-conflict-card">
+                    <div className="board-start-conflict-card-main">
+                      <strong>{conflict.activityLabel}</strong>
+                      <span>{conflict.boardName}</span>
+                    </div>
+                    <div className="board-start-conflict-card-meta">
+                      <span className={`chip ${conflict.status === STATUS_RUNNING ? "success" : "soft"}`.trim()}>
+                        {conflict.status}
+                      </span>
+                      {elapsedSecs > 0 ? <span>{formatDurationClock(elapsedSecs)} transcurridos</span> : null}
+                      {conflict.isStarter && !conflict.isAssignedPlayer ? (
+                        <span className="board-start-conflict-note">La iniciaste tú</span>
+                      ) : null}
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          </div>
+        ) : (
+          <p className="modal-footnote">Solo puedes tener una actividad en curso por player, entre actividades y tableros.</p>
+        )}
       </div>
     </Modal>
 
     <Modal open={deleteBoardRowState.open} title="Eliminar fila" confirmLabel="Eliminar fila" cancelLabel="Cancelar" onClose={() => setDeleteBoardRowState({ open: false, boardId: null, rowId: null })} onConfirm={() => deleteBoardRow(deleteBoardRowState.boardId, deleteBoardRowState.rowId)}>
       <div className="modal-form-grid">
         <p>Esta fila se eliminará del tablero.</p>
-        <p>Úsalo cuando la actividad se creó por error o ya no se va a realizar.</p>
+        <p>Ásalo cuando la actividad se creó por error o ya no se va a realizar.</p>
       </div>
     </Modal>
-
     <Modal
       open={pieceDeductionModal.open}
       title="¿Descontar insumos al iniciar?"
@@ -149,10 +173,8 @@ return (
     </Modal>
     <Modal open={Boolean(deleteBoardId)} title="Eliminar tablero" confirmLabel="Eliminar tablero" cancelLabel="Cancelar" onClose={() => setDeleteBoardId(null)} onConfirm={() => deleteControlBoard(deleteBoardId)}>
       <p>Esta acción eliminará el tablero completo junto con sus filas guardadas.</p>
-      <p>Úsalo cuando el tablero ya no se vaya a ocupar para que no quede abandonado.</p>
+      <p>Ásalo cuando el tablero ya no se vaya a ocupar para que no quede abandonado.</p>
     </Modal>
-    </>
-
     </>
   );
 }

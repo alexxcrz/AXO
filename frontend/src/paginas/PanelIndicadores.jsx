@@ -264,7 +264,6 @@ export default function PanelIndicadores({ contexto }) {
     dashboardInventoryProductTimeRows,
     dashboardPalletLeaderboardRows,
     dashboardProductPerformanceRows,
-    dashboardProductAggregateRows,
     dashboardBoardInsightRows,
     dashboardBoardKpiCards,
     processAuditMetrics,
@@ -317,10 +316,6 @@ export default function PanelIndicadores({ contexto }) {
     selectedAreaSectionId,
     selectedAreaSection,
     Zap,
-    dashboardPauseLogs,
-    setSelectedCustomBoardId,
-    setSelectedCustomBoardViewId,
-    setSelectedCustomBoardRowId,
     navigateToBoardFocus,
     state,
   } = contexto;
@@ -583,7 +578,6 @@ export default function PanelIndicadores({ contexto }) {
   const [mermaChartType, setMermaChartType] = useState("bar");
   const [inventoryChartType, setInventoryChartType] = useState("bar");
   const [inventoryMetric, setInventoryMetric] = useState("secondsPerPiece");
-  const [inventoryView, setInventoryView] = useState("all");
   const [productLeaderboardSearch, setProductLeaderboardSearch] = useState("");
   const [showAllProductPerformanceRows, setShowAllProductPerformanceRows] = useState(false);
   const [showInventoryDetailTable, setShowInventoryDetailTable] = useState(false);
@@ -827,67 +821,6 @@ export default function PanelIndicadores({ contexto }) {
     return "";
   }, [formatInventoryFieldValue, inventoryItemsById]);
 
-  const getInventoryProductLabel = useCallback((item) => {
-    const productKeywords = ["nombre producto", "nombre", "descripcion", "producto", "sku", "articulo", "item", "producto/sku"];
-    const normalizedKeywords = productKeywords.map((keyword) => String(keyword || "").toLowerCase()).filter(Boolean);
-    const fields = Array.isArray(item.sourceFields) ? item.sourceFields : [];
-
-    const matchField = fields.find((field) => {
-      const label = String(field?.label || field?.name || field?.key || "").toLowerCase();
-      return normalizedKeywords.some((keyword) => label.includes(keyword));
-    });
-
-    if (matchField) {
-      const values = item.rowValues || {};
-      const rawValue = values[matchField.id] ?? values[matchField.key] ?? values[matchField.name];
-      if (rawValue !== undefined && rawValue !== null && rawValue !== "") {
-        if (matchField.type === "inventoryLookup" && inventoryItemsById) {
-          const inventoryItem = inventoryItemsById.get(rawValue);
-          if (inventoryItem) {
-            const nameLabel = inventoryItem.name || formatInventoryFieldValue(rawValue);
-            const presentation = String(inventoryItem.presentation || "").trim();
-            return presentation ? `${nameLabel} - ${presentation}` : nameLabel;
-          }
-        }
-        return formatInventoryFieldValue(rawValue);
-      }
-    }
-
-    return String(item.rowLabel || "").trim();
-  }, [formatInventoryFieldValue, inventoryItemsById]);
-
-  const resolveInventoryRowFieldValue = useCallback((item, keywords = []) => {
-    const normalizedKeywords = keywords.map((keyword) => String(keyword || "").toLowerCase()).filter(Boolean);
-    const fields = Array.isArray(item.sourceFields) ? item.sourceFields : [];
-    const field = fields.find((fieldItem) => {
-      const haystack = [fieldItem?.label, fieldItem?.name, fieldItem?.key, fieldItem?.id]
-        .map((value) => String(value || "").toLowerCase())
-        .join(" ");
-      return normalizedKeywords.some((keyword) => haystack.includes(keyword));
-    });
-    if (!field) return "";
-    const values = item.rowValues || {};
-    const rawValue = values[field.id] ?? values[field.key] ?? values[field.name];
-    if (rawValue !== undefined && rawValue !== null && rawValue !== "") {
-      if (Array.isArray(rawValue) || (typeof rawValue === "object" && !String(rawValue.name || rawValue.label || rawValue.title).trim())) {
-        return rawValue;
-      }
-      return formatInventoryFieldValue(rawValue);
-    }
-    return getInventoryRowValue(item, keywords);
-  }, [formatInventoryFieldValue, getInventoryRowValue]);
-
-  const resolveInventoryRowNumericValue = useCallback((item, keywords = []) => {
-    const rawValue = resolveInventoryRowFieldValue(item, keywords);
-    if (rawValue === undefined || rawValue === null || String(rawValue).trim() === "") return null;
-    const normalized = String(rawValue).replace(/\./g, "").replace(/,/g, ".").match(/-?\d+(?:\.\d+)?/g);
-    if (!normalized || !normalized.length) return null;
-    const numeric = Number(normalized[0]);
-    return Number.isFinite(numeric) ? numeric : null;
-  }, [resolveInventoryRowFieldValue]);
-
-  
-
   const scopedInventoryProductTimeRows = useMemo(() => {
     const rows = Array.isArray(dashboardInventoryProductTimeRows) ? dashboardInventoryProductTimeRows : [];
     const areaFiltered = dashboardFilters.area === "all" ? rows : rows.filter((item) => areaMatchesFilter(item.area, dashboardFilters.area));
@@ -918,13 +851,6 @@ export default function PanelIndicadores({ contexto }) {
       };
     });
   }, [dashboardFilters.area, dashboardInventoryProductTimeRows, leaderboardBoardFilter, areaMatchesFilter, getInventoryRowValue, inventoryItemsById]);
-
-  const scopedProductAggregateRows = useMemo(() => {
-    const rows = Array.isArray(dashboardProductAggregateRows) ? dashboardProductAggregateRows : [];
-    const areaFiltered = dashboardFilters.area === "all" ? rows : rows.filter((item) => areaMatchesFilter(item.area, dashboardFilters.area));
-    if (leaderboardBoardFilter === "all") return areaFiltered;
-    return areaFiltered.filter((item) => String(item.boardId || "") === leaderboardBoardFilter);
-  }, [dashboardFilters.area, dashboardProductAggregateRows, areaMatchesFilter, leaderboardBoardFilter]);
 
   const leaderboardBoardOptions = useMemo(() => {
     const base = Array.isArray(dashboardInventoryProductTimeRows) ? dashboardInventoryProductTimeRows : [];
@@ -1030,43 +956,6 @@ export default function PanelIndicadores({ contexto }) {
     });
     return Array.from(tarimaSet).sort((left, right) => left.localeCompare(right, "es-MX", { numeric: true }));
   }, [scopedInventoryProductTimeRows]);
-
-  const scopedPalletLeaderboardRows = useMemo(() => {
-    const sourceRows = leaderboardBoardFilterSafe === "all"
-      ? (Array.isArray(dashboardPalletLeaderboardRows) ? dashboardPalletLeaderboardRows : [])
-      : (() => {
-        const palletMap = new Map();
-        scopedInventoryProductTimeRows.forEach((row) => {
-          const tarimaKey = String(row.tarimaValue || "Sin tarima").trim() || "Sin tarima";
-          const durationMinutes = Math.max(0, Number(row.durationMinutes || 0));
-          const pieces = Math.max(0, Number(row.piecesReviewed || row.realPieces || row.expectedPieces || 0));
-          if (!palletMap.has(tarimaKey)) {
-            palletMap.set(tarimaKey, {
-              key: tarimaKey,
-              tarima: tarimaKey,
-              sessions: 0,
-              totalMinutes: 0,
-              totalPieces: 0,
-            });
-          }
-          const entry = palletMap.get(tarimaKey);
-          entry.sessions += 1;
-          entry.totalMinutes += durationMinutes;
-          entry.totalPieces += pieces;
-        });
-        return Array.from(palletMap.values()).map((entry) => ({
-          ...entry,
-          avgMinutesPerSession: entry.sessions > 0 ? entry.totalMinutes / entry.sessions : 0,
-          secondsPerPiece: entry.totalPieces > 0 ? (entry.totalMinutes * 60) / entry.totalPieces : null,
-        }));
-      })();
-    return sourceRows.sort((left, right) => {
-      const metricKey = inventoryMetric === "secondsPerPiece" ? "secondsPerPiece" : inventoryMetric;
-      const leftValue = Number(left[metricKey] || left.totalMinutes || 0);
-      const rightValue = Number(right[metricKey] || right.totalMinutes || 0);
-      return rightValue - leftValue;
-    });
-  }, [dashboardPalletLeaderboardRows, inventoryMetric, leaderboardBoardFilterSafe, scopedInventoryProductTimeRows]);
 
   const scopedLeaderboardBoardRecords = useMemo(() => {
     const rows = Array.isArray(filteredDashboardRecords)
@@ -1445,7 +1334,7 @@ export default function PanelIndicadores({ contexto }) {
         areaLabel: activeAreaLabel,
         accent: DASHBOARD_PDF_THEME.brand,
       });
-      const { addPageHeader, addPageFooter, drawSectionTable, marginX } = pdfCtx;
+      const { addPageHeader, addPageFooter, drawSectionTable } = pdfCtx;
 
       addPageHeader("Rendimiento por producto — Resumen consolidado", "Promedios acumulados por código, nombre y presentación");
       drawSectionTable(

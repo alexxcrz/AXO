@@ -56,32 +56,41 @@
 .players-editor-permissions-pane {
   flex: 1;
   min-height: 0;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   padding: 0.75rem 1.25rem 1.25rem;
+  -webkit-overflow-scrolling: touch;
 }
 
 .players-editor-permissions-pane .perm-panel-v2 {
   margin-top: 0;
   padding-top: 0;
   border-top: none;
-  flex: 1;
+  flex: 0 0 auto;
   min-height: 0;
+  overflow: visible;
+}
+
+.players-editor-permissions-pane .perm-panel-v2 > .perm-explorer {
+  min-height: 300px;
+  max-height: none;
 }
 
 .players-editor-permissions-pane .perm-delegation-block {
   flex-shrink: 0;
   margin-top: 0.75rem;
-  max-height: 45%;
-  overflow: hidden;
+  max-height: none;
+  overflow: visible;
   display: flex;
   flex-direction: column;
 }
 
 .players-editor-permissions-pane .perm-delegation-block .perm-explorer {
-  flex: 1;
-  min-height: 200px;
+  flex: 0 0 auto;
+  min-height: 280px;
+  max-height: none;
 }
 
 /* 4 columnas en pantallas anchas; baja a 3/2/1 sin apretar el contenido */
