@@ -1353,8 +1353,8 @@ warehouseRouter.delete("/inventory/:itemId", requireAuth, (req, res) => {
 warehouseRouter.post("/inventory/:itemId/duplicate", requireAuth, (req, res) => {
   const result = duplicateWarehouseInventoryItem(req.auth, req.params.itemId);
   if (!result.ok) {
-    const status = result.reason === "auth_required" ? 401 : result.reason === "item_not_found" ? 404 : result.reason === "forbidden" ? 403 : 400;
-    res.status(status).json({ ok: false, message: "No fue posible duplicar el artículo de inventario." });
+    const status = result.reason === "auth_required" ? 401 : result.reason === "item_not_found" ? 404 : result.reason === "forbidden" ? 403 : result.reason === "invalid_domain" ? 403 : 400;
+    res.status(status).json({ ok: false, message: result.reason === "invalid_domain" ? "Solo se pueden duplicar artículos del inventario de productos." : "No fue posible duplicar el artículo de inventario." });
     return;
   }
 

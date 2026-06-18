@@ -507,6 +507,12 @@ import {
   applyUiFontFamilyToDocument,
 } from "./app/uiPreferencesConfig.js";
 import {
+  applyDocumentUiPreferences,
+  readStoredUiFont,
+  readStoredUiFontSize,
+  readStoredUiTheme,
+} from "./app/uiPreferencesBootstrap.js";
+import {
   CATALOG_WEEKDAY_OPTIONS,
   serializeCatalogScheduledDaysBySite,
   parseCatalogScheduledDaysBySite,
@@ -706,9 +712,18 @@ function App() { // NOSONAR
   const [pendingOpenTransportRecordId, setPendingOpenTransportRecordId] = useState("");
   const [boardNavigationFocus, setBoardNavigationFocus] = useState(null);
   const [customBoardActionsMenuOpen, setCustomBoardActionsMenuOpen] = useState(false);
-  const [uiTheme, setUiTheme] = useState("copmec-bosque");
-  const [uiFont, setUiFont] = useState("bahnschrift");
-  const [uiFontSize, setUiFontSize] = useState("normal");
+  const [uiTheme, setUiTheme] = useState(() => {
+    const stored = readStoredUiTheme();
+    return UI_THEME_OPTIONS.some((option) => option.id === stored) ? stored : "copmec-bosque";
+  });
+  const [uiFont, setUiFont] = useState(() => {
+    const stored = readStoredUiFont();
+    return UI_FONT_OPTIONS.some((option) => option.id === stored) ? stored : "bahnschrift";
+  });
+  const [uiFontSize, setUiFontSize] = useState(() => {
+    const stored = readStoredUiFontSize();
+    return UI_FONT_SIZE_OPTIONS.some((option) => option.id === stored) ? stored : "normal";
+  });
   const [selectedPermissionBoardId, setSelectedPermissionBoardId] = useState("");
   const [loginForm, setLoginForm] = useState({ login: "", password: "" });
   const [loginError, setLoginError] = useState("");
@@ -1371,14 +1386,6 @@ function App() { // NOSONAR
   }, [hiddenBaseTemplateIds]);
 
   useEffect(() => {
-    const root = document.documentElement;
-    if (!root?.dataset) return;
-    delete root.dataset.uiTheme;
-    delete root.dataset.uiFont;
-    delete root.dataset.uiFontSize;
-  }, []);
-
-  useEffect(() => {
     if (!sessionUserId) {
       uiPrefsHydratedRef.current = false;
       setUiTheme("copmec-bosque");
@@ -1418,19 +1425,25 @@ function App() { // NOSONAR
   }, [sessionUserId]);
 
   useEffect(() => {
-    if (!sessionUserId || !uiPrefsHydratedRef.current) return;
     const normalizedTheme = UI_THEME_OPTIONS.some((option) => option.id === uiTheme) ? uiTheme : "copmec-bosque";
     const normalizedFont = UI_FONT_OPTIONS.some((option) => option.id === uiFont) ? uiFont : "bahnschrift";
     const normalizedFontSize = UI_FONT_SIZE_OPTIONS.some((option) => option.id === uiFontSize) ? uiFontSize : "normal";
-    document.documentElement.dataset.uiTheme = normalizedTheme;
-    document.documentElement.dataset.uiFont = normalizedFont;
-    document.documentElement.dataset.uiFontSize = normalizedFontSize;
+    applyDocumentUiPreferences({
+      theme: normalizedTheme,
+      font: normalizedFont,
+      fontSize: normalizedFontSize,
+    });
     applyUiFontFamilyToDocument(normalizedFont);
+
+    if (!sessionUserId) return undefined;
+
     try {
       localStorage.setItem(getUserUiThemeKey(sessionUserId), normalizedTheme);
       localStorage.setItem(getUserUiFontKey(sessionUserId), normalizedFont);
       localStorage.setItem(getUserUiFontSizeKey(sessionUserId), normalizedFontSize);
     } catch { /* noop */ }
+
+    if (!uiPrefsHydratedRef.current) return undefined;
 
     const saveTimer = globalThis.setTimeout(() => {
       requestJson("/chat/ui-preferences", {

@@ -1,6 +1,7 @@
 @import "tailwindcss";
 
 :root {
+  --app-viewport-height: 100dvh;
   --sicfla-brand: #385878;
   --sicfla-brand-soft: #6f8fa9;
   --sicfla-bg: #edf2f7;
@@ -8,6 +9,18 @@
   --sicfla-border: #ced8e2;
   --sicfla-text: #24384a;
   --sicfla-muted: #647688;
+  --ui-primary: #385878;
+  --ui-primary-soft: #6f8fa9;
+  --ui-primary-strong: #22384f;
+  --ui-shell-top: #314d69;
+  --ui-shell-bottom: #1b2c3d;
+  --ui-header-from: #f5f7fa;
+  --ui-header-to: #e7edf3;
+  --ui-bg: #edf2f7;
+  --ui-card: #ffffff;
+  --ui-text: #24384a;
+  --ui-muted: #647688;
+  --ui-border: #ced8e2;
 }
 
 * {
@@ -16,22 +29,23 @@
 
 html {
   min-height: 100%;
+  min-height: var(--app-viewport-height, 100dvh);
 }
 
 body {
   margin: 0;
-  min-height: 100vh;
+  min-height: var(--app-viewport-height, 100dvh);
   font-family: var(--ui-font-family, "Barlow", "Bahnschrift", "Segoe UI", sans-serif);
+  color: var(--ui-text, var(--sicfla-text));
   background:
-    radial-gradient(circle at 10% 10%, rgba(111, 143, 169, 0.18) 0%, transparent 30%),
-    radial-gradient(circle at 95% 0%, rgba(196, 206, 217, 0.22) 0%, transparent 24%),
-    linear-gradient(180deg, #f5f7fa 0%, #edf2f7 100%),
-    var(--sicfla-bg);
-  color: var(--sicfla-text);
+    radial-gradient(circle at 10% 10%, color-mix(in srgb, var(--ui-primary-soft) 20%, transparent) 0%, transparent 30%),
+    radial-gradient(circle at 95% 0%, color-mix(in srgb, var(--ui-primary-soft) 18%, transparent) 0%, transparent 24%),
+    linear-gradient(180deg, var(--ui-header-from) 0%, var(--ui-bg) 100%),
+    var(--ui-bg);
 }
 
 #root {
-  min-height: 100vh;
+  min-height: var(--app-viewport-height, 100dvh);
 }
 
 button,
@@ -59,9 +73,8 @@ input[type="number"]::-webkit-inner-spin-button {
   display: grid;
   place-items: center;
   background:
-    radial-gradient(circle at 22% 18%, rgba(111, 143, 169, 0.18) 0%, transparent 36%),
-    radial-gradient(circle at 80% 72%, rgba(196, 206, 217, 0.14) 0%, transparent 30%),
-    #314d69;
+    radial-gradient(circle at top left, color-mix(in srgb, white 14%, transparent), transparent 35%),
+    linear-gradient(180deg, var(--ui-shell-top) 0%, var(--ui-shell-bottom) 100%);
   animation: copmecSplashFadeOut 1.4s ease forwards;
 }
 

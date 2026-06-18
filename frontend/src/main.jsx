@@ -12,6 +12,11 @@ if (import.meta.env.DEV) {
   suppressReactDevToolsAd("info");
 }
 
+import { bootstrapUiPreferencesFromStorage, bindViewportHeightCssVar } from './app/uiPreferencesBootstrap.js'
+
+bootstrapUiPreferencesFromStorage()
+bindViewportHeightCssVar()
+
 import { StrictMode, useEffect, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'

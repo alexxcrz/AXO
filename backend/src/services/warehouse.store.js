@@ -6304,6 +6304,9 @@ export function duplicateWarehouseInventoryItem(auth, itemId) {
   const currentState = getRawWarehouseState();
   const sourceItem = (currentState.inventoryItems || []).find((entry) => entry.id === itemId);
   if (!sourceItem) return { ok: false, reason: "item_not_found" };
+  if (normalizeInventoryDomain(sourceItem.domain) !== "base") {
+    return { ok: false, reason: "invalid_domain" };
+  }
   if (!canUserDoWarehouseAction(currentUser, getInventoryManageActionId(sourceItem.domain), currentState.permissions)) {
     return { ok: false, reason: "forbidden" };
   }

@@ -193,39 +193,35 @@ html {
 }
 
 .warehouse-app {
-  min-height: 100vh;
-  display: grid;
-  grid-template-columns: 264px minmax(0, 1fr);
-  grid-template-rows: minmax(0, 1fr);
-  align-items: stretch;
-  transition: grid-template-columns 180ms ease;
+  --sidebar-width: 320px;
+  min-height: var(--app-viewport-height, 100dvh);
+  display: block;
 }
 
 .warehouse-app.sidebar-collapsed {
-  grid-template-columns: 68px minmax(0, 1fr);
+  --sidebar-width: 68px;
 }
 
-/* Evita que overlays/modales/chat ocupen celdas del grid y empujen content-shell a la columna estrecha */
+/* Sidebar fijo: el contenido solo usa margin-left (sin segunda columna de grid) */
 .warehouse-app > .sidebar-shell {
-  grid-column: 1;
-  grid-row: 1;
-  min-width: 0;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: var(--sidebar-width);
+  height: var(--app-viewport-height, 100dvh);
+  max-height: var(--app-viewport-height, 100dvh);
+  z-index: 45;
+  overflow: hidden;
+  box-sizing: border-box;
 }
 
 .warehouse-app > .content-shell {
-  grid-column: 2;
-  grid-row: 1;
+  margin-left: var(--sidebar-width);
+  width: calc(100% - var(--sidebar-width));
+  max-width: calc(100% - var(--sidebar-width));
   min-width: 0;
-  width: 100%;
-  max-width: 100%;
-}
-
-.warehouse-app > .app-toast-stack,
-.warehouse-app > .global-capture-shield,
-.warehouse-app > .sidebar-overlay,
-.warehouse-app > .warehouse-app-floating-layer {
-  grid-column: 1 / -1;
-  grid-row: 1;
+  box-sizing: border-box;
+  transition: margin-left 180ms ease, width 180ms ease, max-width 180ms ease;
 }
 
 .warehouse-app-floating-layer {
@@ -252,20 +248,17 @@ html {
 }
 
 .sidebar-shell {
-  height: 100vh;
-  position: sticky;
-  top: 0;
   display: grid;
   grid-template-rows: auto auto minmax(0, 1fr) auto auto;
   gap: 0.58rem;
   padding: 0.82rem;
   background:
     radial-gradient(circle at top left, rgba(255, 255, 255, 0.14), transparent 35%),
-    linear-gradient(180deg, #385878 0%, #22384f 100%);
+    linear-gradient(180deg, var(--ui-shell-top, #385878) 0%, var(--ui-shell-bottom, #22384f) 100%);
   color: #eff7f3;
   overflow: hidden;
-  transition: padding 180ms ease, width 180ms ease;
-  z-index: 40;
+  transition: padding 180ms ease, width 180ms ease, transform 160ms ease;
+  box-sizing: border-box;
 }
 
 .sidebar-desktop-toggle {
@@ -892,14 +885,14 @@ html {
 }
 
 .sidebar-profile-card {
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid color-mix(in srgb, var(--ui-primary-soft, #6f8fa9) 28%, transparent);
+  background: color-mix(in srgb, var(--ui-primary-strong, #22384f) 72%, rgba(0, 0, 0, 0.35));
   border-radius: 0.85rem;
-  padding: 0.56rem 0.62rem;
+  padding: 0.72rem 0.75rem;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
-  gap: 0.56rem;
-  align-items: start;
+  gap: 0.72rem;
+  align-items: center;
   cursor: pointer;
   color: #eff7f3;
   text-align: left;
@@ -1037,22 +1030,24 @@ html {
 }
 
 .sidebar-shell.collapsed .sidebar-profile-avatar {
-  width: 1.85rem;
-  height: 1.85rem;
-  font-size: 0.74rem;
+  width: 2.85rem;
+  height: 2.85rem;
+  font-size: 0.9rem;
 }
 
 .sidebar-profile-card:hover {
-  background: rgba(231, 239, 246, 0.12);
-  border-color: rgba(255, 255, 255, 0.18);
+  background: color-mix(in srgb, var(--ui-primary, #385878) 38%, rgba(255, 255, 255, 0.08));
+  border-color: color-mix(in srgb, var(--ui-primary-soft, #6f8fa9) 48%, transparent);
   transform: translateY(-1px);
 }
 
 .sidebar-profile-avatar {
-  width: 2.35rem;
-  height: 2.35rem;
-  font-size: 0.82rem;
-  overflow: hidden;
+  width: 4.15rem;
+  height: 4.15rem;
+  font-size: 1.15rem;
+  flex-shrink: 0;
+  border: 2px solid color-mix(in srgb, var(--ui-primary-soft, #6f8fa9) 50%, rgba(255, 255, 255, 0.35));
+  box-shadow: 0 6px 16px color-mix(in srgb, var(--ui-primary-strong, #22384f) 35%, transparent);
 }
 
 .sidebar-profile-avatar-image {
@@ -1064,12 +1059,12 @@ html {
 
 .sidebar-profile-meta {
   display: grid;
-  gap: 0.12rem;
+  gap: 0.18rem;
   min-width: 0;
 }
 
 .sidebar-profile-meta strong {
-  font-size: 0.78rem;
+  font-size: 0.92rem;
   font-weight: 700;
   white-space: normal;
   overflow: hidden;
@@ -1083,7 +1078,7 @@ html {
 
 .sidebar-profile-meta span {
   color: #b9cad9;
-  font-size: 0.66rem;
+  font-size: 0.8rem;
   font-weight: 700;
   white-space: normal;
   overflow: hidden;
@@ -1097,7 +1092,10 @@ html {
 
 .app-auth-splash {
   min-height: 100vh;
-  background: #314d69;
+  min-height: 100dvh;
+  background:
+    radial-gradient(circle at top left, color-mix(in srgb, white 14%, transparent), transparent 35%),
+    linear-gradient(180deg, var(--ui-shell-top) 0%, var(--ui-shell-bottom) 100%);
 }
 
 .login-shell {
@@ -12581,13 +12579,25 @@ html[data-ui-theme] body .switch-thumb {
     align-self: flex-start;
   }
 
-  .warehouse-app,
-  .warehouse-app.sidebar-collapsed {
-    grid-template-columns: 1fr;
+  .warehouse-app > .content-shell {
+    margin-left: 0;
+    width: 100%;
+    max-width: 100%;
   }
 
-  .warehouse-app > .content-shell {
-    grid-column: 1 / -1;
+  .warehouse-app > .sidebar-shell {
+    width: min(340px, 92vw);
+    transform: translateX(-104%);
+    pointer-events: none;
+    box-shadow: 0 24px 48px rgba(8, 23, 19, 0.28);
+    padding: 0.76rem 0.72rem calc(0.76rem + env(safe-area-inset-bottom));
+    gap: 0.5rem;
+    border-right: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .warehouse-app > .sidebar-shell.open {
+    transform: translateX(0);
+    pointer-events: auto;
   }
 
   .sidebar-overlay.visible {
@@ -12894,25 +12904,6 @@ html[data-ui-theme] body .switch-thumb {
     font-size: 1.02rem;
   }
 
-  .sidebar-shell {
-    position: fixed;
-    top: 0;
-    left: 0;
-    z-index: 45;
-    width: min(304px, 86vw);
-    height: 100vh;
-    transform: translateX(-104%);
-    transition: transform 160ms ease;
-    box-shadow: 0 24px 48px rgba(8, 23, 19, 0.28);
-    padding: 0.76rem 0.72rem calc(0.76rem + env(safe-area-inset-bottom));
-    gap: 0.5rem;
-    border-right: 1px solid rgba(255, 255, 255, 0.08);
-  }
-
-  .sidebar-shell.open {
-    transform: translateX(0);
-  }
-
   .sidebar-shell.collapsed {
     padding: 1rem;
     justify-items: stretch;
@@ -12969,21 +12960,21 @@ html[data-ui-theme] body .switch-thumb {
   }
 
   .sidebar-profile-card {
-    padding: 0.54rem 0.58rem;
-    gap: 0.48rem;
+    padding: 0.62rem 0.65rem;
+    gap: 0.58rem;
   }
 
   .sidebar-profile-avatar {
-    width: 2.3rem;
-    height: 2.3rem;
+    width: 3.4rem;
+    height: 3.4rem;
   }
 
   .sidebar-profile-meta strong {
-    font-size: 0.76rem;
+    font-size: 0.86rem;
   }
 
   .sidebar-profile-meta span {
-    font-size: 0.64rem;
+    font-size: 0.74rem;
   }
 
   .dashboard-cause-grid {
@@ -18356,7 +18347,7 @@ html[data-ui-theme] .sidebar-shell a {
 html[data-ui-theme] .sidebar-shell .nav-section.active > .nav-section-toggle {
   background: rgba(255, 255, 255, 0.22) !important;
   border: 1px solid rgba(255, 255, 255, 0.52) !important;
-  box-shadow: inset 4px 0 0 #7dd3fc, inset 0 1px 0 rgba(255, 255, 255, 0.14) !important;
+  box-shadow: inset 4px 0 0 var(--ui-primary-soft), inset 0 1px 0 rgba(255, 255, 255, 0.14) !important;
   color: #ffffff !important;
 }
 
@@ -18370,20 +18361,20 @@ html[data-ui-theme] .sidebar-shell .nav-section.active .nav-section-toggle-chevr
 html[data-ui-theme] .sidebar-shell.collapsed .nav-section.active .nav-section-toggle,
 html[data-ui-theme] .sidebar-shell.collapsed .nav-section-toggle.active {
   background: rgba(255, 255, 255, 0.3) !important;
-  border: 1px solid rgba(125, 211, 252, 0.9) !important;
-  box-shadow: 0 0 0 2px rgba(125, 211, 252, 0.38), inset 0 0 0 1px rgba(255, 255, 255, 0.16) !important;
+  border: 1px solid color-mix(in srgb, var(--ui-primary-soft) 90%, white) !important;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--ui-primary-soft) 38%, transparent), inset 0 0 0 1px rgba(255, 255, 255, 0.16) !important;
 }
 
 html[data-ui-theme] .sidebar-shell.collapsed .nav-section.active .nav-section-toggle-icon,
 html[data-ui-theme] .sidebar-shell.collapsed .nav-section-toggle.active .nav-section-toggle-icon {
   color: #ffffff !important;
-  filter: drop-shadow(0 0 6px rgba(125, 211, 252, 0.85));
+  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--ui-primary-soft) 85%, transparent));
 }
 
 html[data-ui-theme] .sidebar-shell.collapsed .nav-item.active {
   background: rgba(255, 255, 255, 0.26) !important;
-  border: 1px solid rgba(125, 211, 252, 0.75) !important;
-  box-shadow: 0 0 0 2px rgba(125, 211, 252, 0.32) !important;
+  border: 1px solid color-mix(in srgb, var(--ui-primary-soft) 75%, white) !important;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--ui-primary-soft) 32%, transparent) !important;
 }
 
 html[data-ui-theme] .sidebar-shell .nav-item.active,
@@ -18393,8 +18384,24 @@ html[data-ui-theme] .sidebar-shell .sidebar-ai-btn:hover {
   color: #ffffff !important;
 }
 
+html[data-ui-theme] .sidebar-shell .sidebar-profile-card {
+  background: color-mix(in srgb, var(--ui-primary-strong) 78%, black 22%);
+  border-color: color-mix(in srgb, var(--ui-primary-soft) 34%, transparent);
+}
+
+html[data-ui-theme] .sidebar-shell .sidebar-profile-card:hover {
+  background: color-mix(in srgb, var(--ui-primary) 44%, rgba(255, 255, 255, 0.07)) !important;
+  border-color: color-mix(in srgb, var(--ui-primary-soft) 56%, transparent) !important;
+  color: #ffffff !important;
+}
+
+html[data-ui-theme] .sidebar-shell .sidebar-profile-avatar.avatar-circle {
+  background: linear-gradient(135deg, var(--ui-primary-strong) 0%, var(--ui-primary-soft) 100%);
+  border-color: color-mix(in srgb, var(--ui-primary-soft) 58%, rgba(255, 255, 255, 0.4));
+}
+
 html[data-ui-theme] .sidebar-shell .sidebar-profile-meta span {
-  color: rgba(255, 255, 255, 0.72) !important;
+  color: color-mix(in srgb, var(--ui-primary-soft) 82%, white) !important;
 }
 
 html[data-ui-theme] .content-header {
@@ -18410,7 +18417,7 @@ html[data-ui-theme] .metric-card,
 html[data-ui-theme] .stat-tile,
 html[data-ui-theme] .sicfla-modal,
 html[data-ui-theme] .feedback-banner,
-html[data-ui-theme] .sidebar-profile-card {
+html[data-ui-theme] .content-shell .sidebar-profile-card {
   border-color: color-mix(in srgb, var(--ui-primary) 20%, var(--ui-border));
   box-shadow: var(--ui-shadow-card);
 }
@@ -18544,7 +18551,6 @@ html[data-ui-theme] .sicfla-button svg {
 html[data-ui-theme] .content-shell .icon-button.active,
 html[data-ui-theme] .content-shell .detail-tab-btn.active,
 html[data-ui-theme] .sidebar-collapse-button:hover,
-html[data-ui-theme] .sidebar-profile-card:hover,
 html[data-ui-theme] .board-status-pill.running,
 html[data-ui-theme] .board-status-pill.finished,
 html[data-ui-theme] .board-state-chip.en-curso,

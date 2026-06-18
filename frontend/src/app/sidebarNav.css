@@ -1,15 +1,17 @@
 /* Sidebar pro: panel dividido areas + modulos */
 
 .warehouse-app:not(.sidebar-collapsed) {
-  grid-template-columns: 320px minmax(0, 1fr);
+  --sidebar-width: 320px;
 }
 
 .sidebar-shell.sidebar-pro {
   gap: 0.4rem;
   padding: 0.65rem 0.6rem 0.6rem;
   grid-template-rows: auto minmax(0, 1fr) auto auto;
-  background: #0f172a;
-  border-right: 1px solid rgba(148, 163, 184, 0.12);
+  background:
+    radial-gradient(circle at top left, color-mix(in srgb, white 12%, transparent), transparent 35%),
+    linear-gradient(180deg, var(--ui-shell-top, #314d69) 0%, var(--ui-shell-bottom, #1b2c3d) 100%);
+  border-right: 1px solid color-mix(in srgb, var(--ui-primary-soft) 22%, transparent);
   box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.03);
 }
 
@@ -115,8 +117,9 @@
   display: grid;
   grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
   gap: 0;
+  flex: 1 1 auto;
   min-height: 0;
-  flex: 1;
+  align-self: stretch;
   border: 1px solid rgba(148, 163, 184, 0.12);
   border-radius: 0.55rem;
   overflow: hidden;
@@ -160,9 +163,9 @@
 }
 
 .sidebar-pro-area-btn.is-active {
-  background: rgba(59, 130, 246, 0.18);
+  background: color-mix(in srgb, var(--ui-primary) 24%, transparent);
   color: #f8fafc;
-  box-shadow: inset 2px 0 0 #3b82f6;
+  box-shadow: inset 2px 0 0 var(--ui-primary-soft);
 }
 
 .sidebar-pro-area-btn.is-route {
@@ -235,10 +238,10 @@
 }
 
 .sidebar-pro-link.is-active {
-  background: rgba(14, 165, 233, 0.16);
+  background: color-mix(in srgb, var(--ui-primary) 20%, transparent);
   color: #f0f9ff;
   font-weight: 600;
-  box-shadow: inset 2px 0 0 #0ea5e9;
+  box-shadow: inset 2px 0 0 var(--ui-primary-soft);
 }
 
 .sidebar-pro-link-label {
@@ -318,21 +321,35 @@
 
 .sidebar-pro .sidebar-ai-btn {
   border-radius: 0.45rem;
-  background: rgba(30, 58, 138, 0.35);
-  border-color: rgba(96, 165, 250, 0.22);
+  background: color-mix(in srgb, var(--ui-primary-strong, #22384f) 70%, black);
+  border-color: color-mix(in srgb, var(--ui-primary-soft, #6f8fa9) 32%, transparent);
 }
 
 .sidebar-pro .sidebar-profile-card {
-  border-radius: 0.45rem;
-  background: rgba(30, 41, 59, 0.65);
-  border-color: rgba(148, 163, 184, 0.14);
+  border-radius: 0.55rem;
+  background: color-mix(in srgb, var(--ui-primary-strong, #22384f) 76%, black);
+  border-color: color-mix(in srgb, var(--ui-primary-soft, #6f8fa9) 30%, transparent);
+  align-items: center;
+  padding: 0.72rem 0.75rem;
+}
+
+.sidebar-pro .sidebar-profile-avatar {
+  width: 4.15rem;
+  height: 4.15rem;
 }
 
 .sidebar-pro .sidebar-profile-meta strong,
 .sidebar-pro .sidebar-profile-meta span {
   white-space: normal;
-  line-height: 1.15;
-  font-size: 0.72rem;
+  line-height: 1.2;
+}
+
+.sidebar-pro .sidebar-profile-meta strong {
+  font-size: 0.92rem;
+}
+
+.sidebar-pro .sidebar-profile-meta span {
+  font-size: 0.8rem;
 }
 
 .sidebar-pro-rail {
@@ -412,6 +429,26 @@
   .sidebar-pro-areas {
     max-height: 38vh;
     border-right: 0;
-    border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+    border-bottom: 1px solid color-mix(in srgb, var(--ui-primary-soft) 18%, transparent);
   }
+}
+
+html[data-ui-theme] .sidebar-shell.sidebar-pro,
+html[data-ui-theme] .sidebar-shell.sidebar-pro .sidebar-pro-split {
+  border-color: color-mix(in srgb, var(--ui-primary-soft) 18%, transparent);
+}
+
+html[data-ui-theme] .sidebar-pro-areas {
+  background: color-mix(in srgb, var(--ui-shell-bottom) 86%, black);
+  border-right-color: color-mix(in srgb, var(--ui-primary-soft) 16%, transparent);
+}
+
+html[data-ui-theme] .sidebar-pro-split {
+  background: color-mix(in srgb, var(--ui-shell-bottom) 72%, black);
+}
+
+html[data-ui-theme] .sidebar-pro-area-btn:hover,
+html[data-ui-theme] .sidebar-pro-link:hover,
+html[data-ui-theme] .sidebar-v3-icon-btn:hover {
+  background: color-mix(in srgb, var(--ui-primary) 18%, rgba(15, 23, 42, 0.55));
 }
