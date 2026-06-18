@@ -12,8 +12,20 @@ const AXO_AI_LEGACY_NICK = "COPMEC";
 const isAxoAiChatNick = (value) => String(value || "").trim().toUpperCase() === AXO_AI_LEGACY_NICK;
 const getChatDisplayName = (value) => (isAxoAiChatNick(value) ? "AXO AI" : String(value || "").trim() || "Usuario");
 
+const CALL_VIDEO_CONSTRAINTS = {
+  width: { ideal: 640, max: 1280 },
+  height: { ideal: 480, max: 720 },
+  frameRate: { ideal: 24, max: 30 },
+};
+const CALL_AUDIO_CONSTRAINTS = {
+  echoCancellation: true,
+  noiseSuppression: true,
+  autoGainControl: true,
+};
+
 import { useAlert } from "./AlertModal";
 import { SpanishDateInput } from "./SpanishDateInput";
+import { formatDateValue } from "../utils/dateLocaleEs.js";
 import { NOTIFICATION_SOUNDS, playNotificationSound, ensureAudioGestureUnlock } from "../utils/notificationSounds";
 import { syncNotificationPrefsToServiceWorker } from "../utils/pushBridge.js";
 import { SoundGlyph, VibrationRhythmGlyph } from "./SoundGlyph.jsx";
@@ -455,6 +467,9 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
   const [reunionSolicitudDuracion, setReunionSolicitudDuracion] = useState(90);
   const [modalAgregarParticipantesReunion, setModalAgregarParticipantesReunion] = useState(null);
   const [participantesNuevosReunion, setParticipantesNuevosReunion] = useState([]);
+  const [reunionRecordatorioModal, setReunionRecordatorioModal] = useState(null);
+  const reunionesRef = useRef([]);
+  const abrirChatRef = useRef(null);
 
   const chatBodyRef = useRef(null);
   const chatScrollTimeoutRef = useRef(null);
@@ -1246,11 +1261,21 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
   }, []);
 
   useEffect(() => {
+    reunionesRef.current = reuniones;
+  }, [reuniones]);
+
+  useEffect(() => {
     const handleNotificationAction = async (event) => {
       const data = event?.detail || {};
       setOpen(true);
+      setTabPrincipal("chats");
+
+      await new Promise((resolve) => {
+        requestAnimationFrame(() => requestAnimationFrame(resolve));
+      });
+
       if (data.type === "call_invite") {
-        if (data.action === "accept" || data.action === "default") {
+        if (data.action === "accept" || data.action === "default" || data.action === "open") {
           setCallIncoming({
             room: data.room,
             fromNickname: data.callerName || data.caller || data.fromNickname,
@@ -1262,14 +1287,52 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
         }
         return;
       }
-      if (data.type === "message" && data.fromNickname) {
-        setTabPrincipal("chats");
-        await abrirChat("privado", data.fromNickname);
+
+      if (data.type === "reunion_reminder" || data.type === "reunion_invite"
+        || data.type === "reunion_solicitud_cambio" || data.type === "reunion_solicitud_unirse") {
+        let reunion = reunionesRef.current.find((r) => r.id === data.reunionId);
+        if (!reunion && data.reunionId) {
+          try {
+            const lista = await authFetch(`${SERVER_URL}/api/chat/reuniones/proximas`);
+            reunion = (Array.isArray(lista) ? lista : []).find((r) => r.id === data.reunionId) || null;
+            if (reunion) {
+              setReuniones((current) => {
+                const exists = current.some((r) => r.id === reunion.id);
+                return exists ? current.map((r) => (r.id === reunion.id ? reunion : r)) : [...current, reunion];
+              });
+            }
+          } catch {
+            /* noop */
+          }
+        }
+        if (reunion) {
+          if (abrirChatRef.current) await abrirContextoReunion(reunion);
+        } else if (data.chatTipo && data.chatId != null && abrirChatRef.current) {
+          await abrirChatRef.current(
+            data.chatTipo,
+            data.chatTipo === "general" ? null : data.chatId,
+          );
+        }
+        if (data.type === "reunion_reminder") {
+          setReunionRecordatorioModal(reunion || {
+            id: data.reunionId,
+            titulo: data.titulo,
+            fecha: data.fecha,
+            hora: data.hora,
+            esVideollamada: data.esVideollamada,
+            chat_tipo: data.chatTipo,
+            chat_id: data.chatId,
+          });
+        }
         return;
       }
-      if (data.type === "group_message" && data.groupId) {
-        setTabPrincipal("chats");
-        await abrirChat("grupal", data.groupId);
+
+      if (data.type === "message" && data.fromNickname) {
+        if (abrirChatRef.current) await abrirChatRef.current("privado", data.fromNickname);
+        return;
+      }
+      if (data.type === "group_message" && data.groupId != null) {
+        if (abrirChatRef.current) await abrirChatRef.current("grupal", data.groupId);
       }
     };
 
@@ -1284,7 +1347,7 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ para_nickname: fromNickname, mensaje }),
         });
-        await abrirChat("privado", fromNickname);
+        if (abrirChatRef.current) await abrirChatRef.current("privado", fromNickname);
       } catch {
         showAlert("No se pudo enviar la respuesta desde la notificación.", "warning");
       }
@@ -2601,11 +2664,8 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
       if (isDuplicateInvite(payload.room)) return;
       pendingInviteTransportRef.current = "socket";
 
-      console.log('[INVITE] Llamada entrante de', payload.fromNickname);
-      
       // Si el chat no está abierto, abrirlo para mostrar el modal en móvil
       if (!open) {
-        console.log('[INVITE] Chat cerrado, abriendo para mostrar modal');
         setOpen(true);
       }
       
@@ -2614,15 +2674,11 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
 
       showIncomingCallNotification(payload.room, payload.fromNickname || "Usuario");
 
-      // Precargar stream para aceptación más rápida
-      asegurarLocalStream().catch(() => {});
-
       setCallIncoming({
         room: payload.room,
         fromNickname: payload.fromNickname || "Usuario",
         fromSocketId: payload.fromSocketId || null,
       });
-      console.log('[INVITE] Modal de invitación mostrado');
     };
 
     const handleUsers = (payload) => {
@@ -2657,10 +2713,8 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
       playCallSound("accept");
       showAlert(`${payload.nickname || "Usuario"} aceptó la videollamada.`, "success");
       const pc = crearPeerConnection(payload.socketId, payload.nickname || "Usuario");
-      console.log('[PC] Creando offer para', payload.socketId);
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
-      console.log('[PC] Offer creado y local description seteada');
       socket.emit("call_offer", {
         to: payload.socketId,
         room: payload.room,
@@ -2675,10 +2729,8 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
       if (!callActivoRef.current) return;
       const pc = crearPeerConnection(payload.from, payload.nickname || "Usuario");
       await pc.setRemoteDescription(new RTCSessionDescription(payload.sdp));
-      console.log('[PC] Creando answer para', payload.from);
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
-      console.log('[PC] Answer creado y local description seteada');
       socket.emit("call_answer", { to: payload.from, room: payload.room, sdp: answer });
     };
 
@@ -2736,7 +2788,6 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
       if (!payload?.room || callRoomRef.current !== payload.room) return;
       const delivered = Number(payload.delivered || 0);
       const reached = Array.isArray(payload.reachedNicknames) ? payload.reachedNicknames.length : 0;
-      console.log("📱 Call status:", { delivered, reached, requested: payload.requestedNicknames });
       if (delivered > 0) {
         showAlert(`✓ Invitación enviada a ${reached} dispositivo(s)`, "success");
         return;
@@ -2752,7 +2803,6 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
 
     // Cancelación: cuando alguien acepta en otro dispositivo
     const handleCallCancelled = (payload) => {
-      console.log('[CALL-CANCELLED] Invitación cancelada:', payload?.reason);
       if (payload?.reason === "accepted_on_another_device") {
         setCallIncoming(null);
         if (outgoingRingRef.current) {
@@ -2860,27 +2910,20 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
 
     const handleRestSignal = async (payload) => {
       if (!payload?.type || !payload?.room) return;
-      console.log('[REST-SIGNAL] Tipo:', payload.type, 'Room:', payload.room);
 
       if (payload.type === "invite") {
         if (callActivo && callRoomRef.current === payload.room) {
-          console.log('[REST-SIGNAL] Invitación descartada - ya en llamada');
           return;
         }
         if (isDuplicateInvite(payload.room)) {
-          console.log('[REST-SIGNAL] Invitación duplicada');
           return;
         }
         pendingInviteTransportRef.current = "rest";
-        console.log('[REST-SIGNAL] 🟡 Invitación por REST de', payload.fromNickname);
 
         playIncomingCallTone();
         triggerAppVibration("call");
 
         showIncomingCallNotification(payload.room, payload.fromNickname || "Usuario");
-
-        // Precargar stream para aceptación más rápida
-        asegurarLocalStream().catch(() => {});
 
         setCallIncoming({
           room: payload.room,
@@ -3023,11 +3066,10 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
     const node = localVideoRef.current;
     if (!node) return;
     if (node.srcObject !== localStreamRef.current) {
-      console.log('[VIDEO] Sincronizando localVideoRef con stream');
       node.srcObject = localStreamRef.current;
     }
     node.play().catch(() => {});
-  }, [callActivo, localStream, callMainView, callExpanded, remoteStreams]);
+  }, [callActivo, localStream, callMainView, callExpanded]);
 
   // ── Pre-calentar AudioContext en primer gesto de usuario ──────────────────
   useEffect(() => {
@@ -3697,23 +3739,30 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
     
     // Verificar reuniones cada minuto para notificaciones próximas
     const intervalo = setInterval(() => {
-      reuniones.forEach(reunion => {
+      const userDisplayName = user?.nickname || user?.name || "";
+      reuniones.forEach((reunion) => {
         if (reunion.fecha && reunion.hora) {
           const fechaHora = new Date(`${reunion.fecha}T${reunion.hora}`);
           const ahora = new Date();
           const diffMinutos = (fechaHora.getTime() - ahora.getTime()) / (1000 * 60);
-          
-          // Notificar si está entre 10 y 11 minutos antes
-          if (diffMinutos >= 10 && diffMinutos < 11) {
-            mostrarNotificacionReunion(reunion, '10 minutos');
-          }
-          // Notificar si está entre 0 y 1 minuto (a la hora)
-          else if (diffMinutos >= 0 && diffMinutos < 1) {
-            mostrarNotificacionReunion(reunion, 'ahora');
+          const esCreador = reunion.creador === userDisplayName;
+
+          if (diffMinutos >= 14 && diffMinutos < 16 && esCreador) {
+            setOpen(true);
+            setReunionRecordatorioModal(reunion);
+            mostrarNotificacionReunion(reunion, "15 minutos", { esCreador: true });
+          } else if (diffMinutos >= 10 && diffMinutos < 11) {
+            mostrarNotificacionReunion(reunion, "10 minutos", { esCreador });
+          } else if (diffMinutos >= 0 && diffMinutos < 1) {
+            mostrarNotificacionReunion(reunion, "ahora", { esCreador });
+            if (esCreador) {
+              setOpen(true);
+              setReunionRecordatorioModal(reunion);
+            }
           }
         }
       });
-    }, 60000); // Cada minuto
+    }, 60000);
     
     return () => clearInterval(intervalo);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -3747,13 +3796,29 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
     
     const fechaHora = new Date(`${reunion.fecha}T${reunion.hora}`);
     const ahora = new Date();
+    const userDisplayName = user?.nickname || user?.name || "";
+    const esCreador = reunion.creador === userDisplayName;
     
+    // Notificación 15 minutos antes (creador: modal con acciones)
+    const notif15min = new Date(fechaHora.getTime() - 15 * 60 * 1000);
+    if (notif15min > ahora) {
+      const timeout15min = notif15min.getTime() - ahora.getTime();
+      setTimeout(() => {
+        if (esCreador) {
+          setOpen(true);
+          setReunionRecordatorioModal(reunion);
+          abrirContextoReunion(reunion);
+        }
+        mostrarNotificacionReunion(reunion, "15 minutos", { esCreador });
+      }, timeout15min);
+    }
+
     // Notificación 10 minutos antes
     const notif10min = new Date(fechaHora.getTime() - 10 * 60 * 1000);
     if (notif10min > ahora) {
       const timeout10min = notif10min.getTime() - ahora.getTime();
       setTimeout(() => {
-        mostrarNotificacionReunion(reunion, '10 minutos');
+        mostrarNotificacionReunion(reunion, "10 minutos", { esCreador });
       }, timeout10min);
     }
     
@@ -3761,18 +3826,24 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
     if (fechaHora > ahora) {
       const timeoutExacto = fechaHora.getTime() - ahora.getTime();
       setTimeout(() => {
-        mostrarNotificacionReunion(reunion, 'ahora');
+        mostrarNotificacionReunion(reunion, "ahora", { esCreador });
+        if (esCreador) {
+          setOpen(true);
+          setReunionRecordatorioModal(reunion);
+        }
       }, timeoutExacto);
     }
   };
 
   // Mostrar notificación de reunión
-  const mostrarNotificacionReunion = (reunion, cuando) => {
+  const mostrarNotificacionReunion = (reunion, cuando, { esCreador = false } = {}) => {
     const mensaje = cuando === "ahora"
-      ? `🔔 ¡La reunión "${reunion.titulo}" es ahora!`
-      : `⏰ La reunión "${reunion.titulo}" comienza en 10 minutos`;
+      ? `La reunion "${reunion.titulo}" es ahora`
+      : cuando === "15 minutos"
+        ? `La reunion "${reunion.titulo}" comienza en 15 minutos`
+        : `La reunion "${reunion.titulo}" comienza en 10 minutos`;
 
-    showAlert(mensaje, "info");
+    showAlert(mensaje, esCreador && cuando === "15 minutos" ? "warning" : "info");
     if (typeof Notification !== "undefined" && Notification.permission === "granted") {
       try {
         new Notification("Reunión COPMEC", { body: mensaje });
@@ -4117,6 +4188,47 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
   };
 
   // Abrir modal de reunión
+  const abrirContextoReunion = async (reunion) => {
+    if (!reunion || !abrirChatRef.current) return;
+    const tipo = reunion.chat_tipo || reunion.chatTipo;
+    const chatId = reunion.chat_id ?? reunion.chatId;
+    if (tipo === "grupal" && chatId != null) {
+      await abrirChatRef.current("grupal", chatId);
+    } else if (tipo === "privado" && chatId) {
+      await abrirChatRef.current("privado", chatId);
+    } else if (tipo === "general") {
+      await abrirChatRef.current("general", null);
+    }
+  };
+
+  const posponerReunionMinutos = async (reunion, minutos = 15) => {
+    if (!reunion?.fecha || !reunion?.hora) return;
+    const inicio = new Date(`${reunion.fecha}T${reunion.hora}`);
+    if (Number.isNaN(inicio.getTime())) return;
+    inicio.setMinutes(inicio.getMinutes() + minutos);
+    const payload = {
+      fecha: formatDateValue(inicio),
+      hora: `${String(inicio.getHours()).padStart(2, "0")}:${String(inicio.getMinutes()).padStart(2, "0")}`,
+    };
+    try {
+      let actualizada = reunion;
+      if (typeof reunion.id === "number") {
+        actualizada = await authFetch(`${SERVER_URL}/api/chat/reuniones/${reunion.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+      }
+      const merged = { ...reunion, ...actualizada, ...payload };
+      setReuniones((current) => current.map((r) => (r.id === reunion.id ? merged : r)));
+      programarNotificacionesReunion(merged);
+      setReunionRecordatorioModal(null);
+      showAlert(`Reunion pospuesta ${minutos} minutos`, "success");
+    } catch (err) {
+      showAlert(err?.message || "No se pudo posponer la reunion", "error");
+    }
+  };
+
   const abrirModalReunion = (reunion = null) => {
     if (reunion) {
       setReunionEditando(reunion);
@@ -6253,17 +6365,24 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
   };
 
   const actualizarRemoteStreams = () => {
-    const lista = Object.entries(remoteStreamsRef.current).map(([id, stream]) => {
-      const tracks = stream.getTracks();
-      console.log('[STREAMS] Stream', id, '-', tracks.map(t => `${t.kind}(${t.enabled})`).join(',') || 'sin tracks');
-      return {
-        id,
-        stream,
-        nickname: peerConnectionsRef.current[id]?.nickname || "Usuario",
-      };
+    const lista = Object.entries(remoteStreamsRef.current).map(([id, stream]) => ({
+      id,
+      stream,
+      nickname: peerConnectionsRef.current[id]?.nickname || "Usuario",
+    }));
+    setRemoteStreams((prev) => {
+      if (
+        prev.length === lista.length
+        && prev.every((item, index) => (
+          item.id === lista[index]?.id
+          && item.stream === lista[index]?.stream
+          && item.nickname === lista[index]?.nickname
+        ))
+      ) {
+        return prev;
+      }
+      return lista;
     });
-    console.log('[STREAMS] Total:', lista.length, 'streams remotos');
-    setRemoteStreams(lista);
   };
 
   const limpiarPeer = (socketId) => {
@@ -6345,9 +6464,7 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
     const pc = new RTCPeerConnection({ iceServers: getIceServers() });
     const local = localStreamRef.current;
     if (local) {
-      const tracks = local.getTracks();
-      console.log('[PC] Agregando', tracks.length, 'tracks a pc de', socketId, '-', tracks.map(t => t.kind).join(','));
-      tracks.forEach((track) => pc.addTrack(track, local));
+      local.getTracks().forEach((track) => pc.addTrack(track, local));
     }
     pc.onicecandidate = (event) => {
       if (event.candidate && callRoomRef.current) {
@@ -6370,15 +6487,12 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
       }
     };
     pc.ontrack = (event) => {
-      console.log('[ONTRACK] Track remoto de', socketId, '-', event.track.kind, '- enabled:', event.track.enabled);
       if (!remoteStreamsRef.current[socketId]) {
-        console.log('[ONTRACK] Creando nuevo MediaStream para', socketId);
         remoteStreamsRef.current[socketId] = new MediaStream();
       }
       const remoteStream = remoteStreamsRef.current[socketId];
       const addTrackIfNew = (track) => {
         if (!track || remoteStream.getTracks().some((existing) => existing.id === track.id)) return;
-        console.log('[ONTRACK] Agregando track:', track.kind, 'enabled:', track.enabled);
         remoteStream.addTrack(track);
       };
       if (event.streams?.length) {
@@ -6403,7 +6517,6 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
           ["disconnected", "failed", "closed"].includes(connectionState) ||
           ["disconnected", "failed", "closed"].includes(iceState);
         if (stillDisconnected) {
-          console.log("[PC] Limpieza por desconexion sostenida:", socketId, connectionState, iceState);
           limpiarPeer(socketId);
         }
       }, 8000);
@@ -6455,7 +6568,6 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
 
   const asegurarLocalStream = async () => {
     if (localStreamRef.current) {
-      console.log('[STREAM] Stream ya existe, reutilizando');
       setLocalStream(localStreamRef.current);
       return localStreamRef.current;
     }
@@ -6465,25 +6577,16 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
       throw new Error(msg);
     }
     try {
-      console.log('[STREAM] Solicitando acceso a cámara y micrófono...');
       const constraints = {
         video: {
+          ...CALL_VIDEO_CONSTRAINTS,
           facingMode: callFacingModeRef.current || callFacingMode,
-          width: { ideal: 1280 },
-          height: { ideal: 720 }
         },
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true
-        }
+        audio: CALL_AUDIO_CONSTRAINTS,
       };
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
       localStreamRef.current = stream;
-      setLocalStream(stream); // Disparar useEffect para sincronización
-      const videoTrack = stream.getVideoTracks()[0];
-      const audioTrack = stream.getAudioTracks()[0];
-      console.log('[STREAM] Local stream obtenido - Video:', videoTrack?.label || 'N/A', 'Audio:', audioTrack?.label || 'N/A');
+      setLocalStream(stream);
       return stream;
     } catch (err) {
       const name = String(err?.name || "");
@@ -6799,10 +6902,7 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
   const getCameraStreamForFacingMode = async (facingMode, releaseCurrent = false) => {
     if (releaseCurrent) liberarTrackVideoLocal();
 
-    const common = {
-      width: { ideal: 1280 },
-      height: { ideal: 720 },
-    };
+    const common = { ...CALL_VIDEO_CONSTRAINTS };
 
     try {
       return await navigator.mediaDevices.getUserMedia({
@@ -6934,7 +7034,6 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
       setSharingScreen(true);
       screenTrack.addEventListener("ended", () => stopScreenShare(), { once: true });
     } catch (err) {
-      console.log('[SCREEN] Screen share denied or unavailable:', err.message);
       // No mostrar error si el usuario canceló
       if (err.name !== 'NotAllowedError') {
         showAlert("No se pudo compartir la pantalla. " + err.message, "warning");
@@ -7041,7 +7140,7 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
     if (!node || !callActivo || !localStreamRef.current) return;
     if (node.srcObject !== localStreamRef.current) node.srcObject = localStreamRef.current;
     node.play().catch(() => {});
-  }, [callActivo, callOverlayMinimized, open, localStream, remoteStreams]);
+  }, [callActivo, callOverlayMinimized, open, localStream]);
 
   // blobToBase64 removida (no usada en web-only)
   // solicitarPermisoAlmacenamiento removida (no usada en web-only)
@@ -7922,6 +8021,7 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
       /* noop */
     }
   };
+  abrirChatRef.current = abrirChat;
   
   // ============================
   // 📁 Funciones para grupos desplegables
@@ -12849,7 +12949,7 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
                     onChange={(e) => setReunionForm({ ...reunionForm, fecha: e.target.value })}
                     placeholder="Seleccionar fecha"
                     className="reunion-input"
-                    min={new Date().toISOString().split('T')[0]}
+                    min={formatDateValue(new Date())}
                   />
                 </div>
                 
@@ -12998,6 +13098,70 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
                 disabled={reunionConflictos.length > 0 || verificandoConflictosReunion}
               >
                 {reunionEditando ? 'Actualizar' : 'Crear'} reunión
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {reunionRecordatorioModal && (
+        <div className="chat-modal-reunion-backdrop" onClick={() => setReunionRecordatorioModal(null)}>
+          <div className="chat-modal-reunion reunion-recordatorio-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="chat-modal-reunion-header">
+              <h3>Recordatorio de reunion</h3>
+              <button type="button" className="modal-close-btn" onClick={() => setReunionRecordatorioModal(null)}>✕</button>
+            </div>
+            <div className="chat-modal-reunion-body">
+              <p className="reunion-solicitud-intro">
+                <strong>{reunionRecordatorioModal.titulo}</strong>
+                {" "}— {reunionRecordatorioModal.fecha} a las {reunionRecordatorioModal.hora}
+              </p>
+              <p className="reunion-recordatorio-hint">
+                Tu reunion empieza pronto. Puedes iniciarla, editarla, posponerla 15 minutos o eliminarla.
+              </p>
+            </div>
+            <div className="chat-modal-reunion-actions reunion-recordatorio-actions">
+              {reunionRecordatorioModal.esVideollamada ? (
+                <button
+                  type="button"
+                  className="reunion-btn-guardar"
+                  onClick={async () => {
+                    const reunion = reunionRecordatorioModal;
+                    setReunionRecordatorioModal(null);
+                    await iniciarReunionVideollamada(reunion);
+                  }}
+                >
+                  Iniciar videollamada
+                </button>
+              ) : null}
+              <button
+                type="button"
+                className="reunion-btn-enlace"
+                onClick={() => {
+                  const reunion = reunionRecordatorioModal;
+                  setReunionRecordatorioModal(null);
+                  abrirModalReunion(reunion);
+                }}
+              >
+                Editar
+              </button>
+              <button
+                type="button"
+                className="reunion-btn-cancelar"
+                onClick={() => posponerReunionMinutos(reunionRecordatorioModal, 15)}
+              >
+                Posponer 15 min
+              </button>
+              <button
+                type="button"
+                className="reunion-btn-eliminar"
+                onClick={async () => {
+                  const reunion = reunionRecordatorioModal;
+                  setReunionRecordatorioModal(null);
+                  await eliminarReunion(reunion.id);
+                }}
+              >
+                Eliminar
               </button>
             </div>
           </div>

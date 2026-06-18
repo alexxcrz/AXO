@@ -27,7 +27,7 @@ import { importRouter } from "./routes/import.routes.js";
 import { uploadRouter } from "./routes/upload.routes.js";
 import { bibliotecaRouter } from "./routes/biblioteca.routes.js";
 import { warehouseRouter } from "./routes/warehouse.routes.js";
-import { chatRouter } from "./routes/chat.routes.js";
+import { chatRouter, chatReunionPublicRouter } from "./routes/chat.routes.js";
 import { copmecAiRouter } from "./routes/copmecai.routes.js";
 import { auditSecurityEvent } from "./services/security-events.service.js";
 
@@ -180,7 +180,8 @@ app.use("/api/uploads", requireAuth, uploadLimiter, uploadRouter);
 app.use("/api/biblioteca", requireAuth, bibliotecaRouter);
 app.use("/api/warehouse", requireAuth, warehouseRouter);
 
-// DEBUG: dev-only endpoint to insert a process audit template without auth
+// Invitaciones de reunion para invitados externos (sin sesion)
+app.use("/api/chat/reuniones/invitacion", chatReadLimiter, chatReunionPublicRouter);
 app.use("/api/chat", requireAuth, chatReadLimiter, chatWriteLimiter, chatRouter);
 app.use("/api/copmec-ai", requireAuth, copmecAiRouter);
 

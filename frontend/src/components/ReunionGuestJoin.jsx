@@ -35,8 +35,19 @@ export default function ReunionGuestJoin({ token }) {
     setError("");
     try {
       const r = await fetch(apiUrl(`/api/chat/reuniones/invitacion/${token}`));
-      const data = await r.json();
-      if (!r.ok) throw new Error(data?.error || "Invitacion no valida");
+      let data = {};
+      try {
+        data = await r.json();
+      } catch {
+        data = {};
+      }
+      if (!r.ok) {
+        const msg = data?.error
+          || data?.message
+          || (r.status === 404 ? "Invitacion no encontrada. Verifica que el enlace sea el correcto." : null)
+          || `No se pudo cargar la invitacion (${r.status})`;
+        throw new Error(msg);
+      }
       setInfo(data);
       try {
         const rtc = await fetch(apiUrl(`/api/chat/reuniones/invitacion/${token}/rtc-config`));
@@ -286,7 +297,8 @@ export default function ReunionGuestJoin({ token }) {
               <p className="rgj-hint">Esta reunion no es videollamada. Contacta al organizador.</p>
             ) : !info?.puedeUnirse ? (
               <p className="rgj-hint">
-                La videollamada aun no ha iniciado. Esta pagina se actualiza sola cuando el organizador la active.
+                La reunion esta programada. El enlace es valido, pero la videollamada solo se habilita
+                cuando el organizador pulse <strong>Iniciar</strong> en el chat. Esta pagina se actualiza sola.
               </p>
             ) : (
               <p className="rgj-hint">Puedes unirte como invitado sin cuenta del sistema.</p>

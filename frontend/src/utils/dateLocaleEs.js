@@ -69,11 +69,18 @@ export function buildCalendarDays(monthDate) {
   });
 }
 
+function startOfLocalDay(date) {
+  const next = new Date(date);
+  next.setHours(0, 0, 0, 0);
+  return next;
+}
+
 export function isDateWithinBounds(date, min, max) {
   if (!date) return false;
+  const day = startOfLocalDay(date).getTime();
   const minDate = parseDateValue(min);
   const maxDate = parseDateValue(max);
-  if (minDate && date.getTime() < minDate.getTime()) return false;
-  if (maxDate && date.getTime() > maxDate.getTime()) return false;
+  if (minDate && day < startOfLocalDay(minDate).getTime()) return false;
+  if (maxDate && day > startOfLocalDay(maxDate).getTime()) return false;
   return true;
 }

@@ -70,6 +70,9 @@ setTimeout(() => {
   });
 }, 12_000);
 
+const { startReunionReminderPoller } = await import("./services/reunion-reminders.service.js");
+startReunionReminderPoller();
+
 server.listen(PORT, () => {
   console.log(`COPMEC API listening on port ${PORT}`);
 });

@@ -20,6 +20,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 export const chatRouter = Router();
+export const chatReunionPublicRouter = Router();
 
 // ── Configuración de multer para archivos de chat ─────────────────────────────
 const dataDirectory = process.env.RENDER ? "/var/data" : path.resolve(__dirname, "../../data");
@@ -2566,6 +2567,12 @@ chatRouter.post("/reuniones", requireAuth, async (req, res) => {
         nick,
         {
           type: "reunion_invite",
+          reunionId: reunion.id,
+          titulo: reunion.titulo,
+          fecha: reunion.fecha,
+          hora: reunion.hora,
+          chatTipo: reunion.chat_tipo,
+          chatId: reunion.chat_id,
           title: "Nueva reunión programada",
           body: `${nombre} te invitó a "${reunion.titulo}" el ${reunion.fecha} a las ${reunion.hora}`,
           url: "/",
@@ -2730,13 +2737,13 @@ chatRouter.post("/reuniones/:id/solicitar-cambio", requireAuth, async (req, res)
   }
 });
 
-chatRouter.get("/reuniones/invitacion/:token", async (req, res) => {
+async function getReunionInvitacionPublica(req, res) {
   try {
     if (!prisma.chatReunion) return res.status(503).json({ error: "Reuniones no disponibles" });
     const token = String(req.params.token || "").trim();
     if (!token) return res.status(400).json({ error: "Token invalido" });
 
-    let row = await prisma.chatReunion.findUnique({ where: { invitacionToken: token } });
+    const row = await prisma.chatReunion.findUnique({ where: { invitacionToken: token } });
     if (!row) return res.status(404).json({ error: "Invitacion no encontrada" });
 
     const reunion = serializeReunion(row, { includeToken: false });
@@ -2761,9 +2768,9 @@ chatRouter.get("/reuniones/invitacion/:token", async (req, res) => {
     console.error("[reuniones invitacion GET]", e?.message);
     res.status(500).json({ error: "No se pudo cargar la invitacion" });
   }
-});
+}
 
-chatRouter.get("/reuniones/invitacion/:token/rtc-config", async (req, res) => {
+async function getReunionInvitacionRtcPublica(req, res) {
   try {
     if (!prisma.chatReunion) return res.status(503).json({ error: "Reuniones no disponibles" });
     const token = String(req.params.token || "").trim();
@@ -2777,7 +2784,10 @@ chatRouter.get("/reuniones/invitacion/:token/rtc-config", async (req, res) => {
   } catch {
     res.status(500).json({ error: "RTC no disponible" });
   }
-});
+}
+
+chatReunionPublicRouter.get("/:token", getReunionInvitacionPublica);
+chatReunionPublicRouter.get("/:token/rtc-config", getReunionInvitacionRtcPublica);
 
 chatRouter.get("/reuniones/:id/enlace", requireAuth, async (req, res) => {
   try {
@@ -2866,6 +2876,12 @@ chatRouter.post("/reuniones/:id/agregar-participantes", requireAuth, async (req,
         nick,
         {
           type: "reunion_invite",
+          reunionId: reunion.id,
+          titulo: reunion.titulo,
+          fecha: reunion.fecha,
+          hora: reunion.hora,
+          chatTipo: reunion.chat_tipo,
+          chatId: reunion.chat_id,
           title: "Invitación a reunión",
           body: `${nombre} te agregó a "${reunion.titulo}"`,
           url: `/reunion/join/${reunion.invitacionToken}`,

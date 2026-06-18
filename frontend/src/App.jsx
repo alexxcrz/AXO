@@ -526,6 +526,11 @@ import {
   syncNotificationPrefsToServiceWorker,
 } from "./utils/pushBridge.js";
 import {
+  clearPushQueryFromUrl,
+  consumePendingPush,
+  parsePushFromSearch,
+} from "./utils/pushDeepLink.js";
+import {
   AREA_SECTIONS_WITHOUT_TABS,
   APP_AREA_SECTIONS,
   NAV_AREA_ACTION_BY_SECTION,
@@ -2380,6 +2385,18 @@ function App() { // NOSONAR
   }, []);
 
   useEffect(() => {
+    if (!currentUser?.name) return undefined;
+    let data = consumePendingPush();
+    if (!data) data = parsePushFromSearch(window.location.search);
+    if (!data?.type) return undefined;
+    clearPushQueryFromUrl();
+    const timer = globalThis.setTimeout(() => {
+      window.dispatchEvent(new CustomEvent("axo-notification-action", { detail: data }));
+    }, 500);
+    return () => globalThis.clearTimeout(timer);
+  }, [currentUser?.name]);
+
+  useEffect(() => {
     const ORDER_INVENTORY_PUSH_TYPES = new Set([
       "order_inventory_transfer_created",
       "order_inventory_restock_created",
@@ -2403,6 +2420,11 @@ function App() { // NOSONAR
     function handlePushAreaNavigation(event) {
       const data = event?.detail || {};
       const type = String(data.type || "").trim();
+
+      if (type === "message" || type === "group_message" || type === "call_invite"
+        || type.startsWith("reunion_")) {
+        return;
+      }
 
       if (ORDER_INVENTORY_PUSH_TYPES.has(type) || data.targetPage === "inventory" || data.url === "/inventory") {
         setInventoryTab(data.targetDomain || INVENTORY_DOMAIN_ORDERS);

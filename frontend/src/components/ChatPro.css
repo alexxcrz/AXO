@@ -4729,6 +4729,18 @@ span.chat-item-menu-btn:active {
   color: var(--chat-text-muted, #94a3b8);
 }
 
+.reunion-recordatorio-hint {
+  margin: 0;
+  font-size: 0.88rem;
+  line-height: 1.5;
+  color: var(--chat-text, #e2e8f0);
+}
+
+.reunion-recordatorio-actions {
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .reunion-checkbox-label {
   display: flex;
   align-items: center;
