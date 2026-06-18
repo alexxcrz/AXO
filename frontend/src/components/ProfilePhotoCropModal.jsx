@@ -109,7 +109,7 @@ export function ProfilePhotoCropModal({
       confirmDisabled={uploading || !imageSize.width}
     >
       <p className="profile-photo-crop-modal__hint">
-        Arrastra para encuadrar y usa el zoom. Al confirmar se guardará en tu perfil.
+        Arrastra para encuadrar y usa el zoom. Al confirmar se guardara en tu perfil.
       </p>
       <div
         className={`profile-photo-crop-viewport${isDragging ? " is-dragging" : ""}`}
