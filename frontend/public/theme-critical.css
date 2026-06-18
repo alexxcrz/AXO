@@ -1,0 +1,661 @@
+/* Variables de tema — carga bloqueante antes del paint. Mantener sincronizado con App.css, uiThemeExtensions.css y uiThemeSurfaces.css */
+
+}
+
+:root {
+  --ui-primary: #385878;
+  --ui-primary-soft: #6f8fa9;
+  --ui-primary-strong: #22384f;
+  --ui-shell-top: #314d69;
+  --ui-shell-bottom: #1b2c3d;
+  --ui-header-from: #f5f7fa;
+  --ui-header-to: #e7edf3;
+  --ui-bg: #edf2f7;
+  --ui-card: #ffffff;
+  --ui-text: #24384a;
+  --ui-muted: #647688;
+  --ui-border: #ced8e2;
+}
+
+html[data-ui-theme="copmec-bosque"] {
+  --ui-primary: #385878;
+  --ui-primary-soft: #6f8fa9;
+  --ui-primary-strong: #22384f;
+  --ui-shell-top: #314d69;
+  --ui-shell-bottom: #1b2c3d;
+  --ui-header-from: #f5f7fa;
+  --ui-header-to: #e7edf3;
+  --ui-bg: #edf2f7;
+  --ui-card: #ffffff;
+  --ui-text: #24384a;
+  --ui-muted: #647688;
+  --ui-border: #ced8e2;
+}
+
+html[data-ui-theme="copmec-arenisca"] {
+  --ui-primary: #6a5a3f;
+  --ui-primary-soft: #8e7a58;
+  --ui-primary-strong: #3f3526;
+  --ui-shell-top: #7a6746;
+  --ui-shell-bottom: #3f3526;
+  --ui-header-from: #fff8eb;
+  --ui-header-to: #fff2db;
+  --ui-bg: #f6efe5;
+  --ui-card: #fffdf8;
+  --ui-text: #3a2f1f;
+  --ui-muted: #7c6f5e;
+  --ui-border: #e2d2bd;
+}
+
+html[data-ui-theme="copmec-noche"] {
+  --ui-primary: #2f3642;
+  --ui-primary-soft: #475267;
+  --ui-primary-strong: #1e242d;
+  --ui-shell-top: #3b4351;
+  --ui-shell-bottom: #1f242d;
+  --ui-header-from: #f1f5f9;
+  --ui-header-to: #e6edf5;
+  --ui-bg: #e8edf3;
+  --ui-card: #ffffff;
+  --ui-text: #1c2530;
+  --ui-muted: #637282;
+  --ui-border: #cfd9e3;
+}
+
+html[data-ui-theme="copmec-oceano"] {
+  --ui-primary: #0f4c5c;
+  --ui-primary-soft: #1f7085;
+  --ui-primary-strong: #083742;
+  --ui-shell-top: #14596b;
+  --ui-shell-bottom: #083742;
+  --ui-header-from: #effafe;
+  --ui-header-to: #dbf0f7;
+  --ui-bg: #e8f4f8;
+  --ui-card: #ffffff;
+  --ui-text: #16333d;
+  --ui-muted: #5f7f8b;
+  --ui-border: #c7dfe7;
+}
+
+html[data-ui-theme="copmec-cobre"] {
+  --ui-primary: #8a4f2d;
+  --ui-primary-soft: #b06b43;
+  --ui-primary-strong: #5e341c;
+  --ui-shell-top: #995b35;
+  --ui-shell-bottom: #5e341c;
+  --ui-header-from: #fff4ee;
+  --ui-header-to: #fbe7dd;
+  --ui-bg: #f7ece7;
+  --ui-card: #fffdfc;
+  --ui-text: #3f2417;
+  --ui-muted: #896556;
+  --ui-border: #e5cfc3;
+}
+
+html[data-ui-theme="copmec-vino"] {
+  --ui-primary: #7d2245;
+  --ui-primary-soft: #a63a66;
+  --ui-primary-strong: #551731;
+  --ui-shell-top: #8a2a50;
+  --ui-shell-bottom: #551731;
+  --ui-header-from: #fff2f7;
+  --ui-header-to: #f9e1ec;
+  --ui-bg: #f7eaf0;
+  --ui-card: #ffffff;
+  --ui-text: #3a1828;
+  --ui-muted: #86596d;
+  --ui-border: #e6cad7;
+}
+
+html[data-ui-theme="copmec-ceniza"] {
+  --ui-primary: #3f4654;
+  --ui-primary-soft: #5c677a;
+  --ui-primary-strong: #2b303b;
+  --ui-shell-top: #4a5161;
+  --ui-shell-bottom: #2b303b;
+  --ui-header-from: #f3f5f8;
+  --ui-header-to: #e7ebf1;
+  --ui-bg: #eceff4;
+  --ui-card: #ffffff;
+  --ui-text: #232a35;
+  --ui-muted: #6b7687;
+  --ui-border: #d3dae4;
+}
+
+html[data-ui-theme="copmec-indigo"] {
+  --ui-primary: #2f3f87;
+  --ui-primary-soft: #4a5cb3;
+  --ui-primary-strong: #202c5f;
+  --ui-shell-top: #3b4da1;
+  --ui-shell-bottom: #202c5f;
+  --ui-header-from: #f1f3ff;
+  --ui-header-to: #e3e8ff;
+  --ui-bg: #e8ecff;
+  --ui-card: #ffffff;
+  --ui-text: #1d2550;
+  --ui-muted: #5e6894;
+  --ui-border: #cfd5f2;
+}
+
+html[data-ui-theme="copmec-oliva"] {
+  --ui-primary: #314658;
+  --ui-primary-soft: #48647d;
+  --ui-primary-strong: #212f3c;
+  --ui-shell-top: #375168;
+  --ui-shell-bottom: #212f3c;
+  --ui-header-from: #f7faef;
+  --ui-header-to: #ecf2dc;
+  --ui-bg: #eef3e5;
+  --ui-card: #ffffff;
+  --ui-text: #1b2731;
+  --ui-muted: #566a7b;
+  --ui-border: #c5d1db;
+}
+
+html[data-ui-theme="copmec-coral"] {
+  --ui-primary: #b44b46;
+  --ui-primary-soft: #d06058;
+  --ui-primary-strong: #7f2f2b;
+  --ui-shell-top: #c55650;
+  --ui-shell-bottom: #7f2f2b;
+  --ui-header-from: #fff4f3;
+  --ui-header-to: #fbe2df;
+  --ui-bg: #f9ecea;
+  --ui-card: #ffffff;
+  --ui-text: #48211e;
+  --ui-muted: #8b5f5a;
+  --ui-border: #ebc8c5;
+}
+
+html[data-ui-theme="copmec-menta"] {
+  --ui-primary: #36546f;
+  --ui-primary-soft: #4b7294;
+  --ui-primary-strong: #263b4d;
+  --ui-shell-top: #3e617f;
+  --ui-shell-bottom: #263b4d;
+  --ui-header-from: #effcf8;
+  --ui-header-to: #dff3ec;
+  --ui-bg: #e9f5f0;
+  --ui-card: #ffffff;
+  --ui-text: #1a2834;
+  --ui-muted: #5c7184;
+  --ui-border: #c8d4df;
+}
+
+html[data-ui-theme="copmec-solar"] {
+  --ui-primary: #b37a18;
+  --ui-primary-soft: #d39a33;
+  --ui-primary-strong: #7e5411;
+  --ui-shell-top: #c88a23;
+  --ui-shell-bottom: #7e5411;
+  --ui-header-from: #fff9ed;
+  --ui-header-to: #f8ecd3;
+  --ui-bg: #f6efdf;
+  --ui-card: #fffdf8;
+  --ui-text: #4a3511;
+  --ui-muted: #8c7347;
+  --ui-border: #ead8b2;
+}
+
+html[data-ui-theme="copmec-ciruela"] {
+  --ui-primary: #6b2f6f;
+  --ui-primary-soft: #89418f;
+  --ui-primary-strong: #48204b;
+  --ui-shell-top: #7a367f;
+  --ui-shell-bottom: #48204b;
+  --ui-header-from: #fbf3fc;
+  --ui-header-to: #efdef2;
+  --ui-bg: #f4e9f6;
+  --ui-card: #ffffff;
+  --ui-text: #351739;
+  --ui-muted: #7f6383;
+  --ui-border: #e0c7e5;
+}
+
+html[data-ui-theme="copmec-petroleo"] {
+  --ui-primary: #245964;
+  --ui-primary-soft: #367988;
+  --ui-primary-strong: #173b42;
+  --ui-shell-top: #2d6c79;
+  --ui-shell-bottom: #173b42;
+  --ui-header-from: #eef8fa;
+  --ui-header-to: #deedf1;
+  --ui-bg: #e7f1f4;
+  --ui-card: #ffffff;
+  --ui-text: #173239;
+  --ui-muted: #5f7f87;
+  --ui-border: #c4dbe1;
+}
+
+html[data-ui-theme="copmec-aurora"] {
+  --ui-primary: #2c7a7b;
+  --ui-primary-soft: #3fa0a0;
+  --ui-primary-strong: #553c9a;
+  --ui-shell-top: #2c7a7b;
+  --ui-shell-bottom: #553c9a;
+  --ui-header-from: #eef8fb;
+  --ui-header-to: #e7ebfb;
+  --ui-bg: #edf1fb;
+  --ui-card: #ffffff;
+  --ui-text: #1f2e48;
+  --ui-muted: #627496;
+  --ui-border: #cad8ef;
+}
+
+html[data-ui-theme="copmec-atardecer"] {
+  --ui-primary: #f97316;
+  --ui-primary-soft: #fb923c;
+  --ui-primary-strong: #be185d;
+  --ui-shell-top: #f97316;
+  --ui-shell-bottom: #be185d;
+  --ui-header-from: #fff5ed;
+  --ui-header-to: #fee9f2;
+  --ui-bg: #fef0ea;
+  --ui-card: #ffffff;
+  --ui-text: #522728;
+  --ui-muted: #8f6770;
+  --ui-border: #f0c9cf;
+}
+
+html[data-ui-theme="copmec-laguna"] {
+  --ui-primary: #0ea5e9;
+  --ui-primary-soft: #38bdf8;
+  --ui-primary-strong: #405db0;
+  --ui-shell-top: #0ea5e9;
+  --ui-shell-bottom: #405db0;
+  --ui-header-from: #edfaff;
+  --ui-header-to: #e4fcf8;
+  --ui-bg: #eaf7f7;
+  --ui-card: #ffffff;
+  --ui-text: #123843;
+  --ui-muted: #5e8290;
+  --ui-border: #c5e5e8;
+}
+
+html[data-ui-theme="copmec-flama"] {
+  --ui-primary: #f59e0b;
+  --ui-primary-soft: #fbbf24;
+  --ui-primary-strong: #ef4444;
+  --ui-shell-top: #f59e0b;
+  --ui-shell-bottom: #ef4444;
+  --ui-header-from: #fff8e8;
+  --ui-header-to: #ffebeb;
+  --ui-bg: #fdf1e8;
+  --ui-card: #ffffff;
+  --ui-text: #4a2b1d;
+  --ui-muted: #8d6a57;
+  --ui-border: #f0d2c2;
+}
+
+html[data-ui-theme="copmec-neon"] {
+  --ui-primary: #5f8fbe;
+  --ui-primary-soft: #8fb4d6;
+  --ui-primary-strong: #0ea5e9;
+  --ui-shell-top: #5f8fbe;
+  --ui-shell-bottom: #0ea5e9;
+  --ui-header-from: #f3f7fb;
+  --ui-header-to: #e8f7ff;
+  --ui-bg: #edf7f4;
+  --ui-card: #ffffff;
+  --ui-text: #1d3742;
+  --ui-muted: #5f7f8a;
+  --ui-border: #c6e0e3;
+}
+
+html[data-ui-theme="copmec-berry"] {
+  --ui-primary: #e11d48;
+  --ui-primary-soft: #fb7185;
+  --ui-primary-strong: #7c3aed;
+  --ui-shell-top: #e11d48;
+  --ui-shell-bottom: #7c3aed;
+  --ui-header-from: #fff1f4;
+  --ui-header-to: #f3ebff;
+  --ui-bg: #f6eefb;
+
+html[data-ui-theme="copmec-hielo"] {
+  --ui-primary: #5b8fa8;
+  --ui-primary-soft: #9ec5dc;
+  --ui-primary-strong: #2f4f62;
+  --ui-shell-top: #5b8fa8;
+  --ui-shell-bottom: #2f4f62;
+  --ui-header-from: #f4f9fc;
+  --ui-header-to: #e4f1f7;
+  --ui-bg: #eaf3f8;
+  --ui-card: #ffffff;
+  --ui-text: #1f3a4a;
+  --ui-muted: #5f7f92;
+  --ui-border: #c8dce8;
+}
+
+html[data-ui-theme="copmec-esmeralda"] {
+  --ui-primary: #1f6f4f;
+  --ui-primary-soft: #34a36f;
+  --ui-primary-strong: #0f3d2c;
+  --ui-shell-top: #1f6f4f;
+  --ui-shell-bottom: #0f3d2c;
+  --ui-header-from: #edf9f2;
+  --ui-header-to: #dff3e8;
+  --ui-bg: #e8f5ee;
+  --ui-card: #ffffff;
+  --ui-text: #123524;
+  --ui-muted: #4f7a62;
+  --ui-border: #c5e3d2;
+}
+
+html[data-ui-theme="copmec-rubi"] {
+  --ui-primary: #9f1239;
+  --ui-primary-soft: #e11d48;
+  --ui-primary-strong: #4c0519;
+  --ui-shell-top: #9f1239;
+  --ui-shell-bottom: #4c0519;
+  --ui-header-from: #fff1f4;
+  --ui-header-to: #fde4ea;
+  --ui-bg: #fae8ee;
+  --ui-card: #ffffff;
+  --ui-text: #4c0519;
+  --ui-muted: #9f4a62;
+  --ui-border: #e8c0cc;
+}
+
+html[data-ui-theme="copmec-azul-real"] {
+  --ui-primary: #1d4ed8;
+  --ui-primary-soft: #60a5fa;
+  --ui-primary-strong: #1e3a8a;
+  --ui-shell-top: #1d4ed8;
+  --ui-shell-bottom: #1e3a8a;
+  --ui-header-from: #eff6ff;
+  --ui-header-to: #dbeafe;
+  --ui-bg: #e8f0ff;
+  --ui-card: #ffffff;
+  --ui-text: #1e3a8a;
+  --ui-muted: #5b6fa8;
+  --ui-border: #c7d7f5;
+}
+
+html[data-ui-theme="copmec-lino"] {
+  --ui-primary: #78716c;
+  --ui-primary-soft: #a8a29e;
+  --ui-primary-strong: #44403c;
+  --ui-shell-top: #78716c;
+  --ui-shell-bottom: #44403c;
+  --ui-header-from: #fafaf9;
+  --ui-header-to: #f5f5f4;
+  --ui-bg: #f1efed;
+  --ui-card: #ffffff;
+  --ui-text: #44403c;
+  --ui-muted: #78716c;
+  --ui-border: #d6d3d1;
+}
+
+html[data-ui-theme="copmec-rosa-suave"] {
+  --ui-primary: #db2777;
+  --ui-primary-soft: #f472b6;
+  --ui-primary-strong: #831843;
+  --ui-shell-top: #db2777;
+  --ui-shell-bottom: #831843;
+  --ui-header-from: #fdf2f8;
+  --ui-header-to: #fce7f3;
+  --ui-bg: #faeaf4;
+  --ui-card: #ffffff;
+  --ui-text: #831843;
+  --ui-muted: #b45f84;
+  --ui-border: #f0c4da;
+}
+
+html[data-ui-theme="copmec-dorado"] {
+  --ui-primary: #a16207;
+  --ui-primary-soft: #eab308;
+  --ui-primary-strong: #713f12;
+  --ui-shell-top: #a16207;
+  --ui-shell-bottom: #713f12;
+  --ui-header-from: #fffbeb;
+  --ui-header-to: #fef3c7;
+  --ui-bg: #f8f1df;
+  --ui-card: #ffffff;
+  --ui-text: #713f12;
+  --ui-muted: #9a7b3f;
+  --ui-border: #e8d7a8;
+}
+
+html[data-ui-theme="copmec-pino"] {
+  --ui-primary: #166534;
+  --ui-primary-soft: #22c55e;
+  --ui-primary-strong: #14532d;
+  --ui-shell-top: #166534;
+  --ui-shell-bottom: #14532d;
+  --ui-header-from: #f0fdf4;
+  --ui-header-to: #dcfce7;
+  --ui-bg: #e7f5eb;
+  --ui-card: #ffffff;
+  --ui-text: #14532d;
+  --ui-muted: #4d7a5c;
+  --ui-border: #c8e6d0;
+}
+
+html[data-ui-theme="copmec-pizarra"] {
+  --ui-primary: #334155;
+  --ui-primary-soft: #64748b;
+  --ui-primary-strong: #1e293b;
+  --ui-shell-top: #334155;
+  --ui-shell-bottom: #1e293b;
+  --ui-header-from: #f8fafc;
+  --ui-header-to: #f1f5f9;
+  --ui-bg: #eef2f6;
+  --ui-card: #ffffff;
+  --ui-text: #1e293b;
+  --ui-muted: #64748b;
+  --ui-border: #cbd5e1;
+}
+
+html[data-ui-theme="copmec-g-cielo"] {
+  --ui-primary: #0284c7;
+  --ui-primary-soft: #7dd3fc;
+  --ui-primary-strong: #0c4a6e;
+  --ui-shell-top: #0284c7;
+  --ui-shell-bottom: #0c4a6e;
+  --ui-header-from: #f0f9ff;
+  --ui-header-to: #e0f2fe;
+  --ui-bg: #e8f6fc;
+  --ui-card: #ffffff;
+  --ui-text: #0c4a6e;
+  --ui-muted: #5b8cab;
+  --ui-border: #c3e3f3;
+}
+
+html[data-ui-theme="copmec-g-fuego"] {
+  --ui-primary: #dc2626;
+  --ui-primary-soft: #fbbf24;
+  --ui-primary-strong: #7f1d1d;
+  --ui-shell-top: #dc2626;
+  --ui-shell-bottom: #7f1d1d;
+  --ui-header-from: #fff7ed;
+  --ui-header-to: #ffedd5;
+  --ui-bg: #faeee5;
+  --ui-card: #ffffff;
+  --ui-text: #7f1d1d;
+  --ui-muted: #a66a4d;
+  --ui-border: #f0d0b8;
+}
+
+html[data-ui-theme="copmec-g-bosque"] {
+  --ui-primary: #15803d;
+  --ui-primary-soft: #86efac;
+  --ui-primary-strong: #14532d;
+  --ui-shell-top: #15803d;
+  --ui-shell-bottom: #14532d;
+  --ui-header-from: #f0fdf4;
+  --ui-header-to: #dcfce7;
+  --ui-bg: #e8f6ec;
+  --ui-card: #ffffff;
+  --ui-text: #14532d;
+  --ui-muted: #4f7d5f;
+  --ui-border: #c6e8d0;
+}
+
+html[data-ui-theme="copmec-g-violeta"] {
+  --ui-primary: #7c3aed;
+  --ui-primary-soft: #c4b5fd;
+  --ui-primary-strong: #4c1d95;
+  --ui-shell-top: #7c3aed;
+  --ui-shell-bottom: #4c1d95;
+  --ui-header-from: #f5f3ff;
+  --ui-header-to: #ede9fe;
+  --ui-bg: #f1ecfb;
+  --ui-card: #ffffff;
+  --ui-text: #4c1d95;
+  --ui-muted: #7c6aa8;
+  --ui-border: #ddd2f5;
+}
+
+html[data-ui-theme="copmec-g-rosa-dorado"] {
+  --ui-primary: #ec4899;
+  --ui-primary-soft: #fbbf24;
+  --ui-primary-strong: #9d174d;
+  --ui-shell-top: #ec4899;
+  --ui-shell-bottom: #9d174d;
+  --ui-header-from: #fdf2f8;
+  --ui-header-to: #fef9c3;
+  --ui-bg: #faeef3;
+  --ui-card: #ffffff;
+  --ui-text: #9d174d;
+  --ui-muted: #a66d82;
+  --ui-border: #eccfe0;
+}
+
+html[data-ui-theme="copmec-g-hielo-fuego"] {
+  --ui-primary: #3b82f6;
+  --ui-primary-soft: #f59e0b;
+  --ui-primary-strong: #1e3a8a;
+  --ui-shell-top: #3b82f6;
+  --ui-shell-bottom: #1e3a8a;
+  --ui-header-from: #eff6ff;
+  --ui-header-to: #fef3c7;
+  --ui-bg: #edf2fa;
+  --ui-card: #ffffff;
+  --ui-text: #1e3a8a;
+  --ui-muted: #5f73a0;
+  --ui-border: #cdd9ef;
+}
+
+html[data-ui-theme="copmec-g-metal"] {
+  --ui-primary: #64748b;
+  --ui-primary-soft: #cbd5e1;
+  --ui-primary-strong: #334155;
+  --ui-shell-top: #64748b;
+  --ui-shell-bottom: #334155;
+  --ui-header-from: #f8fafc;
+  --ui-header-to: #f1f5f9;
+  --ui-bg: #eef1f5;
+  --ui-card: #ffffff;
+  --ui-text: #334155;
+  --ui-muted: #64748b;
+  --ui-border: #cbd5e1;
+}
+
+html[data-ui-theme="copmec-g-cereza"] {
+  --ui-primary: #be123c;
+  --ui-primary-soft: #fda4af;
+  --ui-primary-strong: #881337;
+  --ui-shell-top: #be123c;
+  --ui-shell-bottom: #881337;
+  --ui-header-from: #fff1f2;
+  --ui-header-to: #ffe4e6;
+  --ui-bg: #fae9ec;
+  --ui-card: #ffffff;
+  --ui-text: #881337;
+  --ui-muted: #a65a6c;
+  --ui-border: #ebcbd2;
+}
+
+html[data-ui-theme="copmec-g-medianoche"] {
+  --ui-primary: #6366f1;
+  --ui-primary-soft: #38bdf8;
+  --ui-primary-strong: #020617;
+  --ui-shell-top: #6366f1;
+  --ui-shell-bottom: #020617;
+  --ui-header-from: #eef2ff;
+  --ui-header-to: #e0f2fe;
+  --ui-bg: #e9edf8;
+  --ui-card: #ffffff;
+  --ui-text: #1e293b;
+  --ui-muted: #5f6b8a;
+  --ui-border: #ccd4ea;
+}
+
+html[data-ui-theme="copmec-g-tropical"] {
+  --ui-primary: #059669;
+  --ui-primary-soft: #facc15;
+  --ui-primary-strong: #0f766e;
+  --ui-shell-top: #059669;
+  --ui-shell-bottom: #0f766e;
+  --ui-header-from: #ecfdf5;
+  --ui-header-to: #fef9c3;
+  --ui-bg: #eaf6ef;
+  --ui-card: #ffffff;
+  --ui-text: #0f5132;
+  --ui-muted: #5f8a6f;
+  --ui-border: #c8e6d4;
+}
+
+html[data-ui-theme="copmec-g-liquido"] {
+  --ui-primary: #06b6d4;
+  --ui-primary-soft: #a5f3fc;
+  --ui-primary-strong: #164e63;
+  --ui-shell-top: #06b6d4;
+  --ui-shell-bottom: #164e63;
+  --ui-header-from: #ecfeff;
+  --ui-header-to: #cffafe;
+  --ui-bg: #e6f7fa;
+  --ui-card: #ffffff;
+  --ui-text: #164e63;
+  --ui-muted: #5f8fa0;
+  --ui-border: #c3e9ef;
+}
+
+html[data-ui-theme="copmec-g-royal"] {
+  --ui-primary: #1e40af;
+  --ui-primary-soft: #93c5fd;
+  --ui-primary-strong: #172554;
+  --ui-shell-top: #1e40af;
+  --ui-shell-bottom: #172554;
+  --ui-header-from: #eff6ff;
+  --ui-header-to: #dbeafe;
+  --ui-bg: #e9f0fb;
+  --ui-card: #ffffff;
+  --ui-text: #172554;
+  --ui-muted: #5f6fa8;
+  --ui-border: #c9d8f2;
+}
+
+
+/* Sombras y superficies derivadas del tema activo (--ui-primary*) */
+
+:root,
+html[data-ui-theme] {
+  --ui-shadow-soft: 0 14px 32px color-mix(in srgb, var(--ui-primary) 20%, transparent);
+  --ui-shadow-card: 0 10px 24px color-mix(in srgb, var(--ui-primary) 10%, transparent);
+  --ui-shadow-elevated: 0 8px 20px color-mix(in srgb, var(--ui-primary-strong) 22%, transparent);
+  --ui-shadow-panel: 0 6px 16px color-mix(in srgb, var(--ui-primary-strong) 24%, transparent);
+  --ui-shadow-inset-accent: inset 3px 0 0 var(--ui-primary-soft);
+  --ui-shadow-nav-active:
+    inset 3px 0 0 var(--ui-primary-soft),
+    inset 0 1px 0 color-mix(in srgb, white 14%, transparent);
+  --ui-shadow-glow-soft: 0 0 10px color-mix(in srgb, var(--ui-primary-soft) 85%, transparent);
+  --ui-shadow-glow-strong: 0 0 12px color-mix(in srgb, var(--ui-primary-soft) 95%, transparent);
+  --ui-shadow-focus-ring: 0 0 0 2px color-mix(in srgb, var(--ui-primary-soft) 32%, transparent);
+  --ui-shadow-inset-highlight: inset 0 1px 0 color-mix(in srgb, white 12%, transparent);
+  --ui-shadow-inset-edge: inset -1px 0 0 color-mix(in srgb, white 6%, transparent);
+  --ui-border-sidebar: color-mix(in srgb, var(--ui-primary-soft) 18%, transparent);
+  --ui-border-sidebar-subtle: color-mix(in srgb, var(--ui-primary-soft) 10%, transparent);
+  --ui-surface-sidebar-panel: color-mix(in srgb, var(--ui-shell-bottom) 72%, black);
+  --ui-surface-sidebar-areas: color-mix(in srgb, var(--ui-shell-bottom) 86%, black);
+  --ui-surface-sidebar-deep: color-mix(in srgb, var(--ui-shell-bottom) 80%, black);
+  --ui-surface-sidebar-control: color-mix(in srgb, var(--ui-shell-bottom) 70%, black);
+  --ui-surface-sidebar-input: color-mix(in srgb, var(--ui-shell-bottom) 88%, black);
+  --ui-surface-sidebar-hover: color-mix(in srgb, var(--ui-primary) 18%, var(--ui-shell-bottom));
+  --ui-surface-sidebar-active: color-mix(in srgb, var(--ui-primary) 34%, var(--ui-shell-bottom));
+  --ui-surface-sidebar-focus: color-mix(in srgb, var(--ui-primary) 22%, var(--ui-shell-bottom));
+  --ui-text-sidebar: color-mix(in srgb, var(--ui-primary-soft) 24%, white);
+  --ui-text-sidebar-muted: color-mix(in srgb, var(--ui-primary-soft) 55%, var(--ui-muted));
+  --ui-text-sidebar-subtle: color-mix(in srgb, var(--ui-primary-soft) 72%, var(--ui-muted));
+}

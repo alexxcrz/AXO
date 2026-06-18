@@ -1,0 +1,68 @@
+.profile-photo-crop-modal.sicfla-modal {
+  width: min(92vw, 22rem);
+}
+
+.profile-photo-crop-modal .sicfla-modal-body {
+  display: grid;
+  gap: 0.85rem;
+  padding-top: 0.35rem;
+}
+
+.profile-photo-crop-modal__hint {
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.35;
+  color: var(--ui-muted, #647688);
+  text-align: center;
+}
+
+.profile-photo-crop-viewport {
+  position: relative;
+  width: 280px;
+  max-width: 100%;
+  aspect-ratio: 1;
+  margin: 0 auto;
+  border-radius: 999px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--ui-shell-bottom, #1b2c3d) 88%, black);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--ui-primary-soft, #6f8fa9) 28%, transparent),
+    var(--ui-shadow-panel, 0 6px 16px color-mix(in srgb, var(--ui-primary-strong) 24%, transparent));
+  touch-action: none;
+  cursor: grab;
+}
+
+.profile-photo-crop-viewport.is-dragging {
+  cursor: grabbing;
+}
+
+.profile-photo-crop-stage {
+  position: absolute;
+  inset: 0;
+}
+
+.profile-photo-crop-image {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  max-width: none;
+  user-select: none;
+  -webkit-user-drag: none;
+  pointer-events: none;
+}
+
+.profile-photo-crop-zoom {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.profile-photo-crop-zoom label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--ui-text, #24384a);
+}
+
+.profile-photo-crop-zoom input[type="range"] {
+  width: 100%;
+  accent-color: var(--ui-primary, #385878);
+}

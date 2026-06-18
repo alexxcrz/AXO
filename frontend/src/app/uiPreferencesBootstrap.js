@@ -4,6 +4,8 @@ const UI_FONT_ACTIVE_KEY = "copmec-ui-font-active";
 const UI_FONT_PREFIX = "copmec-ui-font:";
 const UI_FONT_SIZE_ACTIVE_KEY = "copmec-ui-font-size-active";
 const UI_FONT_SIZE_PREFIX = "copmec-ui-font-size:";
+const UI_LAST_SESSION_USER_KEY = "copmec-ui-last-session-user";
+const SESSION_STORAGE_KEY = "copmec_sess";
 
 function isValidThemeId(themeId) {
   return typeof themeId === "string" && /^copmec-[\w-]+$/.test(themeId.trim());
@@ -11,6 +13,13 @@ function isValidThemeId(themeId) {
 
 function readStoredPreference(activeKey, prefix) {
   try {
+    const hadSession = localStorage.getItem(SESSION_STORAGE_KEY) === "1";
+    const lastUser = String(localStorage.getItem(UI_LAST_SESSION_USER_KEY) || "").trim();
+    if (hadSession && lastUser) {
+      const userValue = String(localStorage.getItem(`${prefix}${lastUser}`) || "").trim();
+      if (userValue) return userValue;
+    }
+
     const active = String(localStorage.getItem(activeKey) || "").trim();
     if (active) return active;
 
@@ -24,6 +33,19 @@ function readStoredPreference(activeKey, prefix) {
     // Ignorar bloqueos de almacenamiento.
   }
   return "";
+}
+
+export function persistLastSessionUserId(userId) {
+  const normalized = String(userId || "").trim();
+  try {
+    if (normalized) {
+      localStorage.setItem(UI_LAST_SESSION_USER_KEY, normalized);
+    } else {
+      localStorage.removeItem(UI_LAST_SESSION_USER_KEY);
+    }
+  } catch {
+    // noop
+  }
 }
 
 export function readStoredUiTheme(fallback = "copmec-bosque") {
@@ -102,4 +124,5 @@ export {
   UI_THEME_ACTIVE_KEY,
   UI_FONT_ACTIVE_KEY,
   UI_FONT_SIZE_ACTIVE_KEY,
+  UI_LAST_SESSION_USER_KEY,
 };

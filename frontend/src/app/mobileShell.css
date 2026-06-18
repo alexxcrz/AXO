@@ -263,6 +263,17 @@ html.mobile-shell .primary-button {
   min-height: 40px;
 }
 
+html.mobile-shell .sidebar-shell button,
+html.mobile-shell .sidebar-shell .sidebar-pro-link,
+html.mobile-shell .sidebar-shell .sidebar-profile-card,
+html.mobile-shell .sidebar-shell .sidebar-ai-btn,
+html.standalone-app .sidebar-shell button,
+html.standalone-app .sidebar-shell .sidebar-pro-link,
+html.standalone-app .sidebar-shell .sidebar-profile-card,
+html.standalone-app .sidebar-shell .sidebar-ai-btn {
+  min-height: unset;
+}
+
 /* Tableros: evitar botones ovalados por min-height global en PWA */
 html.mobile-shell .board-runtime-table .board-action-button,
 html.mobile-shell .board-runtime-table .board-action-button.icon-only,
@@ -568,10 +579,11 @@ html.mobile-shell .chat-pro-ventana .cp-sidebar-action-btn--danger {
 }
 
 /* Sidebar active item */
-html.mobile-shell .sidebar-shell .nav-item.active {
-  background: rgba(255, 255, 255, 0.26) !important;
-  border: 1px solid rgba(255, 255, 255, 0.52) !important;
-  box-shadow: inset 4px 0 0 #7dd3fc, inset 0 1px 0 rgba(255, 255, 255, 0.14) !important;
+html.mobile-shell .sidebar-shell .nav-item.active,
+html.mobile-shell .sidebar-shell .sidebar-pro-link.is-active {
+  background: var(--ui-surface-sidebar-active) !important;
+  border: 1px solid color-mix(in srgb, var(--ui-primary-soft) 42%, transparent) !important;
+  box-shadow: var(--ui-shadow-nav-active) !important;
   transform: translateX(5px);
 }
 
@@ -586,17 +598,31 @@ html.mobile-shell .sidebar-shell .nav-section.active > .nav-section-toggle {
 }
 
 html.mobile-shell .sidebar-shell .nav-section.active {
-  border-left: 3px solid #7dd3fc;
+  border-left: 3px solid var(--ui-primary-soft);
   padding-left: 0.15rem;
+}
+
+@media (max-width: 1260px) {
+  html.mobile-shell .warehouse-app:has(.sidebar-shell.open) .chat-boton-pro,
+  html.standalone-app .warehouse-app:has(.sidebar-shell.open) .chat-boton-pro {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transform: scale(0.92);
+  }
 }
 
 /* Sidebar active area - collapsed rail icon-only */
 html.mobile-shell .sidebar-shell .sidebar-area-section.is-current-area > .nav-section-toggle,
 html.mobile-shell .sidebar-shell.collapsed .nav-section.active .nav-section-toggle,
 html.mobile-shell .sidebar-shell.collapsed .nav-section-toggle.active {
-  background: linear-gradient(135deg, rgba(56, 189, 248, 0.42) 0%, rgba(14, 165, 233, 0.28) 100%) !important;
-  border: 2px solid #7dd3fc !important;
-  box-shadow: 0 0 0 2px rgba(125, 211, 252, 0.38) !important;
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--ui-primary-soft) 42%, transparent) 0%,
+    color-mix(in srgb, var(--ui-primary) 28%, transparent) 100%
+  ) !important;
+  border: 2px solid var(--ui-primary-soft) !important;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--ui-primary-soft) 38%, transparent) !important;
 }
 
 html.mobile-shell .sidebar-shell.collapsed .nav-section.active::before,
@@ -608,8 +634,8 @@ html.mobile-shell .sidebar-shell .sidebar-area-section.is-current-area::before {
   bottom: 0.18rem;
   width: 4px;
   border-radius: 0 999px 999px 0;
-  background: #7dd3fc;
-  box-shadow: 0 0 10px rgba(125, 211, 252, 0.9);
+  background: var(--ui-primary-soft);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--ui-primary-soft) 90%, transparent);
   z-index: 2;
   pointer-events: none;
 }
@@ -617,7 +643,7 @@ html.mobile-shell .sidebar-shell .sidebar-area-section.is-current-area::before {
 html.mobile-shell .sidebar-shell.collapsed .nav-section.active .nav-section-toggle-icon,
 html.mobile-shell .sidebar-shell.collapsed .nav-section-toggle.active .nav-section-toggle-icon,
 html.mobile-shell .sidebar-shell .sidebar-area-section.is-current-area .nav-section-toggle-icon {
-  filter: drop-shadow(0 0 6px rgba(125, 211, 252, 0.85));
+  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--ui-primary-soft) 85%, transparent));
 }
 
 /* Tableros anchos: scroll horizontal en lugar de aplastar columnas */

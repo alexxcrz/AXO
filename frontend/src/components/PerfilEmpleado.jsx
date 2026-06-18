@@ -5,6 +5,7 @@ import { Eye, EyeOff } from "lucide-react";
 import { Modal } from "./Modal";
 import { SpanishDateInput } from "./SpanishDateInput";
 import { uploadFileToCloudinary } from "../services/upload.service";
+import { ProfilePhotoCropModal } from "./ProfilePhotoCropModal.jsx";
 import { getThemePreview, groupThemesByKind, getFontFamilyStack, getFontOptionById, ensureUiWebFontLoaded } from "../app/uiPreferencesConfig.js";
 
 // ── Constantes y utilidades ───────────────────────────────────────────────────
@@ -193,6 +194,7 @@ export function EmployeeProfileModal({
   const [saving, setSaving]           = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [photoMessage, setPhotoMessage] = useState("");
+  const [photoCropSession, setPhotoCropSession] = useState(null);
   const fileInputRef = useRef(null);
 
   const canBypass      = canBypassSelfProfileEditLimit(currentUser);
@@ -209,17 +211,19 @@ export function EmployeeProfileModal({
     setIsEditMode(false);
     setActiveTab("perfil");
     setPersonalTab("colores");
+    closePhotoCropSession();
   }, [currentUser?.id]);
 
-  function field(key, value) {
-    setForm((f) => ({ ...f, [key]: value }));
-    setMessage("");
-    if (key === "photo" || key === "photoThumbnailUrl") {
-      setPhotoMessage("");
-    }
+  function closePhotoCropSession() {
+    setPhotoCropSession((current) => {
+      if (current?.previewUrl) {
+        URL.revokeObjectURL(current.previewUrl);
+      }
+      return null;
+    });
   }
 
-  async function handlePhotoSelection(event) {
+  function handlePhotoSelection(event) {
     const selectedFile = event.target.files?.[0];
     if (!selectedFile) return;
 
@@ -235,11 +239,28 @@ export function EmployeeProfileModal({
       return;
     }
 
+    closePhotoCropSession();
+    const previewUrl = URL.createObjectURL(selectedFile);
+    setPhotoCropSession({
+      previewUrl,
+      fileName: selectedFile.name || "profile.jpg",
+    });
+    setPhotoMessage("");
+    event.target.value = "";
+  }
+
+  async function handlePhotoCropConfirm(croppedBlob) {
+    if (!photoCropSession || !croppedBlob) return;
+
     setUploadingPhoto(true);
     setPhotoMessage("Subiendo foto...");
 
     try {
-      const uploaded = await uploadFileToCloudinary(selectedFile);
+      const baseName = String(photoCropSession.fileName || "profile")
+        .replace(/\.[^.]+$/, "")
+        .trim() || "profile";
+      const croppedFile = new File([croppedBlob], `${baseName}.jpg`, { type: "image/jpeg" });
+      const uploaded = await uploadFileToCloudinary(croppedFile);
       const nextPhoto = String(uploaded?.url || "").trim();
       const nextThumb = String(uploaded?.thumbnailUrl || uploaded?.url || "").trim();
       if (!nextPhoto) {
@@ -248,11 +269,19 @@ export function EmployeeProfileModal({
       field("photo", nextPhoto);
       field("photoThumbnailUrl", nextThumb || nextPhoto);
       setPhotoMessage("Foto cargada correctamente.");
+      closePhotoCropSession();
     } catch (error) {
       setPhotoMessage(error?.message || "No fue posible subir la foto.");
     } finally {
       setUploadingPhoto(false);
-      event.target.value = "";
+    }
+  }
+
+  function field(key, value) {
+    setForm((f) => ({ ...f, [key]: value }));
+    setMessage("");
+    if (key === "photo" || key === "photoThumbnailUrl") {
+      setPhotoMessage("");
     }
   }
 
@@ -369,7 +398,7 @@ export function EmployeeProfileModal({
                   className="ep-hidden-file-input"
                   onChange={handlePhotoSelection}
                 />
-                <button type="button" className="ep-btn ep-btn--ghost" onClick={() => fileInputRef.current?.click()} disabled={uploadingPhoto}>
+                <button type="button" className="ep-btn ep-btn--ghost" onClick={() => fileInputRef.current?.click()} disabled={uploadingPhoto || Boolean(photoCropSession)}>
                   {uploadingPhoto ? "Subiendo..." : "Subir foto"}
                 </button>
                 {form.photo ? (
@@ -772,6 +801,13 @@ export function EmployeeProfileModal({
 
       </div>
       </Modal>
+    <ProfilePhotoCropModal
+      open={Boolean(photoCropSession)}
+      imageSrc={photoCropSession?.previewUrl || ""}
+      uploading={uploadingPhoto}
+      onClose={closePhotoCropSession}
+      onConfirm={handlePhotoCropConfirm}
+    />
     </>
   );
 }

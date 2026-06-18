@@ -9,6 +9,7 @@ import {
   Boxes,
   Building2,
   ChevronDown,
+  ChevronLeft,
   ChevronRight,
   ClipboardCheck,
   ClipboardList,
@@ -186,6 +187,14 @@ function getSidebarTabIcon(item = {}) {
   return LayoutDashboard;
 }
 
+function getMobileAreaShortLabel(label) {
+  const text = String(label || "").trim();
+  if (!text) return "Área";
+  const primary = text.split("/")[0]?.trim() || text;
+  if (primary.length <= 15) return primary;
+  return `${primary.slice(0, 13)}…`;
+}
+
 function SidebarIcon({ icon: Icon, className = "" }) {
   if (!Icon) return null;
   return (
@@ -195,9 +204,25 @@ function SidebarIcon({ icon: Icon, className = "" }) {
   );
 }
 
+function useMediaQuery(query) {
+  const [matches, setMatches] = useState(() => (
+    typeof globalThis.matchMedia === "function" && globalThis.matchMedia(query).matches
+  ));
+
+  useEffect(() => {
+    const mediaQuery = globalThis.matchMedia(query);
+    const handleChange = () => setMatches(mediaQuery.matches);
+    handleChange();
+    mediaQuery.addEventListener("change", handleChange);
+    return () => mediaQuery.removeEventListener("change", handleChange);
+  }, [query]);
+
+  return matches;
+}
+
 export const Sidebar = React.memo(function Sidebar({ currentUser, page, onPageChange, isOpen, isCollapsed, onClose, onOpenProfile, onToggleCollapsed, areaSections, utilityNavItems, selectedAreaSectionId, navTransportSection, navTransportTab, navRetailTab = "ordenes-compra", navAuditTab, canUseAI, onOpenAI }) {
   const avatarUrl = getUserAvatarUrl(currentUser);
-  const sortedAreaSections = (Array.isArray(areaSections) ? areaSections : [])
+  const sortedAreaSections = useMemo(() => (Array.isArray(areaSections) ? areaSections : [])
     .map((section) => ({
       ...section,
       items: [...(Array.isArray(section.items) ? section.items : [])].sort((left, right) => {
@@ -207,9 +232,9 @@ export const Sidebar = React.memo(function Sidebar({ currentUser, page, onPageCh
         return String(left?.label || "").localeCompare(String(right?.label || ""), "es-MX");
       }),
     }))
-    .sort((left, right) => String(left?.label || "").localeCompare(String(right?.label || ""), "es-MX"));
+    .sort((left, right) => String(left?.label || "").localeCompare(String(right?.label || ""), "es-MX")), [areaSections]);
 
-  const utilityGroups = (() => {
+  const utilityGroups = useMemo(() => {
     const groups = [];
     const groupMap = {};
     (Array.isArray(utilityNavItems) ? utilityNavItems : []).forEach((item) => {
@@ -227,17 +252,20 @@ export const Sidebar = React.memo(function Sidebar({ currentUser, page, onPageCh
         items: [...group.items].sort((left, right) => String(left?.label || "").localeCompare(String(right?.label || ""), "es-MX")),
       }))
       .sort((left, right) => String(left?.label || "").localeCompare(String(right?.label || ""), "es-MX"));
-  })();
+  }, [utilityNavItems]);
 
   const [navSearch, setNavSearch] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const [systemOpen, setSystemOpen] = useState(false);
   const searchInputRef = useRef(null);
+  const mobileNavBootstrappedRef = useRef(false);
   const [focusedAreaId, setFocusedAreaId] = useState(() => {
     const activeId = String(selectedAreaSectionId || "").trim().toLowerCase();
     if (activeId && activeId !== "all" && activeId !== "admin") return activeId;
     return sortedAreaSections[0]?.id || "";
   });
+  const isMobileSidebarAccordion = useMediaQuery("(max-width: 1260px)");
+  const [mobileNavPane, setMobileNavPane] = useState("areas");
 
   const normalizedNavSearch = navSearch.trim().toLowerCase();
 
@@ -293,12 +321,178 @@ export const Sidebar = React.memo(function Sidebar({ currentUser, page, onPageCh
     }
   }, [selectedAreaSectionId, page]);
 
+  useEffect(() => {
+    if (!isMobileSidebarAccordion) return;
+    if (!isOpen) {
+      mobileNavBootstrappedRef.current = false;
+      return;
+    }
+    if (mobileNavBootstrappedRef.current) return;
+    mobileNavBootstrappedRef.current = true;
+
+    const activeId = String(selectedAreaSectionId || "").trim().toLowerCase();
+    if (activeId && activeId !== "all" && activeId !== "admin" && sortedAreaSections.some((section) => section.id === activeId)) {
+      setFocusedAreaId(activeId);
+      setMobileNavPane("modules");
+      return;
+    }
+    setMobileNavPane("areas");
+  }, [isMobileSidebarAccordion, isOpen, selectedAreaSectionId, sortedAreaSections]);
+
+  function handleMobileNavBack() {
+    setMobileNavPane("areas");
+  }
+
   function handleAreaChipClick(section) {
     setFocusedAreaId(section.id);
     if (!section.items?.length && AREA_SECTIONS_WITHOUT_TABS.has(section.id)) {
       onPageChange(PAGE_AREA_SHELL, section.id, "", "", null, "");
       onClose?.();
     }
+  }
+
+  function handleMobileAreaSelect(section) {
+    setFocusedAreaId(section.id);
+    if (!section.items?.length && AREA_SECTIONS_WITHOUT_TABS.has(section.id)) {
+      onPageChange(PAGE_AREA_SHELL, section.id, "", "", null, "");
+      onClose?.();
+      return;
+    }
+    setMobileNavPane("modules");
+  }
+
+  function renderMobileSystemPane() {
+    return (
+      <div className="sidebar-pro-mobile-pane">
+        <button type="button" className="sidebar-pro-mobile-back" onClick={handleMobileNavBack}>
+          <ChevronLeft size={16} aria-hidden="true" />
+          <span>Áreas</span>
+        </button>
+        <div className="sidebar-pro-mobile-area-head" aria-current="location">
+          <SidebarIcon icon={Cog} className="sidebar-pro-mobile-area-head-icon" />
+          <p className="sidebar-pro-mobile-nav-title">Sistema</p>
+        </div>
+        <div className="sidebar-pro-mobile-module-list sidebar-pro-links">
+          {utilityGroups.map((group) => (
+            <div key={group.label} className="sidebar-pro-mobile-system-group">
+              <span className="sidebar-pro-mobile-system-label">{group.label}</span>
+              {group.items.map((item) => renderUtilityNavLink(group, item))}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  function renderMobileModulesPane() {
+    const section = focusedSection;
+    if (!section) {
+      return (
+        <div className="sidebar-pro-mobile-pane">
+          <button type="button" className="sidebar-pro-mobile-back" onClick={handleMobileNavBack}>
+            <ChevronLeft size={16} aria-hidden="true" />
+            <span>Áreas</span>
+          </button>
+          <p className="sidebar-pro-empty">Selecciona un área.</p>
+        </div>
+      );
+    }
+
+    return (
+      <div className="sidebar-pro-mobile-pane">
+        <button type="button" className="sidebar-pro-mobile-back" onClick={handleMobileNavBack}>
+          <ChevronLeft size={16} aria-hidden="true" />
+          <span>Áreas</span>
+        </button>
+        <div className="sidebar-pro-mobile-area-head" aria-current="location">
+          <SidebarIcon icon={getSidebarSectionIcon(section.id)} className="sidebar-pro-mobile-area-head-icon" />
+          <p className="sidebar-pro-mobile-nav-title">{section.label}</p>
+        </div>
+        <div className="sidebar-pro-mobile-module-list sidebar-pro-links">
+          {section.items.length
+            ? section.items.map((item, index) => renderAreaNavLink(section, item, index))
+            : <p className="sidebar-pro-empty">Sin módulos visibles.</p>}
+        </div>
+      </div>
+    );
+  }
+
+  function renderMobileAreasPane() {
+    return (
+      <div className="sidebar-pro-mobile-pane">
+        <p className="sidebar-pro-mobile-nav-kicker">Áreas operativas</p>
+        <div className="sidebar-pro-mobile-area-grid" role="list">
+          {sortedAreaSections.map((section) => {
+            const activeInSection = isSelectedAreaSection(section, selectedAreaSectionId);
+            return (
+              <button
+                key={section.id}
+                type="button"
+                role="listitem"
+                className={`sidebar-pro-mobile-area-tile ${activeInSection ? "is-route" : ""}`.trim()}
+                onClick={() => handleMobileAreaSelect(section)}
+                title={section.label}
+              >
+                <SidebarIcon icon={getSidebarSectionIcon(section.id)} className="sidebar-pro-mobile-area-tile-icon" />
+                <span className="sidebar-pro-mobile-area-tile-label">{getMobileAreaShortLabel(section.label)}</span>
+                {formatNavNotificationCount(section.sectionNotificationCount) ? (
+                  <span className="sidebar-pro-mobile-area-tile-badge" aria-label={`${section.sectionNotificationCount} pendientes`}>
+                    {formatNavNotificationCount(section.sectionNotificationCount)}
+                  </span>
+                ) : null}
+              </button>
+            );
+          })}
+        </div>
+        {utilityGroups.length ? (
+          <button type="button" className="sidebar-pro-mobile-system-entry" onClick={() => setMobileNavPane("system")}>
+            <SidebarIcon icon={Cog} />
+            <span>Sistema y administración</span>
+            <ChevronRight size={15} aria-hidden="true" />
+          </button>
+        ) : null}
+      </div>
+    );
+  }
+
+  function renderMobileNavigator() {
+    return (
+      <div className="sidebar-pro-mobile-nav" aria-label="Navegación móvil">
+        {mobileNavPane === "modules" ? renderMobileModulesPane() : null}
+        {mobileNavPane === "system" ? renderMobileSystemPane() : null}
+        {mobileNavPane === "areas" ? renderMobileAreasPane() : null}
+      </div>
+    );
+  }
+
+  function renderSystemNavSection() {
+    if (!utilityGroups.length) return null;
+
+    return (
+      <div className="sidebar-pro-system">
+        <button
+          type="button"
+          className="sidebar-pro-system-toggle"
+          onClick={() => setSystemOpen((current) => !current)}
+          aria-expanded={systemOpen}
+        >
+          <span>Sistema</span>
+          {systemOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+        </button>
+        {systemOpen ? (
+          <div className="sidebar-pro-system-body">
+            {utilityGroups.map((group) => (
+              <div key={group.label} className="sidebar-pro-system-group">
+                <span className="sidebar-pro-system-group-name">{group.label}</span>
+                <div className="sidebar-pro-links">
+                  {group.items.map((item) => renderUtilityNavLink(group, item))}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : null}
+      </div>
+    );
   }
 
   function renderAreaNavLink(section, item, index) {
@@ -396,7 +590,7 @@ export const Sidebar = React.memo(function Sidebar({ currentUser, page, onPageCh
           <CopmecBrand headingTag="h1" compact={isCollapsed} showKicker={false} />
         </div>
         <div className="sidebar-v3-header-tools">
-          {!isCollapsed ? (
+          {!isCollapsed && !isMobileSidebarAccordion ? (
             searchOpen || navSearch ? (
               <div className="sidebar-v3-search-inline" role="search">
                 <Search size={14} className="sidebar-v3-search-icon" aria-hidden="true" />
@@ -440,9 +634,11 @@ export const Sidebar = React.memo(function Sidebar({ currentUser, page, onPageCh
               </button>
             )
           ) : null}
+          {!isMobileSidebarAccordion ? (
           <button type="button" className="sidebar-v3-icon-btn sidebar-collapse-button" onClick={onToggleCollapsed} aria-label={isCollapsed ? "Expandir menú lateral" : "Contraer menú lateral"} title={isCollapsed ? "Expandir menú" : "Contraer menú"}>
             {isCollapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
           </button>
+          ) : null}
         </div>
       </div>
 
@@ -504,6 +700,8 @@ export const Sidebar = React.memo(function Sidebar({ currentUser, page, onPageCh
               </div>
             ))}
           </div>
+        ) : isMobileSidebarAccordion ? (
+          renderMobileNavigator()
         ) : (
           <div className="sidebar-pro-split">
             <div className="sidebar-pro-areas" role="listbox" aria-label="Áreas operativas">
@@ -544,31 +742,7 @@ export const Sidebar = React.memo(function Sidebar({ currentUser, page, onPageCh
                 </>
               ) : null}
 
-              {utilityGroups.length ? (
-                <div className="sidebar-pro-system">
-                  <button
-                    type="button"
-                    className="sidebar-pro-system-toggle"
-                    onClick={() => setSystemOpen((current) => !current)}
-                    aria-expanded={systemOpen}
-                  >
-                    <span>Sistema</span>
-                    {systemOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                  </button>
-                  {systemOpen ? (
-                    <div className="sidebar-pro-system-body">
-                      {utilityGroups.map((group) => (
-                        <div key={group.label} className="sidebar-pro-system-group">
-                          <span className="sidebar-pro-system-group-name">{group.label}</span>
-                          <div className="sidebar-pro-links">
-                            {group.items.map((item) => renderUtilityNavLink(group, item))}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : null}
-                </div>
-              ) : null}
+              {renderSystemNavSection()}
             </div>
           </div>
         )}

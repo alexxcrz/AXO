@@ -5,6 +5,8 @@
   var FONT_PREFIX = "copmec-ui-font:";
   var SIZE_ACTIVE = "copmec-ui-font-size-active";
   var SIZE_PREFIX = "copmec-ui-font-size:";
+  var SESSION_MARKER = "copmec_sess";
+  var LAST_SESSION_USER = "copmec-ui-last-session-user";
 
   function applyViewportHeight() {
     var height = Math.round((window.visualViewport && window.visualViewport.height) || window.innerHeight || 0);
@@ -15,8 +17,16 @@
 
   function readValue(activeKey, prefix) {
     try {
+      var hadSession = localStorage.getItem(SESSION_MARKER) === "1";
+      var lastUser = String(localStorage.getItem(LAST_SESSION_USER) || "").trim();
+      if (hadSession && lastUser) {
+        var userValue = String(localStorage.getItem(prefix + lastUser) || "").trim();
+        if (userValue) return userValue;
+      }
+
       var active = localStorage.getItem(activeKey);
       if (active) return String(active).trim();
+
       for (var i = 0; i < localStorage.length; i += 1) {
         var key = localStorage.key(i);
         if (key && key.indexOf(prefix) === 0) {

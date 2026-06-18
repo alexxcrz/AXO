@@ -1,0 +1,31 @@
+/* Sombras y superficies derivadas del tema activo (--ui-primary*) */
+
+:root,
+html[data-ui-theme] {
+  --ui-shadow-soft: 0 14px 32px color-mix(in srgb, var(--ui-primary) 20%, transparent);
+  --ui-shadow-card: 0 10px 24px color-mix(in srgb, var(--ui-primary) 10%, transparent);
+  --ui-shadow-elevated: 0 8px 20px color-mix(in srgb, var(--ui-primary-strong) 22%, transparent);
+  --ui-shadow-panel: 0 6px 16px color-mix(in srgb, var(--ui-primary-strong) 24%, transparent);
+  --ui-shadow-inset-accent: inset 3px 0 0 var(--ui-primary-soft);
+  --ui-shadow-nav-active:
+    inset 3px 0 0 var(--ui-primary-soft),
+    inset 0 1px 0 color-mix(in srgb, white 14%, transparent);
+  --ui-shadow-glow-soft: 0 0 10px color-mix(in srgb, var(--ui-primary-soft) 85%, transparent);
+  --ui-shadow-glow-strong: 0 0 12px color-mix(in srgb, var(--ui-primary-soft) 95%, transparent);
+  --ui-shadow-focus-ring: 0 0 0 2px color-mix(in srgb, var(--ui-primary-soft) 32%, transparent);
+  --ui-shadow-inset-highlight: inset 0 1px 0 color-mix(in srgb, white 12%, transparent);
+  --ui-shadow-inset-edge: inset -1px 0 0 color-mix(in srgb, white 6%, transparent);
+  --ui-border-sidebar: color-mix(in srgb, var(--ui-primary-soft) 18%, transparent);
+  --ui-border-sidebar-subtle: color-mix(in srgb, var(--ui-primary-soft) 10%, transparent);
+  --ui-surface-sidebar-panel: color-mix(in srgb, var(--ui-shell-bottom) 72%, black);
+  --ui-surface-sidebar-areas: color-mix(in srgb, var(--ui-shell-bottom) 86%, black);
+  --ui-surface-sidebar-deep: color-mix(in srgb, var(--ui-shell-bottom) 80%, black);
+  --ui-surface-sidebar-control: color-mix(in srgb, var(--ui-shell-bottom) 70%, black);
+  --ui-surface-sidebar-input: color-mix(in srgb, var(--ui-shell-bottom) 88%, black);
+  --ui-surface-sidebar-hover: color-mix(in srgb, var(--ui-primary) 18%, var(--ui-shell-bottom));
+  --ui-surface-sidebar-active: color-mix(in srgb, var(--ui-primary) 34%, var(--ui-shell-bottom));
+  --ui-surface-sidebar-focus: color-mix(in srgb, var(--ui-primary) 22%, var(--ui-shell-bottom));
+  --ui-text-sidebar: color-mix(in srgb, var(--ui-primary-soft) 24%, white);
+  --ui-text-sidebar-muted: color-mix(in srgb, var(--ui-primary-soft) 55%, var(--ui-muted));
+  --ui-text-sidebar-subtle: color-mix(in srgb, var(--ui-primary-soft) 72%, var(--ui-muted));
+}

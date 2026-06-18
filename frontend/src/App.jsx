@@ -508,6 +508,7 @@ import {
 } from "./app/uiPreferencesConfig.js";
 import {
   applyDocumentUiPreferences,
+  persistLastSessionUserId,
   readStoredUiFont,
   readStoredUiFontSize,
   readStoredUiTheme,
@@ -1388,9 +1389,6 @@ function App() { // NOSONAR
   useEffect(() => {
     if (!sessionUserId) {
       uiPrefsHydratedRef.current = false;
-      setUiTheme("copmec-bosque");
-      setUiFont("bahnschrift");
-      setUiFontSize("normal");
       return;
     }
     uiPrefsHydratedRef.current = false;
@@ -1422,6 +1420,10 @@ function App() { // NOSONAR
         uiPrefsHydratedRef.current = true;
       }
     })();
+  }, [sessionUserId]);
+
+  useEffect(() => {
+    persistLastSessionUserId(sessionUserId);
   }, [sessionUserId]);
 
   useEffect(() => {
