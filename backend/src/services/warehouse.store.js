@@ -416,6 +416,44 @@ function supportsManagedPermissionOverrides(role) {
   return true;
 }
 
+function buildDenyAllPermissionSelection() {
+  return {
+    pages: Object.fromEntries(Object.keys(PAGE_PERMISSIONS).map((pageId) => [pageId, false])),
+    actions: Object.fromEntries(Object.keys(ACTION_PERMISSIONS).map((actionId) => [actionId, false])),
+  };
+}
+
+function userHasManagedPermissionProfile(user, normalizedPermissions) {
+  if (!supportsManagedPermissionOverrides(user?.role)) return false;
+  const block = normalizedPermissions.userOverrides?.[user?.id];
+  if (!block) return false;
+  const hasBool = (map) => Object.values(map || {}).some((value) => typeof value === "boolean");
+  return hasBool(block.pages) || hasBool(block.actions);
+}
+
+function repairLegacyManagedDenyAllOverrides(userOverrides = {}) {
+  const next = { ...userOverrides };
+  Object.entries(next).forEach(([userId, block]) => {
+    if (!block || typeof block !== "object") return;
+    const actionEntries = Object.entries(block.actions || {});
+    const pageEntries = Object.entries(block.pages || {});
+    const trueActions = actionEntries.filter(([, value]) => value === true).length;
+    const falseActions = actionEntries.filter(([, value]) => value === false).length;
+    const truePages = pageEntries.filter(([, value]) => value === true).length;
+    const falsePages = pageEntries.filter(([, value]) => value === false).length;
+    const trueCount = trueActions + truePages;
+    const falseCount = falseActions + falsePages;
+    if (trueCount > 0 && falseCount > trueCount) {
+      next[userId] = {
+        ...block,
+        pages: Object.fromEntries(pageEntries.filter(([, value]) => value === true)),
+        actions: Object.fromEntries(actionEntries.filter(([, value]) => value === true)),
+      };
+    }
+  });
+  return next;
+}
+
 function defaultPassword() {
   // Generate a cryptographically random 12-char temporary password.
   // Format: Aa1!XXXXXXXX — guarantees strong-password policy compliance.
@@ -1598,7 +1636,7 @@ function normalizePermissions(permissions) {
   const normalized = {
     pages: Object.fromEntries(Object.keys(PAGE_PERMISSIONS).map((key) => [key, normalizePermissionEntry(permissions?.pages?.[key], defaults.pages[key].roles)])),
     actions: Object.fromEntries(Object.keys(ACTION_PERMISSIONS).map((key) => [key, normalizePermissionEntry(permissions?.actions?.[key], defaults.actions[key].roles)])),
-    userOverrides: Object.fromEntries(Object.entries(permissions?.userOverrides ?? EMPTY_OBJECT).map(([userId, override]) => {
+    userOverrides: Object.fromEntries(Object.entries(repairLegacyManagedDenyAllOverrides(permissions?.userOverrides ?? EMPTY_OBJECT)).map(([userId, override]) => {
       const delegation = normalizeDelegationOverrideBlock(override?.delegation);
       return [userId, {
         pages: Object.fromEntries(Object.keys(PAGE_PERMISSIONS).map((key) => [key, typeof override?.pages?.[key] === "boolean" ? override.pages[key] : null])),
@@ -4045,6 +4083,17 @@ const SCOPE_TAB_ACTION_IDS = new Set(AREA_TAB_SCOPED_ACTION_CONFIG.map(([scopeId
 function canUserDoWarehouseActionEntry(user, actionId, normalizedPermissions) {
   const userOverride = normalizedPermissions.userOverrides?.[user.id]?.actions?.[actionId];
   if (typeof userOverride === "boolean") return userOverride;
+
+  if (userHasManagedPermissionProfile(user, normalizedPermissions)) {
+    if (SCOPE_TAB_ACTION_IDS.has(actionId)) {
+      return hasScopeTabGrant(user, actionId, normalizedPermissions);
+    }
+    if (String(actionId).includes("__")) {
+      return resolveScopedWarehouseChildFromTabGrant(user, actionId, normalizedPermissions);
+    }
+    return hasScopedAliasGrant(user, actionId, normalizedPermissions);
+  }
+
   return userMatchesPermissionEntry(user, normalizedPermissions.actions?.[actionId]);
 }
 
@@ -4135,6 +4184,7 @@ export function canUserAccessWarehousePage(user, pageId, permissions = null) {
   }
   const userOverride = normalizedPermissions.userOverrides?.[user.id]?.pages?.[pageId];
   if (typeof userOverride === "boolean") return userOverride;
+  if (userHasManagedPermissionProfile(user, normalizedPermissions)) return false;
   return userMatchesPermissionEntry(user, normalizedPermissions.pages?.[pageId]);
 }
 
@@ -4259,33 +4309,40 @@ function canActorConfigureDelegation(actor, permissionsModel) {
     || canUserDoWarehouseAction(actor, "managePermissions", permissionsModel);
 }
 
-function buildUserOverridesForDraft(user, requestedOverrides, permissionsModel, delegationSelection = null) {
+function buildUserOverridesForDraft(user, requestedOverrides, permissionsModel, delegationSelection = null, options = {}) {
   if (!supportsManagedPermissionOverrides(user.role)) {
     return null;
   }
 
-  const baseSelection = buildEffectivePermissionSelection(user, permissionsModel);
+  const isCreate = options.mode === "create";
+  const baseSelection = isCreate
+    ? buildDenyAllPermissionSelection()
+    : buildEffectivePermissionSelection(user, permissionsModel);
   const preservedSelection = delegationSelection || { pages: {}, actions: {} };
   const nextOverride = {
     pages: Object.fromEntries(Object.keys(PAGE_PERMISSIONS)
       .map((pageId) => {
         const requestedValue = requestedOverrides?.pages?.[pageId];
+        if (isCreate && requestedValue !== true) return null;
         const fallbackValue = typeof preservedSelection.pages?.[pageId] === "boolean"
           ? preservedSelection.pages[pageId]
           : baseSelection.pages[pageId];
         const nextValue = typeof requestedValue === "boolean" ? requestedValue : fallbackValue;
         return [pageId, nextValue];
       })
+      .filter(Boolean)
       .filter(([pageId, value]) => value !== baseSelection.pages[pageId])),
     actions: Object.fromEntries(Object.keys(ACTION_PERMISSIONS)
       .map((actionId) => {
         const requestedValue = requestedOverrides?.actions?.[actionId];
+        if (isCreate && requestedValue !== true) return null;
         const fallbackValue = typeof preservedSelection.actions?.[actionId] === "boolean"
           ? preservedSelection.actions[actionId]
           : baseSelection.actions[actionId];
         const nextValue = typeof requestedValue === "boolean" ? requestedValue : fallbackValue;
         return [actionId, nextValue];
       })
+      .filter(Boolean)
       .filter(([actionId, value]) => value !== baseSelection.actions[actionId])),
   };
 
@@ -4334,14 +4391,20 @@ export function createWarehouseUser(auth, payload = {}) {
   });
   const actorDelegable = buildActorDelegableMask(currentUser, basePermissions);
   const allowedSelection = {
-    pages: Object.fromEntries(Object.keys(PAGE_PERMISSIONS).map((pageId) => [pageId, actorDelegable.pages[pageId] ? payload.permissionOverrides?.pages?.[pageId] : false])),
-    actions: Object.fromEntries(Object.keys(ACTION_PERMISSIONS).map((actionId) => [actionId, actorDelegable.actions[actionId] ? payload.permissionOverrides?.actions?.[actionId] : false])),
+    pages: Object.fromEntries(Object.keys(PAGE_PERMISSIONS).map((pageId) => [
+      pageId,
+      actorDelegable.pages[pageId] ? payload.permissionOverrides?.pages?.[pageId] : undefined,
+    ])),
+    actions: Object.fromEntries(Object.keys(ACTION_PERMISSIONS).map((actionId) => [
+      actionId,
+      actorDelegable.actions[actionId] ? payload.permissionOverrides?.actions?.[actionId] : undefined,
+    ])),
     ...(canActorConfigureDelegation(currentUser, basePermissions)
       ? { delegation: payload.permissionOverrides?.delegation }
       : {}),
   };
   const directOverride = canUserDoWarehouseAction(currentUser, "createUsers", currentState.permissions)
-    ? buildUserOverridesForDraft(nextUser, allowedSelection, basePermissions)
+    ? buildUserOverridesForDraft(nextUser, allowedSelection, basePermissions, null, { mode: "create" })
     : null;
 
   const nextState = {
@@ -8484,7 +8547,7 @@ function validateSensitiveStateMutations(currentUser, currentState, nextState, n
 
 function validateUserMutations(currentUser, currentState, nextUsers, nextUserMap) {
   if (nextUsers.length !== currentState.users.length) {
-    const actionId = nextUsers.length < currentState.users.length ? "deleteUsers" : "manageUsers";
+    const actionId = nextUsers.length < currentState.users.length ? "deleteUsers" : "createUsers";
     if (!canUserDoWarehouseAction(currentUser, actionId, currentState.permissions)) {
       return { ok: false, reason: "user_list_changed" };
     }

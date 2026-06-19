@@ -83,6 +83,11 @@ function buildUserAliases(userLike) {
   ]
     .map((value) => String(value || "").trim())
     .filter(Boolean);
+  const email = String(userLike?.email || userLike?.login || "").trim();
+  if (email.includes("@")) {
+    const localPart = email.split("@")[0]?.trim();
+    if (localPart) aliases.push(localPart);
+  }
   return Array.from(new Set(aliases));
 }
 
@@ -165,8 +170,11 @@ chatRouter.get("/usuarios", requireAuth, (_req, res) => {
     const users = getAllUsers().map((u) => ({
       id: u.id,
       name: u.name,
-      nickname: u.name,
+      nickname: u.nickname || u.name,
       email: u.email || null,
+      area: u.area || u.department || null,
+      role: u.role || null,
+      jobTitle: u.jobTitle || null,
       photo: u.photo || null,
       photoThumbnailUrl: u.photoThumbnailUrl || null,
       photoTimestamp: u.photoUpdatedAt || u.updatedAt || null,

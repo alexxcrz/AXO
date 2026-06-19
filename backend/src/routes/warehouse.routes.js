@@ -1750,7 +1750,7 @@ warehouseRouter.patch("/boards/:boardId/context", requireAuth, (req, res) => {
   });
 });
 
-warehouseRouter.post("/users", requireWarehouseAction("manageUsers"), (req, res) => {
+warehouseRouter.post("/users", requireWarehouseAction("createUsers"), (req, res) => {
   const result = createWarehouseUser(req.auth, req.body || {});
   if (!result.ok) {
     const status = result.reason === "auth_required" ? 401 : result.reason === "duplicate_email" ? 409 : result.reason === "forbidden" ? 403 : 400;
@@ -1771,7 +1771,7 @@ warehouseRouter.post("/users", requireWarehouseAction("manageUsers"), (req, res)
   res.status(201).json({ ok: true, data: { state: result.state, userId: result.userId, userName: result.userName } });
 });
 
-warehouseRouter.patch("/users/:userId", requireWarehouseAction("manageUsers"), (req, res) => {
+warehouseRouter.patch("/users/:userId", requireWarehouseAction("editUsers"), (req, res) => {
   const result = updateWarehouseUser(req.auth, req.params.userId, req.body || {});
   if (!result.ok) {
     const status = result.reason === "auth_required" ? 401 : result.reason === "user_not_found" ? 404 : result.reason === "duplicate_email" ? 409 : result.reason === "forbidden" ? 403 : 400;
@@ -1818,7 +1818,7 @@ warehouseRouter.post("/users/:userId/transfer-lead", (req, res) => {
   res.json({ ok: true, data: { state: result.state } });
 });
 
-warehouseRouter.patch("/users/:userId/active", requireWarehouseAction("manageUsers"), (req, res) => {
+warehouseRouter.patch("/users/:userId/active", requireWarehouseAction("editUsers"), (req, res) => {
   const result = toggleWarehouseUserActive(req.auth, req.params.userId);
   if (!result.ok) {
     const status = result.reason === "auth_required" ? 401 : result.reason === "user_not_found" ? 404 : result.reason === "forbidden" ? 403 : 400;
@@ -1858,7 +1858,7 @@ warehouseRouter.patch("/users/me/profile", (req, res) => {
   res.json({ ok: true, data: { state: result.state, userId: result.userId } });
 });
 
-warehouseRouter.post("/areas", requireWarehouseAction("manageUsers"), (req, res) => {
+warehouseRouter.post("/areas", requireWarehouseAction("editUsers"), (req, res) => {
   const result = addWarehouseArea(req.auth, req.body?.name || "", req.body?.parentArea || "");
   if (!result.ok) {
     const status = result.reason === "auth_required" ? 401 : result.reason === "forbidden" ? 403 : result.reason === "duplicate_area" ? 409 : 400;
@@ -1873,7 +1873,7 @@ warehouseRouter.post("/areas", requireWarehouseAction("manageUsers"), (req, res)
   res.status(201).json({ ok: true, data: { state: result.state, area: result.area } });
 });
 
-warehouseRouter.delete("/areas/:areaName", requireWarehouseAction("manageUsers"), (req, res) => {
+warehouseRouter.delete("/areas/:areaName", requireWarehouseAction("editUsers"), (req, res) => {
   const targetArea = decodeURIComponent(String(req.params.areaName || ""));
   const result = removeWarehouseArea(req.auth, targetArea);
   if (!result.ok) {

@@ -8,6 +8,7 @@ import {
   normalizeUserPermissionOverride,
   hasUserOverrideValues,
   normalizeDelegationGrants,
+  repairLegacyManagedDenyAllOverrides,
 } from "./userDelegationGrants.js";
 import {
   resolveCanDoAction,
@@ -1045,7 +1046,7 @@ export function normalizePermissions(permissions) {
       item.id,
       normalizePermissionEntry(permissions?.actions?.[item.id], defaults.actions[item.id].roles),
     ])),
-    userOverrides: Object.fromEntries(Object.entries(permissions?.userOverrides ?? EMPTY_OBJECT).map(([userId, override]) => {
+    userOverrides: Object.fromEntries(Object.entries(repairLegacyManagedDenyAllOverrides(permissions?.userOverrides ?? EMPTY_OBJECT)).map(([userId, override]) => {
       const normalized = normalizeUserPermissionOverride(override);
       return [userId, {
         pages: Object.fromEntries(NAV_ITEMS.map((item) => [item.id, typeof normalized.pages?.[item.id] === "boolean" ? normalized.pages[item.id] : null])),

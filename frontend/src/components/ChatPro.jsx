@@ -1148,7 +1148,11 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
     return colors[Math.abs(hash) % colors.length];
   };
 
-  const normalizeUserKey = (value) => String(value || "").trim().toLowerCase();
+  const normalizeUserKey = (value) => String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
 
   const resolveUsuarioChat = (clave) => {
     const targetKey = normalizeUserKey(clave);

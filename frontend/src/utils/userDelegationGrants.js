@@ -60,12 +60,39 @@ export function hasUserOverrideValues(override) {
     || normalized.delegation.enabled;
 }
 
-export function mergePermissionOverridesForPayload(permissionOverrides, delegationGrants) {
+export function repairLegacyManagedDenyAllOverrides(userOverrides = {}) {
+  const next = { ...userOverrides };
+  Object.entries(next).forEach(([userId, block]) => {
+    if (!block || typeof block !== "object") return;
+    const actionEntries = Object.entries(block.actions || {});
+    const pageEntries = Object.entries(block.pages || {});
+    const trueCount = actionEntries.filter(([, value]) => value === true).length
+      + pageEntries.filter(([, value]) => value === true).length;
+    const falseCount = actionEntries.filter(([, value]) => value === false).length
+      + pageEntries.filter(([, value]) => value === false).length;
+    if (trueCount > 0 && falseCount > trueCount) {
+      next[userId] = {
+        ...block,
+        pages: Object.fromEntries(pageEntries.filter(([, value]) => value === true)),
+        actions: Object.fromEntries(actionEntries.filter(([, value]) => value === true)),
+      };
+    }
+  });
+  return next;
+}
+
+export function mergePermissionOverridesForPayload(permissionOverrides, delegationGrants, options = {}) {
+  const sparse = options.sparse !== false;
   const base = normalizeUserPermissionOverride(permissionOverrides);
+  const pickEntries = (map) => {
+    const entries = Object.entries(map || {});
+    if (!sparse) return Object.fromEntries(entries);
+    return Object.fromEntries(entries.filter(([, value]) => value === true));
+  };
   const delegation = normalizeDelegationGrants(delegationGrants);
   return {
-    pages: base.pages,
-    actions: base.actions,
+    pages: pickEntries(base.pages),
+    actions: pickEntries(base.actions),
     delegation,
   };
 }

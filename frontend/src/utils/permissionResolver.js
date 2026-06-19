@@ -50,9 +50,31 @@ function readPermissionEntryOverride(user, kind, permissionId, permissions) {
   return permissions?.userOverrides?.[user?.id]?.[kind]?.[permissionId];
 }
 
+function userHasManagedPermissionProfile(user, permissions) {
+  if (!user?.id) return false;
+  const block = permissions?.userOverrides?.[user.id];
+  if (!block) return false;
+  const hasBool = (map) => Object.values(map || {}).some((value) => typeof value === "boolean");
+  return hasBool(block.pages) || hasBool(block.actions);
+}
+
 function readEffectivePermissionEntry(user, kind, permissionId, permissions) {
   const override = readPermissionEntryOverride(user, kind, permissionId, permissions);
   if (typeof override === "boolean") return override;
+
+  if (userHasManagedPermissionProfile(user, permissions)) {
+    if (kind === "actions") {
+      if (SCOPE_TAB_ACTION_IDS.has(permissionId)) {
+        return hasScopeTabGrant(user, permissionId, permissions);
+      }
+      if (String(permissionId).includes("__")) {
+        return resolveScopedChildFromTabGrant(user, permissionId, permissions);
+      }
+      return hasScopedAliasGrant(user, permissionId, permissions);
+    }
+    return false;
+  }
+
   const entry = kind === "pages"
     ? permissions?.pages?.[permissionId]
     : permissions?.actions?.[permissionId];

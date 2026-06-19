@@ -4629,7 +4629,10 @@ function App() { // NOSONAR
     });
     setUserModal({
       ...nextModal,
-      permissionOverrides: buildPermissionSelectionFromModalDraft(nextModal, normalizedPermissions, { preserveDisabled: true }),
+      permissionOverrides: buildPermissionSelectionForUser(
+        buildUserRecordFromModalDraft(nextModal),
+        normalizedPermissions,
+      ),
     });
   }
 
@@ -4667,6 +4670,7 @@ function App() { // NOSONAR
       permissionOverrides: mergePermissionOverridesForPayload(
         userModal.permissionOverrides,
         userModal.delegationGrants,
+        { sparse: userModal.mode === "create" },
       ),
     };
 
