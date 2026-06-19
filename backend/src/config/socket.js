@@ -31,7 +31,30 @@ function buildUserAliases(userLike) {
   ]
     .map((value) => String(value || "").trim())
     .filter(Boolean);
+  const email = String(userLike?.email || userLike?.login || "").trim();
+  if (email.includes("@")) {
+    const localPart = email.split("@")[0]?.trim();
+    if (localPart) aliases.push(localPart);
+  }
   return Array.from(new Set(aliases));
+}
+
+function collectSocketIdsForTarget(rawNick) {
+  if (!io) return [];
+  const socketIds = new Set();
+  const aliases = resolveTargetAliases(rawNick);
+  aliases.forEach((alias) => {
+    const roomKey = getUserRoomKey(alias);
+    const roomSet = roomKey ? io.sockets.adapter.rooms.get(roomKey) : null;
+    if (roomSet) {
+      roomSet.forEach((socketId) => socketIds.add(socketId));
+    }
+  });
+  const activeKey = resolveActiveNickKey(rawNick);
+  if (activeKey && usuariosActivos[activeKey]?.sockets?.length) {
+    usuariosActivos[activeKey].sockets.forEach((socketId) => socketIds.add(socketId));
+  }
+  return Array.from(socketIds);
 }
 
 function resolveTargetAliases(targetNickname) {
@@ -101,14 +124,15 @@ export function initSocket(httpServer) {
       usuarioNombre = safeNickname;
       socket.data.nickname = safeNickname;
 
-      const nextRoomKey = getUserRoomKey(safeNickname);
-      if (usuarioRoomKey && usuarioRoomKey !== nextRoomKey) {
+      const joinAliases = resolveTargetAliases(safeNickname);
+      const joinRooms = Array.from(new Set(
+        joinAliases.map((alias) => getUserRoomKey(alias)).filter(Boolean),
+      ));
+      if (usuarioRoomKey && !joinRooms.includes(usuarioRoomKey)) {
         socket.leave(usuarioRoomKey);
       }
-      if (nextRoomKey) {
-        socket.join(nextRoomKey);
-        usuarioRoomKey = nextRoomKey;
-      }
+      joinRooms.forEach((roomKey) => socket.join(roomKey));
+      usuarioRoomKey = getUserRoomKey(safeNickname) || joinRooms[0] || null;
 
       if (!usuariosActivos[safeNickname]) {
         usuariosActivos[safeNickname] = { sockets: [], photo: photo || null, lastActivity: Date.now(), inCall: false, _wasAway: false };
@@ -168,12 +192,14 @@ export function initSocket(httpServer) {
       }).catch(() => {}); } catch (_) {}
 
       requested.forEach((nick) => {
-        const roomKey = getUserRoomKey(nick);
-        const roomSet = roomKey ? io.sockets.adapter.rooms.get(roomKey) : null;
-        const targets = roomSet ? Array.from(roomSet) : [];
-        
-          if (targets.length === 0) console.log(`   ⚠️  "${nick}" not in room ${roomKey}`);
-          else console.log(`   ✓ "${nick}" → ${targets.length} sockets`);
+        const targets = collectSocketIdsForTarget(nick);
+        const aliasRooms = resolveTargetAliases(nick).map((alias) => getUserRoomKey(alias)).filter(Boolean);
+
+        if (targets.length === 0) {
+          console.log(`   ⚠️  "${nick}" not in rooms ${aliasRooms.join(", ") || getUserRoomKey(nick) || "?"}`);
+        } else {
+          console.log(`   ✓ "${nick}" → ${targets.length} sockets (${aliasRooms.join(", ") || getUserRoomKey(nick) || "?"})`);
+        }
 
         if (targets.length > 0) {
           reachedNicknames.push(nick);

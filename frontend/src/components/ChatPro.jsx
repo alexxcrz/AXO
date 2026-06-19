@@ -509,15 +509,48 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
   const callSignalPollBusyRef = useRef(false);
   const callSignalPollPausedUntilRef = useRef(0);
 
-  const isSameNickname = (a, b) =>
-    String(a || "").trim().toLowerCase() === String(b || "").trim().toLowerCase();
-
   const normalizeCallNick = (value) =>
     String(value || "")
       .normalize("NFD")
       .replace(/[\u0300-\u036f]/g, "")
       .trim()
       .toLowerCase();
+
+  const isSameNickname = (a, b) => normalizeCallNick(a) === normalizeCallNick(b);
+
+  const resolveUsuarioChat = (clave) => {
+    const targetKey = normalizeCallNick(clave);
+    if (!targetKey) return null;
+    const collectKeys = (entry) => {
+      const keys = [entry?.name, entry?.nickname, entry?.email, entry?.id]
+        .map((value) => normalizeCallNick(value))
+        .filter(Boolean);
+      const email = String(entry?.email || "").trim();
+      if (email.includes("@")) {
+        const localPart = normalizeCallNick(email.split("@")[0]);
+        if (localPart) keys.push(localPart);
+      }
+      return keys;
+    };
+    return [
+      ...(Array.isArray(usuariosCOPMEC) ? usuariosCOPMEC : []),
+      user,
+    ].find((entry) => {
+      if (!entry) return false;
+      return collectKeys(entry).some((key) => key === targetKey);
+    }) || null;
+  };
+
+  const resolveCanonicalChatNickname = (clave) => {
+    const match = resolveUsuarioChat(clave);
+    return String(match?.nickname || match?.name || clave || "").trim();
+  };
+
+  const normalizeCallTargets = (nicknames) => Array.from(new Set(
+    (Array.isArray(nicknames) ? nicknames : [])
+      .map((nick) => resolveCanonicalChatNickname(nick))
+      .filter(Boolean),
+  ));
 
   const getEstadoUsuario = (displayName) => {
     const direct = estadosUsuarios[displayName];
@@ -685,9 +718,11 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
     const room = callRoomRef.current;
     if (!room || !callActivo) return;
     const userDisplayName = user?.nickname || user?.name || "usuario";
-    const seleccionados = Object.entries(callInviteSelection)
-      .filter(([, enabled]) => Boolean(enabled))
-      .map(([nickname]) => nickname);
+    const seleccionados = normalizeCallTargets(
+      Object.entries(callInviteSelection)
+        .filter(([, enabled]) => Boolean(enabled))
+        .map(([nickname]) => nickname),
+    );
 
     if (!seleccionados.length) {
       showAlert("Selecciona al menos un player para invitar.", "warning");
@@ -771,13 +806,7 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
   };
 
   const sendCallSignalFallback = async ({ type, room, toNicknames, sdp, candidate, nickname, fromPeerId }) => {
-    const normalizedTargets = Array.from(
-      new Set(
-        (Array.isArray(toNicknames) ? toNicknames : [])
-          .map((target) => String(target || "").trim())
-          .filter(Boolean),
-      ),
-    );
+    const normalizedTargets = normalizeCallTargets(toNicknames);
 
     if (!type || !room || normalizedTargets.length === 0) {
       const err = new Error("Señal de llamada incompleta (faltan destinatarios o sala)");
@@ -1148,25 +1177,7 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
     return colors[Math.abs(hash) % colors.length];
   };
 
-  const normalizeUserKey = (value) => String(value || "")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .trim()
-    .toLowerCase();
-
-  const resolveUsuarioChat = (clave) => {
-    const targetKey = normalizeUserKey(clave);
-    if (!targetKey) return null;
-    return [
-      ...(Array.isArray(usuariosCOPMEC) ? usuariosCOPMEC : []),
-      user,
-    ].find((entry) => {
-      if (!entry) return false;
-      return [entry?.name, entry?.nickname, entry?.email, entry?.id].some(
-        (alias) => normalizeUserKey(alias) === targetKey,
-      );
-    }) || null;
-  };
+  const normalizeUserKey = (value) => normalizeCallNick(value);
 
   const esPerfilPropio = (perfilRef) => {
     const userDisplay = user?.nickname || user?.name;
@@ -4430,7 +4441,9 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
 
     const participantes = Array.isArray(reunion.participantes) ? reunion.participantes : [];
     const userDisplayName = user?.nickname || user?.name || "";
-    const invitarA = participantes.filter((n) => n && n !== userDisplayName);
+    const invitarA = normalizeCallTargets(
+      participantes.filter((n) => n && !isSameNickname(n, userDisplayName)),
+    );
 
     const ok = await unirseLlamadaPorRoom(room, { invitarA });
     if (!ok) return;
@@ -6040,7 +6053,8 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
   };
 
   const abrirPerfilUsuario = async (nickname) => {
-    if (!nickname) return;
+    const lookupNickname = resolveCanonicalChatNickname(nickname);
+    if (!lookupNickname) return;
     setPerfilTipo("usuario");
     setPerfilAbierto(true);
     setPerfilTab("info");
@@ -6050,13 +6064,13 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
     setReunionesPerfil({ pendientes: [], historial: [] });
     setPerfilCargando(true);
 
-    const fallbackPerfil = buildProfileFallback(nickname);
+    const fallbackPerfil = buildProfileFallback(lookupNickname);
     if (fallbackPerfil) {
       setPerfilData(fallbackPerfil);
     }
 
     try {
-      const perfil = await authFetch(`${SERVER_URL}/api/chat/usuario/${encodeURIComponent(nickname)}/perfil`);
+      const perfil = await authFetch(`${SERVER_URL}/api/chat/usuario/${encodeURIComponent(lookupNickname)}/perfil`);
       setPerfilData(perfil || fallbackPerfil || null);
       setPerfilError(null);
     } catch (err) {
@@ -6073,7 +6087,7 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
     }
 
     try {
-      const compartidos = await authFetch(`${SERVER_URL}/api/chat/privado/${encodeURIComponent(nickname)}/compartidos`);
+      const compartidos = await authFetch(`${SERVER_URL}/api/chat/privado/${encodeURIComponent(lookupNickname)}/compartidos`);
       setPerfilCompartidos(Array.isArray(compartidos) ? compartidos : []);
     } catch {
       setPerfilCompartidos([]);
@@ -6745,10 +6759,10 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
           destinatarios.push(...grupo.miembros);
         }
       }
-      const unicos = Array.from(new Set(destinatarios)).filter((n) => {
+      const unicos = normalizeCallTargets(Array.from(new Set(destinatarios)).filter((n) => {
         if (!n) return false;
         return normalizeCallNick(n) !== normalizeCallNick(userDisplayName);
-      });
+      }));
       
       // Paralelizar: obtener stream y conectar socket simultáneamente
       const [streamResult, connected] = await Promise.all([
@@ -8789,7 +8803,15 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
                         }
                       }}
                     >
-                      <div className={`avatar-container status-${estado}`} title={statusTitle}>
+                      <div
+                        className={`avatar-container status-${estado}`}
+                        title={`${statusTitle} · Clic para ver perfil`}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          const destinoNombre = u.nickname || u.name;
+                          if (destinoNombre) abrirPerfilUsuario(destinoNombre);
+                        }}
+                      >
                         <img
                           src={getAvatarUrl(u)}
                           alt={displayName}
@@ -10835,7 +10857,7 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
                                   onClick={() => {
                                     // Solo abrir perfil si NO es el usuario actual
                                     const userNickname = user?.nickname || user?.name;
-                                    if (chatActual && chatActual !== userNickname && !isAxoAiChatNick(chatActual)) {
+                                    if (chatActual && !isSameNickname(chatActual, userNickname) && !isAxoAiChatNick(chatActual)) {
                                       abrirPerfilUsuario(chatActual);
                                     }
                                   }}

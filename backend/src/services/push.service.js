@@ -106,6 +106,11 @@ function buildUserAliases(userLike) {
   ]
     .map((value) => String(value || '').trim())
     .filter(Boolean);
+  const email = String(userLike?.email || userLike?.login || '').trim();
+  if (email.includes('@')) {
+    const localPart = email.split('@')[0]?.trim();
+    if (localPart) aliases.push(localPart);
+  }
   return Array.from(new Set(aliases));
 }
 
@@ -192,7 +197,8 @@ export async function sendPushToNick(nickname, payload, options = {}) {
           removeSubscriptionByEndpoint(sub.endpoint);
           return;
         }
-        console.warn(`[Push] Error enviando push a ${normNick(nickname)}:`, err?.statusCode || err?.message || err);
+        const pushErr = err?.statusCode || err?.code || err?.message || "push_failed";
+        console.warn(`[Push] Error enviando push a ${normNick(nickname)}: ${pushErr}`);
       }
     }),
   );
