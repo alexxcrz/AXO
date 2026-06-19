@@ -263,6 +263,16 @@ html.mobile-shell .primary-button {
   min-height: 40px;
 }
 
+html.mobile-shell .switch-button,
+html.standalone-app .switch-button {
+  min-height: unset;
+  max-height: unset;
+  width: var(--switch-width, 3rem);
+  height: var(--switch-height, 1.7rem);
+  min-width: var(--switch-width, 3rem);
+  max-width: var(--switch-width, 3rem);
+}
+
 html.mobile-shell .sidebar-shell button,
 html.mobile-shell .sidebar-shell .sidebar-pro-link,
 html.mobile-shell .sidebar-shell .sidebar-profile-card,

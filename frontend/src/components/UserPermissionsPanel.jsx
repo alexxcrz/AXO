@@ -38,7 +38,7 @@ function countEnabledTabs(section, permissionOverrides) {
 function PermissionToggleChip({ label, enabled, delegable, onToggle, title, switchOnly = false }) {
   const hasLabel = Boolean(String(label || "").trim());
   return (
-    <label
+    <div
       className={`perm-toggle-chip ${switchOnly || !hasLabel ? "perm-toggle-chip--switch-only" : ""} ${enabled ? "is-on" : ""} ${!delegable ? "is-locked" : ""}`}
       title={title}
     >
@@ -52,10 +52,11 @@ function PermissionToggleChip({ label, enabled, delegable, onToggle, title, swit
           onToggle();
         }}
         aria-pressed={enabled}
+        aria-label={hasLabel ? label : title}
       >
         <span className="switch-thumb" />
       </button>
-    </label>
+    </div>
   );
 }
 
