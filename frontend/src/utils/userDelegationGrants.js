@@ -70,6 +70,14 @@ export function repairLegacyManagedDenyAllOverrides(userOverrides = {}) {
       + pageEntries.filter(([, value]) => value === true).length;
     const falseCount = actionEntries.filter(([, value]) => value === false).length
       + pageEntries.filter(([, value]) => value === false).length;
+    if (trueCount === 0 && falseCount > 0) {
+      next[userId] = {
+        ...block,
+        pages: {},
+        actions: {},
+      };
+      return;
+    }
     if (trueCount > 0 && falseCount > trueCount) {
       next[userId] = {
         ...block,

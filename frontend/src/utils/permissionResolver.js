@@ -52,10 +52,7 @@ function readPermissionEntryOverride(user, kind, permissionId, permissions) {
 
 function userHasManagedPermissionProfile(user, permissions) {
   if (!user?.id) return false;
-  const block = permissions?.userOverrides?.[user.id];
-  if (!block) return false;
-  const hasBool = (map) => Object.values(map || {}).some((value) => typeof value === "boolean");
-  return hasBool(block.pages) || hasBool(block.actions);
+  return Object.hasOwn(permissions?.userOverrides ?? {}, user.id);
 }
 
 function hasExplicitScopeTabGrant(user, scopeActionId, permissions) {

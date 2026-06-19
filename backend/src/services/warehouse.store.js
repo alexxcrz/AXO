@@ -425,10 +425,7 @@ function buildDenyAllPermissionSelection() {
 
 function userHasManagedPermissionProfile(user, normalizedPermissions) {
   if (!supportsManagedPermissionOverrides(user?.role)) return false;
-  const block = normalizedPermissions.userOverrides?.[user?.id];
-  if (!block) return false;
-  const hasBool = (map) => Object.values(map || {}).some((value) => typeof value === "boolean");
-  return hasBool(block.pages) || hasBool(block.actions);
+  return hasOwn(normalizedPermissions?.userOverrides, user?.id);
 }
 
 function repairLegacyManagedDenyAllOverrides(userOverrides = {}) {
@@ -443,6 +440,14 @@ function repairLegacyManagedDenyAllOverrides(userOverrides = {}) {
     const falsePages = pageEntries.filter(([, value]) => value === false).length;
     const trueCount = trueActions + truePages;
     const falseCount = falseActions + falsePages;
+    if (trueCount === 0 && falseCount > 0) {
+      next[userId] = {
+        ...block,
+        pages: {},
+        actions: {},
+      };
+      return;
+    }
     if (trueCount > 0 && falseCount > trueCount) {
       next[userId] = {
         ...block,
@@ -4313,46 +4318,88 @@ function canActorConfigureDelegation(actor, permissionsModel) {
     || canUserDoWarehouseAction(actor, "managePermissions", permissionsModel);
 }
 
+function userHadManagedOverrideBlock(existingOverride) {
+  if (!existingOverride || typeof existingOverride !== "object") return false;
+  const hasBool = (map) => Object.values(map || {}).some((value) => typeof value === "boolean");
+  return hasBool(existingOverride.pages)
+    || hasBool(existingOverride.actions)
+    || Boolean(existingOverride.delegation);
+}
+
 function buildUserOverridesForDraft(user, requestedOverrides, permissionsModel, delegationSelection = null, options = {}) {
   if (!supportsManagedPermissionOverrides(user.role)) {
     return null;
   }
 
   const isCreate = options.mode === "create";
-  const baseSelection = isCreate
+  const existingOverride = options.existingOverride ?? null;
+  const hadManagedProfile = isCreate
+    || hasOwn(permissionsModel?.userOverrides, user.id)
+    || userHadManagedOverrideBlock(existingOverride);
+
+  const baseSelection = hadManagedProfile
     ? buildDenyAllPermissionSelection()
     : buildEffectivePermissionSelection(user, permissionsModel);
   const preservedSelection = delegationSelection || { pages: {}, actions: {} };
-  const nextOverride = {
-    pages: Object.fromEntries(Object.keys(PAGE_PERMISSIONS)
-      .map((pageId) => {
-        const requestedValue = requestedOverrides?.pages?.[pageId];
-        if (isCreate && requestedValue !== true) return null;
-        const fallbackValue = typeof preservedSelection.pages?.[pageId] === "boolean"
-          ? preservedSelection.pages[pageId]
-          : baseSelection.pages[pageId];
-        const nextValue = typeof requestedValue === "boolean" ? requestedValue : fallbackValue;
-        return [pageId, nextValue];
-      })
-      .filter(Boolean)
-      .filter(([pageId, value]) => value !== baseSelection.pages[pageId])),
-    actions: Object.fromEntries(Object.keys(ACTION_PERMISSIONS)
-      .map((actionId) => {
-        const requestedValue = requestedOverrides?.actions?.[actionId];
-        if (isCreate && requestedValue !== true) return null;
-        const fallbackValue = typeof preservedSelection.actions?.[actionId] === "boolean"
-          ? preservedSelection.actions[actionId]
-          : baseSelection.actions[actionId];
-        const nextValue = typeof requestedValue === "boolean" ? requestedValue : fallbackValue;
-        return [actionId, nextValue];
-      })
-      .filter(Boolean)
-      .filter(([actionId, value]) => value !== baseSelection.actions[actionId])),
-  };
+
+  const resolveNextValue = (requestedValue, fallbackValue) => (
+    typeof requestedValue === "boolean" ? requestedValue : fallbackValue
+  );
+
+  const rawPages = Object.fromEntries(Object.keys(PAGE_PERMISSIONS)
+    .map((pageId) => {
+      const requestedValue = requestedOverrides?.pages?.[pageId];
+      if (isCreate && requestedValue !== true) return null;
+      const fallbackValue = typeof preservedSelection.pages?.[pageId] === "boolean"
+        ? preservedSelection.pages[pageId]
+        : baseSelection.pages[pageId];
+      return [pageId, resolveNextValue(requestedValue, fallbackValue)];
+    })
+    .filter(Boolean));
+
+  const rawActions = Object.fromEntries(Object.keys(ACTION_PERMISSIONS)
+    .map((actionId) => {
+      const requestedValue = requestedOverrides?.actions?.[actionId];
+      if (isCreate && requestedValue !== true) return null;
+      const fallbackValue = typeof preservedSelection.actions?.[actionId] === "boolean"
+        ? preservedSelection.actions[actionId]
+        : baseSelection.actions[actionId];
+      return [actionId, resolveNextValue(requestedValue, fallbackValue)];
+    })
+    .filter(Boolean));
+
+  const pagesDelta = Object.fromEntries(
+    Object.entries(rawPages).filter(([pageId, value]) => value !== baseSelection.pages[pageId]),
+  );
+  const actionsDelta = Object.fromEntries(
+    Object.entries(rawActions).filter(([actionId, value]) => value !== baseSelection.actions[actionId]),
+  );
 
   const delegation = normalizeDelegationOverrideBlock(requestedOverrides?.delegation);
-  if (delegation) nextOverride.delegation = delegation;
 
+  if (hadManagedProfile || isCreate) {
+    const sparsePages = Object.fromEntries(Object.entries(pagesDelta).filter(([, value]) => value === true));
+    const sparseActions = Object.fromEntries(Object.entries(actionsDelta).filter(([, value]) => value === true));
+    const nextOverride = {
+      pages: sparsePages,
+      actions: sparseActions,
+      ...(delegation ? { delegation } : {}),
+    };
+    const hasAnyGrant = Object.keys(sparsePages).length > 0
+      || Object.keys(sparseActions).length > 0
+      || Boolean(delegation);
+    if (hasAnyGrant) return nextOverride;
+    if (!isCreate && hadManagedProfile) {
+      return delegation ? { pages: {}, actions: {}, delegation } : { pages: {}, actions: {} };
+    }
+    return null;
+  }
+
+  const nextOverride = {
+    pages: pagesDelta,
+    actions: actionsDelta,
+    ...(delegation ? { delegation } : {}),
+  };
   const hasPages = Object.keys(nextOverride.pages).length > 0;
   const hasActions = Object.keys(nextOverride.actions).length > 0;
   const hasDelegation = Boolean(nextOverride.delegation);
@@ -4464,8 +4511,11 @@ export function updateWarehouseUser(auth, userId, payload = {}) {
       ? payload.permissionOverrides?.delegation
       : existingTargetOverride?.delegation,
   };
-  const directOverride = canUserDoWarehouseAction(currentUser, "editUsers", currentState.permissions)
-    ? buildUserOverridesForDraft(nextUser, allowedSelection, basePermissions, currentTargetSelection)
+  const builtOverride = canUserDoWarehouseAction(currentUser, "editUsers", currentState.permissions)
+    ? buildUserOverridesForDraft(nextUser, allowedSelection, basePermissions, currentTargetSelection, {
+      mode: "edit",
+      existingOverride: existingTargetOverride,
+    })
     : null;
 
   const nextState = {
@@ -4473,7 +4523,9 @@ export function updateWarehouseUser(auth, userId, payload = {}) {
     users: (currentState.users || []).map((user) => (user.id === userId ? nextUser : user)),
     permissions: {
       ...currentState.permissions,
-      userOverrides: directOverride ? { ...remainingOverrides, [userId]: directOverride } : remainingOverrides,
+      userOverrides: builtOverride === null
+        ? remainingOverrides
+        : { ...remainingOverrides, [userId]: builtOverride },
     },
   };
 
