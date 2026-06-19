@@ -530,6 +530,7 @@ import {
   consumePendingPush,
   parsePushFromSearch,
 } from "./utils/pushDeepLink.js";
+import { resolveScopedChildFromTabGrant } from "./utils/permissionResolver.js";
 import {
   AREA_SECTIONS_WITHOUT_TABS,
   APP_AREA_SECTIONS,
@@ -3243,10 +3244,15 @@ function App() { // NOSONAR
       const hasLegacyScopedPermission = legacyScopedActionId
         ? Boolean(baseActionPermissions[legacyScopedActionId])
         : false;
-      next[actionId] = Boolean(baseActionPermissions[actionId] || hasScopedPermission || hasLegacyScopedPermission);
+      next[actionId] = Boolean(
+        baseActionPermissions[actionId]
+        || hasScopedPermission
+        || hasLegacyScopedPermission
+        || resolveScopedChildFromTabGrant(currentUser, scopedActionId, normalizedPermissions),
+      );
     });
     return next;
-  }, [activeAreaScopePermission, baseActionPermissions]);
+  }, [activeAreaScopePermission, baseActionPermissions, currentUser, normalizedPermissions]);
   const canManageDashboardControls = Boolean(actionPermissions.manageDashboardState);
   const canExportDashboardData = Boolean(actionPermissions.exportDashboardData);
 

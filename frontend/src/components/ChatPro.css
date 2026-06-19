@@ -7709,6 +7709,43 @@ span.chat-item-menu-btn,
   cursor: pointer;
 }
 
+.reuniones-perfil-wrap {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.reuniones-perfil-tabs {
+  display: flex;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+
+.reuniones-perfil-tab {
+  border: 1px solid var(--chat-border, #334155);
+  background: var(--chat-surface, #1e293b);
+  color: var(--chat-text-muted, #94a3b8);
+  border-radius: 999px;
+  padding: 0.35rem 0.85rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.reuniones-perfil-tab.active {
+  background: color-mix(in srgb, #0f766e 18%, var(--chat-surface, #1e293b));
+  border-color: #0f766e;
+  color: var(--chat-text, #f1f5f9);
+}
+
+.reunion-perfil-card.pasada {
+  opacity: 0.88;
+}
+
+.reunion-perfil-card .chip.muted {
+  background: rgba(148, 163, 184, 0.18);
+  color: #94a3b8;
+}
+
 .reuniones-perfil-list {
   display: grid;
   gap: 0.75rem;

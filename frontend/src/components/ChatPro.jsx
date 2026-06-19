@@ -448,6 +448,8 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
   const callFloatingVideoRef = useRef(null);
   const [rtcConfig, setRtcConfig] = useState({ iceServers: [] });
   const [reuniones, setReuniones] = useState([]);
+  const [reunionesPerfil, setReunionesPerfil] = useState({ pendientes: [], historial: [] });
+  const [reunionesPerfilCargando, setReunionesPerfilCargando] = useState(false);
   const [modalReunionAbierto, setModalReunionAbierto] = useState(false);
   const [reunionEditando, setReunionEditando] = useState(null);
   const [reunionForm, setReunionForm] = useState({
@@ -1221,6 +1223,39 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
     }
   };
 
+  const cargarReunionesPerfil = async (nickname) => {
+    const targetNickname = String(nickname || perfilData?.nickname || perfilData?.name || "").trim();
+    if (!targetNickname) {
+      setReunionesPerfil({ pendientes: [], historial: [] });
+      return { pendientes: [], historial: [] };
+    }
+    setReunionesPerfilCargando(true);
+    try {
+      const data = await authFetch(`${SERVER_URL}/api/chat/reuniones/perfil/${encodeURIComponent(targetNickname)}`);
+      const next = {
+        pendientes: Array.isArray(data?.pendientes) ? data.pendientes : [],
+        historial: Array.isArray(data?.historial) ? data.historial : [],
+      };
+      setReunionesPerfil(next);
+      if (esPerfilPropio({ nickname: targetNickname, name: targetNickname })) {
+        setReuniones(next.pendientes);
+        localStorage.setItem("COPMEC_reuniones", JSON.stringify(next.pendientes));
+        next.pendientes.forEach((reunion) => programarNotificacionesReunion(reunion));
+      }
+      return next;
+    } catch (_e) {
+      if (esPerfilPropio(perfilData)) {
+        const fallback = reunionesInvolucranUsuario(reuniones, targetNickname);
+        setReunionesPerfil({ pendientes: fallback, historial: [] });
+        return { pendientes: fallback, historial: [] };
+      }
+      setReunionesPerfil({ pendientes: [], historial: [] });
+      return { pendientes: [], historial: [] };
+    } finally {
+      setReunionesPerfilCargando(false);
+    }
+  };
+
   const marcarEscritura = (deNickname, activo) => {
     const key = normalizeUserKey(deNickname);
     if (!key) return;
@@ -1253,11 +1288,12 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
     const targetKey = normalizeUserKey(nickname);
     if (!targetKey) return null;
     const source = resolveUsuarioChat(nickname);
-    if (!source && !nickname) return null;
+    const displayName = source?.nickname || source?.name || String(nickname || "").trim();
+    if (!displayName) return null;
     return {
       id: source?.id || null,
-      name: source?.name || nickname,
-      nickname: source?.nickname || source?.name || nickname,
+      name: source?.name || displayName,
+      nickname: displayName,
       photo: source?.photo || null,
       photoThumbnailUrl: source?.photoThumbnailUrl || null,
       puesto: source?.role || null,
@@ -3809,8 +3845,9 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
 
   useEffect(() => {
     if (!perfilAbierto || perfilTab !== "reuniones" || perfilTipo !== "usuario") return undefined;
-    if (!esPerfilPropio(perfilData)) return undefined;
-    cargarReuniones();
+    const nickname = perfilData?.nickname || perfilData?.name;
+    if (!nickname) return undefined;
+    cargarReunionesPerfil(nickname);
     return undefined;
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [perfilAbierto, perfilTab, perfilTipo, perfilData?.nickname, perfilData?.name, open, SERVER_URL]);
@@ -6006,6 +6043,7 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
     setPerfilData(null);
     setPerfilCompartidos([]);
     setPerfilError(null);
+    setReunionesPerfil({ pendientes: [], historial: [] });
     setPerfilCargando(true);
 
     const fallbackPerfil = buildProfileFallback(nickname);
@@ -6016,9 +6054,12 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
     try {
       const perfil = await authFetch(`${SERVER_URL}/api/chat/usuario/${encodeURIComponent(nickname)}/perfil`);
       setPerfilData(perfil || fallbackPerfil || null);
+      setPerfilError(null);
     } catch (err) {
       if (Number(err?.status) === 429) {
-        // Mantener fallback visible y no ensuciar la UI con error transitorio.
+        setPerfilError(null);
+      } else if (fallbackPerfil) {
+        setPerfilData(fallbackPerfil);
         setPerfilError(null);
       } else {
         setPerfilError(err?.message || "Error cargando información del usuario");
@@ -6027,7 +6068,6 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
       setPerfilCargando(false);
     }
 
-    // Cargar compartidos de forma independiente (no bloquea el perfil)
     try {
       const compartidos = await authFetch(`${SERVER_URL}/api/chat/privado/${encodeURIComponent(nickname)}/compartidos`);
       setPerfilCompartidos(Array.isArray(compartidos) ? compartidos : []);
@@ -9411,18 +9451,15 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
                             >
                               Compartidos
                             </button>
-                            {/* Solo mostrar pestaña de reuniones si es el perfil propio */}
-                            {esPerfilPropio(perfilData) ? (
-                                <button
-                                  className={`chat-profile-tab ${perfilTab === "reuniones" ? "active" : ""}`}
-                                  onClick={() => {
-                                    setPerfilTab("reuniones");
-                                    cargarReuniones();
-                                  }}
-                                >
-                                  Reuniones
-                                </button>
-                              ) : null}
+                            <button
+                              className={`chat-profile-tab ${perfilTab === "reuniones" ? "active" : ""}`}
+                              onClick={() => {
+                                setPerfilTab("reuniones");
+                                void cargarReunionesPerfil(perfilData?.nickname || perfilData?.name);
+                              }}
+                            >
+                              Reuniones
+                            </button>
                           </>
                         )}
                       </div>
@@ -10000,32 +10037,29 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
                             )}
                           </div>
                         )}
-                        {!perfilCargando && !perfilError && perfilTab === "reuniones" && perfilTipo === "usuario" && (() => {
-                          const userNickname = user?.nickname || user?.name;
+                        {!perfilCargando && perfilTab === "reuniones" && perfilTipo === "usuario" && (() => {
+                          const userNickname = perfilData?.nickname || perfilData?.name || user?.nickname || user?.name;
+                          const perfilPropio = esPerfilPropio(perfilData);
 
-                          if (!esPerfilPropio(perfilData)) {
-                            return (
-                              <div className="chat-empty-pro chat-profile-reuniones">
-                                Solo puedes ver tus propias reuniones
-                              </div>
-                            );
+                          if (reunionesPerfilCargando) {
+                            return <div className="chat-empty-pro chat-profile-reuniones">Cargando reuniones...</div>;
                           }
-
-                          const misReuniones = reunionesInvolucranUsuario(reuniones, userNickname);
 
                           return (
                             <div className="chat-profile-reuniones">
                               <ReunionesPerfilUsuario
-                                reuniones={misReuniones}
+                                pendientes={reunionesPerfil.pendientes}
+                                historial={reunionesPerfil.historial}
                                 userNickname={userNickname}
-                              onEditar={abrirModalReunion}
-                              onEliminar={eliminarReunion}
-                              onIniciar={iniciarReunionVideollamada}
-                              onSolicitarCambio={abrirSolicitudCambioReunion}
-                              onAgregarParticipantes={abrirModalAgregarParticipantesReunion}
-                              onCopiarEnlace={copiarEnlaceInvitacionReunion}
-                              onSolicitarUnirse={solicitarUnirseReunion}
-                            />
+                                soloLectura={!perfilPropio}
+                                onEditar={perfilPropio ? abrirModalReunion : undefined}
+                                onEliminar={perfilPropio ? eliminarReunion : undefined}
+                                onIniciar={perfilPropio ? iniciarReunionVideollamada : undefined}
+                                onSolicitarCambio={perfilPropio ? abrirSolicitudCambioReunion : undefined}
+                                onAgregarParticipantes={perfilPropio ? abrirModalAgregarParticipantesReunion : undefined}
+                                onCopiarEnlace={perfilPropio ? copiarEnlaceInvitacionReunion : undefined}
+                                onSolicitarUnirse={perfilPropio ? solicitarUnirseReunion : undefined}
+                              />
                             </div>
                           );
                         })()}

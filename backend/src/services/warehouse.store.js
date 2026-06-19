@@ -4048,9 +4048,29 @@ function canUserDoWarehouseActionEntry(user, actionId, normalizedPermissions) {
   return userMatchesPermissionEntry(user, normalizedPermissions.actions?.[actionId]);
 }
 
+function resolveScopedWarehouseChildFromTabGrant(user, scopedActionId, normalizedPermissions) {
+  const separatorIndex = String(scopedActionId || "").indexOf("__");
+  if (separatorIndex <= 0) return false;
+  const scopeId = scopedActionId.slice(0, separatorIndex);
+  const baseActionId = scopedActionId.slice(separatorIndex + 2);
+  if (!SCOPE_TAB_ACTION_IDS.has(scopeId) || !baseActionId) return false;
+
+  const scopedOverride = normalizedPermissions.userOverrides?.[user.id]?.actions?.[scopedActionId];
+  if (scopedOverride === true) return true;
+  if (!hasScopeTabGrant(user, scopeId, normalizedPermissions)) return false;
+
+  const baseOverride = normalizedPermissions.userOverrides?.[user.id]?.actions?.[baseActionId];
+  if (baseOverride === false) return false;
+
+  const baseAllowed = userMatchesPermissionEntry(user, normalizedPermissions.actions?.[baseActionId]);
+  if (scopedOverride === false) return baseAllowed;
+  if (canUserDoWarehouseActionEntry(user, scopedActionId, normalizedPermissions)) return true;
+  return baseAllowed;
+}
+
 function hasScopedAliasGrant(user, baseActionId, normalizedPermissions) {
   const scopedAliases = SCOPED_ALIASES_BY_BASE_ACTION.get(baseActionId) || [];
-  if (scopedAliases.some((scopedActionId) => canUserDoWarehouseActionEntry(user, scopedActionId, normalizedPermissions))) {
+  if (scopedAliases.some((scopedActionId) => resolveScopedWarehouseChildFromTabGrant(user, scopedActionId, normalizedPermissions))) {
     return true;
   }
   const legacyScopedActionId = TRANSPORT_DOCUMENTACION_LEGACY_SCOPED_ACTIONS[baseActionId];
@@ -4091,6 +4111,13 @@ export function canUserDoWarehouseAction(user, actionId, permissions = null) {
   if (SCOPE_TAB_ACTION_IDS.has(actionId)) {
     return hasScopeTabGrant(user, actionId, normalizedPermissions);
   }
+
+  if (String(actionId).includes("__") && resolveScopedWarehouseChildFromTabGrant(user, actionId, normalizedPermissions)) {
+    return true;
+  }
+
+  const userOverride = normalizedPermissions.userOverrides?.[user.id]?.actions?.[actionId];
+  if (typeof userOverride === "boolean") return userOverride;
 
   if (canUserDoWarehouseActionEntry(user, actionId, normalizedPermissions)) return true;
   return hasScopedAliasGrant(user, actionId, normalizedPermissions);
@@ -4245,7 +4272,7 @@ function buildUserOverridesForDraft(user, requestedOverrides, permissionsModel, 
         const requestedValue = requestedOverrides?.pages?.[pageId];
         const fallbackValue = typeof preservedSelection.pages?.[pageId] === "boolean"
           ? preservedSelection.pages[pageId]
-          : false;
+          : baseSelection.pages[pageId];
         const nextValue = typeof requestedValue === "boolean" ? requestedValue : fallbackValue;
         return [pageId, nextValue];
       })
@@ -4255,7 +4282,7 @@ function buildUserOverridesForDraft(user, requestedOverrides, permissionsModel, 
         const requestedValue = requestedOverrides?.actions?.[actionId];
         const fallbackValue = typeof preservedSelection.actions?.[actionId] === "boolean"
           ? preservedSelection.actions[actionId]
-          : false;
+          : baseSelection.actions[actionId];
         const nextValue = typeof requestedValue === "boolean" ? requestedValue : fallbackValue;
         return [actionId, nextValue];
       })

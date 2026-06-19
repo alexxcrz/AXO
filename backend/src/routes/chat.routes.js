@@ -514,34 +514,72 @@ chatRouter.delete("/calls/historial", requireAuth, async (req, res) => {
   }
 });
 
+function buildUserAliasNormSet(nickname) {
+  const aliases = resolveTargetAliases(nickname);
+  return new Set(aliases.map((alias) => normalizeNick(alias)).filter(Boolean));
+}
+
+function buildPerfilUsuarioResponse(user) {
+  if (!user) return null;
+  return {
+    id: user.id,
+    name: user.name,
+    nickname: user.nickname || user.name,
+    photo: user.photo || null,
+    photoThumbnailUrl: user.photoThumbnailUrl || null,
+    photoTimestamp: user.photoUpdatedAt || user.updatedAt || null,
+    puesto: user.role || null,
+    cargo: user.jobTitle || null,
+    area: user.area || null,
+    department: user.department || null,
+    playerAcceso: user.email || null,
+    correo: user.correoElectronico || null,
+    telefono: user.telefono || null,
+    telefono_visible: user.telefono_visible || false,
+    birthday: user.birthday || null,
+    fechaIngreso: user.fechaIngreso || null,
+    active: user.isActive !== false,
+  };
+}
+
+function findWarehouseUserByNickname(nickname) {
+  const targetKey = normalizeNick(nickname);
+  if (!targetKey) return null;
+  return getAllUsers().find((u) => {
+    const aliases = buildUserAliases(u);
+    return aliases.some((alias) => normalizeNick(alias) === targetKey);
+  }) || null;
+}
+
 chatRouter.get("/usuario/:nickname/perfil", requireAuth, (req, res) => {
   try {
     const { nickname } = req.params;
-    const targetKey = normalizeNick(nickname);
-    const user = getAllUsers().find((u) => {
-      const aliases = buildUserAliases(u);
-      return aliases.some((alias) => normalizeNick(alias) === targetKey);
-    });
-    if (!user) return res.status(404).json({ error: "Usuario no encontrado" });
-    res.json({
-      id: user.id,
-      name: user.name,
-      nickname: user.name,
-      photo: user.photo || null,
-      photoThumbnailUrl: user.photoThumbnailUrl || null,
-      photoTimestamp: user.photoUpdatedAt || user.updatedAt || null,
-      puesto: user.role || null,
-      cargo: user.jobTitle || null,
-      area: user.area || null,
-      department: user.department || null,
-      playerAcceso: user.email || null,
-      correo: user.correoElectronico || null,
-      telefono: user.telefono || null,
-      telefono_visible: user.telefono_visible || false,
-      birthday: user.birthday || null,
-      fechaIngreso: user.fechaIngreso || null,
-      active: user.isActive,
-    });
+    const user = findWarehouseUserByNickname(nickname);
+    if (!user) {
+      const aliases = resolveTargetAliases(nickname);
+      const displayName = aliases[0] || String(nickname || "").trim();
+      if (!displayName) return res.status(404).json({ error: "Usuario no encontrado" });
+      return res.json({
+        id: null,
+        name: displayName,
+        nickname: displayName,
+        photo: null,
+        photoThumbnailUrl: null,
+        photoTimestamp: null,
+        puesto: null,
+        cargo: null,
+        area: null,
+        department: null,
+        playerAcceso: null,
+        correo: null,
+        telefono: null,
+        telefono_visible: false,
+        birthday: null,
+        fechaIngreso: null,
+        active: true,
+      });
+    }
+    res.json(buildPerfilUsuarioResponse(user));
   } catch (e) {
     res.status(500).json({ error: "Error obteniendo perfil" });
   }
@@ -2262,12 +2300,48 @@ function serializeReunion(row, { includeToken = true } = {}) {
   };
 }
 
-function reunionInvolucraUsuario(row, nombre, userAliasNorm) {
-  if (!row || !nombre) return false;
+function reunionInvolucraUsuario(row, _nombre, userAliasNorm) {
+  if (!row || !userAliasNorm?.size) return false;
   const creadorNorm = normalizeNick(row.creador);
   if (creadorNorm && userAliasNorm.has(creadorNorm)) return true;
   const participantes = parseReunionParticipantes(row.participantes);
   return participantes.some((p) => userAliasNorm.has(normalizeNick(p)));
+}
+
+function reunionFinDateTime(row) {
+  const inicio = parseReunionDateTime(row?.fecha, row?.hora);
+  if (!inicio) return null;
+  const duracionMin = getReunionDurationMinutes(row);
+  return new Date(inicio.getTime() + duracionMin * 60 * 1000);
+}
+
+function reunionYaPaso(row, now = new Date()) {
+  const estado = String(row?.estado || "programada").toLowerCase();
+  if (estado === "cancelada" || estado === "finalizada") return true;
+  const fin = reunionFinDateTime(row);
+  if (!fin) return false;
+  return fin.getTime() <= now.getTime();
+}
+
+function clasificarReunionesPorUsuario(rows, userAliasNorm) {
+  const now = new Date();
+  const mias = (Array.isArray(rows) ? rows : []).filter((row) => reunionInvolucraUsuario(row, "", userAliasNorm));
+  const pendientes = [];
+  const historial = [];
+  mias.forEach((row) => {
+    const serialized = serializeReunion(row);
+    if (reunionYaPaso(row, now)) historial.push(serialized);
+    else pendientes.push(serialized);
+  });
+  const sortAsc = (a, b) => {
+    const fa = new Date(`${a.fecha}T${a.hora || "00:00"}`);
+    const fb = new Date(`${b.fecha}T${b.hora || "00:00"}`);
+    return fa - fb;
+  };
+  const sortDesc = (a, b) => sortAsc(b, a);
+  pendientes.sort(sortAsc);
+  historial.sort(sortDesc);
+  return { pendientes, historial };
 }
 
 function emitReunionActualizada(reunion, targetNicknames = []) {
@@ -2428,19 +2502,38 @@ chatRouter.get("/reuniones/proximas", requireAuth, async (req, res) => {
     if (!aliasInfo) return res.status(401).json({ error: "No autenticado" });
 
     const rows = await prisma.chatReunion.findMany({
-      where: { estado: { in: ["programada", "activa"] } },
-      orderBy: [{ fecha: "asc" }, { hora: "asc" }],
-      take: 200,
+      where: { estado: { in: ["programada", "activa", "finalizada", "cancelada"] } },
+      orderBy: [{ fecha: "desc" }, { hora: "desc" }],
+      take: 400,
     });
 
-    const mias = rows
-      .filter((row) => reunionInvolucraUsuario(row, aliasInfo.nombre, aliasInfo.userAliasNorm))
-      .map(serializeReunion);
-
-    res.json(mias);
+    const { pendientes } = clasificarReunionesPorUsuario(rows, aliasInfo.userAliasNorm);
+    res.json(pendientes);
   } catch (e) {
     console.error("[reuniones/proximas]", e?.message);
     res.json([]);
+  }
+});
+
+chatRouter.get("/reuniones/perfil/:nickname", requireAuth, async (req, res) => {
+  try {
+    if (!prisma.chatReunion) return res.json({ pendientes: [], historial: [] });
+    const nickname = String(req.params.nickname || "").trim();
+    if (!nickname) return res.status(400).json({ error: "Nickname requerido" });
+
+    const userAliasNorm = buildUserAliasNormSet(nickname);
+    if (!userAliasNorm.size) return res.json({ pendientes: [], historial: [] });
+
+    const rows = await prisma.chatReunion.findMany({
+      where: { estado: { in: ["programada", "activa", "finalizada", "cancelada"] } },
+      orderBy: [{ fecha: "desc" }, { hora: "desc" }],
+      take: 400,
+    });
+
+    res.json(clasificarReunionesPorUsuario(rows, userAliasNorm));
+  } catch (e) {
+    console.error("[reuniones/perfil]", e?.message);
+    res.json({ pendientes: [], historial: [] });
   }
 });
 

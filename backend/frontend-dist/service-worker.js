@@ -55,6 +55,25 @@ function resolveVibratePattern(kind, fallback) {
   return notificationPrefs.msgVibratePattern || fallback;
 }
 
+function buildPushDeepLinkUrl(data = {}) {
+  const params = new URLSearchParams();
+  const type = String(data.type || "").trim();
+  if (!type) return "/";
+  params.set("axo_push", type);
+  if (data.fromNickname) params.set("from", data.fromNickname);
+  if (data.groupId != null) params.set("groupId", String(data.groupId));
+  if (data.room) params.set("room", data.room);
+  const caller = data.callerName || data.caller;
+  if (caller) params.set("caller", caller);
+  if (data.reunionId != null) params.set("reunionId", String(data.reunionId));
+  if (data.action) params.set("action", data.action);
+  if (data.chatTipo) params.set("chatTipo", data.chatTipo);
+  if (data.chatId != null) params.set("chatId", String(data.chatId));
+  if (data.targetPage) params.set("page", String(data.targetPage).replace(/^\//, ""));
+  else if (data.url && data.url !== "/") params.set("page", String(data.url).replace(/^\//, ""));
+  return `/?${params.toString()}`;
+}
+
 function buildNotificationOptions({ title: _title, body, tag, data, vibrate, soundUrl: _soundUrl, actions, requireInteraction, vibrateKind = "message" }) {
   const pattern = Array.isArray(vibrate) && vibrate.length ? vibrate : resolveVibratePattern(vibrateKind, VIBRATE_MSG);
   const options = {
@@ -109,6 +128,12 @@ self.addEventListener("push", (event) => {
           break;
         case "group_message":
           await showGroupMessageNotification(data);
+          break;
+        case "reunion_reminder":
+        case "reunion_invite":
+        case "reunion_solicitud_cambio":
+        case "reunion_solicitud_unirse":
+          await showReunionNotification(data);
           break;
         default:
           break;
@@ -173,7 +198,11 @@ async function showCallNotification(data) {
       caller: data.caller || data.callerName,
       callerName: data.callerName || data.caller,
       fromNickname: data.callerName || data.caller,
-      url: "/",
+      url: buildPushDeepLinkUrl({
+        type: "call_invite",
+        room: data.room,
+        caller: data.callerName || data.caller,
+      }),
     },
   }));
   await broadcastAppSound(soundUrl);
@@ -205,7 +234,7 @@ async function showMessageNotification(data) {
       type: "message",
       fromNickname: from,
       icon: data.senderPhoto || ICON,
-      url: "/",
+      url: buildPushDeepLinkUrl({ type: "message", fromNickname: from }),
     },
   }));
   await broadcastAppSound(soundUrl);
@@ -232,13 +261,57 @@ async function showGroupMessageNotification(data) {
       groupId: data.groupId,
       groupName: data.groupName,
       fromNickname: data.fromNickname,
-      url: "/",
+      url: buildPushDeepLinkUrl({
+        type: "group_message",
+        groupId: data.groupId,
+        fromNickname: data.fromNickname,
+      }),
+    },
+  }));
+  await broadcastAppSound(soundUrl);
+}
+
+async function showReunionNotification(data) {
+  const type = String(data.type || "reunion_reminder");
+  const reunionId = data.reunionId || "";
+  const tag = data.tag || `reunion-${type}-${reunionId || Date.now()}`;
+  const prev = await self.registration.getNotifications({ tag });
+  prev.forEach((n) => n.close());
+
+  const title = data.title || (type === "reunion_reminder" ? "Reunion proxima" : "Reunion");
+  const body = data.body || data.message || "";
+  const soundUrl = resolveSoundUrl(data, "message");
+
+  await self.registration.showNotification(title, buildNotificationOptions({
+    title,
+    body,
+    tag,
+    soundUrl,
+    requireInteraction: type === "reunion_reminder",
+    actions: [{ action: "open", title: "Abrir chat" }],
+    data: {
+      type,
+      reunionId,
+      titulo: data.titulo || "",
+      fecha: data.fecha || "",
+      hora: data.hora || "",
+      esVideollamada: data.esVideollamada,
+      chatTipo: data.chatTipo || "",
+      chatId: data.chatId || "",
+      minutosRestantes: data.minutosRestantes,
+      url: buildPushDeepLinkUrl({
+        type,
+        reunionId,
+        chatTipo: data.chatTipo,
+        chatId: data.chatId,
+      }),
     },
   }));
   await broadcastAppSound(soundUrl);
 }
 
 async function focusClientAndPost(message) {
+  const payload = message?.data || {};
   const clientList = await clients.matchAll({ type: "window", includeUncontrolled: true });
   for (const client of clientList) {
     if ("focus" in client) {
@@ -247,8 +320,20 @@ async function focusClientAndPost(message) {
       return true;
     }
   }
+  const deepLink = payload.url && payload.url !== "/"
+    ? payload.url
+    : buildPushDeepLinkUrl(payload);
   if (clients.openWindow) {
-    await clients.openWindow(message.data?.url || "/");
+    const opened = await clients.openWindow(deepLink);
+    if (opened && "postMessage" in opened) {
+      await new Promise((resolve) => setTimeout(resolve, 1200));
+      try {
+        await opened.focus();
+        opened.postMessage(message);
+      } catch {
+        /* la URL profunda abrira el destino */
+      }
+    }
   }
   return false;
 }

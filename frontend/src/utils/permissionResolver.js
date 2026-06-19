@@ -61,7 +61,7 @@ function readEffectivePermissionEntry(user, kind, permissionId, permissions) {
 
 function hasScopedAliasGrant(user, baseActionId, permissions) {
   const scopedAliases = SCOPED_ALIASES_BY_BASE_ACTION.get(baseActionId) || [];
-  if (scopedAliases.some((scopedActionId) => readEffectivePermissionEntry(user, "actions", scopedActionId, permissions))) {
+  if (scopedAliases.some((scopedActionId) => resolveScopedChildFromTabGrant(user, scopedActionId, permissions))) {
     return true;
   }
   const legacyScopedActionId = TRANSPORT_DOCUMENTACION_LEGACY_SCOPED_ACTIONS[baseActionId];
@@ -128,20 +128,46 @@ function normalizeRoleIsLead(user) {
   return String(user?.role || "").trim() === ROLE_LEAD;
 }
 
+function resolveScopedChildFromTabGrant(user, scopedActionId, permissions) {
+  const separatorIndex = String(scopedActionId || "").indexOf("__");
+  if (separatorIndex <= 0) return false;
+  const scopeId = scopedActionId.slice(0, separatorIndex);
+  const baseActionId = scopedActionId.slice(separatorIndex + 2);
+  if (!SCOPE_TAB_ACTION_IDS.has(scopeId) || !baseActionId) return false;
+
+  const scopedOverride = readPermissionEntryOverride(user, "actions", scopedActionId, permissions);
+  if (scopedOverride === true) return true;
+  if (!hasScopeTabGrant(user, scopeId, permissions)) return false;
+
+  const baseOverride = readPermissionEntryOverride(user, "actions", baseActionId, permissions);
+  if (baseOverride === false) return false;
+
+  const baseAllowed = readEffectivePermissionEntry(user, "actions", baseActionId, permissions);
+  if (scopedOverride === false) return baseAllowed;
+  if (readEffectivePermissionEntry(user, "actions", scopedActionId, permissions)) return true;
+  return baseAllowed;
+}
+
 export function resolveCanDoAction(user, actionId, permissions) {
   if (!user || !actionId) return false;
   if (normalizeRoleIsLead(user)) return true;
-
-  const directOverride = readPermissionEntryOverride(user, "actions", actionId, permissions);
-  if (typeof directOverride === "boolean") return directOverride;
 
   if (SCOPE_TAB_ACTION_IDS.has(actionId)) {
     return hasScopeTabGrant(user, actionId, permissions);
   }
 
+  if (String(actionId).includes("__") && resolveScopedChildFromTabGrant(user, actionId, permissions)) {
+    return true;
+  }
+
+  const directOverride = readPermissionEntryOverride(user, "actions", actionId, permissions);
+  if (typeof directOverride === "boolean") return directOverride;
+
   if (readEffectivePermissionEntry(user, "actions", actionId, permissions)) return true;
   return hasScopedAliasGrant(user, actionId, permissions);
 }
+
+export { resolveScopedChildFromTabGrant };
 
 export function canAccessAreaNavItem(user, item, permissions) {
   if (!user || !item) return false;
