@@ -22,6 +22,10 @@ import { repairWarehouseBoardTimes } from "./boardHistoryTimeRepair.js";
 import { attachRoadMonitorToTransportState, syncTransportRoadMonitors } from "./transport-road-monitor.service.js";
 import { normalizeRetailState } from "./retail.store.js";
 import { isDeprecatedDynamicArea, migrateDeprecatedAreaValue } from "../config/deprecatedAreas.js";
+import {
+  boardGrantsOperationalAccessViaConfiguredPermissions,
+  collectBoardAreaTokens,
+} from "../../../shared/boardAreaPermissionAccess.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -4015,11 +4019,23 @@ function hasGrantedWarehouseBoardOperationalAccess(board, user) {
   return false;
 }
 
-export function canManageWarehouseBoard(user, board) {
+function userHasGrantedBoardAccessViaPermissions(user, board, normalizedPermissions) {
+  if (!user || !board || !normalizedPermissions) return false;
+  const areaTokens = collectBoardAreaTokens(board, normalizeBoardOwnerArea);
+  return boardGrantsOperationalAccessViaConfiguredPermissions(
+    areaTokens,
+    (actionId) => canUserDoWarehouseAction(user, actionId, normalizedPermissions),
+  );
+}
+
+export function canManageWarehouseBoard(user, board, permissions = null) {
   if (!user || !board) return false;
   const normalizedRole = normalizeRole(user.role);
   if (normalizedRole === ROLE_LEAD) return true;
+
+  const resolvedPermissions = normalizePermissions(permissions || getRawWarehouseState().permissions);
   if (hasGrantedWarehouseBoardOperationalAccess(board, user)) return true;
+  if (userHasGrantedBoardAccessViaPermissions(user, board, resolvedPermissions)) return true;
   if (doesBoardMatchWarehouseUserArea(board, user)) {
     const ownerId = String(board.ownerId || board.createdById || "").trim();
     const visibility = resolveBoardVisibilitySnapshot(board, ownerId);
@@ -4202,7 +4218,7 @@ export function canUserDoBoardAction(user, boardId, actionId) {
   const currentState = getRawWarehouseState();
   const board = (currentState.controlBoards || []).find((item) => item.id === boardId);
   if (!board) return false;
-  if (!canManageWarehouseBoard(user, board)) return false;
+  if (!canManageWarehouseBoard(user, board, currentState.permissions)) return false;
   if (hasGrantedWarehouseBoardOperationalAccess(board, user) && WAREHOUSE_BOARD_OPERATION_AUTO_GRANT_ACTION_IDS.has(actionId)) {
     return true;
   }
@@ -4216,7 +4232,7 @@ export function canUserDoBoardAction(user, boardId, actionId) {
 
 export function canDeleteWarehouseBoardRow(user, board, row, permissions) {
   if (!user || !board || !row) return false;
-  if (!canManageWarehouseBoard(user, board)) return false;
+  if (!canManageWarehouseBoard(user, board, permissions)) return false;
   if (!canUserDoBoardAction(user, board.id, "deleteBoardRow")) return false;
   if (row.status === "Terminado") {
     return canUserDoBoardAction(user, board.id, "editFinishedBoardRow")
@@ -7893,7 +7909,7 @@ export function duplicateWarehouseBoard(auth, boardId, includeRows = false) {
 
 export function canEditWarehouseBoardRow(user, board, row, permissions, actionId = "createBoardRow") {
   if (!user || !board || !row) return false;
-  if (!canManageWarehouseBoard(user, board)) return false;
+  if (!canManageWarehouseBoard(user, board, permissions)) return false;
   if (row.status === "Terminado") {
     if (canUserDoBoardAction(user, board.id, "editFinishedBoardRow")) return true;
     return canUserDoWarehouseAction(user, "editHistoryRecords", permissions);

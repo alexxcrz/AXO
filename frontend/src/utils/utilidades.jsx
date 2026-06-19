@@ -19,6 +19,10 @@ import {
   canAccessGlobalDashboardPage,
   userHasAnyRetailAreaScope,
 } from "./permissionResolver.js";
+import {
+  boardGrantsOperationalAccessViaConfiguredPermissions,
+  collectBoardAreaTokens,
+} from "../../../shared/boardAreaPermissionAccess.mjs";
 
 export { canAccessAreaNavItem, canAccessAreaDashboardPage, canAccessAreaShellPage, canAccessGlobalDashboardPage, userHasAnyRetailAreaScope };
 
@@ -4200,10 +4204,20 @@ export function hasGrantedBoardOperationalAccess(board, user) {
   return false;
 }
 
-export function canManageBoard(user, board) {
+export function userHasGrantedBoardAccessViaPermissions(user, board, permissions) {
+  if (!user || !board || !permissions) return false;
+  const areaTokens = collectBoardAreaTokens(board, normalizeBoardOwnerArea);
+  return boardGrantsOperationalAccessViaConfiguredPermissions(
+    areaTokens,
+    (actionId) => resolveCanDoAction(user, actionId, permissions),
+  );
+}
+
+export function canManageBoard(user, board, permissions = null) {
   if (!user || !board) return false;
   if (normalizeRole(user.role) === ROLE_LEAD) return true;
   if (hasGrantedBoardOperationalAccess(board, user)) return true;
+  if (permissions && userHasGrantedBoardAccessViaPermissions(user, board, permissions)) return true;
   if (doesBoardMatchUserArea(board, user)) {
     const visibility = getNormalizedBoardVisibility(board);
     if (visibility.visibilityType === "all") return true;
@@ -4221,17 +4235,17 @@ export function canEditBoard(user, board) {
   return board.createdById === user.id;
 }
 
-export function getBoardVisibleToUser(board, user) {
-  return canManageBoard(user, board);
+export function getBoardVisibleToUser(board, user, permissions = null) {
+  return canManageBoard(user, board, permissions);
 }
 
-export function canDoBoardAction(user, board) {
-  return canManageBoard(user, board);
+export function canDoBoardAction(user, board, permissions = null) {
+  return canManageBoard(user, board, permissions);
 }
 
 export function canDoBoardActionForUser(user, board, actionId, globalPermissions) {
   if (!user || !board || !actionId) return false;
-  if (!canManageBoard(user, board)) return false;
+  if (!canManageBoard(user, board, globalPermissions)) return false;
   if (hasGrantedBoardOperationalAccess(board, user) && BOARD_OPERATIONAL_AUTO_GRANT_ACTION_IDS.has(actionId)) {
     return true;
   }
@@ -4245,7 +4259,7 @@ export function canDoBoardActionForUser(user, board, actionId, globalPermissions
 
 export function canEditBoardRowRecord(user, board, row, permissions, actionId = "createBoardRow") {
   if (!user || !board || !row) return false;
-  if (!canManageBoard(user, board)) return false;
+  if (!canManageBoard(user, board, permissions)) return false;
   if (row.status === STATUS_FINISHED) {
     return canDoBoardActionForUser(user, board, "editFinishedBoardRow", permissions)
       || canDoAction(user, "editHistoryRecords", permissions);
@@ -4264,7 +4278,7 @@ export function canOperateBoardRowRecord(user, board, row, permissions) {
 
 export function canDeleteBoardRowRecord(user, board, row, permissions) {
   if (!user || !board || !row) return false;
-  if (!canManageBoard(user, board)) return false;
+  if (!canManageBoard(user, board, permissions)) return false;
   if (!canDoBoardActionForUser(user, board, "deleteBoardRow", permissions)) return false;
   if (row.status === STATUS_FINISHED) {
     return canDoBoardActionForUser(user, board, "editFinishedBoardRow", permissions)

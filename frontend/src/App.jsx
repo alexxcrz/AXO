@@ -448,6 +448,8 @@ import {
 
   getBoardVisibleToUser,
 
+  userHasGrantedBoardAccessViaPermissions,
+
   canDoBoardAction,
 
   canDoBoardActionForUser,
@@ -3557,7 +3559,7 @@ function App() { // NOSONAR
     if (!currentUser) return [];
     const canViewHistoricalBoardScopes = canDoAction(currentUser, "viewHistoricalBoardScopes", normalizedPermissions);
     return (state.controlBoards || []).filter((board) => (
-      canViewHistoricalBoardScopes || getBoardVisibleToUser(board, currentUser)
+      canViewHistoricalBoardScopes || getBoardVisibleToUser(board, currentUser, normalizedPermissions)
     ));
   }, [currentUser, normalizedPermissions, state.controlBoards]);
 
@@ -3567,9 +3569,10 @@ function App() { // NOSONAR
       const directArea = String(board?.settings?.ownerArea || board?.ownerArea || "").trim().toUpperCase();
       const ownerArea = String(userMap.get(board?.ownerId)?.area || "").trim().toUpperCase();
       const boardArea = directArea || ownerArea || "SIN AREA";
-      return areaBoardScopeTokens.includes(boardArea);
+      if (areaBoardScopeTokens.includes(boardArea)) return true;
+      return userHasGrantedBoardAccessViaPermissions(currentUser, board, normalizedPermissions);
     });
-  }, [areaBoardScopeTokens, userMap, visibleControlBoards]);
+  }, [areaBoardScopeTokens, userMap, visibleControlBoards, currentUser, normalizedPermissions]);
 
   const filteredVisibleControlBoards = useMemo(() => {
     const sourceBoards = areaBoardScopeTokens.length ? areaScopedVisibleControlBoards : visibleControlBoards;
@@ -3596,7 +3599,7 @@ function App() { // NOSONAR
     if (!currentUser) return [];
     const canViewHistoricalBoardScopes = canDoAction(currentUser, "viewHistoricalBoardScopes", normalizedPermissions);
     return (state.boardWeekHistory || []).filter((snapshot) => (
-      canViewHistoricalBoardScopes || getBoardVisibleToUser(snapshot, currentUser)
+      canViewHistoricalBoardScopes || getBoardVisibleToUser(snapshot, currentUser, normalizedPermissions)
     ));
   }, [currentUser, normalizedPermissions, state.boardWeekHistory]);
 
@@ -5157,7 +5160,7 @@ function App() { // NOSONAR
         method: "DELETE",
       });
       applyRemoteWarehouseState(result.data.state, setState, setLoginDirectory, skipNextSyncRef, setSyncStatus);
-      const nextVisibleBoard = (result.data.state?.controlBoards || []).find((board) => getBoardVisibleToUser(board, currentUser));
+      const nextVisibleBoard = (result.data.state?.controlBoards || []).find((board) => getBoardVisibleToUser(board, currentUser, normalizedPermissions));
       setDeleteBoardId(null);
       setCustomBoardActionsMenuOpen(false);
       setSelectedCustomBoardId(nextVisibleBoard?.id || "");
