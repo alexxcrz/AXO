@@ -1162,6 +1162,65 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
     }) || null;
   };
 
+  const esPerfilPropio = (perfilRef) => {
+    const userDisplay = user?.nickname || user?.name;
+    const perfilDisplay = perfilRef?.nickname || perfilRef?.name;
+    if (!userDisplay || !perfilDisplay) return false;
+    if (normalizeUserKey(userDisplay) === normalizeUserKey(perfilDisplay)) return true;
+    const resolvedUser = resolveUsuarioChat(userDisplay);
+    const resolvedPerfil = resolveUsuarioChat(perfilDisplay);
+    if (resolvedUser?.id != null && resolvedPerfil?.id != null) {
+      return String(resolvedUser.id) === String(resolvedPerfil.id);
+    }
+    return [user?.name, user?.nickname, userDisplay].some(
+      (value) => normalizeUserKey(value) === normalizeUserKey(perfilDisplay),
+    );
+  };
+
+  const reunionesInvolucranUsuario = (lista, nickname) => {
+    const userKey = normalizeUserKey(nickname);
+    if (!userKey) return [];
+    const aliasKeys = new Set([userKey]);
+    const resolved = resolveUsuarioChat(nickname);
+    [nickname, resolved?.name, resolved?.nickname].forEach((value) => {
+      const key = normalizeUserKey(value);
+      if (key) aliasKeys.add(key);
+    });
+    return (Array.isArray(lista) ? lista : []).filter((reunion) => {
+      const creadorKey = normalizeUserKey(reunion?.creador);
+      if (creadorKey && aliasKeys.has(creadorKey)) return true;
+      const participantes = Array.isArray(reunion?.participantes)
+        ? reunion.participantes
+        : [];
+      return participantes.some((p) => aliasKeys.has(normalizeUserKey(p)));
+    });
+  };
+
+  const cargarReuniones = async () => {
+    const userDisplay = user?.nickname || user?.name || "";
+    try {
+      const data = await authFetch(`${SERVER_URL}/api/chat/reuniones/proximas`);
+      const lista = Array.isArray(data) ? data : [];
+      setReuniones(lista);
+      localStorage.setItem("COPMEC_reuniones", JSON.stringify(lista));
+      lista.forEach((reunion) => programarNotificacionesReunion(reunion));
+      return lista;
+    } catch (_e) {
+      const guardadas = localStorage.getItem("COPMEC_reuniones");
+      if (guardadas) {
+        try {
+          const reunionesData = reunionesInvolucranUsuario(JSON.parse(guardadas), userDisplay);
+          setReuniones(reunionesData);
+          reunionesData.forEach((reunion) => programarNotificacionesReunion(reunion));
+          return reunionesData;
+        } catch (_err) {
+          /* noop */
+        }
+      }
+      return [];
+    }
+  };
+
   const marcarEscritura = (deNickname, activo) => {
     const key = normalizeUserKey(deNickname);
     if (!key) return;
@@ -3713,26 +3772,6 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
   
   // Cargar reuniones desde el servidor
   useEffect(() => {
-    const cargarReuniones = async () => {
-      try {
-        const data = await authFetch(`${SERVER_URL}/api/chat/reuniones/proximas`);
-        setReuniones(data || []);
-        // Programar notificaciones para todas las reuniones
-        (data || []).forEach(reunion => programarNotificacionesReunion(reunion));
-      } catch (_e) {
-        // Fallback a localStorage si falla el servidor
-        const guardadas = localStorage.getItem('COPMEC_reuniones');
-        if (guardadas) {
-          try {
-            const reunionesData = JSON.parse(guardadas);
-            setReuniones(reunionesData);
-            reunionesData.forEach(reunion => programarNotificacionesReunion(reunion));
-          } catch (_err) {
-            /* noop */
-          }
-        }
-      }
-    };
     if (open && SERVER_URL) {
       cargarReuniones();
     }
@@ -3767,6 +3806,14 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
     return () => clearInterval(intervalo);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reuniones, SERVER_URL, open]);
+
+  useEffect(() => {
+    if (!perfilAbierto || perfilTab !== "reuniones" || perfilTipo !== "usuario") return undefined;
+    if (!esPerfilPropio(perfilData)) return undefined;
+    cargarReuniones();
+    return undefined;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [perfilAbierto, perfilTab, perfilTipo, perfilData?.nickname, perfilData?.name, open, SERVER_URL]);
 
   useEffect(() => {
     if (!modalReunionAbierto) return undefined;
@@ -9365,19 +9412,17 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
                               Compartidos
                             </button>
                             {/* Solo mostrar pestaña de reuniones si es el perfil propio */}
-                            {(() => {
-                              const userNickname = user?.nickname || user?.name;
-                              const perfilNickname = perfilData?.nickname || perfilData?.name;
-                              const esMiPerfil = userNickname && perfilNickname && userNickname === perfilNickname;
-                              return esMiPerfil ? (
+                            {esPerfilPropio(perfilData) ? (
                                 <button
                                   className={`chat-profile-tab ${perfilTab === "reuniones" ? "active" : ""}`}
-                                  onClick={() => setPerfilTab("reuniones")}
+                                  onClick={() => {
+                                    setPerfilTab("reuniones");
+                                    cargarReuniones();
+                                  }}
                                 >
                                   Reuniones
                                 </button>
-                              ) : null;
-                            })()}
+                              ) : null}
                           </>
                         )}
                       </div>
@@ -9956,23 +10001,23 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
                           </div>
                         )}
                         {!perfilCargando && !perfilError && perfilTab === "reuniones" && perfilTipo === "usuario" && (() => {
-                          // Verificar que es el perfil propio antes de mostrar reuniones
                           const userNickname = user?.nickname || user?.name;
-                          const perfilNickname = perfilData?.nickname || perfilData?.name;
-                          const esMiPerfil = userNickname && perfilNickname && userNickname === perfilNickname;
-                          
-                          if (!esMiPerfil) {
+
+                          if (!esPerfilPropio(perfilData)) {
                             return (
-                              <div className="chat-empty-pro">
+                              <div className="chat-empty-pro chat-profile-reuniones">
                                 Solo puedes ver tus propias reuniones
                               </div>
                             );
                           }
-                          
+
+                          const misReuniones = reunionesInvolucranUsuario(reuniones, userNickname);
+
                           return (
-                            <ReunionesPerfilUsuario
-                              reuniones={reuniones}
-                              userNickname={userNickname}
+                            <div className="chat-profile-reuniones">
+                              <ReunionesPerfilUsuario
+                                reuniones={misReuniones}
+                                userNickname={userNickname}
                               onEditar={abrirModalReunion}
                               onEliminar={eliminarReunion}
                               onIniciar={iniciarReunionVideollamada}
@@ -9981,6 +10026,7 @@ export default function ChatPro({ socket, user, onClose, solicitudPending, onSol
                               onCopiarEnlace={copiarEnlaceInvitacionReunion}
                               onSolicitarUnirse={solicitarUnirseReunion}
                             />
+                            </div>
                           );
                         })()}
                         {!perfilCargando && !perfilError && perfilTab === "miembros" && perfilTipo === "grupo" && (

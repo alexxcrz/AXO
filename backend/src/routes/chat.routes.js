@@ -2264,7 +2264,8 @@ function serializeReunion(row, { includeToken = true } = {}) {
 
 function reunionInvolucraUsuario(row, nombre, userAliasNorm) {
   if (!row || !nombre) return false;
-  if (row.creador === nombre) return true;
+  const creadorNorm = normalizeNick(row.creador);
+  if (creadorNorm && userAliasNorm.has(creadorNorm)) return true;
   const participantes = parseReunionParticipantes(row.participantes);
   return participantes.some((p) => userAliasNorm.has(normalizeNick(p)));
 }

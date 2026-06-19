@@ -7715,16 +7715,30 @@ span.chat-item-menu-btn,
   padding: 0.5rem 0;
 }
 
+.chat-profile-reuniones {
+  padding: 0 16px 16px;
+  min-height: 120px;
+}
+
+.reuniones-perfil-empty {
+  min-height: 120px;
+}
+
 .reunion-perfil-card {
-  border: 1px solid var(--chat-border, #e2e8f0);
+  border: 1px solid var(--chat-border, #334155);
   border-radius: 12px;
   padding: 0.85rem;
-  background: var(--chat-surface, #fff);
+  background: var(--chat-surface-elevated, var(--chat-surface, #1e293b));
+  color: var(--chat-text, #e2e8f0);
+}
+
+.reunion-perfil-card-head strong {
+  color: var(--chat-text, #f1f5f9);
 }
 
 .reunion-perfil-card.activa {
   border-color: #16a34a;
-  background: color-mix(in srgb, #16a34a 8%, #fff);
+  background: color-mix(in srgb, #16a34a 12%, var(--chat-surface-elevated, #1e293b));
 }
 
 .reunion-perfil-card-head {
@@ -7738,7 +7752,7 @@ span.chat-item-menu-btn,
 .reunion-perfil-desc {
   margin: 0.35rem 0 0;
   font-size: 0.8rem;
-  color: var(--chat-text-muted, #64748b);
+  color: var(--chat-text-muted, #94a3b8);
 }
 
 .reunion-perfil-actions {

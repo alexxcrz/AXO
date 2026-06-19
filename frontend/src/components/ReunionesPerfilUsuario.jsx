@@ -1,3 +1,16 @@
+function parseParticipantes(value) {
+  if (Array.isArray(value)) return value;
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
 export default function ReunionesPerfilUsuario({
   reuniones = [],
   userNickname = "",
@@ -9,8 +22,14 @@ export default function ReunionesPerfilUsuario({
   onCopiarEnlace,
   onSolicitarUnirse,
 }) {
-  const proximas = [...reuniones]
-    .filter((r) => r.estado === "programada" || r.estado === "activa")
+  const lista = Array.isArray(reuniones) ? reuniones : [];
+  const userKey = String(userNickname || "").trim().toLowerCase();
+
+  const proximas = [...lista]
+    .filter((r) => {
+      const estado = String(r?.estado || "programada").toLowerCase();
+      return estado === "programada" || estado === "activa";
+    })
     .sort((a, b) => {
       const fa = new Date(`${a.fecha}T${a.hora || "00:00"}`);
       const fb = new Date(`${b.fecha}T${b.hora || "00:00"}`);
@@ -19,7 +38,7 @@ export default function ReunionesPerfilUsuario({
 
   if (!proximas.length) {
     return (
-      <div className="chat-empty-pro">
+      <div className="chat-empty-pro reuniones-perfil-empty">
         No tienes reuniones programadas
       </div>
     );
@@ -29,22 +48,26 @@ export default function ReunionesPerfilUsuario({
     <div className="reuniones-perfil-list">
       {proximas.map((reunion) => {
         const fechaHora = new Date(`${reunion.fecha}T${reunion.hora || "00:00"}`);
-        const esActiva = reunion.estado === "activa";
-        const esCreador = userNickname && reunion.creador === userNickname;
-        const esInvitado = userNickname
-          && !esCreador
-          && (reunion.participantes || []).includes(userNickname);
-        const esExterno = userNickname
-          && !esCreador
-          && !esInvitado;
+        const fechaLabel = Number.isNaN(fechaHora.getTime())
+          ? `${reunion.fecha || ""} ${reunion.hora || ""}`.trim()
+          : fechaHora.toLocaleDateString("es-MX", { weekday: "short", day: "numeric", month: "short" });
+        const esActiva = String(reunion.estado || "").toLowerCase() === "activa";
+        const creadorKey = String(reunion.creador || "").trim().toLowerCase();
+        const esCreador = userKey && creadorKey === userKey;
+        const participantes = parseParticipantes(reunion.participantes);
+        const esInvitado = userKey && !esCreador && participantes.some(
+          (p) => String(p || "").trim().toLowerCase() === userKey,
+        );
+        const esExterno = userKey && !esCreador && !esInvitado;
+
         return (
-          <article key={reunion.id} className={`reunion-perfil-card ${esActiva ? "activa" : ""}`}>
+          <article key={reunion.id || `${reunion.fecha}-${reunion.hora}-${reunion.titulo}`} className={`reunion-perfil-card ${esActiva ? "activa" : ""}`}>
             <div className="reunion-perfil-card-head">
-              <strong>{reunion.titulo}</strong>
+              <strong>{reunion.titulo || "Reunion"}</strong>
               {esActiva ? <span className="chip primary">Activa</span> : null}
             </div>
             <p className="reunion-perfil-meta">
-              {fechaHora.toLocaleDateString("es-MX", { weekday: "short", day: "numeric", month: "short" })}
+              {fechaLabel}
               {" - "}
               {reunion.hora}
               {reunion.duracionMinutos ? ` (${reunion.duracionMinutos} min)` : ""}
