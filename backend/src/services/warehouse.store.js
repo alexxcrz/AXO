@@ -4080,13 +4080,23 @@ const AREA_DASHBOARD_SCOPE_IDS = AREA_TAB_SCOPED_ACTION_CONFIG
 
 const SCOPE_TAB_ACTION_IDS = new Set(AREA_TAB_SCOPED_ACTION_CONFIG.map(([scopeId]) => scopeId));
 
+function hasExplicitScopeTabGrant(user, scopeActionId, normalizedPermissions) {
+  const scopeOverride = normalizedPermissions.userOverrides?.[user.id]?.actions?.[scopeActionId];
+  if (scopeOverride === true) return true;
+  if (scopeOverride === false) return false;
+  const scopedChildren = SCOPED_CHILDREN_BY_SCOPE[scopeActionId] || [];
+  return scopedChildren.some(
+    (childId) => normalizedPermissions.userOverrides?.[user.id]?.actions?.[childId] === true,
+  );
+}
+
 function canUserDoWarehouseActionEntry(user, actionId, normalizedPermissions) {
   const userOverride = normalizedPermissions.userOverrides?.[user.id]?.actions?.[actionId];
   if (typeof userOverride === "boolean") return userOverride;
 
   if (userHasManagedPermissionProfile(user, normalizedPermissions)) {
     if (SCOPE_TAB_ACTION_IDS.has(actionId)) {
-      return hasScopeTabGrant(user, actionId, normalizedPermissions);
+      return hasExplicitScopeTabGrant(user, actionId, normalizedPermissions);
     }
     if (String(actionId).includes("__")) {
       return resolveScopedWarehouseChildFromTabGrant(user, actionId, normalizedPermissions);
@@ -4106,15 +4116,14 @@ function resolveScopedWarehouseChildFromTabGrant(user, scopedActionId, normalize
 
   const scopedOverride = normalizedPermissions.userOverrides?.[user.id]?.actions?.[scopedActionId];
   if (scopedOverride === true) return true;
+  if (scopedOverride === false) return false;
   if (!hasScopeTabGrant(user, scopeId, normalizedPermissions)) return false;
 
   const baseOverride = normalizedPermissions.userOverrides?.[user.id]?.actions?.[baseActionId];
   if (baseOverride === false) return false;
 
-  const baseAllowed = userMatchesPermissionEntry(user, normalizedPermissions.actions?.[baseActionId]);
-  if (scopedOverride === false) return baseAllowed;
-  if (canUserDoWarehouseActionEntry(user, scopedActionId, normalizedPermissions)) return true;
-  return baseAllowed;
+  if (userHasManagedPermissionProfile(user, normalizedPermissions)) return true;
+  return userMatchesPermissionEntry(user, normalizedPermissions.actions?.[baseActionId]);
 }
 
 function hasScopedAliasGrant(user, baseActionId, normalizedPermissions) {
@@ -4123,13 +4132,21 @@ function hasScopedAliasGrant(user, baseActionId, normalizedPermissions) {
     return true;
   }
   const legacyScopedActionId = TRANSPORT_DOCUMENTACION_LEGACY_SCOPED_ACTIONS[baseActionId];
-  return Boolean(legacyScopedActionId && canUserDoWarehouseActionEntry(user, legacyScopedActionId, normalizedPermissions));
+  return Boolean(
+    legacyScopedActionId
+    && resolveScopedWarehouseChildFromTabGrant(user, legacyScopedActionId, normalizedPermissions),
+  );
 }
 
 function hasScopeTabGrant(user, scopeActionId, normalizedPermissions) {
+  if (userHasManagedPermissionProfile(user, normalizedPermissions)) {
+    return hasExplicitScopeTabGrant(user, scopeActionId, normalizedPermissions);
+  }
   if (canUserDoWarehouseActionEntry(user, scopeActionId, normalizedPermissions)) return true;
   const scopedChildren = SCOPED_CHILDREN_BY_SCOPE[scopeActionId] || [];
-  return scopedChildren.some((scopedActionId) => canUserDoWarehouseActionEntry(user, scopedActionId, normalizedPermissions));
+  return scopedChildren.some(
+    (scopedActionId) => userMatchesPermissionEntry(user, normalizedPermissions.actions?.[scopedActionId]),
+  );
 }
 
 function userHasAnyAreaDashboardScope(user, normalizedPermissions) {

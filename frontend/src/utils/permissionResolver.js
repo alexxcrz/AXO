@@ -58,6 +58,16 @@ function userHasManagedPermissionProfile(user, permissions) {
   return hasBool(block.pages) || hasBool(block.actions);
 }
 
+function hasExplicitScopeTabGrant(user, scopeActionId, permissions) {
+  const scopeOverride = readPermissionEntryOverride(user, "actions", scopeActionId, permissions);
+  if (scopeOverride === true) return true;
+  if (scopeOverride === false) return false;
+  const scopedChildren = SCOPED_CHILDREN_BY_SCOPE[scopeActionId] || [];
+  return scopedChildren.some(
+    (childId) => readPermissionEntryOverride(user, "actions", childId, permissions) === true,
+  );
+}
+
 function readEffectivePermissionEntry(user, kind, permissionId, permissions) {
   const override = readPermissionEntryOverride(user, kind, permissionId, permissions);
   if (typeof override === "boolean") return override;
@@ -65,7 +75,7 @@ function readEffectivePermissionEntry(user, kind, permissionId, permissions) {
   if (userHasManagedPermissionProfile(user, permissions)) {
     if (kind === "actions") {
       if (SCOPE_TAB_ACTION_IDS.has(permissionId)) {
-        return hasScopeTabGrant(user, permissionId, permissions);
+        return hasExplicitScopeTabGrant(user, permissionId, permissions);
       }
       if (String(permissionId).includes("__")) {
         return resolveScopedChildFromTabGrant(user, permissionId, permissions);
@@ -87,16 +97,21 @@ function hasScopedAliasGrant(user, baseActionId, permissions) {
     return true;
   }
   const legacyScopedActionId = TRANSPORT_DOCUMENTACION_LEGACY_SCOPED_ACTIONS[baseActionId];
-  if (legacyScopedActionId && readEffectivePermissionEntry(user, "actions", legacyScopedActionId, permissions)) {
+  if (legacyScopedActionId && resolveScopedChildFromTabGrant(user, legacyScopedActionId, permissions)) {
     return true;
   }
   return false;
 }
 
 function hasScopeTabGrant(user, scopeActionId, permissions) {
-  if (readEffectivePermissionEntry(user, "actions", scopeActionId, permissions)) return true;
+  if (userHasManagedPermissionProfile(user, permissions)) {
+    return hasExplicitScopeTabGrant(user, scopeActionId, permissions);
+  }
+  if (userMatchesPermissionEntry(user, permissions?.actions?.[scopeActionId])) return true;
   const scopedChildren = SCOPED_CHILDREN_BY_SCOPE[scopeActionId] || [];
-  return scopedChildren.some((scopedActionId) => readEffectivePermissionEntry(user, "actions", scopedActionId, permissions));
+  return scopedChildren.some(
+    (scopedActionId) => userMatchesPermissionEntry(user, permissions?.actions?.[scopedActionId]),
+  );
 }
 
 export function userHasAnyAreaDashboardScope(user, permissions) {
@@ -159,15 +174,14 @@ function resolveScopedChildFromTabGrant(user, scopedActionId, permissions) {
 
   const scopedOverride = readPermissionEntryOverride(user, "actions", scopedActionId, permissions);
   if (scopedOverride === true) return true;
+  if (scopedOverride === false) return false;
   if (!hasScopeTabGrant(user, scopeId, permissions)) return false;
 
   const baseOverride = readPermissionEntryOverride(user, "actions", baseActionId, permissions);
   if (baseOverride === false) return false;
 
-  const baseAllowed = readEffectivePermissionEntry(user, "actions", baseActionId, permissions);
-  if (scopedOverride === false) return baseAllowed;
-  if (readEffectivePermissionEntry(user, "actions", scopedActionId, permissions)) return true;
-  return baseAllowed;
+  if (userHasManagedPermissionProfile(user, permissions)) return true;
+  return userMatchesPermissionEntry(user, permissions?.actions?.[baseActionId]);
 }
 
 export function resolveCanDoAction(user, actionId, permissions) {
