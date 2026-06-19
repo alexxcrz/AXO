@@ -68,29 +68,6 @@ function hasExplicitScopeTabGrant(user, scopeActionId, permissions) {
   );
 }
 
-function readEffectivePermissionEntry(user, kind, permissionId, permissions) {
-  const override = readPermissionEntryOverride(user, kind, permissionId, permissions);
-  if (typeof override === "boolean") return override;
-
-  if (userHasManagedPermissionProfile(user, permissions)) {
-    if (kind === "actions") {
-      if (SCOPE_TAB_ACTION_IDS.has(permissionId)) {
-        return hasExplicitScopeTabGrant(user, permissionId, permissions);
-      }
-      if (String(permissionId).includes("__")) {
-        return resolveScopedChildFromTabGrant(user, permissionId, permissions);
-      }
-      return hasScopedAliasGrant(user, permissionId, permissions);
-    }
-    return false;
-  }
-
-  const entry = kind === "pages"
-    ? permissions?.pages?.[permissionId]
-    : permissions?.actions?.[permissionId];
-  return userMatchesPermissionEntry(user, entry);
-}
-
 function hasScopedAliasGrant(user, baseActionId, permissions) {
   const scopedAliases = SCOPED_ALIASES_BY_BASE_ACTION.get(baseActionId) || [];
   if (scopedAliases.some((scopedActionId) => resolveScopedChildFromTabGrant(user, scopedActionId, permissions))) {
@@ -199,7 +176,11 @@ export function resolveCanDoAction(user, actionId, permissions) {
   const directOverride = readPermissionEntryOverride(user, "actions", actionId, permissions);
   if (typeof directOverride === "boolean") return directOverride;
 
-  if (readEffectivePermissionEntry(user, "actions", actionId, permissions)) return true;
+  if (userHasManagedPermissionProfile(user, permissions)) {
+    return hasScopedAliasGrant(user, actionId, permissions);
+  }
+
+  if (userMatchesPermissionEntry(user, permissions?.actions?.[actionId])) return true;
   return hasScopedAliasGrant(user, actionId, permissions);
 }
 

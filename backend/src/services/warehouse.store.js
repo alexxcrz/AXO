@@ -4090,23 +4090,6 @@ function hasExplicitScopeTabGrant(user, scopeActionId, normalizedPermissions) {
   );
 }
 
-function canUserDoWarehouseActionEntry(user, actionId, normalizedPermissions) {
-  const userOverride = normalizedPermissions.userOverrides?.[user.id]?.actions?.[actionId];
-  if (typeof userOverride === "boolean") return userOverride;
-
-  if (userHasManagedPermissionProfile(user, normalizedPermissions)) {
-    if (SCOPE_TAB_ACTION_IDS.has(actionId)) {
-      return hasExplicitScopeTabGrant(user, actionId, normalizedPermissions);
-    }
-    if (String(actionId).includes("__")) {
-      return resolveScopedWarehouseChildFromTabGrant(user, actionId, normalizedPermissions);
-    }
-    return hasScopedAliasGrant(user, actionId, normalizedPermissions);
-  }
-
-  return userMatchesPermissionEntry(user, normalizedPermissions.actions?.[actionId]);
-}
-
 function resolveScopedWarehouseChildFromTabGrant(user, scopedActionId, normalizedPermissions) {
   const separatorIndex = String(scopedActionId || "").indexOf("__");
   if (separatorIndex <= 0) return false;
@@ -4142,7 +4125,7 @@ function hasScopeTabGrant(user, scopeActionId, normalizedPermissions) {
   if (userHasManagedPermissionProfile(user, normalizedPermissions)) {
     return hasExplicitScopeTabGrant(user, scopeActionId, normalizedPermissions);
   }
-  if (canUserDoWarehouseActionEntry(user, scopeActionId, normalizedPermissions)) return true;
+  if (userMatchesPermissionEntry(user, normalizedPermissions.actions?.[scopeActionId])) return true;
   const scopedChildren = SCOPED_CHILDREN_BY_SCOPE[scopeActionId] || [];
   return scopedChildren.some(
     (scopedActionId) => userMatchesPermissionEntry(user, normalizedPermissions.actions?.[scopedActionId]),
@@ -4185,7 +4168,11 @@ export function canUserDoWarehouseAction(user, actionId, permissions = null) {
   const userOverride = normalizedPermissions.userOverrides?.[user.id]?.actions?.[actionId];
   if (typeof userOverride === "boolean") return userOverride;
 
-  if (canUserDoWarehouseActionEntry(user, actionId, normalizedPermissions)) return true;
+  if (userHasManagedPermissionProfile(user, normalizedPermissions)) {
+    return hasScopedAliasGrant(user, actionId, normalizedPermissions);
+  }
+
+  if (userMatchesPermissionEntry(user, normalizedPermissions.actions?.[actionId])) return true;
   return hasScopedAliasGrant(user, actionId, normalizedPermissions);
 }
 
