@@ -5,7 +5,8 @@
   "main": "src/index.js",
   "scripts": {
     "dev": "nodemon --watch src --ext js,mjs,cjs --ignore data/*.json --ignore data/**/*.json src/index.js",
-    "start": "npx prisma db push --config=chat.config.ts && node src/index.js",
+    "repair:deploy-times": "node scripts/repair-times-on-deploy.mjs",
+    "start": "node scripts/repair-times-on-deploy.mjs && npx prisma db push --config=chat.config.ts && node src/index.js",
     "postinstall": "prisma generate && prisma generate --config=chat.config.ts",
     "prisma:generate": "prisma generate && prisma generate --config=chat.config.ts",
     "prisma:migrate": "prisma migrate dev",

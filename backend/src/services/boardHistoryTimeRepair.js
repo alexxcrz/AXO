@@ -3,10 +3,10 @@
  * - Congela columnas HH:mm:ss desde startTime/endTime ISO cuando existen.
  * - Reconstruye ISO faltantes desde Fecha + columna de hora (zona local).
  *
- * Se ejecuta autom·ticamente al normalizar el estado del almacÈn (cada carga/sync).
+ * Se ejecuta automùticamente al normalizar el estado del almacùn (cada carga/sync).
  * Para corregir datos ya guardados en disco sin esperar al siguiente arranque:
  *   npm run repair:history-times
- * SimulaciÛn sin guardar:
+ * Simulaciùn sin guardar:
  *   npm run repair:history-times:dry
  */
 
@@ -104,6 +104,58 @@ function isFinishedRow(row) {
   return status === "terminado" || status === "finalizado" || status === "finished";
 }
 
+function getCountedPauseSeconds(row) {
+  const logs = Array.isArray(row?.pauseLogs) ? row.pauseLogs : [];
+  return logs.reduce((sum, entry) => {
+    const counted = Number(entry?.countedPauseDurationSeconds);
+    if (Number.isFinite(counted)) return sum + Math.max(0, counted);
+    const duration = Number(entry?.pauseDurationSeconds);
+    const authorized = Number(entry?.pauseAuthorizedSeconds);
+    if (Number.isFinite(duration)) {
+      return sum + Math.max(0, duration - (Number.isFinite(authorized) ? authorized : 0));
+    }
+    return sum;
+  }, 0);
+}
+
+/**
+ * Corrige tiempos de producciùn imposibles en filas terminadas.
+ *
+ * Invariante fùsico: el tiempo de producciùn (accumulatedSeconds) NUNCA puede
+ * superar el tiempo de reloj transcurrido entre inicio y fin. Si lo supera, el
+ * dato quedù inflado (p. ej. por el bug histùrico de doble finalizaciùn que
+ * sumaba el intervalo dos veces) y se recorta al mùximo posible descontando las
+ * pausas contabilizadas. Solo toca filas con datos imposibles: las correctas
+ * quedan intactas.
+ */
+function repairBoardRowAccumulatedSeconds(row, stats) {
+  if (!isFinishedRow(row)) return false;
+  const startMs = new Date(row?.startTime || "").getTime();
+  const endMs = new Date(row?.endTime || "").getTime();
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) {
+    return false;
+  }
+  const wallSeconds = Math.floor((endMs - startMs) / 1000);
+  let changed = false;
+
+  const accumulated = Number(row?.accumulatedSeconds);
+  if (Number.isFinite(accumulated) && accumulated > wallSeconds) {
+    const countedPause = getCountedPauseSeconds(row);
+    row.accumulatedSeconds = Math.max(0, wallSeconds - countedPause);
+    stats.accumulatedCapped = (stats.accumulatedCapped || 0) + 1;
+    changed = true;
+  }
+
+  const totalOverride = Number(row?.totalElapsedSecondsOverride);
+  if (Number.isFinite(totalOverride) && totalOverride > wallSeconds) {
+    row.totalElapsedSecondsOverride = wallSeconds;
+    stats.totalOverrideCapped = (stats.totalOverrideCapped || 0) + 1;
+    changed = true;
+  }
+
+  return changed;
+}
+
 function repairBoardRowTimes(row, fields = [], snapshot = {}, stats) {
   const next = {
     ...row,
@@ -165,6 +217,10 @@ function repairBoardRowTimes(row, fields = [], snapshot = {}, stats) {
     }
   }
 
+  if (repairBoardRowAccumulatedSeconds(next, stats)) {
+    changed = true;
+  }
+
   if (changed) {
     stats.rowsChanged += 1;
   }
@@ -216,6 +272,8 @@ export function repairWarehouseBoardTimes(state) {
     rowsChanged: 0,
     valuesAligned: 0,
     isoRebuilt: 0,
+    accumulatedCapped: 0,
+    totalOverrideCapped: 0,
   };
 
   const history = Array.isArray(state?.boardWeekHistory) ? state.boardWeekHistory : [];

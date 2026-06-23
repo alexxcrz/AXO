@@ -18,7 +18,7 @@ import {
 import { resolveOrderInventoryRecipientUserIds } from "./inventory.notifications.js";
 import { applyCatalogAutoTimeLimits } from "./catalogAutoTimeLimits.js";
 import { applyInventoryAutoPalletTimes } from "./inventoryAutoPalletTimes.js";
-import { repairWarehouseBoardTimes } from "./boardHistoryTimeRepair.js";
+import { repairWarehouseBoardTimes, repairBoardRowTimes } from "./boardHistoryTimeRepair.js";
 import { attachRoadMonitorToTransportState, syncTransportRoadMonitors } from "./transport-road-monitor.service.js";
 import { normalizeRetailState } from "./retail.store.js";
 import { isDeprecatedDynamicArea, migrateDeprecatedAreaValue } from "../config/deprecatedAreas.js";
@@ -4902,6 +4902,13 @@ function getOperationalElapsedSeconds(startIso, nowIso, pauseControl, cleaningSi
 
 function updateElapsedForFinish(row, nowIso, pauseControl, cleaningSite = null) {
   const accumulated = Number(row?.accumulatedSeconds || 0);
+  // Solo se debe acumular el segmento "en vivo" cuando la fila está realmente en curso.
+  // Si la fila no está corriendo (ya terminada, pausada o pendiente) no hay un segmento
+  // abierto que sumar: volver a sumar (startTime -> ahora) duplicaría el tiempo cuando
+  // una fila ya finalizada se vuelve a finalizar (mismo criterio que el frontend).
+  if (String(row?.status || "") !== "En curso") {
+    return Math.max(0, accumulated);
+  }
   const baselineTimestamp = row?.lastResumedAt || row?.startTime;
   if (!baselineTimestamp) return Math.max(0, accumulated);
   // Use cleaningSite from row if not explicitly provided

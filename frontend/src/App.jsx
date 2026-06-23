@@ -5496,6 +5496,13 @@ function App() { // NOSONAR
   }
 
   function applyOptimisticBoardRowPatch(boardId, rowId, updater) {
+    // Arma la ventana de supresión de refrescos ANTES de que llegue la respuesta del
+    // servidor. Sin esto, un refresco disparado por SSE durante el viaje de red puede
+    // traer estado viejo (p. ej. la fila aún "En curso") y revertir el cambio optimista,
+    // provocando que el cronómetro "salte", se reinicie o siga contando, e incluso que se
+    // sumen segundos de más al re-finalizar/reanudar. La respuesta autoritativa del PATCH
+    // vuelve a armar la ventana mediante warehouseSyncHooks.onApplied.
+    suppressWarehouseRefreshUntilRef.current = Date.now() + 3500;
     if (isHistoricalCustomBoardView && selectedCustomBoardSnapshot) {
       const snapshotId = selectedCustomBoardSnapshot.id;
       setState((current) => ({
