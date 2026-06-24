@@ -118,6 +118,11 @@ function getCountedPauseSeconds(row) {
   }, 0);
 }
 
+function getRecordedPauseSeconds(row) {
+  const logs = Array.isArray(row?.pauseLogs) ? row.pauseLogs : [];
+  return logs.reduce((sum, entry) => sum + Math.max(0, Number(entry?.pauseDurationSeconds || 0)), 0);
+}
+
 /**
  * Corrige tiempos de producciùn imposibles en filas terminadas.
  *
@@ -151,6 +156,25 @@ function repairBoardRowAccumulatedSeconds(row, stats) {
     row.totalElapsedSecondsOverride = wallSeconds;
     stats.totalOverrideCapped = (stats.totalOverrideCapped || 0) + 1;
     changed = true;
+  }
+
+  // Recupera tiempo perdido por reinicios del contador en vivo. Si una fila terminada NO
+  // tiene pausas registradas, su produccion debe valer el tramo real inicio->fin completo.
+  // Cuando el contador quedù por debajo (p. ej. lastResumedAt saltù hacia adelante tras un
+  // re-arranque/refresco y al finalizar se contù solo desde ahù), se restaura al tramo real.
+  // Solo aplica sin pausas para no interferir con el descuento de pausas de filas pausadas.
+  if (getRecordedPauseSeconds(row) <= 0) {
+    const accumulatedNow = Number(row?.accumulatedSeconds);
+    if (Number.isFinite(accumulatedNow) && accumulatedNow < wallSeconds) {
+      row.accumulatedSeconds = wallSeconds;
+      stats.accumulatedRecovered = (stats.accumulatedRecovered || 0) + 1;
+      changed = true;
+    }
+    const totalOverrideNow = Number(row?.totalElapsedSecondsOverride);
+    if (Number.isFinite(totalOverrideNow) && totalOverrideNow < wallSeconds) {
+      row.totalElapsedSecondsOverride = wallSeconds;
+      changed = true;
+    }
   }
 
   return changed;
@@ -274,6 +298,7 @@ export function repairWarehouseBoardTimes(state) {
     isoRebuilt: 0,
     accumulatedCapped: 0,
     totalOverrideCapped: 0,
+    accumulatedRecovered: 0,
   };
 
   const history = Array.isArray(state?.boardWeekHistory) ? state.boardWeekHistory : [];

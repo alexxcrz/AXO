@@ -4916,6 +4916,29 @@ function updateElapsedForFinish(row, nowIso, pauseControl, cleaningSite = null) 
   return Math.max(0, accumulated + getOperationalElapsedSeconds(baselineTimestamp, nowIso, pauseControl, site));
 }
 
+function getRecordedPauseDurationSeconds(row) {
+  const logs = Array.isArray(row?.pauseLogs) ? row.pauseLogs : [];
+  return logs.reduce((sum, entry) => sum + Math.max(0, Number(entry?.pauseDurationSeconds || 0)), 0);
+}
+
+// Reconcilia el tiempo de producci�n de una fila que se finaliza, blind�ndolo contra
+// reinicios/saltos del contador en vivo. El contador se calcula desde lastResumedAt, que
+// puede haber saltado hacia adelante (p. ej. un re-arranque tras un refresco/SSE), dejando
+// el tiempo "de menos" aunque NO haya habido ninguna pausa. La producci�n real de una fila
+// terminada nunca puede ser menor que el tramo operativo inicio->fin menos las pausas
+// registradas, as� que tomamos el mayor entre lo calculado y ese tramo autoritativo. Nunca
+// reduce un valor correcto (solo recupera el faltante).
+function reconcileFinishedProductionSeconds(row, endIso, computedSeconds, pauseControl, cleaningSite = null) {
+  const computed = Math.max(0, Number(computedSeconds || 0));
+  const startIso = row?.startTime;
+  if (!startIso || !endIso) return computed;
+  const site = cleaningSite || row?.cleaningSite;
+  const span = getOperationalElapsedSeconds(startIso, endIso, pauseControl, site);
+  const recordedPause = getRecordedPauseDurationSeconds(row);
+  const authoritative = Math.max(0, span - recordedPause);
+  return Math.max(computed, authoritative);
+}
+
 function getPauseLogAuthorizedSeconds(entry) {
   return Math.max(0, Number(entry?.pauseAuthorizedSeconds || 0));
 }
@@ -8162,7 +8185,7 @@ export function patchWarehouseBoardRow(auth, boardId, rowId, patch = {}) {
       const pausedOverflowSeconds = computePausedOverflowSeconds(row);
       nextRow.accumulatedSeconds = String(row.status || "") === "Pausado"
         ? Math.max(0, Number(row.accumulatedSeconds || 0) + pausedOverflowSeconds)
-        : Math.max(0, updateElapsedForFinish(row, nowIso, pauseControl));
+        : reconcileFinishedProductionSeconds(row, nowIso, updateElapsedForFinish(row, nowIso, pauseControl), pauseControl);
       nextRow.lastResumedAt = null;
       nextRow.pauseStartedAt = null;
       nextRow.pauseAffectsTimer = false;
@@ -8430,7 +8453,7 @@ function buildPatchedBoardHistoryRow(row, patch = {}, fields = [], snapshot = {}
       nextRow.endTime = nowIso;
       nextRow.accumulatedSeconds = String(row.status || "") === "Pausado"
         ? Math.max(0, Number(row.accumulatedSeconds || 0))
-        : Math.max(0, updateElapsedForFinish(row, nowIso, pauseControl, row?.cleaningSite));
+        : reconcileFinishedProductionSeconds(row, nowIso, updateElapsedForFinish(row, nowIso, pauseControl, row?.cleaningSite), pauseControl, row?.cleaningSite);
       nextRow.lastResumedAt = null;
       nextRow.pauseStartedAt = null;
       nextRow.pauseAffectsTimer = false;
