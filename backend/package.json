@@ -4,6 +4,7 @@
   "type": "module",
   "main": "src/index.js",
   "scripts": {
+    "predev": "prisma db push --config=chat.config.ts",
     "dev": "nodemon --watch src --ext js,mjs,cjs --ignore data/*.json --ignore data/**/*.json src/index.js",
     "repair:deploy-times": "node scripts/repair-times-on-deploy.mjs",
     "start": "node scripts/repair-times-on-deploy.mjs && npx prisma db push --config=chat.config.ts && node src/index.js",
