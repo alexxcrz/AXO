@@ -120,6 +120,13 @@ export function createBoardToolModalActions(deps) {
         groupColor: controlBoardDraft.groupColor,
         colorRules,
       };
+      if (editingDraftColumnId) {
+        const existingColumn = controlBoardDraft.columns.find((item) => item.id === editingDraftColumnId);
+        if (existingColumn?.layoutBlockRole) field.layoutBlockRole = existingColumn.layoutBlockRole;
+        if (Array.isArray(existingColumn?.finishGateEditorUserIds)) {
+          field.finishGateEditorUserIds = [...existingColumn.finishGateEditorUserIds];
+        }
+      }
       const isBundleField = controlBoardDraft.fieldType === INVENTORY_LOOKUP_LOGISTICS_FIELD;
       const fieldsToInsert = controlBoardDraft.fieldType === INVENTORY_LOOKUP_LOGISTICS_FIELD
         ? buildInventoryBundleFields(controlBoardDraft, editingDraftColumnId || null)

@@ -12,7 +12,8 @@
     "build": "npm run build --prefix frontend",
     "start": "npm run start --prefix backend",
     "repair:history-times": "node scripts/repair-board-history-times.mjs",
-    "repair:history-times:dry": "node scripts/repair-board-history-times.mjs --dry-run"
+    "repair:history-times:dry": "node scripts/repair-board-history-times.mjs --dry-run",
+    "sync:render-boards": "node scripts/sync-render-warehouse-boards.mjs"
   },
   "keywords": [],
   "author": "",

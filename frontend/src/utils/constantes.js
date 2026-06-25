@@ -379,6 +379,64 @@ export const BOARD_AUX_COLUMN_DEFINITIONS = {
 };
 export const BOARD_AUX_COLUMN_IDS = Object.keys(BOARD_AUX_COLUMN_DEFINITIONS);
 
+/** Slots de la ficha de limpieza (vista final del tablero). */
+export const DEFAULT_CLEANING_CARD_SLOT_ORDER = ["info", "player", "timeline", "status", "actions", "lotExpiry", "labelLab", "meta"];
+
+export const CLEANING_CARD_SLOT_DEFINITIONS = {
+  info: {
+    id: "info",
+    label: "Actividad + Fecha",
+    description: "Nombre de la actividad y fecha del registro",
+  },
+  player: {
+    id: "player",
+    label: "Player",
+    description: "Responsable asignado a la actividad",
+  },
+  timeline: {
+    id: "timeline",
+    label: "Línea de tiempo",
+    description: "Inicio, fin, barra de progreso y duración",
+  },
+  status: {
+    id: "status",
+    label: "Estado",
+    description: "Estatus operativo actual",
+  },
+  actions: {
+    id: "actions",
+    label: "Acciones",
+    description: "Iniciar, pausar, finalizar y eliminar",
+  },
+  lotExpiry: {
+    id: "lotExpiry",
+    label: "Lote + Caducidad",
+    description: "Lote arriba y caducidad debajo, como actividad y fecha",
+  },
+  labelLab: {
+    id: "labelLab",
+    label: "Etiqueta + Laboratorio",
+    description: "Etiqueta arriba y laboratorio debajo, como actividad y fecha",
+  },
+  meta: {
+    id: "meta",
+    label: "Campos extra",
+    description: "Campos adicionales en la línea de la ficha (Acumulado y Eficiencia van al pie)",
+  },
+};
+
+/** Bloques compuestos que se pueden agregar en el creador de tableros de limpieza. */
+export const CLEANING_LAYOUT_BLOCK_TYPES = [
+  { value: "cleaningInfoBlock", label: "Actividad + Fecha", slotId: "info" },
+  { value: "cleaningTimelineBlock", label: "Línea de tiempo", slotId: "timeline" },
+  { value: "cleaningPlayerBlock", label: "Player", slotId: "player" },
+  { value: "cleaningStatusBlock", label: "Estado", slotId: "status" },
+  { value: "cleaningActionsBlock", label: "Acciones", slotId: "actions" },
+  { value: "cleaningLotExpiryBlock", label: "Lote + Caducidad", slotId: "lotExpiry" },
+  { value: "cleaningLabelLabBlock", label: "Etiqueta + Laboratorio", slotId: "labelLab" },
+  { value: "cleaningMetaBlock", label: "Métricas extra", slotId: "meta" },
+];
+
 export const BOARD_TEMPLATES = [
   {
     id: "limpieza-c1",

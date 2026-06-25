@@ -2,14 +2,44 @@ import { useEffect, useRef, useState } from "react";
 import {
   ArrowDown,
   ArrowUp,
+  Check,
   Copy,
   LayoutDashboard,
   Menu,
   Pencil,
+  PauseCircle,
+  Play,
   Plus,
+  Square,
   Trash2,
+  Users,
+  GripVertical,
 } from "lucide-react";
 import { Modal } from "./Modal";
+import BoardActivityFinishGateSwitch from "./BoardActivityFinishGateSwitch.jsx";
+import { CLEANING_CARD_SLOT_DEFINITIONS, CLEANING_LAYOUT_BLOCK_TYPES } from "../utils/constantes.js";
+import {
+  applyCleaningLayoutBlock,
+  appendFinishGateFieldToBoardDraft,
+  assignBoardFieldLayoutRole,
+  buildBoardCardLineLayout,
+  findBoardFinishGateField,
+  getBoardFieldLayoutRoleOptions,
+  getCleaningBoardFieldGroups,
+  getCleaningCardLayout,
+  getCleaningLayoutBlockFeedbackMessage,
+  isCleaningLayoutBlockActive,
+  normalizeFinishGateAuthorizedUserIds,
+  reorderBoardCardLineItems,
+  reorderCleaningCardLayoutSlots,
+  resolveBoardCardCellRole,
+  resolveBoardCardLineItemHeaderMeta,
+  formatBoardOperationalDateLabel,
+  shouldShowBoardCardSectionRow,
+  toggleCleaningCardSlotVisibility,
+  toggleFinishGateAuthorizedUser,
+  toggleFinishGateFieldEditorUser,
+} from "../utils/utilidades.jsx";
 const COMPONENT_TYPE_CATEGORIES = [
   {
     label: "Texto y contacto",
@@ -796,17 +826,118 @@ export function BoardBuilderModal({
   const [builderTab, setBuilderTab] = useState("base");
   const [baseTemplatesCollapsed, setBaseTemplatesCollapsed] = useState(true);
   const [accessSearch, setAccessSearch] = useState("");
+  const [finishGateUserSearch, setFinishGateUserSearch] = useState("");
+  const [finishGateMenuOpen, setFinishGateMenuOpen] = useState(false);
   const [pendingAccessUserIds, setPendingAccessUserIds] = useState([]);
   const [draggingColumnToken, setDraggingColumnToken] = useState("");
+  const [draggingSlotId, setDraggingSlotId] = useState("");
+  const [draggingLineKey, setDraggingLineKey] = useState("");
+  const [layoutBlockFeedback, setLayoutBlockFeedback] = useState("");
   const [resizingToken, setResizingToken] = useState("");
   const actionMenuRef = useRef(null);
   const accessMenuRef = useRef(null);
+  const finishGateMenuRef = useRef(null);
   const templateSearchInputRef = useRef(null);
   const resizeStateRef = useRef({ kind: "", id: "", startX: 0, startWidth: 0 });
   const draggingColumnTokenRef = useRef("");
   const previewSections = getBoardSectionGroups(previewBoard);
   const previewRows = previewBoard?.rows?.slice(0, 2) || [];
   const orderedPreviewColumns = getOrderedBoardColumns(previewBoard || { fields: draft.columns, settings: draft.settings }, true);
+  const normalizeRoleKey = (label) => String(label || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  const initialsFromLabel = (label) => {
+    const parts = String(label || "?").trim().split(/\s+/).filter(Boolean);
+    if (!parts.length) return "?";
+    return parts.length >= 2
+      ? `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase()
+      : (parts[0][0] || "?").toUpperCase();
+  };
+  const getPreviewUserAvatarUrl = (user) => {
+    const avatarValue = String(
+      user?.photoThumbnailUrl || user?.photoThumbnail || user?.photo || user?.avatarUrl || user?.avatar || user?.imageUrl || user?.profileImage || "",
+    ).trim();
+    const lowered = avatarValue.toLowerCase();
+    if (!avatarValue || ["null", "undefined", "nan", "[object object]"].includes(lowered)) return "";
+    return avatarValue;
+  };
+  const previewStatusPillClass = (status) => (status === STATUS_RUNNING ? "running" : status === "Pausado" ? "paused" : status === "Terminado" ? "finished" : "pending");
+  const cleaningCardLayout = getCleaningCardLayout(draft?.settings || previewBoard?.settings || {});
+  const defaultAuxWidths = Object.fromEntries(Object.values(BOARD_AUX_COLUMN_DEFINITIONS).map((item) => [item.id, item.defaultWidth]));
+  const fieldTypeMinWidths = {
+    inventoryLookup: 210,
+    inventoryLookupLogistics: 210,
+    select: 190,
+    user: 190,
+    status: 150,
+    time: 130,
+    date: 140,
+  };
+  const auxMinWidths = Object.fromEntries(Object.values(BOARD_AUX_COLUMN_DEFINITIONS).map((item) => [item.id, item.minWidth]));
+  const getPreviewColumnWidthPx = (column) => {
+    if (column.kind === "field") {
+      const manualWidth = Number(column.field?.widthPx || 0);
+      const typeMinimum = fieldTypeMinWidths[column.field?.type] || 120;
+      if (Number.isFinite(manualWidth) && manualWidth >= 90) return Math.max(typeMinimum, Math.round(manualWidth));
+      return typeMinimum;
+    }
+    return auxMinWidths[column.id] || defaultAuxWidths[column.id] || 120;
+  };
+  const previewLineLayout = buildBoardCardLineLayout(
+    cleaningCardLayout,
+    orderedPreviewColumns,
+    getPreviewColumnWidthPx,
+  );
+  const showPreviewSectionRow = shouldShowBoardCardSectionRow(previewLineLayout.lineItems, orderedPreviewColumns);
+  const buildPreviewFichaRoles = (row) => {
+    const roles = { extras: [], cellsByToken: {} };
+    orderedPreviewColumns.forEach((column) => {
+      let value = "";
+      if (column.kind === "field") {
+        value = formatBoardPreviewValue(row.values?.[column.field.id], column.field, userMap, inventoryItems);
+      } else if (column.id === "assignee") {
+        value = getPreviewAssigneeLabel(row);
+        roles.player = value;
+      } else if (column.id === "status") {
+        roles.status = row.status || STATUS_PENDING;
+        value = roles.status;
+      } else if (column.id === "time") {
+        roles.time = row.accumulatedSeconds ? `${Math.round(row.accumulatedSeconds / 60)} min` : "00:00:00";
+        value = roles.time;
+      } else if (column.id === "totalTime") {
+        roles.totalTime = "00:00:00";
+        value = roles.totalTime;
+      } else if (column.id === "efficiency") {
+        roles.efficiency = "—";
+        value = roles.efficiency;
+      }
+
+      const role = resolveBoardCardCellRole(column, orderedPreviewColumns);
+      if (role === "activity") roles.activity = value || roles.activity;
+      else if (role === "finishGate") roles.finishGate = value || "No";
+      else if (role === "date") roles.date = value;
+      else if (role === "lot") roles.lot = value;
+      else if (role === "expiry") roles.expiry = value;
+      else if (role === "labelTag") roles.labelTag = value;
+      else if (role === "laboratory") roles.laboratory = value;
+      else if (role === "start") roles.start = value;
+      else if (role === "end") roles.end = value;
+      else if (role === "field" && String(value || "").trim()) {
+        roles.extras.push({
+          label: column.field?.label || "",
+          value,
+          token: column.token,
+        });
+      }
+
+      const label = column.kind === "field" ? String(column.field?.label || "") : String(column.label || "");
+      roles.cellsByToken[column.token] = { label, value };
+    });
+    if (!roles.date) {
+      const previewDateKey = row?.values?.[orderedPreviewColumns.find((column) => column.kind === "field" && column.field?.type === "date")?.field?.id]
+        || new Date().toISOString().slice(0, 10);
+      roles.date = formatBoardOperationalDateLabel(String(previewDateKey).slice(0, 10));
+    }
+    return roles;
+  };
   const activeUsers = visibleUsers.filter((user) => user.isActive);
   const availableOperationalUsers = activeUsers.filter((user) => user.id !== draft.ownerId);
   const normalizedDepartmentOptions = Array.from(new Set((departmentOptions || []).map((option) => String(option || "").trim()).filter(Boolean)));
@@ -849,6 +980,12 @@ export function BoardBuilderModal({
   const selectedDepartmentsLabel = (draft.sharedDepartments || []).length
     ? (draft.sharedDepartments || []).join(", ")
     : "Sin áreas seleccionadas";
+  const finishGateField = findBoardFinishGateField(draft.columns || []);
+  const finishGateAuthorizedUserIds = normalizeFinishGateAuthorizedUserIds(draft.settings?.finishGateAuthorizedUserIds);
+  const finishGateUsersLabel = finishGateAuthorizedUserIds.length
+    ? `${finishGateAuthorizedUserIds.length} player(s) autorizado(s)`
+    : "Lead y dueño del tablero (por defecto)";
+  const filteredFinishGateUsers = activeUsers.filter((user) => user.name.toLowerCase().includes(finishGateUserSearch.trim().toLowerCase()));
   const previewOwnerName = userMap.get(previewBoard?.ownerId)?.name || currentUser?.name || "Sin player";
   const previewAccessNames = (previewBoard?.accessUserIds || []).map((userId) => userMap.get(userId)?.name).filter(Boolean);
   const previewSharedDepartments = Array.isArray(previewBoard?.sharedDepartments) ? previewBoard.sharedDepartments : [];
@@ -871,17 +1008,6 @@ export function BoardBuilderModal({
     || operationalContextOptions[0]
     || "";
   const selectedPreviewTemplateId = selectedPreviewTemplate?.id || "";
-  const defaultAuxWidths = Object.fromEntries(Object.values(BOARD_AUX_COLUMN_DEFINITIONS).map((item) => [item.id, item.defaultWidth]));
-  const fieldTypeMinWidths = {
-    inventoryLookup: 210,
-    inventoryLookupLogistics: 210,
-    select: 190,
-    user: 190,
-    status: 150,
-    time: 130,
-    date: 140,
-  };
-  const auxMinWidths = Object.fromEntries(Object.values(BOARD_AUX_COLUMN_DEFINITIONS).map((item) => [item.id, item.minWidth]));
   const builderTabs = ["base", "identity"];
   const builderTabLabels = {
     base: "Base",
@@ -903,6 +1029,15 @@ export function BoardBuilderModal({
     return names
       .map((name) => String(name || "").trim().split(/\s+/).filter(Boolean).slice(0, 3).map((part) => `${part.charAt(0).toUpperCase()}.`).join(""))
       .join(" ");
+  }
+
+  function getPreviewAssigneeUser(row) {
+    const responsibleIds = Array.from(new Set((Array.isArray(row?.responsibleIds) ? row.responsibleIds : [])
+      .map((userId) => String(userId || "").trim())
+      .filter(Boolean)));
+    const fallbackResponsibleId = String(row?.responsibleId || "").trim();
+    const primaryId = responsibleIds[0] || fallbackResponsibleId;
+    return primaryId ? userMap.get(primaryId) : currentUser;
   }
 
   function getTemplateOperationalContext(template) {
@@ -942,6 +1077,12 @@ export function BoardBuilderModal({
   }, [open, builderTab, baseTemplatesCollapsed]);
 
   useEffect(() => {
+    if (!layoutBlockFeedback) return undefined;
+    const timer = globalThis.setTimeout(() => setLayoutBlockFeedback(""), 3200);
+    return () => globalThis.clearTimeout(timer);
+  }, [layoutBlockFeedback]);
+
+  useEffect(() => {
     if (!actionMenuOpen) return undefined;
 
     function handlePointerDown(event) {
@@ -970,6 +1111,19 @@ export function BoardBuilderModal({
     window.addEventListener("pointerdown", handlePointerDown);
     return () => window.removeEventListener("pointerdown", handlePointerDown);
   }, [accessMenuOpen, draft.accessUserIds]);
+
+  useEffect(() => {
+    if (!finishGateMenuOpen) return undefined;
+
+    function handlePointerDown(event) {
+      if (!finishGateMenuRef.current?.contains(event.target)) {
+        setFinishGateMenuOpen(false);
+      }
+    }
+
+    window.addEventListener("pointerdown", handlePointerDown);
+    return () => window.removeEventListener("pointerdown", handlePointerDown);
+  }, [finishGateMenuOpen]);
 
   useEffect(() => {
     if (!open) return;
@@ -1083,7 +1237,7 @@ export function BoardBuilderModal({
     onChange((current) => {
       const currentOrder = getNormalizedBoardColumnOrder({ fields: current.columns || [], settings: current.settings || {} });
       const nextOrder = reorderBoardColumnOrderTokens(fromToken, targetToken, currentOrder);
-      return {
+      const nextDraft = {
         ...current,
         columns: sortBoardFieldsByColumnOrder(current.columns || [], nextOrder),
         settings: {
@@ -1091,9 +1245,97 @@ export function BoardBuilderModal({
           columnOrder: nextOrder,
         },
       };
+      const layout = getCleaningCardLayout(nextDraft.settings);
+      if (!layout.lineItemOrder.length) return nextDraft;
+      return reorderBoardCardLineItems(
+        nextDraft,
+        `col:${fromToken}`,
+        `col:${targetToken}`,
+        buildBoardCardLineLayout(
+          layout,
+          getOrderedBoardColumns({ fields: nextDraft.columns, settings: nextDraft.settings }, true),
+          getPreviewColumnWidthPx,
+        ).lineItems,
+      );
     });
     draggingColumnTokenRef.current = "";
     setDraggingColumnToken("");
+  }
+
+  function resolveFieldColumnToken(fieldId) {
+    return orderedPreviewColumns.find((column) => column.kind === "field" && column.field?.id === fieldId)?.token || "";
+  }
+
+  function startFieldColumnDrag(fieldId, event) {
+    const token = resolveFieldColumnToken(fieldId);
+    if (!token || !event?.dataTransfer) return;
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", token);
+    draggingColumnTokenRef.current = token;
+    setDraggingColumnToken(token);
+  }
+
+  function finishFieldColumnDrag() {
+    draggingColumnTokenRef.current = "";
+    setDraggingColumnToken("");
+  }
+
+  function handleAddLayoutBlock(blockType) {
+    let feedbackMessage = "";
+    onChange((current) => {
+      const result = applyCleaningLayoutBlock(current, blockType);
+      feedbackMessage = getCleaningLayoutBlockFeedbackMessage(result.feedbackKey, blockType);
+      return result.draft;
+    });
+    setLayoutBlockFeedback(feedbackMessage);
+    const blockMeta = CLEANING_LAYOUT_BLOCK_TYPES.find((block) => block.value === blockType);
+    if (blockMeta?.slotId) {
+      globalThis.requestAnimationFrame(() => {
+        document.querySelector(`[data-cleaning-slot="${blockMeta.slotId}"]`)?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      });
+    }
+  }
+
+  function handleSlotDrop(targetSlotId) {
+    const fromSlotId = draggingSlotId;
+    if (!fromSlotId || !targetSlotId || fromSlotId === targetSlotId) return;
+    onChange((current) => reorderCleaningCardLayoutSlots(current, fromSlotId, targetSlotId));
+    setDraggingSlotId("");
+  }
+
+  function getLineItemKey(lineItem) {
+    if (!lineItem) return "";
+    return lineItem.kind === "slot" ? `slot:${lineItem.slotId}` : `col:${lineItem.column.token}`;
+  }
+
+  function handlePreviewLineHeaderDrop(targetLineItem) {
+    const fromKey = draggingLineKey;
+    const toKey = getLineItemKey(targetLineItem);
+    if (!fromKey || !toKey || fromKey === toKey) return;
+    onChange((current) => reorderBoardCardLineItems(
+      current,
+      fromKey,
+      toKey,
+      buildBoardCardLineLayout(
+        getCleaningCardLayout(current.settings),
+        getOrderedBoardColumns({ fields: current.columns, settings: current.settings }, true),
+        getPreviewColumnWidthPx,
+      ).lineItems,
+    ));
+    setDraggingLineKey("");
+    setLayoutBlockFeedback("Orden de la ficha actualizado.");
+  }
+
+  function handleAssignFieldLayoutRole(fieldId, role) {
+    onChange((current) => assignBoardFieldLayoutRole(current, fieldId, role));
+    setLayoutBlockFeedback(role
+      ? `Campo mezclado en bloque «${getBoardFieldLayoutRoleOptions().find((option) => option.value === role)?.label || role}».`
+      : "Campo devuelto a la línea de la ficha.");
+  }
+
+  function handleToggleCleaningSlot(slotId) {
+    const isHidden = cleaningCardLayout.hiddenSlots.includes(slotId);
+    onChange((current) => toggleCleaningCardSlotVisibility(current, slotId, isHidden));
   }
 
   function resolveFieldWidthPx(field) {
@@ -1217,6 +1459,99 @@ export function BoardBuilderModal({
     if (!hasBuilderNext) return;
     setBuilderTab(builderTabs[currentBuilderTabIndex + 1]);
   }
+
+  function renderDraftFieldChip(field) {
+    const typeOption = BOARD_FIELD_TYPES.find((t) => t.value === field.type);
+    const typeLabel = typeOption?.label || field.type || "Campo";
+    const currentLayoutRole = String(field.layoutBlockRole || "").trim();
+    const columnToken = resolveFieldColumnToken(field.id);
+    const isInlineField = Boolean(columnToken) && !currentLayoutRole;
+    const isDraggingField = draggingColumnToken === columnToken;
+    const formulaDetail = field.type === "formula"
+      ? getDraftFormulaTerms(field)
+        .map((term, index) => {
+          const termLabel = (draft.columns || []).find((candidate) => candidate.id === term.fieldId)?.label || "";
+          if (!termLabel) return "";
+          return index === 0 ? termLabel : `${getFormulaOperationSymbol(term.operation || "add")} ${termLabel}`;
+        })
+        .filter(Boolean)
+        .join(" ")
+      : null;
+    return (
+      <article
+        key={field.id}
+        className={`board-inline-component-chip board-inline-component-chip--builder${isDraggingField ? " dragging" : ""}`}
+        draggable={isInlineField}
+        onDragStart={(event) => startFieldColumnDrag(field.id, event)}
+        onDragEnd={finishFieldColumnDrag}
+        onDragOver={(event) => {
+          if (!isInlineField) return;
+          event.preventDefault();
+        }}
+        onDrop={(event) => {
+          event.preventDefault();
+          handlePreviewColumnDrop(resolveFieldColumnToken(field.id));
+        }}
+      >
+        <div className="board-inline-component-chip-head">
+          {isInlineField ? (
+            <span className="board-inline-component-grip" aria-hidden="true" title="Arrastra para reordenar">
+              <GripVertical size={14} />
+            </span>
+          ) : null}
+          <div className="board-inline-component-chip-title">
+            <span className="chip primary board-inline-component-label">{field.label}</span>
+            <span className="board-inline-component-type">{typeLabel}</span>
+          </div>
+        </div>
+        {formulaDetail ? (
+          <span className="board-inline-component-formula">{formulaDetail}</span>
+        ) : null}
+        {currentLayoutRole === "finishGate" ? (
+          <div className="board-finish-gate-field-editors">
+            <span className="board-field-mix-label">Players autorizados (campo)</span>
+            <div className="board-finish-gate-field-editor-list">
+              {activeUsers.map((user) => {
+                const checked = Array.isArray(field.finishGateEditorUserIds)
+                  && field.finishGateEditorUserIds.includes(user.id);
+                return (
+                  <label key={user.id} className={`board-finish-gate-field-editor-option${checked ? " is-selected" : ""}`}>
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => onChange((current) => toggleFinishGateFieldEditorUser(current, field.id, user.id))}
+                    />
+                    <span>{user.name}</span>
+                  </label>
+                );
+              })}
+            </div>
+            <p className="board-assignment-hint">Opcional: restringe este switch solo a estos players. Si queda vacío, usa la lista del tablero.</p>
+          </div>
+        ) : null}
+        <div className="board-inline-component-chip-foot">
+          <label className="board-field-mix-control">
+            <span className="board-field-mix-label">Mezclar</span>
+            <select
+              value={currentLayoutRole}
+              onChange={(event) => handleAssignFieldLayoutRole(field.id, event.target.value)}
+              title="Mezclar este campo dentro de un bloque compuesto de la ficha"
+            >
+              {getBoardFieldLayoutRoleOptions().map((option) => (
+                <option key={option.value || "inline"} value={option.value}>{option.label}</option>
+              ))}
+            </select>
+          </label>
+          <div className="board-inline-component-chip-actions">
+            <button type="button" className="icon-button" onClick={() => onEditDraftColumn(field.id)}><Pencil size={13} /></button>
+            <button type="button" className="icon-button danger" onClick={() => onRemoveDraftColumn(field.id)}><Trash2 size={13} /></button>
+          </div>
+        </div>
+      </article>
+    );
+  }
+
+  const cleaningFieldGroups = getCleaningBoardFieldGroups(draft);
 
   const focusLayoutClassName = [
     "board-builder-focus-layout",
@@ -1490,21 +1825,106 @@ export function BoardBuilderModal({
                 <div className="builder-card compact-builder-card board-builder-switch-row">
                   <div>
                     <strong>Acumulado</strong>
-                    <span>Columna de tiempo total</span>
+                    <span>Pie de ficha · visible para operadores</span>
                   </div>
-                  <button type="button" className={draft.settings.showTotalTime !== false ? "switch-button on" : "switch-button"} aria-label="Alternar columna acumulado" aria-pressed={draft.settings.showTotalTime !== false} onClick={() => onChange((current) => ({ ...current, settings: { ...current.settings, showTotalTime: current.settings.showTotalTime === false } }))}>
+                  <button type="button" className={draft.settings.showTotalTime !== false ? "switch-button on" : "switch-button"} aria-label="Alternar acumulado en pie de ficha" aria-pressed={draft.settings.showTotalTime !== false} onClick={() => onChange((current) => ({ ...current, settings: { ...current.settings, showTotalTime: current.settings.showTotalTime === false } }))}>
                     <span className="switch-thumb" />
                   </button>
                 </div>
                 <div className="builder-card compact-builder-card board-builder-switch-row">
                   <div>
                     <strong>Eficiencia</strong>
-                    <span>Columna de eficiencia</span>
+                    <span>Pie de ficha · visible para operadores</span>
                   </div>
-                  <button type="button" className={draft.settings.showEfficiency !== false ? "switch-button on" : "switch-button"} aria-label="Alternar columna eficiencia" aria-pressed={draft.settings.showEfficiency !== false} onClick={() => onChange((current) => ({ ...current, settings: { ...current.settings, showEfficiency: current.settings.showEfficiency === false } }))}>
+                  <button type="button" className={draft.settings.showEfficiency !== false ? "switch-button on" : "switch-button"} aria-label="Alternar eficiencia en pie de ficha" aria-pressed={draft.settings.showEfficiency !== false} onClick={() => onChange((current) => ({ ...current, settings: { ...current.settings, showEfficiency: current.settings.showEfficiency === false } }))}>
                     <span className="switch-thumb" />
                   </button>
                 </div>
+              </div>
+
+              <div className="builder-card compact-builder-card board-finish-gate-builder-panel">
+                <div className="board-finish-gate-builder-head">
+                  <div>
+                    <strong>Switch de finalización</strong>
+                    <span>Bloquea finalizar la fila hasta activarlo. Define quién puede encenderlo.</span>
+                  </div>
+                  <BoardActivityFinishGateSwitch
+                    enabled={Boolean(finishGateField)}
+                    disabled
+                    label={finishGateField?.label || "¿Se terminó la actividad?"}
+                    compact
+                  />
+                </div>
+
+                {finishGateField ? (
+                  <>
+                    <p className="board-finish-gate-builder-field">
+                      Campo vinculado: <strong>{finishGateField.label}</strong>
+                    </p>
+                    <div className="board-access-selector" ref={finishGateMenuRef}>
+                      <button
+                        type="button"
+                        className="board-access-trigger"
+                        onClick={() => setFinishGateMenuOpen((current) => !current)}
+                        aria-expanded={finishGateMenuOpen}
+                      >
+                        <span>{finishGateUsersLabel}</span>
+                        <ArrowDown size={16} />
+                      </button>
+                      {finishGateMenuOpen ? (
+                        <div className="board-access-dropdown">
+                          <label className="app-modal-field board-access-search-field">
+                            <span>Players que pueden activar el switch</span>
+                            <input
+                              value={finishGateUserSearch}
+                              onChange={(event) => setFinishGateUserSearch(event.target.value)}
+                              placeholder="Buscar player"
+                            />
+                          </label>
+                          <p className="board-assignment-hint">
+                            Si no seleccionas a nadie, solo el Lead y el dueño del tablero podrán activarlo.
+                          </p>
+                          <div className="board-access-list">
+                            {filteredFinishGateUsers.length ? filteredFinishGateUsers.map((user) => {
+                              const checked = finishGateAuthorizedUserIds.includes(user.id);
+                              return (
+                                <label key={user.id} className={`board-access-option${checked ? " is-selected" : ""}`}>
+                                  <input
+                                    type="checkbox"
+                                    checked={checked}
+                                    onChange={() => onChange((current) => toggleFinishGateAuthorizedUser(current, user.id))}
+                                  />
+                                  <span>{user.name}</span>
+                                </label>
+                              );
+                            }) : <span className="board-assignment-hint">No hay players activos para mostrar.</span>}
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
+                    {finishGateAuthorizedUserIds.length ? (
+                      <div className="board-finish-gate-builder-chips">
+                        {finishGateAuthorizedUserIds.map((userId) => {
+                          const userName = userMap.get(userId)?.name || userId;
+                          return <span key={userId} className="chip soft">{userName}</span>;
+                        })}
+                      </div>
+                    ) : null}
+                  </>
+                ) : (
+                  <div className="board-finish-gate-builder-empty">
+                    <p className="board-assignment-hint">
+                      Aún no hay un campo de switch en este tablero. Agrégalo para exigir confirmación antes de finalizar actividades.
+                    </p>
+                    <button
+                      type="button"
+                      className="primary-button"
+                      onClick={() => onChange((current) => appendFinishGateFieldToBoardDraft(current))}
+                    >
+                      Agregar switch de finalización
+                    </button>
+                  </div>
+                )}
               </div>
 
               <div className="builder-card compact-builder-card board-context-card">
@@ -1584,186 +2004,406 @@ export function BoardBuilderModal({
                 </div>
               </div>
             </div>
-            {(previewBoard.fields || []).length ? (
-              <div className="table-wrap board-preview-table-wrap">
-                <table className="admin-table-clean board-preview-table">
-                  <thead>
-                    {previewSections.length ? (
-                      <tr>
-                        {previewSections.map((section, index) => (
-                          <th key={`${section.name}-${index}`} colSpan={section.span} className="board-section-header-cell" style={{ backgroundColor: section.color }}>
-                            {section.name}
-                          </th>
-                        ))}
-                      </tr>
-                    ) : null}
-                    <tr>
-                      {orderedPreviewColumns.map((column) => (
-                        <th
-                          key={column.token}
-                          draggable={!resizingToken}
-                          onDragStart={e => {
-                            if (resizingToken) return;
-                            draggingColumnTokenRef.current = column.token;
-                            setDraggingColumnToken(column.token);
-                            e.dataTransfer.effectAllowed = "move";
-                            try {
-                              e.dataTransfer.setData("text/plain", column.token);
-                              e.dataTransfer.setData("text", column.token);
-                            } catch {
-                              // Some browsers can block setData for custom drags; state/ref still preserve token.
-                            }
-                          }}
-                          onDragEnd={() => {
-                            draggingColumnTokenRef.current = "";
-                            setDraggingColumnToken("");
-                          }}
-                          onDragOver={event => {
-                            event.preventDefault();
-                            event.dataTransfer.dropEffect = "move";
-                          }}
-                          onDrop={event => {
-                            event.preventDefault();
-                            const fromToken = event.dataTransfer.getData("text/plain")
-                              || event.dataTransfer.getData("text")
-                              || draggingColumnTokenRef.current
-                              || draggingColumnToken;
-                            handlePreviewColumnDrop(column.token, fromToken);
-                          }}
-                          className={[
-                            "board-preview-field-heading",
-                            draggingColumnToken === column.token ? "dragging" : "",
-                            resizingToken === `${column.kind}:${column.id}` ? "is-resizing" : "",
-                            draggingColumnToken && draggingColumnToken !== column.token ? "drop-target" : "",
-                          ].filter(Boolean).join(" ")}
-                          title="Arrastra para reordenar"
-                          style={{
-                            ...(column.kind === "field" ? getPreviewCellStyle(column.field) : getPreviewAuxCellStyle(column.id)),
-                            cursor: resizingToken ? "col-resize" : draggingColumnToken ? "grabbing" : "grab",
-                            opacity: draggingColumnToken === column.token ? 0.5 : 1,
-                            background: draggingColumnToken && draggingColumnToken !== column.token ? "rgba(49, 77, 105, 0.06)" : undefined,
-                            zIndex: draggingColumnToken === column.token ? 2 : 1,
-                            position: draggingColumnToken ? "relative" : undefined,
-                            boxShadow: draggingColumnToken === column.token ? "0 4px 24px 0 rgba(49, 77, 105, 0.10)" : undefined,
-                            transition: "background 0.15s, opacity 0.15s, box-shadow 0.2s, transform 0.25s cubic-bezier(.4,1.6,.6,1)",
-                            transform: draggingColumnToken === column.token ? "scale(1.04) translateY(-2px)" : "none"
-                          }}
-                        >
-                          <div style={{ display: "grid", gap: "0.3rem" }}>
-                            <span className="board-preview-field-label">
-                              {column.kind === "field"
-                                ? renderBoardFieldLabel(column.field.label, column.field.required)
-                                : column.label}
-                            </span>
-                          </div>
-                          <button
-                            type="button"
-                            className="board-preview-resize-handle"
-                            onMouseDown={(event) => {
-                              if (column.kind === "field") {
-                                handleFieldResizeStart(column.field, event);
-                                return;
-                              }
-                              handleAuxResizeStart(column.id, event);
-                            }}
-                            onClick={(event) => event.preventDefault()}
-                            aria-label={`Ajustar ancho de ${column.kind === "field" ? column.field.label : column.label}`}
-                            title="Arrastra para ajustar ancho"
-                          />
-                        </th>
-                      ))}
-                      <th className="board-preview-add-col-th">
+            <div className="board-cleaning-layout-editor board-cleaning-layout-editor--split">
+              <section className="board-mix-components-panel board-mix-components-panel--compact">
+                <div className="board-mix-components-head">
+                  <div>
+                    <h4 className="board-mix-components-title">Mezclar componentes</h4>
+                    <p className="subtle-line board-mix-components-hint">
+                      Botones + para bloques. Arrastra los encabezados del preview para reordenar la ficha.
+                    </p>
+                  </div>
+                </div>
+                <div className="board-cleaning-layout-add-section">
+                  <span className="board-cleaning-layout-add-label">Bloques compuestos</span>
+                  <div className="board-cleaning-layout-add">
+                    {CLEANING_LAYOUT_BLOCK_TYPES.map((block) => {
+                      const isActive = isCleaningLayoutBlockActive(draft, block.value);
+                      return (
                         <button
+                          key={block.value}
                           type="button"
-                          className="board-preview-add-col-btn"
-                          onClick={onOpenComponentStudio}
-                          title="Agregar columna"
+                          className={`chip primary board-cleaning-layout-add-btn board-mix-block-btn${isActive ? " is-active" : ""}`}
+                          onClick={() => handleAddLayoutBlock(block.value)}
+                          title={isActive ? `${block.label} ya está en la ficha` : `Agregar ${block.label}`}
+                          aria-pressed={isActive}
                         >
-                          <Plus size={14} />
-                          <span>Columna</span>
+                          {isActive ? <Check size={14} /> : <Plus size={14} />}
+                          {block.label}
                         </button>
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {previewRows.length ? previewRows.map((row) => (
-                      <tr key={row.id}>
-                        {orderedPreviewColumns.map((column) => {
-                          if (column.kind === "field") {
-                            return <td key={`${row.id}-${column.token}`} style={getPreviewCellStyle(column.field)}>{formatBoardPreviewValue(row.values?.[column.field.id], column.field, userMap, inventoryItems)}</td>;
-                          }
-                          if (column.id === "assignee") return <td key={`${row.id}-${column.token}`} style={getPreviewAuxCellStyle(column.id)} title={getPreviewAssigneeLabel(row)}>{getPreviewAssigneeLabel(row)}</td>;
-                          if (column.id === "status") return <td key={`${row.id}-${column.token}`} style={getPreviewAuxCellStyle(column.id)}><span className="chip">{row.status || STATUS_PENDING}</span></td>;
-                          if (column.id === "time") return <td key={`${row.id}-${column.token}`} style={getPreviewAuxCellStyle(column.id)}>{row.accumulatedSeconds ? `${Math.round(row.accumulatedSeconds / 60)} min` : "0 min"}</td>;
-                          if (column.id === "totalTime") return <td key={`${row.id}-${column.token}`} style={getPreviewAuxCellStyle(column.id)}>{"00:00:00"}</td>;
-                          if (column.id === "efficiency") return <td key={`${row.id}-${column.token}`} style={getPreviewAuxCellStyle(column.id)}><span style={{ color: "#4f7da9", fontWeight: 600 }}>{"—"}</span></td>;
-                          return <td key={`${row.id}-${column.token}`} style={getPreviewAuxCellStyle(column.id)}><span className={row.status === STATUS_RUNNING ? "chip success" : "chip"}>Inicia · Pausa · Fin</span></td>;
+                      );
+                    })}
+                  </div>
+                  {layoutBlockFeedback ? (
+                    <p className="board-cleaning-layout-feedback" role="status" aria-live="polite">{layoutBlockFeedback}</p>
+                  ) : null}
+                </div>
+              </section>
+
+              <div className="board-builder-preview-hero">
+                <div className="board-preview-fichas-head">
+                  <span className="board-preview-fichas-title">Vista final · encabezados + ficha</span>
+                  <span className="board-preview-fichas-hint">
+                    Sujeta y arrastra cada encabezado para cambiar el orden. Los colores de sección son los del tablero.
+                  </span>
+                </div>
+
+                <div className="table-wrap board-builder-preview-table-wrap">
+                  <table
+                    className="admin-table-clean board-runtime-table board-cards-view board-builder-preview-table"
+                    style={previewLineLayout.gridTemplateColumns
+                      ? { "--cleaning-grid-cols": previewLineLayout.gridTemplateColumns }
+                      : undefined}
+                  >
+                    <thead className="cleaning-cards-thead">
+                      {showPreviewSectionRow ? (
+                      <tr className="cleaning-cards-section-row">
+                        {previewLineLayout.lineItems.map((lineItem, lineIndex) => {
+                          const headerMeta = resolveBoardCardLineItemHeaderMeta(lineItem, orderedPreviewColumns);
+                          const lineWidth = previewLineLayout.widths[lineIndex];
+                          const lineKey = lineItem.kind === "slot"
+                            ? `section-slot-${lineItem.slotId}`
+                            : `section-col-${lineItem.column.token}`;
+                          return (
+                            <th
+                              key={lineKey}
+                              className="cleaning-slot-section-cell board-section-header-cell"
+                              style={{
+                                ...(lineWidth ? { minWidth: `${lineWidth}px`, width: `${lineWidth}px` } : {}),
+                                backgroundColor: headerMeta.color,
+                              }}
+                              title={headerMeta.sectionName}
+                            >
+                              {headerMeta.sectionName}
+                            </th>
+                          );
                         })}
-                        <td className="board-preview-add-col-td" />
                       </tr>
-                    )) : (
-                      <tr>
-                        {orderedPreviewColumns.map((column) => (
-                          <td key={column.token} style={column.kind === "field" ? getPreviewCellStyle(column.field) : getPreviewAuxCellStyle(column.id)} className="board-preview-empty-cell">—</td>
-                        ))}
-                        <td className="board-preview-add-col-td" />
+                      ) : null}
+                      <tr className="cleaning-cards-header-row">
+                        {previewLineLayout.lineItems.map((lineItem, lineIndex) => {
+                          const headerMeta = resolveBoardCardLineItemHeaderMeta(lineItem, orderedPreviewColumns);
+                          const lineWidth = previewLineLayout.widths[lineIndex];
+                          const lineKey = getLineItemKey(lineItem);
+                          const isDragging = draggingLineKey === lineKey;
+                          return (
+                            <th
+                              key={`head-${lineKey}`}
+                              className={`cleaning-slot-header-cell board-builder-line-header${isDragging ? " dragging" : ""}${draggingLineKey && draggingLineKey !== lineKey ? " drop-target" : ""}`}
+                              style={{
+                                ...(lineWidth ? { minWidth: `${lineWidth}px`, width: `${lineWidth}px` } : {}),
+                                "--cleaning-slot-accent": headerMeta.color,
+                              }}
+                              title={`${headerMeta.description || headerMeta.label} · Arrastra para reordenar`}
+                              draggable
+                              onDragStart={(event) => {
+                                if (!event.dataTransfer) return;
+                                event.dataTransfer.effectAllowed = "move";
+                                event.dataTransfer.setData("text/plain", lineKey);
+                                setDraggingLineKey(lineKey);
+                              }}
+                              onDragEnd={() => setDraggingLineKey("")}
+                              onDragOver={(event) => {
+                                event.preventDefault();
+                                if (event.dataTransfer) event.dataTransfer.dropEffect = "move";
+                              }}
+                              onDrop={(event) => {
+                                event.preventDefault();
+                                handlePreviewLineHeaderDrop(lineItem);
+                              }}
+                            >
+                              <span className="board-builder-line-header-label">{headerMeta.label}</span>
+                            </th>
+                          );
+                        })}
                       </tr>
-                    )}
+                    </thead>
+                    <tbody>
+                      {(previewRows.length ? previewRows : [null]).slice(0, 1).map((row, idx) => {
+                      const roles = row
+                        ? buildPreviewFichaRoles(row)
+                        : { status: STATUS_PENDING, activity: "Referencia de ejemplo", date: "24/06/2026", extras: [], cellsByToken: {} };
+                      const status = roles.status || STATUS_PENDING;
+                      const playerLabel = roles.player && !/^(sin |asignar)/i.test(roles.player) ? roles.player : "";
+                      const previewResponsibleIds = row
+                        ? Array.from(new Set((Array.isArray(row.responsibleIds) ? row.responsibleIds : [])
+                          .map((userId) => String(userId || "").trim())
+                          .filter(Boolean)))
+                        : [];
+                      if (row && !previewResponsibleIds.length && String(row.responsibleId || "").trim()) {
+                        previewResponsibleIds.push(String(row.responsibleId).trim());
+                      }
+                      const showGroupPlayerIcon = previewResponsibleIds.length > 1;
+                      const previewUser = row ? getPreviewAssigneeUser(row) : null;
+                      const avatarUrl = previewUser ? getPreviewUserAvatarUrl(previewUser) : "";
+                      const avatarInitials = initialsFromLabel(previewUser?.name || playerLabel);
+                      const renderPreviewSlot = (slotId, orderIndex) => {
+                        if (slotId === "info") {
+                          return (
+                            <div className="cleaning-card-info cleaning-card-slot" data-slot={slotId} style={{ order: orderIndex }} key={slotId}>
+                              <div className="cleaning-card-title">{roles.activity || "Referencia"}</div>
+                              {roles.date ? <div className="cleaning-card-date">{roles.date}</div> : null}
+                            </div>
+                          );
+                        }
+                        if (slotId === "player") {
+                          return (
+                            <div className="cleaning-card-player cleaning-card-slot" data-slot={slotId} style={{ order: orderIndex }} key={slotId}>
+                              <span
+                                className={`board-assignee-trigger has-cleaning-avatar${playerLabel ? "" : " is-disabled"}${showGroupPlayerIcon ? " is-group-players" : ""}`}
+                                data-assigned={playerLabel ? "1" : "0"}
+                                title={playerLabel || undefined}
+                              >
+                                <span className={`board-assignee-avatar${showGroupPlayerIcon ? " is-group-icon" : ""}`} aria-hidden="true">
+                                  {showGroupPlayerIcon ? (
+                                    <Users className="board-assignee-avatar-group-icon" strokeWidth={2.2} aria-hidden="true" />
+                                  ) : (
+                                    <>
+                                      {avatarUrl ? <img src={avatarUrl} alt="" className="board-assignee-avatar-image" /> : null}
+                                      {!avatarUrl ? <span className="board-assignee-avatar-fallback">{avatarInitials}</span> : null}
+                                    </>
+                                  )}
+                                </span>
+                                <span className="board-assignee-trigger-label">{playerLabel || "Asignar player(s)"}</span>
+                              </span>
+                            </div>
+                          );
+                        }
+                        if (slotId === "timeline") {
+                          return (
+                            <div className="cleaning-card-timeline cleaning-card-slot" data-slot={slotId} style={{ order: orderIndex }} key={slotId}>
+                              <div className="tl-point tl-point--start">
+                                <span className="tl-cap">Inicio</span>
+                                <div className="tl-time">{roles.start || "--:--"}</div>
+                              </div>
+                              <div className="tl-track" aria-hidden="true"><span className="tl-fill" /></div>
+                              <div className="tl-point tl-point--end">
+                                <span className="tl-cap">Fin</span>
+                                <div className="tl-time">{roles.end || "--:--"}</div>
+                              </div>
+                              {roles.time ? <div className="tl-duration">{roles.time}</div> : null}
+                            </div>
+                          );
+                        }
+                        if (slotId === "status") {
+                          return (
+                            <div className="cleaning-card-status cleaning-card-slot" data-slot={slotId} style={{ order: orderIndex }} key={slotId}>
+                              <span className={`board-status-pill ${previewStatusPillClass(status)}`}>{status}</span>
+                            </div>
+                          );
+                        }
+                        if (slotId === "actions") {
+                          return (
+                            <div className="cleaning-card-actions cleaning-card-slot" data-slot={slotId} style={{ order: orderIndex }} key={slotId}>
+                              {roles.finishGate !== undefined ? (
+                                <div className="cleaning-card-finish-gate">
+                                  <BoardActivityFinishGateSwitch
+                                    enabled={String(roles.finishGate || "").toLowerCase() === "si"}
+                                    disabled
+                                    label={finishGateField?.label || "¿Se terminó la actividad?"}
+                                    compact
+                                  />
+                                </div>
+                              ) : null}
+                              <div className="board-workflow-actions">
+                                <span className="board-action-button start icon-only" aria-hidden="true"><Play size={16} strokeWidth={2.5} /></span>
+                                <span className="board-action-button pause icon-only" aria-hidden="true"><PauseCircle size={16} strokeWidth={2.5} /></span>
+                                <span className="board-action-button finish icon-only" aria-hidden="true"><Square size={16} strokeWidth={2.5} /></span>
+                              </div>
+                            </div>
+                          );
+                        }
+                        if (slotId === "lotExpiry") {
+                          if (!roles.lot && !roles.expiry) return null;
+                          return (
+                            <div className="cleaning-card-lot-expiry cleaning-card-slot" data-slot={slotId} style={{ order: orderIndex }} key={slotId}>
+                              {roles.lot ? <div className="cleaning-card-lot">{roles.lot}</div> : null}
+                              {roles.expiry ? <div className="cleaning-card-expiry">{roles.expiry}</div> : null}
+                            </div>
+                          );
+                        }
+                        if (slotId === "labelLab") {
+                          if (!roles.labelTag && !roles.laboratory) return null;
+                          return (
+                            <div className="cleaning-card-label-lab cleaning-card-slot" data-slot={slotId} style={{ order: orderIndex }} key={slotId}>
+                              {roles.labelTag ? <div className="cleaning-card-label-tag">{roles.labelTag}</div> : null}
+                              {roles.laboratory ? <div className="cleaning-card-laboratory">{roles.laboratory}</div> : null}
+                            </div>
+                          );
+                        }
+                        return null;
+                      };
+                      const renderPreviewColumn = (lineItem, orderIndex) => {
+                        const cell = roles.cellsByToken?.[lineItem.column.token];
+                        if (!cell) return null;
+                        return (
+                          <div
+                            className="cleaning-card-field-slot cleaning-card-slot"
+                            data-slot="meta"
+                            data-column-token={lineItem.column.token}
+                            style={{ order: orderIndex }}
+                            key={`preview-col-${lineItem.column.token}`}
+                          >
+                            <div className="cleaning-field-inline" data-label={cell.label}>
+                              <span className="subtle-line">{cell.value || "—"}</span>
+                            </div>
+                          </div>
+                        );
+                      };
+                      return (
+                        <tr key={row?.id || `ficha-demo-${idx}`} className="cleaning-card-row" data-status={status}>
+                          <td colSpan={Math.max(previewLineLayout.lineItems.length, orderedPreviewColumns.length, 1)} className="cleaning-card-host">
+                            <div className="cleaning-card cleaning-card--preview" data-status={status}>
+                              <span className="cleaning-card-rail" aria-hidden="true" />
+                              <div className="cleaning-card-scroll">
+                                <div
+                                  className="cleaning-card-body cleaning-card-body--single-line"
+                                  style={previewLineLayout.gridTemplateColumns
+                                    ? { gridTemplateColumns: previewLineLayout.gridTemplateColumns }
+                                    : undefined}
+                                >
+                                  {previewLineLayout.lineItems.map((lineItem, orderIndex) => (
+                                    lineItem.kind === "slot"
+                                      ? renderPreviewSlot(lineItem.slotId, orderIndex)
+                                      : renderPreviewColumn(lineItem, orderIndex)
+                                  ))}
+                                </div>
+                                {(draft.settings.showTotalTime !== false && roles.totalTime)
+                                || (draft.settings.showEfficiency !== false && roles.efficiency) ? (
+                                  <div className="cleaning-card-meta">
+                                    {draft.settings.showTotalTime !== false && roles.totalTime ? (
+                                      <div className="cleaning-meta-chip" data-label="Acumulado">{roles.totalTime}</div>
+                                    ) : null}
+                                    {draft.settings.showEfficiency !== false && roles.efficiency ? (
+                                      <div className="cleaning-meta-chip" data-label="Eficiencia">{roles.efficiency}</div>
+                                    ) : null}
+                                  </div>
+                                ) : null}
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
-            ) : (
-              <div className="builder-preview-empty">
-                <LayoutDashboard size={32} />
-                <div>
-                  <strong>La estructura aparecerá aquí</strong>
-                  <p>Haz clic en <strong>+ Agregar columna</strong> o previsualiza una plantilla para ver el tablero terminado.</p>
-                </div>
-                <button type="button" className="primary-button" onClick={onOpenComponentStudio}>
-                  <Plus size={15} /> Agregar primera columna
-                </button>
-              </div>
-            )}
 
-            <section className="board-inline-components">
-              <div className="builder-section-head board-builder-section-head">
-                <div>
-                  <h4>Componentes dentro del constructor</h4>
-                </div>
-                <span className="chip primary">{draft.columns.length} componente(s)</span>
-              </div>
-              <div className="saved-board-list board-inline-components-list">
-                {(previewBoard.fields || []).map((field) => {
-                  const typeOption = BOARD_FIELD_TYPES.find((t) => t.value === field.type);
-                  const typeLabel = typeOption?.label || field.type || "Campo";
-                  const formulaDetail = field.type === "formula"
-                    ? getDraftFormulaTerms(field)
-                      .map((term, index) => {
-                        const termLabel = (previewBoard.fields || []).find((candidate) => candidate.id === term.fieldId)?.label || "";
-                        if (!termLabel) return "";
-                        return index === 0 ? termLabel : `${getFormulaOperationSymbol(term.operation || "add")} ${termLabel}`;
-                      })
-                      .filter(Boolean)
-                      .join(" ")
-                    : null;
+              <div className="board-cleaning-slot-palette board-cleaning-slot-palette--compact">
+                <span className="board-cleaning-layout-add-label">Bloques · arrastra</span>
+                {cleaningCardLayout.slotOrder.map((slotId) => {
+                  const slotDef = CLEANING_CARD_SLOT_DEFINITIONS[slotId];
+                  const hidden = cleaningCardLayout.hiddenSlots.includes(slotId);
                   return (
-                    <article key={field.id} className="board-inline-component-chip">
-                      <div className="board-inline-component-main">
-                        <span className="chip primary board-inline-component-label">{field.label}</span>
-                        <span className="board-inline-component-type">{typeLabel}</span>
-                        {formulaDetail ? (
-                          <span className="board-inline-component-formula">{formulaDetail}</span>
-                        ) : null}
-                        <span className="board-inline-component-actions">
-                          <button type="button" className="icon-button" onClick={() => onEditDraftColumn(field.id)}><Pencil size={14} /> Editar</button>
-                          <button type="button" className="icon-button danger" onClick={() => onRemoveDraftColumn(field.id)}><Trash2 size={14} /> Quitar</button>
-                        </span>
-                      </div>
-                    </article>
+                    <div
+                      key={slotId}
+                      data-cleaning-slot={slotId}
+                      className={`board-cleaning-slot-chip board-cleaning-slot-chip--compact${hidden ? " is-hidden" : ""}${draggingSlotId === slotId ? " dragging" : ""}`}
+                      draggable={!hidden}
+                      onDragStart={() => setDraggingSlotId(slotId)}
+                      onDragEnd={() => setDraggingSlotId("")}
+                      onDragOver={(event) => event.preventDefault()}
+                      onDrop={(event) => {
+                        event.preventDefault();
+                        handleSlotDrop(slotId);
+                      }}
+                    >
+                      <GripVertical size={12} aria-hidden="true" />
+                      <strong>{slotDef?.label || slotId}</strong>
+                      <button type="button" className="icon-button" onClick={() => handleToggleCleaningSlot(slotId)}>
+                        {hidden ? "Mostrar" : "Ocultar"}
+                      </button>
+                    </div>
                   );
                 })}
               </div>
+              </div>
+
+              {!draft.columns.length ? (
+                <div className="builder-preview-empty board-cleaning-preview-empty">
+                  <LayoutDashboard size={32} />
+                  <div>
+                    <strong>Agrega bloques o campos para armar la ficha</strong>
+                    <p>Usa «Mezclar componentes» arriba o agrega un campo individual abajo.</p>
+                  </div>
+                  <button type="button" className="primary-button" onClick={onOpenComponentStudio}>
+                    <Plus size={15} /> Agregar primer campo
+                  </button>
+                </div>
+              ) : null}
+
+              <div className="board-builder-fields-scroll">
+            <section className="board-inline-components">
+              <div className="builder-section-head board-builder-section-head">
+                <div>
+                  <h4>Campos por bloque</h4>
+                  <p className="subtle-line board-cleaning-fields-help">
+                    Campos en <strong>3 columnas</strong>. Arrastra ⋮⋮ para reordenar columnas en línea. Selector <strong>Mezclar</strong> para meter en bloques.
+                  </p>
+                </div>
+                <div className="board-inline-components-head-actions">
+                  <button type="button" className="chip primary board-cleaning-add-field-btn" onClick={onOpenComponentStudio}>
+                    <Plus size={13} /> Campo individual
+                  </button>
+                  <span className="chip primary">{draft.columns.length} componente(s)</span>
+                </div>
+              </div>
+              <div className="board-cleaning-field-groups">
+                {cleaningFieldGroups.map((group) => (
+                    <article
+                      key={group.key}
+                      className={`board-cleaning-field-group${group.hidden ? " is-hidden" : ""}`}
+                      data-cleaning-slot={group.slotId}
+                    >
+                      <header className="board-cleaning-field-group-head">
+                        <div>
+                          <strong>{group.label}</strong>
+                          <span className="subtle-line">{group.hidden ? "Oculto en la ficha" : "Visible en la ficha"}</span>
+                        </div>
+                        <button type="button" className="icon-button" onClick={() => handleToggleCleaningSlot(group.slotId)}>
+                          {group.hidden ? "Mostrar bloque" : "Ocultar bloque"}
+                        </button>
+                      </header>
+                      <div className="board-cleaning-field-group-items board-builder-field-grid">
+                        {group.kind === "aux" ? (
+                          (group.auxItems || []).map((auxItem) => (
+                            <article key={auxItem.id} className="board-inline-component-chip is-system">
+                              <div className="board-inline-component-main">
+                                <span className="chip board-inline-component-label">{auxItem.label}</span>
+                                <span className="board-inline-component-type">Columna del sistema</span>
+                              </div>
+                            </article>
+                          ))
+                        ) : null}
+                        {group.kind === "meta" ? (
+                          <>
+                            {(group.auxItems || []).map((auxItem) => (
+                              <article key={auxItem.id} className="board-inline-component-chip is-system">
+                                <div className="board-inline-component-main">
+                                  <span className="chip board-inline-component-label">{auxItem.label}</span>
+                                  <span className="board-inline-component-type">Columna del sistema</span>
+                                </div>
+                              </article>
+                            ))}
+                            {(group.fields || []).map((field) => renderDraftFieldChip(field))}
+                          </>
+                        ) : null}
+                        {group.kind === "fields" ? (
+                          group.fields.length
+                            ? group.fields.map((field) => renderDraftFieldChip(field))
+                            : (
+                              <p className="subtle-line board-cleaning-field-group-empty">
+                                Sin campos aún. Pulsa + {group.label} arriba para crearlos.
+                              </p>
+                            )
+                        ) : null}
+                      </div>
+                    </article>
+                  ))}
+                </div>
             </section>
+              </div>
+            </div>
           </div>
         </aside>
         ) : null}

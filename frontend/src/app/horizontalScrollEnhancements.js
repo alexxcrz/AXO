@@ -63,11 +63,17 @@ function getScrollHost(container) {
 
 function getHorizontalScrollMetrics(container) {
   const table = container.querySelector("table");
-  const contentWidth = Math.max(
+  const isCardsView = table?.classList.contains("board-cards-view");
+  let contentWidth = Math.max(
     table?.scrollWidth || 0,
     table?.offsetWidth || 0,
     container.scrollWidth,
   );
+  if (isCardsView) {
+    container.querySelectorAll(".cleaning-card, .board-card, .cleaning-card-body, .board-card-body").forEach((node) => {
+      contentWidth = Math.max(contentWidth, node.scrollWidth || 0, node.offsetWidth || 0);
+    });
+  }
   const viewportWidth = container.clientWidth;
   const maxScroll = Math.max(0, contentWidth - viewportWidth);
   return { contentWidth, viewportWidth, maxScroll };

@@ -8,6 +8,8 @@ import {
   isBoardFieldValueFilled,
   applyRemoteWarehouseState,
   normalizeKey,
+  findBoardFinishGateField,
+  isBoardFinishGateValueEnabled,
 } from "../utils/utilidades.jsx";
 
 /** Acciones runtime de tablero para modales */
@@ -101,6 +103,17 @@ export function createBoardRuntimeModalActions(deps) {
             message: "Solo la persona que inició o los players asignados a esta actividad pueden pausarla o finalizarla (excepto Leads).",
           });
           return;
+        }
+      }
+
+      if (status === STATUS_FINISHED) {
+        const finishGateField = findBoardFinishGateField(board?.fields || []);
+        if (finishGateField && !isBoardFinishGateValueEnabled(getBoardFieldValue(board, row, finishGateField))) {
+          setBoardRuntimeFeedback({
+            tone: "danger",
+            message: `Debes activar «${finishGateField.label}» antes de finalizar.`,
+          });
+          return false;
         }
       }
 

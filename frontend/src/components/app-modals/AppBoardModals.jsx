@@ -1,4 +1,5 @@
 /* eslint-disable no-unused-vars -- props desde App.jsx */
+import { Lock, PauseCircle, Timer } from "lucide-react";
 import { Modal } from "../Modal";
 import {
   formatDurationClock,
@@ -45,42 +46,86 @@ export function AppBoardModals(props) {
             : productionSecs;
           const pauseSecs = Math.max(0, totalSecs - productionSecs);
           const efficiency = totalSecs > 0 ? Math.round((productionSecs / totalSecs) * 100) : 100;
+          const productionRatio = totalSecs > 0 ? productionSecs / totalSecs : 1;
+          const pauseRatio = totalSecs > 0 ? pauseSecs / totalSecs : 0;
           return (
-            <div className="board-finish-time-breakdown">
-              <div className="board-finish-time-row production">
-                <div className="board-finish-time-icon production-icon" />
-                <div className="board-finish-time-info">
-                  <span className="board-finish-time-label">Tiempo de producción</span>
-                  <small className="board-finish-time-hint">Solo cuando estuvo activa</small>
+            <div className="board-finish-panel">
+              <header className="board-finish-panel-head ui-surface-dark">
+                <span className="board-finish-panel-kicker">Cierre de actividad</span>
+                <p className="board-finish-panel-lead">
+                  Tiempo registrado hasta este momento
+                </p>
+              </header>
+
+              <div className="board-finish-panel-main">
+                <div
+                  className="board-finish-donut"
+                  style={{ "--prod-ratio": productionRatio }}
+                  role="img"
+                  aria-label={`${efficiency}% eficiencia productiva`}
+                >
+                  <div className="board-finish-donut-hole">
+                    <strong className="board-finish-donut-value">{efficiency}%</strong>
+                    <span className="board-finish-donut-caption">productivo</span>
+                  </div>
                 </div>
-                <strong className="board-finish-time-value">{formatDurationClock(productionSecs)}</strong>
-              </div>
-              <div className="board-finish-time-row pause">
-                <div className="board-finish-time-icon pause-icon" />
-                <div className="board-finish-time-info">
-                  <span className="board-finish-time-label">Tiempo en pausa</span>
-                  <small className="board-finish-time-hint">Tiempo detenida (no productivo)</small>
+
+                <div className="board-finish-stats">
+                  <article className="board-finish-stat">
+                    <span className="board-finish-stat-icon production" aria-hidden="true">
+                      <Timer strokeWidth={2.2} />
+                    </span>
+                    <div className="board-finish-stat-copy">
+                      <span className="board-finish-stat-label">Producción</span>
+                      <small>Activa</small>
+                    </div>
+                    <strong className="board-finish-stat-value">{formatDurationClock(productionSecs)}</strong>
+                  </article>
+                  <article className="board-finish-stat is-pause">
+                    <span className="board-finish-stat-icon pause" aria-hidden="true">
+                      <PauseCircle strokeWidth={2.2} />
+                    </span>
+                    <div className="board-finish-stat-copy">
+                      <span className="board-finish-stat-label">Pausa</span>
+                      <small>No productivo</small>
+                    </div>
+                    <strong className="board-finish-stat-value">{formatDurationClock(pauseSecs)}</strong>
+                  </article>
+                  <article className="board-finish-stat is-total">
+                    <span className="board-finish-stat-icon total" aria-hidden="true">
+                      <Timer strokeWidth={2.2} />
+                    </span>
+                    <div className="board-finish-stat-copy">
+                      <span className="board-finish-stat-label">Total</span>
+                      <small>Inicio → ahora</small>
+                    </div>
+                    <strong className="board-finish-stat-value">{formatDurationClock(totalSecs)}</strong>
+                  </article>
                 </div>
-                <strong className="board-finish-time-value">{formatDurationClock(pauseSecs)}</strong>
               </div>
-              <div className="board-finish-time-row total">
-                <div className="board-finish-time-icon total-icon" />
-                <div className="board-finish-time-info">
-                  <span className="board-finish-time-label">Tiempo total</span>
-                  <small className="board-finish-time-hint">Desde inicio hasta ahora</small>
+
+              <div className="board-finish-track">
+                <div className="board-finish-track-bar" aria-hidden="true">
+                  <span className="board-finish-track-segment production" style={{ width: `${productionRatio * 100}%` }} />
+                  {pauseRatio > 0 ? (
+                    <span className="board-finish-track-segment pause" style={{ width: `${pauseRatio * 100}%` }} />
+                  ) : null}
                 </div>
-                <strong className="board-finish-time-value">{formatDurationClock(totalSecs)}</strong>
-              </div>
-              <div className="board-finish-efficiency-bar">
-                <div className="board-finish-efficiency-track">
-                  <div className="board-finish-efficiency-fill" style={{ width: `${efficiency}%` }} />
+                <div className="board-finish-track-legend">
+                  <span><i className="dot production" /> Producción {formatDurationClock(productionSecs)}</span>
+                  <span><i className="dot pause" /> Pausa {formatDurationClock(pauseSecs)}</span>
                 </div>
-                <span className="board-finish-efficiency-label">{efficiency}% eficiencia productiva</span>
               </div>
+
+              <aside className="board-finish-lock-banner">
+                <span className="board-finish-lock-icon" aria-hidden="true">
+                  <Lock strokeWidth={2.2} />
+                </span>
+                <p>{boardFinishConfirm.message}</p>
+              </aside>
             </div>
           );
         })()}
-        <p className="board-finish-confirm-note">{boardFinishConfirm.message}</p>
       </div>
     </Modal>
 

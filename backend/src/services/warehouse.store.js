@@ -26,6 +26,7 @@ import {
   boardGrantsOperationalAccessViaConfiguredPermissions,
   collectBoardAreaTokens,
 } from "../../../shared/boardAreaPermissionAccess.mjs";
+import { ensureBoardCardLayout } from "../../../shared/boardCardLayout.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -2148,10 +2149,10 @@ function normalizeState(state, previousState = null) {
             fields: normalizeBoardFields(areaMigratedBoard),
             rows: Array.isArray(areaMigratedBoard.rows) ? areaMigratedBoard.rows : [],
           });
-          return {
+          return ensureBoardCardLayout({
             ...normalizedBoard,
             permissions: normalizeBoardPermissions(areaMigratedBoard.permissions, permissions, normalizedBoard),
-          };
+          });
         }),
     bibliotecaFiles: Array.isArray(state.bibliotecaFiles) ? state.bibliotecaFiles : [],
     bibliotecaNotifications: Array.isArray(state.bibliotecaNotifications) ? state.bibliotecaNotifications : [],
@@ -7700,7 +7701,7 @@ export function createWarehouseBoard(auth, draft) {
     ...(systemTemplate ? { systemBoardTemplateId: systemTemplate.id, systemBoardLocked: true } : {}),
   });
 
-  const board = {
+  const board = ensureBoardCardLayout({
     id: makeId("board"),
     name: normalizedDraft.name,
     description: normalizedDraft.description,
@@ -7712,7 +7713,7 @@ export function createWarehouseBoard(auth, draft) {
     settings: nextBoardSettings,
     fields: normalizedDraft.fields,
     rows: buildBoardRowsFromActivityList(normalizedDraft.fields, currentState.catalog, "", [], []),
-  };
+  });
 
   // Auto-save as template (no permission check — creation implies permission)
   const autoTemplate = {
@@ -7780,7 +7781,7 @@ export function updateWarehouseBoard(auth, boardId, draft) {
     ...(systemTemplate ? { systemBoardTemplateId: systemTemplate.id, systemBoardLocked: true } : {}),
   });
 
-  const updatedBoard = {
+  const updatedBoard = ensureBoardCardLayout({
     ...board,
     name: normalizedDraft.name,
     description: normalizedDraft.description,
@@ -7797,7 +7798,7 @@ export function updateWarehouseBoard(auth, boardId, draft) {
       board.fields || [],
       board.rows || [],
     ),
-  };
+  });
 
   const nextState = {
     ...currentState,

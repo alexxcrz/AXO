@@ -1,6 +1,6 @@
 /* eslint-disable */
 import {
-  STORAGE_KEY, SIDEBAR_COLLAPSED_KEY, ACTIVE_PAGE_KEY, DASHBOARD_SECTIONS_KEY, NOTIFICATION_READ_KEY, NOTIFICATION_DELETED_KEY, NOTIFICATION_INBOX_KEY, EMPTY_OBJECT, BOOTSTRAP_MASTER_ID, MASTER_USERNAME, API_BASE_URL, ENABLE_LEGACY_WHOLE_STATE_SYNC, PAGE_BOARD, PAGE_CUSTOM_BOARDS, PAGE_ADMIN, PAGE_DASHBOARD, PAGE_GLOBAL_DASHBOARD, PAGE_DASHBOARD_BUILDER, PAGE_HISTORY, PAGE_PROCESS_AUDITS, PAGE_INVENTORY, PAGE_TRANSPORT, PAGE_RETAIL, PAGE_USERS, PAGE_BIBLIOTECA, PAGE_INCIDENCIAS, PAGE_NOT_FOUND, PAGE_AREA_SHELL, PAGE_ROUTE_SLUGS, PAGE_ROUTE_ALIASES, EMPTY_LOGIN_DIRECTORY, ROLE_LEAD, ROLE_SR, ROLE_SSR, ROLE_JR, STATUS_PENDING, STATUS_RUNNING, STATUS_PAUSED, STATUS_FINISHED, INVENTORY_DOMAIN_BASE, INVENTORY_DOMAIN_CLEANING, INVENTORY_DOMAIN_ORDERS, INVENTORY_DOMAIN_MAINTENANCE, INVENTORY_DOMAIN_DESTINATIONS, INVENTORY_MOVEMENT_RESTOCK, INVENTORY_MOVEMENT_CONSUME, INVENTORY_MOVEMENT_TRANSFER, INVENTORY_MOVEMENT_TRANSFER_RETURN, ORDER_INVENTORY_PRIMARY_WAREHOUSE, CONTROL_STATUS_OPTIONS, USER_ROLES, PERMISSION_SCHEMA_VERSION, ROLE_LEVEL, TEMPORARY_PASSWORD_MIN_LENGTH, PROFILE_SELF_EDIT_LIMIT, DEFAULT_AREA_OPTIONS, DEFAULT_BOARD_SECTION_OPTIONS, INVENTORY_LOOKUP_LOGISTICS_FIELD, BOARD_ACTIVITY_LIST_FIELD, BOARD_SLA_MIN_DURATION_RATIO, DEFAULT_JOB_TITLE_BY_ROLE, DASHBOARD_CHART_PALETTE, DEFAULT_DASHBOARD_SECTION_STATE, DEFAULT_ADMIN_TAB, ACTIVITY_FREQUENCY_OPTIONS, ACTIVITY_FREQUENCY_LABELS, ACTIVITY_FREQUENCY_DAY_OFFSETS, BOARD_FIELD_TYPES, BOARD_FIELD_TYPE_DETAILS, BOARD_FIELD_WIDTHS, COLOR_RULE_OPERATORS, BOARD_FIELD_WIDTH_STYLES, BOARD_FIELD_MIN_WIDTH_BY_TYPE, DEFAULT_BOARD_AUX_COLUMNS_ORDER, BOARD_AUX_COLUMN_DEFINITIONS, BOARD_AUX_COLUMN_IDS, BOARD_TEMPLATES, FORMULA_OPERATIONS, OPTION_SOURCE_TYPES, INVENTORY_PROPERTIES, INVENTORY_IMPORT_FIELD_ALIASES, INVENTORY_DOMAIN_OPTIONS, INVENTORY_MOVEMENT_OPTIONS, CLEANING_SITE_OPTIONS, DEFAULT_CLEANING_SITE, BOARD_OPERATIONAL_CONTEXT_NONE, BOARD_OPERATIONAL_CONTEXT_CLEANING_SITE, BOARD_OPERATIONAL_CONTEXT_CUSTOM, BOARD_OPERATIONAL_CONTEXT_OPTIONS, NAV_ITEMS, ACTION_DEFINITIONS, BOARD_OPERATIONAL_AUTO_GRANT_ACTION_IDS, BOARD_PERMISSION_ACTIONS, PAGE_ACTION_GROUPS, PERMISSION_PRESETS, RESPONSIBLE_VISUALS, ALL_PAGES, ALL_ACTION_IDS, ROLE_PERMISSION_MATRIX, KPI_STYLES
+  STORAGE_KEY, SIDEBAR_COLLAPSED_KEY, ACTIVE_PAGE_KEY, DASHBOARD_SECTIONS_KEY, NOTIFICATION_READ_KEY, NOTIFICATION_DELETED_KEY, NOTIFICATION_INBOX_KEY, EMPTY_OBJECT, BOOTSTRAP_MASTER_ID, MASTER_USERNAME, API_BASE_URL, ENABLE_LEGACY_WHOLE_STATE_SYNC, PAGE_BOARD, PAGE_CUSTOM_BOARDS, PAGE_ADMIN, PAGE_DASHBOARD, PAGE_GLOBAL_DASHBOARD, PAGE_DASHBOARD_BUILDER, PAGE_HISTORY, PAGE_PROCESS_AUDITS, PAGE_INVENTORY, PAGE_TRANSPORT, PAGE_RETAIL, PAGE_USERS, PAGE_BIBLIOTECA, PAGE_INCIDENCIAS, PAGE_NOT_FOUND, PAGE_AREA_SHELL, PAGE_ROUTE_SLUGS, PAGE_ROUTE_ALIASES, EMPTY_LOGIN_DIRECTORY, ROLE_LEAD, ROLE_SR, ROLE_SSR, ROLE_JR, STATUS_PENDING, STATUS_RUNNING, STATUS_PAUSED, STATUS_FINISHED, INVENTORY_DOMAIN_BASE, INVENTORY_DOMAIN_CLEANING, INVENTORY_DOMAIN_ORDERS, INVENTORY_DOMAIN_MAINTENANCE, INVENTORY_DOMAIN_DESTINATIONS, INVENTORY_MOVEMENT_RESTOCK, INVENTORY_MOVEMENT_CONSUME, INVENTORY_MOVEMENT_TRANSFER, INVENTORY_MOVEMENT_TRANSFER_RETURN, ORDER_INVENTORY_PRIMARY_WAREHOUSE, CONTROL_STATUS_OPTIONS, USER_ROLES, PERMISSION_SCHEMA_VERSION, ROLE_LEVEL, TEMPORARY_PASSWORD_MIN_LENGTH, PROFILE_SELF_EDIT_LIMIT, DEFAULT_AREA_OPTIONS, DEFAULT_BOARD_SECTION_OPTIONS, INVENTORY_LOOKUP_LOGISTICS_FIELD, BOARD_ACTIVITY_LIST_FIELD, BOARD_SLA_MIN_DURATION_RATIO, DEFAULT_JOB_TITLE_BY_ROLE, DASHBOARD_CHART_PALETTE, DEFAULT_DASHBOARD_SECTION_STATE, DEFAULT_ADMIN_TAB, ACTIVITY_FREQUENCY_OPTIONS, ACTIVITY_FREQUENCY_LABELS, ACTIVITY_FREQUENCY_DAY_OFFSETS, BOARD_FIELD_TYPES, BOARD_FIELD_TYPE_DETAILS, BOARD_FIELD_WIDTHS, COLOR_RULE_OPERATORS, BOARD_FIELD_WIDTH_STYLES, BOARD_FIELD_MIN_WIDTH_BY_TYPE, DEFAULT_BOARD_AUX_COLUMNS_ORDER, BOARD_AUX_COLUMN_DEFINITIONS, BOARD_AUX_COLUMN_IDS, DEFAULT_CLEANING_CARD_SLOT_ORDER, CLEANING_CARD_SLOT_DEFINITIONS, CLEANING_LAYOUT_BLOCK_TYPES, BOARD_TEMPLATES, FORMULA_OPERATIONS, OPTION_SOURCE_TYPES, INVENTORY_PROPERTIES, INVENTORY_IMPORT_FIELD_ALIASES, INVENTORY_DOMAIN_OPTIONS, INVENTORY_MOVEMENT_OPTIONS, CLEANING_SITE_OPTIONS, DEFAULT_CLEANING_SITE, BOARD_OPERATIONAL_CONTEXT_NONE, BOARD_OPERATIONAL_CONTEXT_CLEANING_SITE, BOARD_OPERATIONAL_CONTEXT_CUSTOM, BOARD_OPERATIONAL_CONTEXT_OPTIONS, NAV_ITEMS, ACTION_DEFINITIONS, BOARD_OPERATIONAL_AUTO_GRANT_ACTION_IDS, BOARD_PERMISSION_ACTIONS, PAGE_ACTION_GROUPS, PERMISSION_PRESETS, RESPONSIBLE_VISUALS, ALL_PAGES, ALL_ACTION_IDS, ROLE_PERMISSION_MATRIX, KPI_STYLES
 } from "./constantes.js";
 import { isDeprecatedDynamicArea, migrateDeprecatedAreaValue } from "../config/deprecatedAreas.js";
 import { getExcelJsModule } from "./utilidadesImportExcel.js";
@@ -23,8 +23,32 @@ import {
   boardGrantsOperationalAccessViaConfiguredPermissions,
   collectBoardAreaTokens,
 } from "../../../shared/boardAreaPermissionAccess.mjs";
+import {
+  ensureBoardCardLayout,
+  formatBoardOperationalDateLabel,
+  isBoardFinishGateField,
+  isBoardActivityPrimaryField,
+  findBoardFinishGateField,
+  isBoardFinishGateValueEnabled,
+  canUserEditBoardFinishGate,
+  inferBoardFieldLayoutRole,
+  resolveBoardFieldLayoutRole,
+} from "../../../shared/boardCardLayout.mjs";
 
-export { canAccessAreaNavItem, canAccessAreaDashboardPage, canAccessAreaShellPage, canAccessGlobalDashboardPage, userHasAnyRetailAreaScope };
+export {
+  canAccessAreaNavItem,
+  canAccessAreaDashboardPage,
+  canAccessAreaShellPage,
+  canAccessGlobalDashboardPage,
+  userHasAnyRetailAreaScope,
+  ensureBoardCardLayout,
+  formatBoardOperationalDateLabel,
+  isBoardFinishGateField,
+  isBoardActivityPrimaryField,
+  findBoardFinishGateField,
+  isBoardFinishGateValueEnabled,
+  canUserEditBoardFinishGate,
+};
 
 // Convierte milisegundos a formato hh:mm:ss
 export function formatElapsedMs(ms) {
@@ -96,15 +120,26 @@ export function getBoardFields(board) {
   return [];
 }
 
-export function getBoardVisibleAuxColumnIds(settings = {}, isOwner = false) {
+export function getBoardVisibleAuxColumnIds(settings = {}, canAccessBoardBuilder = false) {
   const visible = [];
   if (settings?.showWorkflow !== false) visible.push("status");
   if (settings?.showDates !== false) visible.push("time");
-  if (isOwner || settings?.showTotalTime !== false) visible.push("totalTime");
-  if (isOwner || settings?.showEfficiency !== false) visible.push("efficiency");
+  if (settings?.showTotalTime !== false || canAccessBoardBuilder) visible.push("totalTime");
+  if (settings?.showEfficiency !== false || canAccessBoardBuilder) visible.push("efficiency");
   if (settings?.showWorkflow !== false) visible.push("workflow");
   if (settings?.showAssignee !== false) visible.push("assignee");
   return visible;
+}
+
+export function shouldShowBoardCardFooterMetric(settings = {}, metricId = "", canAccessBoardBuilder = false) {
+  const safeMetricId = String(metricId || "").trim();
+  if (safeMetricId === "totalTime") {
+    return settings?.showTotalTime !== false || canAccessBoardBuilder;
+  }
+  if (safeMetricId === "efficiency") {
+    return settings?.showEfficiency !== false || canAccessBoardBuilder;
+  }
+  return false;
 }
 
 export function getBoardAuxColumnOrder(settings = {}) {
@@ -167,10 +202,10 @@ export function reorderBoardColumnOrderTokens(sourceToken, targetToken, columnOr
   return nextOrder;
 }
 
-export function getOrderedBoardColumns(board, isOwner = false) {
+export function getOrderedBoardColumns(board, canAccessBoardBuilder = false) {
   const fields = getBoardFields(board);
   const fieldMap = new Map(fields.map((field) => [field.id, field]));
-  const visibleAuxIds = new Set(getBoardVisibleAuxColumnIds(board?.settings ?? EMPTY_OBJECT, isOwner));
+  const visibleAuxIds = new Set(getBoardVisibleAuxColumnIds(board?.settings ?? EMPTY_OBJECT, canAccessBoardBuilder));
 
   return getNormalizedBoardColumnOrder(board).flatMap((token) => {
     if (isBoardAuxColumnToken(token)) {
@@ -202,6 +237,1288 @@ export function getOrderedBoardColumns(board, isOwner = false) {
       sectionColor: field.groupColor || "#e2f4ec",
     }];
   });
+}
+
+function normalizeCleaningFieldLabelKey(label) {
+  return String(label || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
+export function inferCleaningFieldLayoutRole(field) {
+  return inferBoardFieldLayoutRole(field);
+}
+
+export function pickBoardCardInfoPrimaryColumn(visibleBoardColumns = []) {
+  const columns = Array.isArray(visibleBoardColumns) ? visibleBoardColumns : [];
+  const explicit = columns.find((column) => (
+    column.kind === "field" && isBoardActivityPrimaryField(column.field)
+  ));
+  if (explicit) return explicit;
+
+  return columns.find((column) => {
+    if (column.kind !== "field") return false;
+    if (isBoardFinishGateField(column.field)) return false;
+    const role = inferCleaningFieldLayoutRole(column.field);
+    if (["date", "start", "end", "finishGate", "lot", "expiry", "labelTag", "laboratory"].includes(role)) return false;
+    if (column.field?.type === "date" || column.field?.type === "time") return false;
+    return true;
+  }) || null;
+}
+
+export function pickBoardCardInfoDateColumn(visibleBoardColumns = []) {
+  const columns = Array.isArray(visibleBoardColumns) ? visibleBoardColumns : [];
+  const explicit = columns.find((column) => (
+    column.kind === "field" && inferCleaningFieldLayoutRole(column.field) === "date"
+  ));
+  if (explicit) return explicit;
+  return columns.find((column) => column.kind === "field" && column.field?.type === "date") || null;
+}
+
+export function pickBoardCardLotColumn(visibleBoardColumns = []) {
+  const columns = Array.isArray(visibleBoardColumns) ? visibleBoardColumns : [];
+  const explicit = columns.find((column) => (
+    column.kind === "field" && inferCleaningFieldLayoutRole(column.field) === "lot"
+  ));
+  if (explicit) return explicit;
+  return columns.find((column) => (
+    column.kind === "field"
+    && column.field?.type === "inventoryProperty"
+    && column.field.inventoryProperty === "lot"
+  )) || null;
+}
+
+export function pickBoardCardExpiryColumn(visibleBoardColumns = []) {
+  const columns = Array.isArray(visibleBoardColumns) ? visibleBoardColumns : [];
+  const explicit = columns.find((column) => (
+    column.kind === "field" && inferCleaningFieldLayoutRole(column.field) === "expiry"
+  ));
+  if (explicit) return explicit;
+  return columns.find((column) => (
+    column.kind === "field"
+    && column.field?.type === "inventoryProperty"
+    && column.field.inventoryProperty === "expiry"
+  )) || null;
+}
+
+export function pickBoardCardLabelTagColumn(visibleBoardColumns = []) {
+  const columns = Array.isArray(visibleBoardColumns) ? visibleBoardColumns : [];
+  const explicit = columns.find((column) => (
+    column.kind === "field" && inferCleaningFieldLayoutRole(column.field) === "labelTag"
+  ));
+  if (explicit) return explicit;
+  return columns.find((column) => (
+    column.kind === "field"
+    && column.field?.type === "inventoryProperty"
+    && column.field.inventoryProperty === "label"
+  )) || null;
+}
+
+export function pickBoardCardLaboratoryColumn(visibleBoardColumns = []) {
+  const columns = Array.isArray(visibleBoardColumns) ? visibleBoardColumns : [];
+  return columns.find((column) => (
+    column.kind === "field" && inferCleaningFieldLayoutRole(column.field) === "laboratory"
+  )) || null;
+}
+
+function pickBoardCardTimelineTimeColumns(visibleBoardColumns = []) {
+  const columns = Array.isArray(visibleBoardColumns) ? visibleBoardColumns : [];
+  const timeFields = columns.filter((column) => column.kind === "field" && column.field?.type === "time");
+  if (!timeFields.length) return [];
+
+  const startCol = timeFields.find((column) => inferCleaningFieldLayoutRole(column.field) === "start") || timeFields[0];
+  const endCol = timeFields.find((column) => (
+    column.token !== startCol?.token && inferCleaningFieldLayoutRole(column.field) === "end"
+  )) || timeFields.find((column) => column.token !== startCol?.token) || null;
+
+  return [startCol, endCol].filter(Boolean);
+}
+
+export function resolveBoardCardCellRole(column, visibleBoardColumns = []) {
+  if (!column) return "field";
+  if (column.kind !== "field") {
+    if (column.id === "assignee") return "player";
+    if (column.id === "status") return "status";
+    if (column.id === "time") return "time";
+    if (column.id === "totalTime") return "totalTime";
+    if (column.id === "efficiency") return "efficiency";
+    if (column.id === "workflow") return "actions";
+    return column.id;
+  }
+
+  const layoutRole = inferCleaningFieldLayoutRole(column.field);
+  if (column.field?.type === "time") {
+    const [timelineStart, timelineEnd] = pickBoardCardTimelineTimeColumns(visibleBoardColumns);
+    if (timelineStart?.token === column.token) return "start";
+    if (timelineEnd?.token === column.token) return "end";
+  }
+  if (layoutRole) return layoutRole;
+
+  const infoPrimary = pickBoardCardInfoPrimaryColumn(visibleBoardColumns);
+  if (infoPrimary?.token === column.token) return "activity";
+
+  const infoDate = pickBoardCardInfoDateColumn(visibleBoardColumns);
+  if (infoDate?.token === column.token) return "date";
+
+  const [timelineStart, timelineEnd] = pickBoardCardTimelineTimeColumns(visibleBoardColumns);
+  if (timelineStart?.token === column.token) return "start";
+  if (timelineEnd?.token === column.token) return "end";
+
+  return "field";
+}
+
+export function findCleaningFieldByLayoutRole(columns = [], role = "") {
+  const safeRole = String(role || "").trim();
+  if (!safeRole) return null;
+  const list = Array.isArray(columns) ? columns : [];
+  if (safeRole === "activity") {
+    return list.find((field) => isBoardActivityPrimaryField(field)) || null;
+  }
+  if (safeRole === "finishGate") {
+    return list.find((field) => isBoardFinishGateField(field)) || null;
+  }
+  return list.find((field) => inferCleaningFieldLayoutRole(field) === safeRole) || null;
+}
+
+export function shouldUseBoardCardsView(settings = {}) {
+  return settings?.useBoardCardsView !== false;
+}
+
+export function shouldShowBoardCardSectionRow(lineItems = [], visibleBoardColumns = []) {
+  return lineItems.some((lineItem) => {
+    const meta = resolveBoardCardLineItemHeaderMeta(lineItem, visibleBoardColumns);
+    const section = String(meta.sectionName || "").trim().toLowerCase();
+    const label = String(meta.label || "").trim().toLowerCase();
+    return section && label && section !== label;
+  });
+}
+
+export function getCleaningCardLayout(settings = {}) {
+  const raw = settings?.cleaningCardLayout && typeof settings.cleaningCardLayout === "object"
+    ? settings.cleaningCardLayout
+    : {};
+  const hiddenSlots = Array.isArray(raw.hiddenSlots)
+    ? raw.hiddenSlots.filter((slotId) => (
+      slotId !== "info" && CLEANING_CARD_SLOT_DEFINITIONS[slotId]
+    ))
+    : [];
+  const storedOrder = Array.isArray(raw.slotOrder)
+    ? raw.slotOrder.filter((slotId) => CLEANING_CARD_SLOT_DEFINITIONS[slotId])
+    : [];
+  const slotOrder = [...new Set(storedOrder.length ? storedOrder : [...DEFAULT_CLEANING_CARD_SLOT_ORDER])];
+  DEFAULT_CLEANING_CARD_SLOT_ORDER.forEach((slotId) => {
+    if (slotOrder.includes(slotId)) return;
+    const defaultIndex = DEFAULT_CLEANING_CARD_SLOT_ORDER.indexOf(slotId);
+    let insertAt = slotOrder.length;
+    for (let index = defaultIndex + 1; index < DEFAULT_CLEANING_CARD_SLOT_ORDER.length; index += 1) {
+      const nextSlotId = DEFAULT_CLEANING_CARD_SLOT_ORDER[index];
+      const existingIndex = slotOrder.indexOf(nextSlotId);
+      if (existingIndex !== -1) {
+        insertAt = existingIndex;
+        break;
+      }
+    }
+    slotOrder.splice(insertAt, 0, slotId);
+  });
+  return {
+    slotOrder,
+    hiddenSlots: [...new Set(hiddenSlots)],
+    lineItemOrder: Array.isArray(raw.lineItemOrder)
+      ? raw.lineItemOrder.map((key) => String(key || "").trim()).filter(Boolean)
+      : [],
+  };
+}
+
+function boardCardLineItemKey(lineItem) {
+  if (!lineItem) return "";
+  return lineItem.kind === "slot" ? `slot:${lineItem.slotId}` : `col:${lineItem.column.token}`;
+}
+
+function applyBoardCardLineItemOrder(lineItems = [], widths = [], lineItemOrder = []) {
+  if (!Array.isArray(lineItemOrder) || !lineItemOrder.length) {
+    return { lineItems, widths };
+  }
+  const byKey = new Map(lineItems.map((item, index) => [boardCardLineItemKey(item), { item, width: widths[index] || 0 }]));
+  const orderedItems = [];
+  const orderedWidths = [];
+  const used = new Set();
+  lineItemOrder.forEach((key) => {
+    const entry = byKey.get(key);
+    if (!entry) return;
+    orderedItems.push(entry.item);
+    orderedWidths.push(entry.width);
+    used.add(key);
+  });
+  lineItems.forEach((item, index) => {
+    const key = boardCardLineItemKey(item);
+    if (used.has(key)) return;
+    orderedItems.push(item);
+    orderedWidths.push(widths[index] || 0);
+  });
+  return { lineItems: orderedItems, widths: orderedWidths };
+}
+
+function syncLayoutOrdersFromLineItemKeys(draft, lineItemKeys = []) {
+  const layout = getCleaningCardLayout(draft?.settings);
+  const slotKeys = lineItemKeys.filter((key) => key.startsWith("slot:")).map((key) => key.slice(5));
+  const columnTokens = lineItemKeys.filter((key) => key.startsWith("col:")).map((key) => key.slice(4));
+  const nextSlotOrder = [...layout.slotOrder];
+  const visibleSlotKeys = slotKeys.filter((slotId) => CLEANING_CARD_SLOT_DEFINITIONS[slotId]);
+  if (visibleSlotKeys.length) {
+    const slotSet = new Set(nextSlotOrder);
+    visibleSlotKeys.forEach((slotId) => {
+      if (!slotSet.has(slotId)) nextSlotOrder.push(slotId);
+    });
+    const reorderedSlots = visibleSlotKeys.concat(nextSlotOrder.filter((slotId) => !visibleSlotKeys.includes(slotId)));
+    nextSlotOrder.splice(0, nextSlotOrder.length, ...reorderedSlots);
+  }
+
+  let nextDraft = {
+    ...draft,
+    settings: {
+      ...(draft.settings || {}),
+      cleaningCardLayout: {
+        ...layout,
+        slotOrder: nextSlotOrder,
+        lineItemOrder: lineItemKeys,
+      },
+    },
+  };
+
+  if (columnTokens.length >= 2) {
+    const columnOrder = getNormalizedBoardColumnOrder({ fields: draft.columns || [], settings: draft.settings || {} });
+    const metaTokens = columnTokens.filter((token) => columnOrder.includes(token));
+    if (metaTokens.length >= 2) {
+      let workingOrder = [...columnOrder];
+      for (let index = 1; index < metaTokens.length; index += 1) {
+        workingOrder = reorderBoardColumnOrderTokens(metaTokens[index - 1], metaTokens[index], workingOrder);
+      }
+      nextDraft = {
+        ...nextDraft,
+        columns: sortBoardFieldsByColumnOrder(nextDraft.columns || [], workingOrder),
+        settings: {
+          ...nextDraft.settings,
+          columnOrder: workingOrder,
+        },
+      };
+    }
+  }
+
+  return nextDraft;
+}
+
+export function reorderCleaningCardLayoutSlots(draft, fromSlotId, toSlotId) {
+  if (!fromSlotId || !toSlotId || fromSlotId === toSlotId) return draft;
+  const layout = getCleaningCardLayout(draft?.settings);
+  const order = [...layout.slotOrder];
+  const fromIndex = order.indexOf(fromSlotId);
+  const toIndex = order.indexOf(toSlotId);
+  if (fromIndex === -1 || toIndex === -1) return draft;
+  const [moved] = order.splice(fromIndex, 1);
+  order.splice(toIndex, 0, moved);
+
+  const nextDraft = {
+    ...draft,
+    settings: {
+      ...(draft.settings || {}),
+      cleaningCardLayout: {
+        ...layout,
+        slotOrder: order,
+      },
+    },
+  };
+
+  if (!layout.lineItemOrder.length) return nextDraft;
+
+  const keys = [...layout.lineItemOrder];
+  const fromKey = `slot:${fromSlotId}`;
+  const toKey = `slot:${toSlotId}`;
+  const fromIdx = keys.indexOf(fromKey);
+  const toIdx = keys.indexOf(toKey);
+  if (fromIdx === -1 || toIdx === -1) {
+    return {
+      ...nextDraft,
+      settings: {
+        ...nextDraft.settings,
+        cleaningCardLayout: {
+          ...getCleaningCardLayout(nextDraft.settings),
+          lineItemOrder: [],
+        },
+      },
+    };
+  }
+  const [movedKey] = keys.splice(fromIdx, 1);
+  keys.splice(toIdx, 0, movedKey);
+  return syncLayoutOrdersFromLineItemKeys(nextDraft, keys);
+}
+
+export function toggleCleaningCardSlotVisibility(draft, slotId, visible = true) {
+  if (!CLEANING_CARD_SLOT_DEFINITIONS[slotId] || slotId === "info") return draft;
+  const layout = getCleaningCardLayout(draft?.settings);
+  const hiddenSlots = new Set(layout.hiddenSlots);
+  if (visible) hiddenSlots.delete(slotId);
+  else hiddenSlots.add(slotId);
+  return {
+    ...draft,
+    settings: {
+      ...(draft.settings || {}),
+      cleaningCardLayout: {
+        ...layout,
+        hiddenSlots: [...hiddenSlots],
+      },
+    },
+  };
+}
+
+function collectBoardCardInfoFields(columns = []) {
+  const safeColumns = Array.isArray(columns) ? columns : [];
+  const fields = [];
+  const activity = findCleaningFieldByLayoutRole(safeColumns, "activity");
+  const dateField = findCleaningFieldByLayoutRole(safeColumns, "date")
+    || safeColumns.find((field) => field?.type === "date");
+  if (activity) fields.push(activity);
+  else {
+    const primary = safeColumns.find((field) => {
+      const role = inferCleaningFieldLayoutRole(field);
+      if (["date", "start", "end", "lot", "expiry", "labelTag", "laboratory"].includes(role)) return false;
+      if (field?.type === "date" || field?.type === "time") return false;
+      return true;
+    });
+    if (primary) fields.push(primary);
+  }
+  if (dateField && !fields.some((field) => field.id === dateField.id)) fields.push(dateField);
+  return fields;
+}
+
+function collectBoardCardLotExpiryFields(columns = []) {
+  const safeColumns = Array.isArray(columns) ? columns : [];
+  const lot = findCleaningFieldByLayoutRole(safeColumns, "lot")
+    || safeColumns.find((field) => field?.type === "inventoryProperty" && field.inventoryProperty === "lot");
+  const expiry = findCleaningFieldByLayoutRole(safeColumns, "expiry")
+    || safeColumns.find((field) => field?.type === "inventoryProperty" && field.inventoryProperty === "expiry");
+  return [lot, expiry].filter(Boolean);
+}
+
+function collectBoardCardLabelLabFields(columns = []) {
+  const safeColumns = Array.isArray(columns) ? columns : [];
+  const labelTag = findCleaningFieldByLayoutRole(safeColumns, "labelTag")
+    || safeColumns.find((field) => field?.type === "inventoryProperty" && field.inventoryProperty === "label");
+  const laboratory = findCleaningFieldByLayoutRole(safeColumns, "laboratory");
+  return [labelTag, laboratory].filter(Boolean);
+}
+
+function collectBoardCardTimelineFields(columns = []) {
+  const safeColumns = Array.isArray(columns) ? columns : [];
+  const start = findCleaningFieldByLayoutRole(safeColumns, "start");
+  const end = findCleaningFieldByLayoutRole(safeColumns, "end");
+  if (start || end) return [start, end].filter(Boolean);
+  return safeColumns.filter((field) => field?.type === "time").slice(0, 2);
+}
+
+export function isCleaningLayoutBlockActive(draft, blockType) {
+  const blockMeta = CLEANING_LAYOUT_BLOCK_TYPES.find((item) => item.value === blockType);
+  if (!blockMeta) return false;
+
+  const settings = draft?.settings || {};
+  const columns = draft?.columns || [];
+  const layout = getCleaningCardLayout(settings);
+  if (layout.hiddenSlots.includes(blockMeta.slotId)) return false;
+
+  if (blockType === "cleaningInfoBlock") {
+    return collectBoardCardInfoFields(columns).length > 0;
+  }
+  if (blockType === "cleaningTimelineBlock") {
+    return collectBoardCardTimelineFields(columns).length > 0 || settings.showDates !== false;
+  }
+  if (blockType === "cleaningLotExpiryBlock") {
+    return collectBoardCardLotExpiryFields(columns).length > 0;
+  }
+  if (blockType === "cleaningLabelLabBlock") {
+    return collectBoardCardLabelLabFields(columns).length > 0;
+  }
+  if (blockType === "cleaningPlayerBlock") return settings.showAssignee !== false;
+  if (blockType === "cleaningStatusBlock" || blockType === "cleaningActionsBlock") {
+    return settings.showWorkflow !== false;
+  }
+  if (blockType === "cleaningMetaBlock") {
+    const reservedIds = new Set([
+      ...collectBoardCardInfoFields(columns),
+      ...collectBoardCardTimelineFields(columns),
+      ...collectBoardCardLotExpiryFields(columns),
+      ...collectBoardCardLabelLabFields(columns),
+    ].map((field) => field.id));
+    const extraFields = columns.filter((field) => (
+      !reservedIds.has(field.id) && !["activity", "date", "start", "end", "lot", "expiry", "labelTag", "laboratory"].includes(inferCleaningFieldLayoutRole(field))
+    ));
+    return extraFields.length > 0;
+  }
+  return false;
+}
+
+export function getCleaningLayoutBlockFeedbackMessage(feedbackKey, blockType) {
+  const blockMeta = CLEANING_LAYOUT_BLOCK_TYPES.find((item) => item.value === blockType);
+  const label = blockMeta?.label || "Bloque";
+  if (feedbackKey === "created") return `«${label}» agregado: se crearon los campos necesarios.`;
+  if (feedbackKey === "revealed") return `«${label}» visible de nuevo en la ficha.`;
+  if (feedbackKey === "already_active") return `«${label}» ya está activo en la ficha.`;
+  return `«${label}» activado en la ficha.`;
+}
+
+export function getCleaningBoardFieldGroups(draft) {
+  const columns = draft?.columns || [];
+  const settings = draft?.settings || {};
+  const layout = getCleaningCardLayout(settings);
+  const groupedFieldIds = new Set();
+  const groups = [];
+
+  const infoFields = collectBoardCardInfoFields(columns);
+  infoFields.forEach((field) => groupedFieldIds.add(field.id));
+  groups.push({
+    key: "cleaningInfoBlock",
+    blockType: "cleaningInfoBlock",
+    slotId: "info",
+    label: buildCleaningSlotHeaderLabel("info", [], infoFields) || "Referencia",
+    kind: "fields",
+    hidden: layout.hiddenSlots.includes("info"),
+    fields: infoFields,
+  });
+
+  const timelineFields = collectBoardCardTimelineFields(columns);
+  timelineFields.forEach((field) => groupedFieldIds.add(field.id));
+  groups.push({
+    key: "cleaningTimelineBlock",
+    blockType: "cleaningTimelineBlock",
+    slotId: "timeline",
+    label: buildCleaningSlotHeaderLabel("timeline", [], timelineFields) || "Línea de tiempo",
+    kind: "fields",
+    hidden: layout.hiddenSlots.includes("timeline"),
+    fields: timelineFields,
+  });
+
+  groups.push({
+    key: "cleaningPlayerBlock",
+    blockType: "cleaningPlayerBlock",
+    slotId: "player",
+    label: "Player",
+    kind: "aux",
+    hidden: layout.hiddenSlots.includes("player"),
+    active: settings.showAssignee !== false,
+    auxItems: [{ id: "assignee", label: BOARD_AUX_COLUMN_DEFINITIONS.assignee?.label || "Player" }],
+  });
+
+  groups.push({
+    key: "cleaningStatusBlock",
+    blockType: "cleaningStatusBlock",
+    slotId: "status",
+    label: "Estado",
+    kind: "aux",
+    hidden: layout.hiddenSlots.includes("status"),
+    active: settings.showWorkflow !== false,
+    auxItems: [{ id: "status", label: BOARD_AUX_COLUMN_DEFINITIONS.status?.label || "Estado" }],
+  });
+
+  groups.push({
+    key: "cleaningActionsBlock",
+    blockType: "cleaningActionsBlock",
+    slotId: "actions",
+    label: "Acciones",
+    kind: "aux",
+    hidden: layout.hiddenSlots.includes("actions"),
+    active: settings.showWorkflow !== false,
+    auxItems: [{ id: "workflow", label: BOARD_AUX_COLUMN_DEFINITIONS.workflow?.label || "Acciones" }],
+  });
+
+  const lotExpiryFields = collectBoardCardLotExpiryFields(columns);
+  lotExpiryFields.forEach((field) => groupedFieldIds.add(field.id));
+  groups.push({
+    key: "cleaningLotExpiryBlock",
+    blockType: "cleaningLotExpiryBlock",
+    slotId: "lotExpiry",
+    label: buildCleaningSlotHeaderLabel("lotExpiry", [], lotExpiryFields) || "Lote + Caducidad",
+    kind: "fields",
+    hidden: layout.hiddenSlots.includes("lotExpiry"),
+    fields: lotExpiryFields,
+  });
+
+  const labelLabFields = collectBoardCardLabelLabFields(columns);
+  labelLabFields.forEach((field) => groupedFieldIds.add(field.id));
+  groups.push({
+    key: "cleaningLabelLabBlock",
+    blockType: "cleaningLabelLabBlock",
+    slotId: "labelLab",
+    label: buildCleaningSlotHeaderLabel("labelLab", [], labelLabFields) || "Etiqueta + Laboratorio",
+    kind: "fields",
+    hidden: layout.hiddenSlots.includes("labelLab"),
+    fields: labelLabFields,
+  });
+
+  const metaAuxItems = [];
+  if (settings.showDates !== false) {
+    metaAuxItems.push({ id: "time", label: BOARD_AUX_COLUMN_DEFINITIONS.time?.label || "Tiempo" });
+  }
+
+  const extraFields = columns.filter((field) => {
+    if (groupedFieldIds.has(field.id)) return false;
+    const role = inferCleaningFieldLayoutRole(field);
+    return !["activity", "date", "start", "end", "lot", "expiry", "labelTag", "laboratory"].includes(role);
+  });
+  extraFields.forEach((field) => groupedFieldIds.add(field.id));
+
+  groups.push({
+    key: "cleaningMetaBlock",
+    blockType: "cleaningMetaBlock",
+    slotId: "meta",
+    label: "Métricas extra",
+    kind: "meta",
+    hidden: layout.hiddenSlots.includes("meta"),
+    active: metaAuxItems.length > 0 || extraFields.length > 0,
+    auxItems: metaAuxItems,
+    fields: extraFields,
+  });
+
+  return groups;
+}
+
+export const CLEANING_SLOT_MIN_WIDTH = 1;
+
+export const CLEANING_SLOT_MIN_WIDTHS = {
+  timeline: 1,
+  info: 1,
+  player: 1,
+  status: 1,
+  actions: 1,
+  lotExpiry: 1,
+  labelLab: 1,
+  meta: 1,
+};
+
+export const CLEANING_SLOT_DEFAULT_WIDTHS = {
+  info: 160,
+  player: 170,
+  timeline: 240,
+  status: 110,
+  actions: 130,
+  lotExpiry: 140,
+  labelLab: 140,
+  meta: 160,
+};
+
+export function getCleaningCardSlotWidths(settings = {}) {
+  const raw = settings?.cleaningCardSlotWidths;
+  if (!raw || typeof raw !== "object") return {};
+  return Object.fromEntries(
+    Object.entries(raw)
+      .map(([slotId, width]) => [slotId, Math.round(Number(width))])
+      .filter(([slotId, width]) => (
+        CLEANING_CARD_SLOT_DEFINITIONS[slotId]
+        && Number.isFinite(width)
+        && width > 0
+      )),
+  );
+}
+
+export function getCleaningSlotColumns(slotId, visibleBoardColumns = []) {
+  const columns = Array.isArray(visibleBoardColumns) ? visibleBoardColumns : [];
+  if (slotId === "info") {
+    const activityCol = columns.find((column) => (
+      column.kind === "field" && isBoardActivityPrimaryField(column.field)
+    )) || pickBoardCardInfoPrimaryColumn(columns);
+    const dateCol = columns.find((column) => (
+      column.kind === "field" && inferCleaningFieldLayoutRole(column.field) === "date"
+    )) || pickBoardCardInfoDateColumn(columns);
+    const unique = [];
+    [activityCol, dateCol].forEach((column) => {
+      if (!column) return;
+      if (!unique.some((entry) => entry.token === column.token)) unique.push(column);
+    });
+    if (unique.length) return unique;
+    return [pickBoardCardInfoPrimaryColumn(columns), pickBoardCardInfoDateColumn(columns)].filter(Boolean);
+  }
+  if (slotId === "player") return columns.filter((column) => column.id === "assignee");
+  if (slotId === "timeline") {
+    const roleBased = columns.filter((column) => (
+      (column.kind === "field" && ["start", "end"].includes(inferCleaningFieldLayoutRole(column.field)))
+      || column.id === "time"
+    ));
+    if (roleBased.length) return roleBased;
+    const timeFields = pickBoardCardTimelineTimeColumns(columns);
+    const timeAux = columns.filter((column) => column.id === "time");
+    return [...timeFields, ...timeAux.filter((column) => !timeFields.some((field) => field.token === column.token))];
+  }
+  if (slotId === "status") return columns.filter((column) => column.id === "status");
+  if (slotId === "actions") {
+    const workflow = columns.filter((column) => column.id === "workflow");
+    const finishGate = columns.filter((column) => (
+      column.kind === "field" && inferCleaningFieldLayoutRole(column.field) === "finishGate"
+    ));
+    return [...finishGate, ...workflow];
+  }
+  if (slotId === "lotExpiry") {
+    const lotCol = pickBoardCardLotColumn(columns);
+    const expiryCol = pickBoardCardExpiryColumn(columns);
+    const unique = [];
+    [lotCol, expiryCol].forEach((column) => {
+      if (!column) return;
+      if (!unique.some((entry) => entry.token === column.token)) unique.push(column);
+    });
+    return unique;
+  }
+  if (slotId === "labelLab") {
+    const labelCol = pickBoardCardLabelTagColumn(columns);
+    const labCol = pickBoardCardLaboratoryColumn(columns);
+    const unique = [];
+    [labelCol, labCol].forEach((column) => {
+      if (!column) return;
+      if (!unique.some((entry) => entry.token === column.token)) unique.push(column);
+    });
+    return unique;
+  }
+  if (slotId === "meta") {
+    const infoPrimary = pickBoardCardInfoPrimaryColumn(columns);
+    const infoDate = pickBoardCardInfoDateColumn(columns);
+    const lotCol = pickBoardCardLotColumn(columns);
+    const expiryCol = pickBoardCardExpiryColumn(columns);
+    const labelCol = pickBoardCardLabelTagColumn(columns);
+    const labCol = pickBoardCardLaboratoryColumn(columns);
+    const [timelineStart, timelineEnd] = pickBoardCardTimelineTimeColumns(columns);
+    const reservedTokens = new Set([
+      infoPrimary?.token,
+      infoDate?.token,
+      lotCol?.token,
+      expiryCol?.token,
+      labelCol?.token,
+      labCol?.token,
+      timelineStart?.token,
+      timelineEnd?.token,
+    ].filter(Boolean));
+
+    return columns.filter((column) => {
+      if (column.id === "totalTime" || column.id === "efficiency") return false;
+      if (column.kind !== "field") return false;
+      if (reservedTokens.has(column.token)) return false;
+      const role = inferCleaningFieldLayoutRole(column.field);
+      return !["activity", "date", "start", "end", "finishGate", "lot", "expiry", "labelTag", "laboratory"].includes(role);
+    });
+  }
+  return [];
+}
+
+export function getCleaningSlotPrimaryColumnToken(slotId, visibleBoardColumns = []) {
+  const slotColumns = getCleaningSlotColumns(slotId, visibleBoardColumns);
+  if (!slotColumns.length) return null;
+  if (slotId === "info") {
+    return slotColumns.find((column) => column.kind === "field" && isBoardActivityPrimaryField(column.field))?.token
+      || pickBoardCardInfoPrimaryColumn(visibleBoardColumns)?.token
+      || slotColumns[0]?.token
+      || null;
+  }
+  if (slotId === "timeline") {
+    return slotColumns.find((column) => inferCleaningFieldLayoutRole(column.field) === "start")?.token
+      || slotColumns.find((column) => column.id === "time")?.token
+      || slotColumns[0]?.token
+      || null;
+  }
+  return slotColumns[0]?.token || null;
+}
+
+export function computeCleaningSlotWidthPx(slotId, visibleBoardColumns = [], getColumnWidthPx) {
+  const resolveWidth = typeof getColumnWidthPx === "function" ? getColumnWidthPx : () => 0;
+  const slotColumns = getCleaningSlotColumns(slotId, visibleBoardColumns);
+  const fallback = CLEANING_SLOT_DEFAULT_WIDTHS[slotId] || 120;
+  if (!slotColumns.length) return fallback;
+
+  const widths = slotColumns.map((column) => Math.max(1, resolveWidth(column) || 0)).filter(Boolean);
+  if (!widths.length) return fallback;
+
+  if (slotId === "info" || slotId === "timeline" || slotId === "lotExpiry" || slotId === "labelLab" || slotId === "meta") {
+    const gapAllowance = slotId === "timeline" ? 24 : slotId === "info" || slotId === "lotExpiry" || slotId === "labelLab" ? 8 : 0;
+    return Math.max(1, widths.reduce((sum, width) => sum + width, 0) + gapAllowance);
+  }
+  return Math.max(1, ...widths);
+}
+
+export function buildCleaningCardGridLayout(
+  cleaningCardLayout,
+  visibleBoardColumns = [],
+  getColumnWidthPx,
+  options = {},
+) {
+  const { storedSlotWidths = {}, slotWidthOverrides = {} } = options;
+  const layout = cleaningCardLayout || getCleaningCardLayout({});
+  const visibleSlots = layout.slotOrder.filter((slotId) => (
+    !layout.hiddenSlots.includes(slotId)
+    && slotId !== "meta"
+    && getCleaningSlotColumns(slotId, visibleBoardColumns).length > 0
+  ));
+  const slotWidths = Object.fromEntries(visibleSlots.map((slotId) => {
+    const override = Number(slotWidthOverrides[slotId] || storedSlotWidths[slotId] || 0);
+    if (Number.isFinite(override) && override > 0) {
+      return [slotId, Math.round(override)];
+    }
+    return [slotId, computeCleaningSlotWidthPx(slotId, visibleBoardColumns, getColumnWidthPx)];
+  }));
+  const gridTemplateColumns = visibleSlots.map((slotId) => `${slotWidths[slotId]}px`).join(" ");
+  return { visibleSlots, slotWidths, gridTemplateColumns };
+}
+
+export function buildBoardCardLineLayout(
+  cleaningCardLayout,
+  visibleBoardColumns = [],
+  getColumnWidthPx,
+  options = {},
+) {
+  const { storedSlotWidths = {}, slotWidthOverrides = {} } = options;
+  const layout = cleaningCardLayout || getCleaningCardLayout({});
+  const resolveWidth = typeof getColumnWidthPx === "function" ? getColumnWidthPx : () => CLEANING_SLOT_MIN_WIDTH;
+  const lineItems = [];
+  const widths = [];
+
+  const resolveSlotWidth = (slotId) => {
+    const override = Number(slotWidthOverrides[slotId] || storedSlotWidths[slotId] || 0);
+    if (Number.isFinite(override) && override > 0) {
+      return Math.round(override);
+    }
+    return computeCleaningSlotWidthPx(slotId, visibleBoardColumns, resolveWidth);
+  };
+
+  const resolveColumnWidth = (column) => {
+    const resolved = resolveWidth(column);
+    if (Number.isFinite(resolved) && resolved > 0) return Math.round(resolved);
+    return CLEANING_SLOT_DEFAULT_WIDTHS.meta || 120;
+  };
+
+  layout.slotOrder.forEach((slotId) => {
+    if (layout.hiddenSlots.includes(slotId)) return;
+
+    if (slotId === "meta") {
+      getCleaningSlotColumns("meta", visibleBoardColumns).forEach((column) => {
+        lineItems.push({ kind: "column", column, slotId: "meta" });
+        widths.push(resolveColumnWidth(column));
+      });
+      return;
+    }
+
+    if (!getCleaningSlotColumns(slotId, visibleBoardColumns).length) return;
+    lineItems.push({ kind: "slot", slotId });
+    widths.push(resolveSlotWidth(slotId));
+  });
+
+  const ordered = applyBoardCardLineItemOrder(lineItems, widths, layout.lineItemOrder);
+  const finalLineItems = ordered.lineItems;
+  const finalWidths = ordered.widths;
+
+  const slotWidths = {};
+  finalLineItems.forEach((item, index) => {
+    if (item.kind === "slot") slotWidths[item.slotId] = finalWidths[index];
+  });
+
+  return {
+    lineItems: finalLineItems,
+    widths: finalWidths,
+    gridTemplateColumns: finalWidths.map((width) => `${width}px`).join(" "),
+    visibleSlots: finalLineItems.filter((item) => item.kind === "slot").map((item) => item.slotId),
+    slotWidths,
+  };
+}
+
+export function resolveBoardCardLineItemHeaderMeta(lineItem, visibleBoardColumns = []) {
+  if (!lineItem) {
+    return { color: "#e2f4ec", sectionName: "General", label: "", description: "" };
+  }
+  if (lineItem.kind === "slot") {
+    const slotMeta = resolveCleaningSlotHeaderMeta(lineItem.slotId, visibleBoardColumns);
+    const slotDef = CLEANING_CARD_SLOT_DEFINITIONS[lineItem.slotId];
+    return {
+      ...slotMeta,
+      label: slotMeta.label || slotDef?.label || lineItem.slotId,
+      description: slotMeta.label || slotDef?.description || slotDef?.label || lineItem.slotId,
+    };
+  }
+  const columnMeta = resolveBoardColumnHeaderMeta(lineItem.column);
+  return {
+    color: columnMeta.color,
+    sectionName: columnMeta.sectionName,
+    label: columnMeta.label,
+    description: lineItem.column?.kind === "field"
+      ? String(lineItem.column.field?.helpText || lineItem.column.field?.label || columnMeta.label)
+      : String(lineItem.column?.label || columnMeta.label),
+  };
+}
+
+function pickCleaningColumnGroupColor(column) {
+  if (!column) return "";
+  if (column.kind === "field") {
+    return String(column.field?.groupColor || column.sectionColor || "").trim();
+  }
+  return String(column.sectionColor || "").trim();
+}
+
+function pickCleaningColumnSectionName(column) {
+  if (!column) return "";
+  if (column.kind === "field") {
+    return String(column.field?.groupName || column.sectionName || "").trim();
+  }
+  return String(column.sectionName || "").trim();
+}
+
+export function buildBoardColumnGridLayout(visibleBoardColumns = [], getColumnWidthPx, minWidth = 1) {
+  const columns = Array.isArray(visibleBoardColumns) ? visibleBoardColumns : [];
+  const resolveWidth = typeof getColumnWidthPx === "function" ? getColumnWidthPx : () => minWidth;
+  const widths = columns.map((column) => Math.max(1, resolveWidth(column) || minWidth));
+  return {
+    widths,
+    gridTemplateColumns: widths.map((width) => `${width}px`).join(" "),
+  };
+}
+
+export function resolveBoardColumnHeaderMeta(column) {
+  if (!column) {
+    return { color: "#e2f4ec", sectionName: "General", label: "" };
+  }
+  if (column.kind === "field") {
+    return {
+      color: String(column.field?.groupColor || column.sectionColor || "#e2f4ec").trim() || "#e2f4ec",
+      sectionName: String(column.field?.groupName || column.sectionName || "General").trim() || "General",
+      label: String(column.field?.label || "").trim(),
+    };
+  }
+  return {
+    color: String(column.sectionColor || "#e2f4ec").trim() || "#e2f4ec",
+    sectionName: String(column.sectionName || column.label || "General").trim() || "General",
+    label: String(column.label || "").trim(),
+  };
+}
+
+function formatSlotFieldLabels(columns = [], fields = []) {
+  const fromColumns = (Array.isArray(columns) ? columns : [])
+    .filter((column) => column?.kind === "field")
+    .map((column) => String(column.field?.label || "").trim())
+    .filter(Boolean);
+  if (fromColumns.length) return fromColumns.join(" · ");
+  const fromFields = (Array.isArray(fields) ? fields : [])
+    .map((field) => String(field?.label || "").trim())
+    .filter(Boolean);
+  if (fromFields.length) return fromFields.join(" · ");
+  return "";
+}
+
+function buildCleaningSlotHeaderLabel(slotId, visibleBoardColumns = [], fields = []) {
+  const slotColumns = getCleaningSlotColumns(slotId, visibleBoardColumns);
+  const fromColumns = formatSlotFieldLabels(slotColumns);
+  if (fromColumns) return fromColumns;
+
+  if (slotId === "info") {
+    const primary = pickBoardCardInfoPrimaryColumn(visibleBoardColumns);
+    const dateCol = pickBoardCardInfoDateColumn(visibleBoardColumns);
+    const parts = [primary?.field?.label, dateCol?.field?.label]
+      .map((label) => String(label || "").trim())
+      .filter(Boolean);
+    if (parts.length) return parts.join(" · ");
+    const activityField = findCleaningFieldByLayoutRole(fields, "activity");
+    const dateField = findCleaningFieldByLayoutRole(fields, "date")
+      || fields.find((field) => field?.type === "date");
+    const fieldParts = [activityField?.label, dateField?.label]
+      .map((label) => String(label || "").trim())
+      .filter(Boolean);
+    if (fieldParts.length) return fieldParts.join(" · ");
+  }
+
+  if (slotId === "lotExpiry") {
+    const lotCol = pickBoardCardLotColumn(visibleBoardColumns);
+    const expiryCol = pickBoardCardExpiryColumn(visibleBoardColumns);
+    const parts = [lotCol?.field?.label, expiryCol?.field?.label]
+      .map((label) => String(label || "").trim())
+      .filter(Boolean);
+    if (parts.length) return parts.join(" · ");
+    const lotField = findCleaningFieldByLayoutRole(fields, "lot")
+      || fields.find((field) => field?.type === "inventoryProperty" && field.inventoryProperty === "lot");
+    const expiryField = findCleaningFieldByLayoutRole(fields, "expiry")
+      || fields.find((field) => field?.type === "inventoryProperty" && field.inventoryProperty === "expiry");
+    const fieldParts = [lotField?.label, expiryField?.label]
+      .map((label) => String(label || "").trim())
+      .filter(Boolean);
+    if (fieldParts.length) return fieldParts.join(" · ");
+  }
+
+  if (slotId === "labelLab") {
+    const labelCol = pickBoardCardLabelTagColumn(visibleBoardColumns);
+    const labCol = pickBoardCardLaboratoryColumn(visibleBoardColumns);
+    const parts = [labelCol?.field?.label, labCol?.field?.label]
+      .map((label) => String(label || "").trim())
+      .filter(Boolean);
+    if (parts.length) return parts.join(" · ");
+    const labelField = findCleaningFieldByLayoutRole(fields, "labelTag")
+      || fields.find((field) => field?.type === "inventoryProperty" && field.inventoryProperty === "label");
+    const labField = findCleaningFieldByLayoutRole(fields, "laboratory");
+    const fieldParts = [labelField?.label, labField?.label]
+      .map((label) => String(label || "").trim())
+      .filter(Boolean);
+    if (fieldParts.length) return fieldParts.join(" · ");
+  }
+
+  const fromFields = formatSlotFieldLabels([], fields);
+  if (fromFields) return fromFields;
+
+  const auxLabels = slotColumns
+    .filter((column) => column.kind !== "field")
+    .map((column) => String(column.label || "").trim())
+    .filter(Boolean);
+  if (auxLabels.length) return auxLabels.join(" · ");
+
+  return CLEANING_CARD_SLOT_DEFINITIONS[slotId]?.label || slotId;
+}
+
+export function resolveCleaningSlotHeaderMeta(slotId, visibleBoardColumns = []) {
+  const slotColumns = getCleaningSlotColumns(slotId, visibleBoardColumns);
+  const slotDef = CLEANING_CARD_SLOT_DEFINITIONS[slotId];
+  const fallbackColor = "#e2f4ec";
+  const fallbackName = slotDef?.label || slotId;
+
+  const pickPrimaryColumn = () => {
+    if (slotId === "info") {
+      return slotColumns.find((column) => column.kind === "field" && inferCleaningFieldLayoutRole(column.field) === "activity")
+        || slotColumns.find((column) => column.kind === "field" && inferCleaningFieldLayoutRole(column.field) === "date")
+        || slotColumns[0];
+    }
+    if (slotId === "timeline") {
+      return slotColumns.find((column) => column.kind === "field" && inferCleaningFieldLayoutRole(column.field) === "start")
+        || slotColumns.find((column) => column.id === "time")
+        || slotColumns[0];
+    }
+    if (slotId === "lotExpiry") {
+      return slotColumns.find((column) => column.kind === "field" && inferCleaningFieldLayoutRole(column.field) === "lot")
+        || slotColumns.find((column) => column.kind === "field" && inferCleaningFieldLayoutRole(column.field) === "expiry")
+        || slotColumns[0];
+    }
+    if (slotId === "labelLab") {
+      return slotColumns.find((column) => column.kind === "field" && inferCleaningFieldLayoutRole(column.field) === "labelTag")
+        || slotColumns.find((column) => column.kind === "field" && inferCleaningFieldLayoutRole(column.field) === "laboratory")
+        || slotColumns[0];
+    }
+    return slotColumns[0];
+  };
+
+  const primary = pickPrimaryColumn();
+  const label = buildCleaningSlotHeaderLabel(slotId, visibleBoardColumns);
+  return {
+    color: pickCleaningColumnGroupColor(primary) || fallbackColor,
+    sectionName: pickCleaningColumnSectionName(primary) || label || fallbackName,
+    label,
+  };
+}
+
+export function applyCleaningLayoutBlock(draft, blockType) {
+  const blockMeta = CLEANING_LAYOUT_BLOCK_TYPES.find((item) => item.value === blockType);
+  if (!blockMeta) return { draft, feedbackKey: "unchanged" };
+
+  const columns = cloneDraftColumns(draft.columns || []);
+  const settings = { ...(draft.settings || {}) };
+  const layout = getCleaningCardLayout(settings);
+  const wasHidden = layout.hiddenSlots.includes(blockMeta.slotId);
+  const wasActive = isCleaningLayoutBlockActive(draft, blockType);
+  const columnCountBefore = columns.length;
+  layout.hiddenSlots = layout.hiddenSlots.filter((slotId) => slotId !== blockMeta.slotId);
+  const layoutBlockId = makeId("layout");
+
+  const tagFieldRole = (field, role, blockTypeName) => {
+    if (!field || inferCleaningFieldLayoutRole(field) !== role) return null;
+    return {
+      ...field,
+      layoutBlockType: field.layoutBlockType || blockTypeName,
+      layoutBlockId: field.layoutBlockId || layoutBlockId,
+      layoutBlockRole: role,
+    };
+  };
+
+  if (blockType === "cleaningInfoBlock") {
+    if (!findCleaningFieldByLayoutRole(columns, "activity")) {
+      columns.push({
+        id: makeId("field"),
+        label: "Actividad",
+        type: BOARD_ACTIVITY_LIST_FIELD,
+        optionCatalogCategory: "Limpieza",
+        layoutBlockType: "cleaningInfo",
+        layoutBlockId,
+        layoutBlockRole: "activity",
+        required: true,
+        width: "lg",
+        groupName: "General",
+        groupColor: "#e2f4ec",
+      });
+    }
+    if (!findCleaningFieldByLayoutRole(columns, "date")) {
+      columns.unshift({
+        id: makeId("field"),
+        label: "Fecha",
+        type: "date",
+        layoutBlockType: "cleaningInfo",
+        layoutBlockId,
+        layoutBlockRole: "date",
+        required: true,
+        width: "sm",
+        groupName: "General",
+        groupColor: "#e2f4ec",
+      });
+    }
+    for (let index = 0; index < columns.length; index += 1) {
+      const tagged = tagFieldRole(columns[index], "activity", "cleaningInfo")
+        || tagFieldRole(columns[index], "date", "cleaningInfo");
+      if (tagged) columns[index] = tagged;
+    }
+  }
+
+  if (blockType === "cleaningTimelineBlock") {
+    if (!findCleaningFieldByLayoutRole(columns, "start")) {
+      columns.push({
+        id: makeId("field"),
+        label: "Inicio",
+        type: "time",
+        layoutBlockType: "cleaningTimeline",
+        layoutBlockId,
+        layoutBlockRole: "start",
+        width: "sm",
+        groupName: "Seguimiento",
+        groupColor: "#e2f4ec",
+      });
+    }
+    if (!findCleaningFieldByLayoutRole(columns, "end")) {
+      columns.push({
+        id: makeId("field"),
+        label: "Fin",
+        type: "time",
+        layoutBlockType: "cleaningTimeline",
+        layoutBlockId,
+        layoutBlockRole: "end",
+        width: "sm",
+        groupName: "Seguimiento",
+        groupColor: "#e2f4ec",
+      });
+    }
+    for (let index = 0; index < columns.length; index += 1) {
+      const tagged = tagFieldRole(columns[index], "start", "cleaningTimeline")
+        || tagFieldRole(columns[index], "end", "cleaningTimeline");
+      if (tagged) columns[index] = tagged;
+    }
+    settings.showDates = true;
+  }
+
+  if (blockType === "cleaningLotExpiryBlock") {
+    for (let index = 0; index < columns.length; index += 1) {
+      const field = columns[index];
+      const role = inferCleaningFieldLayoutRole(field);
+      const tagged = tagFieldRole(field, "lot", "cleaningLotExpiry")
+        || tagFieldRole(field, "expiry", "cleaningLotExpiry");
+      if (tagged) columns[index] = tagged;
+      else if (role === "lot" || role === "expiry") {
+        columns[index] = {
+          ...field,
+          layoutBlockType: field.layoutBlockType || "cleaningLotExpiry",
+          layoutBlockId: field.layoutBlockId || layoutBlockId,
+          layoutBlockRole: role,
+        };
+      }
+    }
+  }
+
+  if (blockType === "cleaningLabelLabBlock") {
+    for (let index = 0; index < columns.length; index += 1) {
+      const field = columns[index];
+      const role = inferCleaningFieldLayoutRole(field);
+      const tagged = tagFieldRole(field, "labelTag", "cleaningLabelLab")
+        || tagFieldRole(field, "laboratory", "cleaningLabelLab");
+      if (tagged) columns[index] = tagged;
+      else if (role === "labelTag" || role === "laboratory") {
+        columns[index] = {
+          ...field,
+          layoutBlockType: field.layoutBlockType || "cleaningLabelLab",
+          layoutBlockId: field.layoutBlockId || layoutBlockId,
+          layoutBlockRole: role,
+        };
+      }
+    }
+  }
+
+  if (blockType === "cleaningPlayerBlock") settings.showAssignee = true;
+  if (blockType === "cleaningStatusBlock") settings.showWorkflow = true;
+  if (blockType === "cleaningActionsBlock") settings.showWorkflow = true;
+  if (blockType === "cleaningMetaBlock") {
+    settings.showTotalTime = true;
+    settings.showEfficiency = true;
+  }
+
+  settings.cleaningCardLayout = layout;
+  const columnOrder = syncBoardFieldOrderIntoColumnOrder(columns, settings);
+  const createdNewFields = columns.length > columnCountBefore;
+  let feedbackKey = "activated";
+  if (createdNewFields) feedbackKey = "created";
+  else if (wasHidden) feedbackKey = "revealed";
+  else if (wasActive) feedbackKey = "already_active";
+
+  return {
+    draft: {
+      ...draft,
+      columns: sortBoardFieldsByColumnOrder(columns, columnOrder),
+      settings: {
+        ...settings,
+        columnOrder,
+      },
+    },
+    feedbackKey,
+  };
+}
+
+const BOARD_FIELD_LAYOUT_ROLE_OPTIONS = [
+  { value: "", label: "En línea (junto a la ficha)" },
+  { value: "activity", label: "Título / Referencia (bloque info)" },
+  { value: "date", label: "Fecha (bloque info)" },
+  { value: "lot", label: "Lote (bloque lote + caducidad)" },
+  { value: "expiry", label: "Caducidad (bloque lote + caducidad)" },
+  { value: "labelTag", label: "Etiqueta (bloque etiqueta + laboratorio)" },
+  { value: "laboratory", label: "Laboratorio (bloque etiqueta + laboratorio)" },
+  { value: "finishGate", label: "Switch de finalización (acciones)" },
+  { value: "start", label: "Hora inicio (timeline)" },
+  { value: "end", label: "Hora fin (timeline)" },
+];
+
+export function getBoardFieldLayoutRoleOptions() {
+  return BOARD_FIELD_LAYOUT_ROLE_OPTIONS;
+}
+
+export function assignBoardFieldLayoutRole(draft, fieldId, role = "") {
+  const columns = cloneDraftColumns(draft.columns || []);
+  const fieldIndex = columns.findIndex((field) => field.id === fieldId);
+  if (fieldIndex === -1) return draft;
+
+  const safeRole = String(role || "").trim();
+  const nextField = { ...columns[fieldIndex] };
+  if (safeRole) nextField.layoutBlockRole = safeRole;
+  else delete nextField.layoutBlockRole;
+  columns[fieldIndex] = nextField;
+
+  const settings = { ...(draft.settings || {}) };
+  const layout = getCleaningCardLayout(settings);
+  const hiddenSlots = new Set(layout.hiddenSlots);
+  if (safeRole === "activity" || safeRole === "date") hiddenSlots.delete("info");
+  if (safeRole === "lot" || safeRole === "expiry") hiddenSlots.delete("lotExpiry");
+  if (safeRole === "labelTag" || safeRole === "laboratory") hiddenSlots.delete("labelLab");
+  if (safeRole === "finishGate") hiddenSlots.delete("actions");
+  if (safeRole === "start" || safeRole === "end") hiddenSlots.delete("timeline");
+  settings.cleaningCardLayout = {
+    ...layout,
+    hiddenSlots: [...hiddenSlots],
+  };
+
+  const columnOrder = syncBoardFieldOrderIntoColumnOrder(columns, settings);
+  return {
+    ...draft,
+    columns: sortBoardFieldsByColumnOrder(columns, columnOrder),
+    settings: {
+      ...settings,
+      columnOrder,
+    },
+  };
+}
+
+export function createBoardFinishGateField(id = `fld-finish-gate-${Date.now()}`) {
+  return {
+    id,
+    label: "¿Se terminó la actividad?",
+    type: "select",
+    optionSource: "manual",
+    options: ["Si", "No"],
+    defaultValue: "No",
+    layoutBlockRole: "finishGate",
+    groupName: "General",
+    groupColor: "#e2f4ec",
+    width: "md",
+    required: false,
+    colorRules: [],
+    finishGateEditorUserIds: [],
+  };
+}
+
+export function appendFinishGateFieldToBoardDraft(draft) {
+  if (findBoardFinishGateField(draft.columns || [])) return draft;
+
+  const columns = [...(draft.columns || []), createBoardFinishGateField()];
+  const settings = { ...(draft.settings || {}) };
+  const layout = getCleaningCardLayout(settings);
+  const hiddenSlots = new Set(layout.hiddenSlots);
+  hiddenSlots.delete("actions");
+  settings.cleaningCardLayout = {
+    ...layout,
+    hiddenSlots: [...hiddenSlots],
+  };
+  const columnOrder = syncBoardFieldOrderIntoColumnOrder(columns, settings);
+  return {
+    ...draft,
+    columns: sortBoardFieldsByColumnOrder(columns, columnOrder),
+    settings: {
+      ...settings,
+      columnOrder,
+    },
+  };
+}
+
+export function normalizeFinishGateAuthorizedUserIds(value) {
+  return Array.isArray(value)
+    ? value.map((userId) => String(userId || "").trim()).filter(Boolean)
+    : [];
+}
+
+export function toggleFinishGateAuthorizedUser(draft, userId) {
+  const normalizedUserId = String(userId || "").trim();
+  if (!normalizedUserId) return draft;
+  const current = normalizeFinishGateAuthorizedUserIds(draft.settings?.finishGateAuthorizedUserIds);
+  const next = current.includes(normalizedUserId)
+    ? current.filter((id) => id !== normalizedUserId)
+    : [...current, normalizedUserId];
+  return {
+    ...draft,
+    settings: {
+      ...(draft.settings || {}),
+      finishGateAuthorizedUserIds: next,
+    },
+  };
+}
+
+export function toggleFinishGateFieldEditorUser(draft, fieldId, userId) {
+  const normalizedUserId = String(userId || "").trim();
+  const safeFieldId = String(fieldId || "").trim();
+  if (!normalizedUserId || !safeFieldId) return draft;
+
+  const columns = cloneDraftColumns(draft.columns || []);
+  const fieldIndex = columns.findIndex((field) => field.id === safeFieldId);
+  if (fieldIndex === -1) return draft;
+
+  const field = { ...columns[fieldIndex] };
+  const current = normalizeFinishGateAuthorizedUserIds(field.finishGateEditorUserIds);
+  field.finishGateEditorUserIds = current.includes(normalizedUserId)
+    ? current.filter((id) => id !== normalizedUserId)
+    : [...current, normalizedUserId];
+  columns[fieldIndex] = field;
+
+  return {
+    ...draft,
+    columns,
+  };
+}
+
+
+export function reorderBoardCardLineItems(draft, fromLineKey, toLineKey, lineItems = []) {
+  if (!fromLineKey || !toLineKey || fromLineKey === toLineKey) return draft;
+  const items = Array.isArray(lineItems) ? lineItems : [];
+  const keys = items.map((item) => boardCardLineItemKey(item));
+  const fromIndex = keys.indexOf(fromLineKey);
+  const toIndex = keys.indexOf(toLineKey);
+  if (fromIndex === -1 || toIndex === -1) return draft;
+
+  const nextKeys = [...keys];
+  const [moved] = nextKeys.splice(fromIndex, 1);
+  nextKeys.splice(toIndex, 0, moved);
+  return syncLayoutOrdersFromLineItemKeys(draft, nextKeys);
 }
 
 
@@ -1603,6 +2920,7 @@ export function withDefaultBoardSettings(settings) {
     showDates: true,
     showTotalTime: true,
     showEfficiency: true,
+    useBoardCardsView: true,
     ...resolvedSettings,
     ownerArea: normalizeBoardOwnerArea(resolvedSettings?.ownerArea),
     operationalContextType,

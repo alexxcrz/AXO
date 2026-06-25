@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { cloneElement, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import ReturnsReconditionScanner from "../features/boards/ReturnsReconditionScanner.jsx";
 import OperationalInspectionStartModal from "../components/OperationalInspectionStartModal.jsx";
@@ -8,6 +8,7 @@ import { BoardEditableInventoryPropertyInput, BoardEvidenceCell, BoardMultiSelec
 import { downloadBoardAsJson, parseBoardImportJson } from "../utils/boardImportExport";
 import { enrichBoardRowNavigationMeta, resolveWeekdayOffsetForOperationalDate } from "../utils/boardNavigationFocus.js";
 import { normalizeOperationalInspectionTemplate } from "../utils/operationalInspectionTemplate";
+import BoardActivityFinishGateSwitch from "../components/BoardActivityFinishGateSwitch.jsx";
 import {
   formatBoardMultiSelectDetailValue,
   formatInventoryLookupLabel,
@@ -29,11 +30,75 @@ import {
   isPalletReviewBoard,
   ensureSelectOptionsIncludeValue,
   renderBoardFieldLabel as renderBoardFieldLabelUtil,
+  buildBoardCardLineLayout,
+  getCleaningCardLayout,
+  resolveCleaningSlotHeaderMeta,
+  resolveBoardCardCellRole,
+  resolveBoardCardLineItemHeaderMeta,
+  formatBoardOperationalDateLabel,
+  inferCleaningFieldLayoutRole,
+  findBoardFinishGateField,
+  isBoardFinishGateField,
+  isBoardFinishGateValueEnabled,
+  canUserEditBoardFinishGate,
+  shouldShowBoardCardFooterMetric,
+  shouldUseBoardCardsView,
+  shouldShowBoardCardSectionRow,
 } from "../utils/utilidades.jsx";
-import { INVENTORY_DOMAIN_MAINTENANCE, INVENTORY_DOMAIN_BASE } from "../utils/constantes.js";
+import { Users } from "lucide-react";
+import { INVENTORY_DOMAIN_MAINTENANCE, INVENTORY_DOMAIN_BASE, BOARD_AUX_COLUMN_DEFINITIONS } from "../utils/constantes.js";
 
 const EDITABLE_INVENTORY_PROPERTIES = new Set(["lot", "expiry", "label"]);
 const CLEANING_BOARD_NAVES = ["C1", "C2", "C3"];
+
+function computeAssigneeMenuPosition(triggerRect, menuHeight = 290) {
+  if (!triggerRect) return null;
+  const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0;
+  const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
+  const horizontalMargin = 8;
+  const verticalMargin = 8;
+  const gap = 6;
+  const desiredWidth = Math.min(Math.max(triggerRect.width, 240), 360);
+  const maxLeft = Math.max(horizontalMargin, viewportWidth - desiredWidth - horizontalMargin);
+  const left = Math.max(horizontalMargin, Math.min(maxLeft, triggerRect.left));
+  const spaceBelow = viewportHeight - triggerRect.bottom;
+  const openUp = spaceBelow < menuHeight && triggerRect.top > menuHeight;
+  const top = openUp
+    ? Math.max(verticalMargin, triggerRect.top - menuHeight - gap)
+    : Math.min(viewportHeight - verticalMargin, triggerRect.bottom + gap);
+  return {
+    top,
+    left,
+    width: desiredWidth,
+    openUp,
+  };
+}
+
+function getCleaningBoardUserAvatarUrl(user) {
+  const avatarValue = String(
+    user?.photoThumbnailUrl
+      || user?.photoThumbnail
+      || user?.photo
+      || user?.avatarUrl
+      || user?.avatar
+      || user?.imageUrl
+      || user?.profileImage
+      || "",
+  ).trim();
+  const lowered = avatarValue.toLowerCase();
+  if (!avatarValue || ["null", "undefined", "nan", "[object object]"].includes(lowered) || avatarValue.includes("\\fakepath\\")) {
+    return "";
+  }
+  return avatarValue;
+}
+
+function getCleaningBoardUserInitials(name) {
+  const parts = String(name || "?").trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return "?";
+  return parts.length >= 2
+    ? `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase()
+    : (parts[0][0] || "?").toUpperCase();
+}
 
 const EMPTY_PALLET_PACKAGING_MODAL = {
   open: false,
@@ -631,6 +696,7 @@ export default function MisTableros({ contexto }) {
     return map;
   }, [state?.inventoryItems]);
   const isBoardOwner = Boolean(selectedCustomBoard && currentUser && (currentUser.role === "Lead" || selectedCustomBoard.createdById === currentUser.id || selectedCustomBoard.ownerId === currentUser.id));
+  const canAccessBoardBuilder = Boolean(actionPermissions?.createBoard || canManageDashboardState || isBoardOwner);
   const [openAssigneeMenuRowId, setOpenAssigneeMenuRowId] = useState("");
   const [isBoardImporting, setIsBoardImporting] = useState(false);
   const boardImportInputRef = useRef(null);
@@ -654,9 +720,17 @@ export default function MisTableros({ contexto }) {
   const [columnResizing, setColumnResizing] = useState({ isResizing: false, columnToken: null, startX: 0, startWidth: 0 });
   const [columnWidthsOverride, setColumnWidthsOverride] = useState({});
   const columnWidthsOverrideRef = useRef({});
+  const [cleaningSlotWidthsOverride, setCleaningSlotWidthsOverride] = useState({});
+  const cleaningSlotWidthsOverrideRef = useRef({});
+  const [cleaningSlotResizing, setCleaningSlotResizing] = useState({
+    isResizing: false,
+    slotId: "",
+    startX: 0,
+    startWidth: 0,
+  });
   const assigneeMenuRef = useRef(null);
-  const assigneeTriggerRef = useRef(null);
-  const [assigneeMenuPosition, setAssigneeMenuPosition] = useState({ top: 0, left: 0, width: 0, openUp: false });
+  const assigneeTriggerByRowRef = useRef(new Map());
+  const [assigneeMenuPosition, setAssigneeMenuPosition] = useState({ top: 0, left: 0, width: 240, openUp: false });
   const [pauseDetailsRow, setPauseDetailsRow] = useState(null);
   const [operationalAlertsModal, setOperationalAlertsModal] = useState("");
   const [inspectionModalState, setInspectionModalState] = useState({
@@ -766,7 +840,7 @@ export default function MisTableros({ contexto }) {
   }
 
   const [pauseDurationEdits, setPauseDurationEdits] = useState({});
-  const boardColumns = boardView ? getOrderedBoardColumns(boardView, isBoardOwner) : [];
+  const boardColumns = boardView ? getOrderedBoardColumns(boardView, canAccessBoardBuilder) : [];
   const systemOperationalSettings = normalizeSystemOperationalSettings(state?.system?.operational);
   const systemPauseControl = systemOperationalSettings.pauseControl;
   const operationalTimeZone = systemOperationalSettings.timeZone || "America/Mexico_City";
@@ -802,9 +876,13 @@ export default function MisTableros({ contexto }) {
   const boardLooksCleaning = [boardNameText, boardCategoryText, boardDescriptionText].some((text) => text.includes("limp"));
   const boardLooksReturnsRecondition = [boardNameText, boardCategoryText, boardDescriptionText].some((text) => /(devol|reacond|maquila)/.test(text));
   const isCleaningRelatedBoard = boardOperationalContextType === "cleaningSite" || boardLooksCleaning;
-  const visibleBoardColumns = boardLooksReturnsRecondition
-    ? boardColumns.filter((column) => column.kind === "field")
-    : boardColumns;
+  const useBoardCardsView = shouldUseBoardCardsView(boardView?.settings);
+  const useCleaningCardLayout = useBoardCardsView;
+  const visibleBoardColumns = boardColumns;
+  const cleaningCardLayout = useMemo(
+    () => (useBoardCardsView ? getCleaningCardLayout(boardView?.settings) : null),
+    [useBoardCardsView, boardView?.settings?.cleaningCardLayout],
+  );
 
   // Compute available cleaning naves from inventory items that have activity consumptions
   const cleaningNaveOptions = (() => {
@@ -958,12 +1036,26 @@ export default function MisTableros({ contexto }) {
     return () => globalThis.clearInterval(timer);
   }, [operationalTimeZone]);
 
+  const handleAssigneeTriggerClick = (rowId, editable, event) => {
+    if (!editable) return;
+    if (openAssigneeMenuRowId === rowId) {
+      setOpenAssigneeMenuRowId("");
+      return;
+    }
+    const triggerRect = event.currentTarget.getBoundingClientRect();
+    const nextPosition = computeAssigneeMenuPosition(triggerRect);
+    if (nextPosition) setAssigneeMenuPosition(nextPosition);
+    setOpenAssigneeMenuRowId(rowId);
+  };
+
   useEffect(() => {
     if (!openAssigneeMenuRowId) return undefined;
 
     function handlePointerDown(event) {
       const clickedInsideMenu = assigneeMenuRef.current?.contains(event.target);
-      const clickedTrigger = assigneeTriggerRef.current?.contains(event.target);
+      const clickedTrigger = Array.from(assigneeTriggerByRowRef.current.values()).some(
+        (triggerEl) => triggerEl?.contains(event.target),
+      );
       if (!clickedInsideMenu && !clickedTrigger) {
         setOpenAssigneeMenuRowId("");
       }
@@ -973,33 +1065,16 @@ export default function MisTableros({ contexto }) {
     return () => window.removeEventListener("pointerdown", handlePointerDown);
   }, [openAssigneeMenuRowId]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!openAssigneeMenuRowId) return undefined;
 
     const updateAssigneeMenuPosition = () => {
-      const triggerRect = assigneeTriggerRef.current?.getBoundingClientRect();
+      const triggerEl = assigneeTriggerByRowRef.current.get(openAssigneeMenuRowId);
+      const triggerRect = triggerEl?.getBoundingClientRect();
       if (!triggerRect) return;
-      const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0;
-      const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
-      const horizontalMargin = 8;
-      const verticalMargin = 8;
-      const estimatedMenuHeight = 290;
-      const desiredWidth = Math.min(Math.max(triggerRect.width, 240), 360);
-      const maxLeft = Math.max(horizontalMargin, viewportWidth - desiredWidth - horizontalMargin);
-      const desiredLeft = triggerRect.right - desiredWidth;
-      const left = Math.max(horizontalMargin, Math.min(maxLeft, desiredLeft));
-      const spaceBelow = viewportHeight - triggerRect.bottom;
-      const openUp = spaceBelow < estimatedMenuHeight && triggerRect.top > estimatedMenuHeight;
-      const top = openUp
-        ? Math.max(verticalMargin, triggerRect.top - estimatedMenuHeight - 6)
-        : Math.min(viewportHeight - verticalMargin, triggerRect.bottom + 6);
-
-      setAssigneeMenuPosition({
-        top,
-        left,
-        width: desiredWidth,
-        openUp,
-      });
+      const menuHeight = assigneeMenuRef.current?.offsetHeight || 290;
+      const nextPosition = computeAssigneeMenuPosition(triggerRect, menuHeight);
+      if (nextPosition) setAssigneeMenuPosition(nextPosition);
     };
 
     updateAssigneeMenuPosition();
@@ -1012,11 +1087,7 @@ export default function MisTableros({ contexto }) {
   }, [openAssigneeMenuRowId]);
 
   // Handlers para redimensionamiento de columnas
-  const getColumnMinWidth = (column) => {
-    if (column.kind === "field") return 72;
-    const minWidthMap = { assignee: 90, status: 80, time: 80, totalTime: 80, efficiency: 76, workflow: 96 };
-    return minWidthMap[column.id] || 72;
-  };
+  const getColumnMinWidth = () => 1;
 
   const handleColumnResizeStart = (e, columnToken) => {
     e.preventDefault();
@@ -1036,6 +1107,15 @@ export default function MisTableros({ contexto }) {
   }, [columnWidthsOverride]);
 
   useEffect(() => {
+    cleaningSlotWidthsOverrideRef.current = cleaningSlotWidthsOverride;
+  }, [cleaningSlotWidthsOverride]);
+
+  useEffect(() => {
+    setCleaningSlotWidthsOverride({});
+    cleaningSlotWidthsOverrideRef.current = {};
+  }, [selectedCustomBoard?.id]);
+
+  useEffect(() => {
     if (!columnResizing.isResizing) {
       document.body.classList.remove("board-column-resizing");
       return undefined;
@@ -1045,7 +1125,7 @@ export default function MisTableros({ contexto }) {
 
     const handleMouseMove = (e) => {
       const diff = e.clientX - columnResizing.startX;
-      const newWidth = Math.max(getColumnMinWidth(visibleBoardColumns.find(c => c.token === columnResizing.columnToken)), columnResizing.startWidth + diff);
+      const newWidth = Math.max(1, columnResizing.startWidth + diff);
       const nextWidths = {
         ...columnWidthsOverrideRef.current,
         [columnResizing.columnToken]: newWidth,
@@ -1114,7 +1194,119 @@ export default function MisTableros({ contexto }) {
     return getAuxColumnStyle(column.id);
   };
 
+  const getColumnWidthPx = (column) => {
+    const style = getEffectiveColumnWidth(column);
+    const parsed = Number.parseInt(String(style.width || style.minWidth || "").replace("px", ""), 10);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : getColumnMinWidth(column);
+  };
+
+  const boardCardLine = useMemo(() => {
+    if (!useBoardCardsView || !cleaningCardLayout) {
+      return { lineItems: [], widths: [], slotWidths: {}, gridTemplateColumns: "" };
+    }
+    return buildBoardCardLineLayout(
+      cleaningCardLayout,
+      visibleBoardColumns,
+      getColumnWidthPx,
+      {
+        storedSlotWidths: selectedCustomBoard?.settings?.cleaningCardSlotWidths || {},
+        slotWidthOverrides: cleaningSlotWidthsOverride,
+      },
+    );
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    useBoardCardsView,
+    cleaningCardLayout,
+    visibleBoardColumns,
+    columnWidthsOverride,
+    cleaningSlotWidthsOverride,
+    selectedCustomBoard?.settings?.columnWidths,
+    selectedCustomBoard?.settings?.cleaningCardSlotWidths,
+  ]);
+
+  const boardCardsGridTemplate = useBoardCardsView ? boardCardLine.gridTemplateColumns : "";
+  const showBoardCardSectionRow = useBoardCardsView
+    ? shouldShowBoardCardSectionRow(boardCardLine.lineItems, visibleBoardColumns)
+    : false;
+
+  const handleCleaningSlotResizeStart = (event, slotId) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const headerCell = event.currentTarget.parentElement;
+    const rect = headerCell.getBoundingClientRect();
+    setCleaningSlotResizing({
+      isResizing: true,
+      slotId,
+      startX: event.clientX,
+      startWidth: rect.width,
+    });
+  };
+
+  useEffect(() => {
+    if (!cleaningSlotResizing.isResizing) {
+      if (useBoardCardsView) document.body.classList.remove("board-column-resizing");
+      return undefined;
+    }
+
+    document.body.classList.add("board-column-resizing");
+
+    const handleMouseMove = (moveEvent) => {
+      const diff = moveEvent.clientX - cleaningSlotResizing.startX;
+      const nextWidth = Math.max(1, Math.round(cleaningSlotResizing.startWidth + diff));
+      const nextOverrides = {
+        ...cleaningSlotWidthsOverrideRef.current,
+        [cleaningSlotResizing.slotId]: nextWidth,
+      };
+      cleaningSlotWidthsOverrideRef.current = nextOverrides;
+      setCleaningSlotWidthsOverride(nextOverrides);
+    };
+
+    const handleMouseUp = async () => {
+      const slotId = cleaningSlotResizing.slotId;
+      setCleaningSlotResizing({ isResizing: false, slotId: "", startX: 0, startWidth: 0 });
+
+      const pendingOverrides = cleaningSlotWidthsOverrideRef.current;
+      if (!selectedCustomBoard || !slotId || !pendingOverrides[slotId]) return;
+
+      try {
+        const response = await requestJson(`/warehouse/boards/${selectedCustomBoard.id}`, {
+          method: "PATCH",
+          body: JSON.stringify({
+            name: selectedCustomBoard.name,
+            description: selectedCustomBoard.description,
+            ownerId: selectedCustomBoard.ownerId,
+            visibilityType: selectedCustomBoard.visibilityType,
+            sharedDepartments: selectedCustomBoard.sharedDepartments,
+            accessUserIds: selectedCustomBoard.accessUserIds,
+            settings: {
+              ...(selectedCustomBoard.settings || {}),
+              cleaningCardSlotWidths: {
+                ...(selectedCustomBoard.settings?.cleaningCardSlotWidths || {}),
+                ...pendingOverrides,
+              },
+            },
+            columns: Array.isArray(selectedCustomBoard.fields) ? selectedCustomBoard.fields : [],
+          }),
+        });
+        applyRemoteWarehouseState(response?.data?.state, setState, setLoginDirectory, skipNextSyncRef, setSyncStatus);
+        setBoardRuntimeFeedback({ tone: "success", message: "Ancho de bloques guardado." });
+      } catch {
+        setBoardRuntimeFeedback({ tone: "danger", message: "No se pudieron guardar los anchos de los bloques." });
+      }
+    };
+
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mouseup", handleMouseUp);
+
+    return () => {
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cleaningSlotResizing, useBoardCardsView, selectedCustomBoard?.id]);
+
   const activityListField = (boardView?.fields || []).find((field) => field?.type === "select" && field?.optionSource === "catalogByCategory") || null;
+  const finishGateField = findBoardFinishGateField(boardView?.fields || []);
   const activityOptionNames = activityListField
     ? new Set(
       (weekdayAllowedBySystemSchedule
@@ -2136,8 +2328,86 @@ export default function MisTableros({ contexto }) {
             ) : null}
 
             <div className="table-wrap">
-              <table className="admin-table-clean board-runtime-table">
-                <thead>
+              <table
+                className={`admin-table-clean board-runtime-table${useBoardCardsView ? " board-cards-view" : ""}`}
+                style={useBoardCardsView && boardCardsGridTemplate
+                  ? { "--cleaning-grid-cols": boardCardsGridTemplate }
+                  : undefined}
+              >
+                <thead className={useBoardCardsView ? "cleaning-cards-thead" : undefined}>
+                  {useBoardCardsView ? (
+                    <>
+                    {showBoardCardSectionRow ? (
+                    <tr className="cleaning-cards-section-row board-pdf-hide">
+                      {boardCardLine.lineItems.map((lineItem, lineIndex) => {
+                        const headerMeta = resolveBoardCardLineItemHeaderMeta(lineItem, visibleBoardColumns);
+                        const lineWidth = boardCardLine.widths[lineIndex];
+                        const lineKey = lineItem.kind === "slot"
+                          ? `section-slot-${lineItem.slotId}`
+                          : `section-col-${lineItem.column.token}`;
+                        return (
+                          <th
+                            key={lineKey}
+                            className="cleaning-slot-section-cell board-section-header-cell"
+                            style={{
+                              ...(lineWidth ? { minWidth: `${lineWidth}px`, width: `${lineWidth}px` } : {}),
+                              backgroundColor: headerMeta.color,
+                            }}
+                            title={headerMeta.sectionName}
+                          >
+                            {headerMeta.sectionName}
+                          </th>
+                        );
+                      })}
+                    </tr>
+                    ) : null}
+                    <tr className="cleaning-cards-header-row">
+                      {boardCardLine.lineItems.map((lineItem, lineIndex) => {
+                        const headerMeta = resolveBoardCardLineItemHeaderMeta(lineItem, visibleBoardColumns);
+                        const lineWidth = boardCardLine.widths[lineIndex];
+                        const lineKey = lineItem.kind === "slot"
+                          ? `head-slot-${lineItem.slotId}`
+                          : `head-col-${lineItem.column.token}`;
+                        const isSlotResizing = lineItem.kind === "slot" && cleaningSlotResizing.slotId === lineItem.slotId;
+                        const isColumnResizing = lineItem.kind === "column" && columnResizing.columnToken === lineItem.column.token;
+                        return (
+                          <th
+                            key={lineKey}
+                            className={`cleaning-slot-header-cell${isSlotResizing || isColumnResizing ? " resizing" : ""}`}
+                            style={{
+                              ...(lineWidth ? { minWidth: `${lineWidth}px`, width: `${lineWidth}px` } : {}),
+                              "--cleaning-slot-accent": headerMeta.color,
+                            }}
+                            title={headerMeta.description || headerMeta.label}
+                          >
+                            {headerMeta.label}
+                            <div
+                              className="board-column-resize-handle"
+                              onMouseDown={(event) => {
+                                if (lineItem.kind === "slot") {
+                                  handleCleaningSlotResizeStart(event, lineItem.slotId);
+                                  return;
+                                }
+                                handleColumnResizeStart(event, lineItem.column.token);
+                              }}
+                              style={{
+                                position: "absolute",
+                                right: 0,
+                                top: 0,
+                                bottom: 0,
+                                width: "12px",
+                                cursor: "col-resize",
+                                touchAction: "none",
+                                zIndex: 2,
+                              }}
+                            />
+                          </th>
+                        );
+                      })}
+                    </tr>
+                    </>
+                  ) : (
+                    <>
                   {selectedCustomBoardSections.length && !boardLooksReturnsRecondition ? (
                     <tr className="board-pdf-hide">
                       {selectedCustomBoardSections.map((section, index) => (
@@ -2175,6 +2445,8 @@ export default function MisTableros({ contexto }) {
                       </th>
                     ))}
                   </tr>
+                    </>
+                  )}
                 </thead>
                 <tbody>
                   {visibleRows.map((row) => {
@@ -2220,28 +2492,66 @@ export default function MisTableros({ contexto }) {
                       }
                       return !String(checklistRecordForRow?.completedAt || "").trim();
                     })();
-                    const canFinishRow = row.status === STATUS_RUNNING && !checklistPendingCompletion;
+                    const finishGateEnabled = !finishGateField
+                      || isBoardFinishGateValueEnabled(row.values?.[finishGateField.id]);
+                    const finishGateBlockedTitle = finishGateField
+                      ? `Activa «${finishGateField.label}» para finalizar`
+                      : "";
+                    const canFinishRow = row.status === STATUS_RUNNING && !checklistPendingCompletion && finishGateEnabled;
+                    const showFinishGateBlocked = row.status === STATUS_RUNNING && !checklistPendingCompletion && finishGateField && !finishGateEnabled;
                     const canOpenChecklistWhileRunning = row.status === STATUS_RUNNING && Boolean(resolveChecklistTemplateForActivity(getRowActivityLabel(row)));
                     const rowResponsibleIds = getBoardRowResponsibleIds(row);
+                    const showGroupPlayerIcon = useBoardCardsView && rowResponsibleIds.length > 1;
                     const assigneeDisplayLabel = formatBoardRowAssigneeLabel(row, userMap, { useInitialsForMultiple: true, emptyLabel: "Asignar player(s)" });
                     const assigneeFullLabel = formatBoardRowAssigneeLabel(row, userMap, { emptyLabel: "Asignar player(s)" });
                     const assigneeMenuOpen = openAssigneeMenuRowId === row.id;
-                    return (
-                      <tr key={row.id} data-board-row-id={row.id} style={row.id === selectedCustomBoardRowId ? { background: "rgba(14, 165, 233, 0.12)" } : undefined}>
-                        {visibleBoardColumns.map((column) => {
+                    const renderedCells = visibleBoardColumns.map((column) => {
+                        const __cellEl = (() => {
                           if (column.kind !== "field") {
                             if (column.id === "assignee") {
+                              const primaryAssigneeUser = rowResponsibleIds.length
+                                ? userMap.get(rowResponsibleIds[0])
+                                : null;
+                              const assigneeAvatarUrl = primaryAssigneeUser ? getCleaningBoardUserAvatarUrl(primaryAssigneeUser) : "";
+                              const assigneeInitials = getCleaningBoardUserInitials(primaryAssigneeUser?.name || assigneeDisplayLabel);
                               return (
                                 <td key={`${row.id}-${column.token}`} style={getEffectiveColumnWidth(column)}>
                                   <div className="board-assignee-select">
                                     <button
-                                      ref={assigneeMenuOpen ? assigneeTriggerRef : null}
+                                      ref={(element) => {
+                                        if (element) assigneeTriggerByRowRef.current.set(row.id, element);
+                                        else assigneeTriggerByRowRef.current.delete(row.id);
+                                      }}
                                       type="button"
-                                      onClick={() => rowAssigneeEditable && setOpenAssigneeMenuRowId((current) => current === row.id ? "" : row.id)}
+                                      onClick={(event) => handleAssigneeTriggerClick(row.id, rowAssigneeEditable, event)}
                                       disabled={!rowAssigneeEditable}
                                       title={assigneeFullLabel}
-                                      className={`board-assignee-trigger${assigneeMenuOpen ? " is-open" : ""}${rowAssigneeEditable ? "" : " is-disabled"}`}
+                                      className={`board-assignee-trigger${assigneeMenuOpen ? " is-open" : ""}${rowAssigneeEditable ? "" : " is-disabled"}${useBoardCardsView ? " has-cleaning-avatar" : ""}${showGroupPlayerIcon ? " is-group-players" : ""}`}
+                                      data-assigned={rowResponsibleIds.length ? "1" : "0"}
                                     >
+                                      {useBoardCardsView ? (
+                                        <span className={`board-assignee-avatar${showGroupPlayerIcon ? " is-group-icon" : ""}`} aria-hidden="true">
+                                          {showGroupPlayerIcon ? (
+                                            <Users className="board-assignee-avatar-group-icon" strokeWidth={2.2} aria-hidden="true" />
+                                          ) : (
+                                            <>
+                                              {assigneeAvatarUrl ? (
+                                                <img
+                                                  src={assigneeAvatarUrl}
+                                                  alt=""
+                                                  className="board-assignee-avatar-image"
+                                                  onError={(event) => {
+                                                    event.currentTarget.hidden = true;
+                                                    const fallback = event.currentTarget.nextElementSibling;
+                                                    if (fallback) fallback.hidden = false;
+                                                  }}
+                                                />
+                                              ) : null}
+                                              <span className="board-assignee-avatar-fallback" hidden={Boolean(assigneeAvatarUrl)}>{assigneeInitials}</span>
+                                            </>
+                                          )}
+                                        </span>
+                                      ) : null}
                                       <span className="board-assignee-trigger-label">{assigneeDisplayLabel}</span>
                                       <span className="board-assignee-trigger-caret" aria-hidden="true">▾</span>
                                     </button>
@@ -2468,6 +2778,11 @@ export default function MisTableros({ contexto }) {
                                       <Square size={16} strokeWidth={2.5} />
                                     </button>
                                   ) : null}
+                                  {showFinishGateBlocked ? (
+                                    <button type="button" className="board-action-button finish icon-only" title={finishGateBlockedTitle} aria-label={finishGateBlockedTitle} disabled>
+                                      <Square size={16} strokeWidth={2.5} />
+                                    </button>
+                                  ) : null}
                                   {row.status === STATUS_RUNNING && checklistPendingCompletion ? (
                                     <button type="button" className="board-action-button finish icon-only" title="Completa todas las naves del checklist para finalizar" aria-label="Completa todas las naves del checklist para finalizar" disabled>
                                       <Square size={16} strokeWidth={2.5} />
@@ -2580,6 +2895,28 @@ export default function MisTableros({ contexto }) {
                           }
 
                           if (field.type === "select") {
+                            if (isBoardFinishGateField(field)) {
+                              const gateEnabled = isBoardFinishGateValueEnabled(row.values?.[field.id]);
+                              const canToggleGate = canUserEditBoardFinishGate(currentUser, selectedCustomBoard, field, {
+                                canManageDashboardState,
+                              });
+                              return (
+                                <td key={field.id} style={columnStyle}>
+                                  <BoardActivityFinishGateSwitch
+                                    enabled={gateEnabled}
+                                    disabled={!rowFieldEditable || !canToggleGate}
+                                    label={field.label}
+                                    compact={useBoardCardsView}
+                                    onChange={(nextEnabled) => updateBoardRowValue(
+                                      selectedCustomBoard.id,
+                                      row.id,
+                                      field,
+                                      nextEnabled ? "Si" : "No",
+                                    )}
+                                  />
+                                </td>
+                              );
+                            }
                             const groupedOptions = options.reduce((accumulator, option) => {
                               const groupName = option.group || "Opciones";
                               if (!accumulator[groupName]) accumulator[groupName] = [];
@@ -2997,7 +3334,169 @@ export default function MisTableros({ contexto }) {
                             ? fieldEditDrafts[fieldEditKey]
                             : formatBoardCellObjectValue(row.values?.[field.id] ?? "");
                           return <td key={field.id} style={columnStyle}><input value={inputValue} onChange={(event) => setFieldEditDrafts((prev) => ({ ...prev, [fieldEditKey]: event.target.value }))} onBlur={() => commitBoardFieldDraft(selectedCustomBoard.id, row, field, fieldEditKey)} onKeyDown={(event) => { if (event.key !== "Enter") return; event.preventDefault(); commitBoardFieldDraft(selectedCustomBoard.id, row, field, fieldEditKey); }} placeholder={field.placeholder || "Captura un valor"} style={rule ? { ...controlStyle, backgroundColor: rule.color, color: rule.textColor || "inherit" } : controlStyle} title={field.helpText || field.label} disabled={!rowFieldEditable} /></td>;
-                        })}
+                        })();
+                        if (!useBoardCardsView || !__cellEl) return __cellEl;
+                        const __role = resolveBoardCardCellRole(column, visibleBoardColumns);
+                        const __label = column.kind === "field" ? String(column.field?.label || "") : String(column.label || "");
+                        const __extraProps = { "data-col": __role, "data-label": __label };
+                        if (__role === "player") {
+                          __extraProps["data-assigned"] = rowResponsibleIds.length ? "1" : "0";
+                        }
+                        return cloneElement(__cellEl, __extraProps);
+                    });
+                    if (useBoardCardsView) {
+                      const byRole = {};
+                      const cellsByToken = {};
+                      renderedCells.forEach((cell, cellIndex) => {
+                        if (!cell) return;
+                        const column = visibleBoardColumns[cellIndex];
+                        if (column) cellsByToken[column.token] = cell;
+                        const role = cell.props?.["data-col"];
+                        if (!role || role === "field") return;
+                        byRole[role] = cell;
+                      });
+                      const cardStatus = row.status || STATUS_PENDING;
+                      const resolveBoardCardInfoDate = () => {
+                        if (byRole.date) return byRole.date;
+                        const rowOperationalDateKey = (() => {
+                          if (boardDateField) {
+                            const fieldDate = normalizeOperationalDateKey(row?.values?.[boardDateField.id]);
+                            if (fieldDate) return fieldDate;
+                          }
+                          const timeIso = row?.endTime || row?.startTime || row?.createdAt;
+                          if (!timeIso) return targetOperationalDateKey || "";
+                          return getOperationalDateParts(new Date(timeIso).getTime(), operationalTimeZone).isoDate;
+                        })();
+                        const label = formatBoardOperationalDateLabel(rowOperationalDateKey);
+                        return label ? <span className="cleaning-card-date-fallback">{label}</span> : null;
+                      };
+                      const cardInfoDate = resolveBoardCardInfoDate();
+                      const boardCardSettings = boardView?.settings || {};
+                      const showFooterTotalTime = shouldShowBoardCardFooterMetric(boardCardSettings, "totalTime", canAccessBoardBuilder) && byRole.totalTime;
+                      const showFooterEfficiency = shouldShowBoardCardFooterMetric(boardCardSettings, "efficiency", canAccessBoardBuilder) && byRole.efficiency;
+                      const renderCleaningSlot = (slotId, orderIndex) => {
+                        if (slotId === "info") {
+                          return (
+                            <div className="cleaning-card-info cleaning-card-slot" data-slot={slotId} style={{ order: orderIndex }} key={slotId}>
+                              {byRole.activity ? <div className="cleaning-card-title">{byRole.activity}</div> : null}
+                              {cardInfoDate ? <div className="cleaning-card-date">{cardInfoDate}</div> : null}
+                            </div>
+                          );
+                        }
+                        if (slotId === "player" && byRole.player) {
+                          return <div className="cleaning-card-player cleaning-card-slot" data-slot={slotId} style={{ order: orderIndex }} key={slotId}>{byRole.player}</div>;
+                        }
+                        if (slotId === "timeline") {
+                          return (
+                            <div className="cleaning-card-timeline cleaning-card-slot" data-slot={slotId} style={{ order: orderIndex }} key={slotId}>
+                              <div className="tl-point tl-point--start">
+                                <span className="tl-cap">Inicio</span>
+                                <div className="tl-time">{byRole.start || "--:--"}</div>
+                              </div>
+                              <div className="tl-track" aria-hidden="true"><span className="tl-fill" /></div>
+                              <div className="tl-point tl-point--end">
+                                <span className="tl-cap">Fin</span>
+                                <div className="tl-time">{byRole.end || "--:--"}</div>
+                              </div>
+                              {byRole.time ? <div className="tl-duration">{byRole.time}</div> : null}
+                            </div>
+                          );
+                        }
+                        if (slotId === "status" && byRole.status) {
+                          return <div className="cleaning-card-status cleaning-card-slot" data-slot={slotId} style={{ order: orderIndex }} key={slotId}>{byRole.status}</div>;
+                        }
+                        if (slotId === "actions") {
+                          if (!byRole.finishGate && !byRole.actions) return null;
+                          return (
+                            <div className="cleaning-card-actions cleaning-card-slot" data-slot={slotId} style={{ order: orderIndex }} key={slotId}>
+                              {byRole.finishGate ? <div className="cleaning-card-finish-gate">{byRole.finishGate}</div> : null}
+                              {byRole.actions}
+                            </div>
+                          );
+                        }
+                        if (slotId === "lotExpiry") {
+                          if (!byRole.lot && !byRole.expiry) return null;
+                          return (
+                            <div className="cleaning-card-lot-expiry cleaning-card-slot" data-slot={slotId} style={{ order: orderIndex }} key={slotId}>
+                              {byRole.lot ? <div className="cleaning-card-lot">{byRole.lot}</div> : null}
+                              {byRole.expiry ? <div className="cleaning-card-expiry">{byRole.expiry}</div> : null}
+                            </div>
+                          );
+                        }
+                        if (slotId === "labelLab") {
+                          if (!byRole.labelTag && !byRole.laboratory) return null;
+                          return (
+                            <div className="cleaning-card-label-lab cleaning-card-slot" data-slot={slotId} style={{ order: orderIndex }} key={slotId}>
+                              {byRole.labelTag ? <div className="cleaning-card-label-tag">{byRole.labelTag}</div> : null}
+                              {byRole.laboratory ? <div className="cleaning-card-laboratory">{byRole.laboratory}</div> : null}
+                            </div>
+                          );
+                        }
+                        return null;
+                      };
+                      const renderLineColumnItem = (lineItem, orderIndex) => {
+                        const column = lineItem.column;
+                        const cell = cellsByToken[column.token];
+                        if (!cell) return null;
+                        const label = column.kind === "field"
+                          ? String(column.field?.label || "")
+                          : String(column.label || "");
+                        return (
+                          <div
+                            className="cleaning-card-field-slot cleaning-card-slot"
+                            data-slot="meta"
+                            data-column-token={column.token}
+                            style={{ order: orderIndex }}
+                            key={`col-${column.token}`}
+                          >
+                            <div className="cleaning-field-inline" data-label={label}>
+                              {cell}
+                            </div>
+                          </div>
+                        );
+                      };
+                      const renderLineItem = (lineItem, orderIndex) => (
+                        lineItem.kind === "slot"
+                          ? renderCleaningSlot(lineItem.slotId, orderIndex)
+                          : renderLineColumnItem(lineItem, orderIndex)
+                      );
+                      return (
+                        <tr key={row.id} data-board-row-id={row.id} data-status={cardStatus} className={`cleaning-card-row${row.id === selectedCustomBoardRowId ? " is-row-selected" : ""}`}>
+                          <td colSpan={visibleBoardColumns.length || 1} className="cleaning-card-host">
+                            <div className="cleaning-card" data-status={cardStatus}>
+                              <span className="cleaning-card-rail" aria-hidden="true" />
+                              <div className="cleaning-card-scroll">
+                                <div
+                                  className="cleaning-card-body cleaning-card-body--single-line"
+                                  style={boardCardLine.gridTemplateColumns
+                                    ? { gridTemplateColumns: boardCardLine.gridTemplateColumns }
+                                    : undefined}
+                                >
+                                  {boardCardLine.lineItems.map((lineItem, orderIndex) => renderLineItem(lineItem, orderIndex))}
+                                </div>
+                                {showFooterTotalTime || showFooterEfficiency ? (
+                                  <div className="cleaning-card-meta">
+                                    {showFooterTotalTime ? (
+                                      <div className="cleaning-meta-chip" data-label={BOARD_AUX_COLUMN_DEFINITIONS.totalTime?.label || "Acumulado"}>
+                                        {byRole.totalTime}
+                                      </div>
+                                    ) : null}
+                                    {showFooterEfficiency ? (
+                                      <div className="cleaning-meta-chip" data-label={BOARD_AUX_COLUMN_DEFINITIONS.efficiency?.label || "Eficiencia"}>
+                                        {byRole.efficiency}
+                                      </div>
+                                    ) : null}
+                                  </div>
+                                ) : null}
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    }
+                    return (
+                      <tr key={row.id} data-board-row-id={row.id} data-status={row.status} className={row.id === selectedCustomBoardRowId ? "is-row-selected" : undefined}>
+                        {renderedCells}
                       </tr>
                     );
                   })}
