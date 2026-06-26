@@ -1013,13 +1013,6 @@ export default function TablerosCreados({ contexto }) {
                     <article
                       key={`template-${template.id}`}
                       className="created-board-card surface-card"
-                      style={{
-                        border: "1px solid rgba(49, 77, 105, 0.14)",
-                        background: template.isBuiltIn
-                          ? "linear-gradient(180deg, rgba(49, 77, 105, 0.02) 0%, rgba(255, 255, 255, 0.98) 100%)"
-                          : "linear-gradient(180deg, rgba(225, 245, 254, 0.45) 0%, rgba(255, 255, 255, 1) 100%)",
-                        maxWidth: "560px",
-                      }}
                     >
                       <div className="created-board-card-top">
                         <div className="created-board-card-head">

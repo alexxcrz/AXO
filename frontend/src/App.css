@@ -6129,7 +6129,8 @@ body .primary-button:disabled {
 .created-board-grid {
   display: grid;
   gap: 0.88rem;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(272px, 320px));
+  justify-content: start;
   align-items: stretch;
   min-width: 0;
 }
@@ -6145,7 +6146,8 @@ body .primary-button:disabled {
   background: linear-gradient(155deg, rgba(255, 255, 255, 0.99) 0%, rgba(241, 248, 245, 0.98) 100%);
   box-shadow: 0 16px 34px rgba(13, 45, 38, 0.12);
   min-width: 0;
-  max-width: 100%;
+  width: 100%;
+  max-width: 320px;
 }
 
 .created-board-card::before {
@@ -12460,19 +12462,20 @@ html[data-color-scheme="dark"] .cleaning-card-meta { border-top-color: rgba(148,
   }
 }
 
-/* Layout fluido para tarjetas de tableros */
+/* Layout fluido para tarjetas de tableros — auto-fill evita que una sola tarjeta ocupe todo el ancho */
 .created-board-grid {
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(272px, 320px));
+  justify-content: start;
   min-width: 0;
 }
 
-.created-board-card,
-.created-board-card-top,
-.created-board-card-head,
-.created-board-card-meta,
-.created-board-card .toolbar-actions {
+  .created-board-card,
+  .created-board-card-top,
+  .created-board-card-head,
+  .created-board-card-meta,
+  .created-board-card .toolbar-actions {
   min-width: 0;
-  max-width: 100%;
+  max-width: 320px;
 }
 
 .created-board-card-head strong,
@@ -16253,10 +16256,6 @@ html[data-color-scheme="dark"] .cleaning-card-meta { border-top-color: rgba(148,
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .created-board-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
   .profile-detail-grid {
     grid-template-columns: 1fr;
   }
@@ -16817,13 +16816,8 @@ html[data-color-scheme="dark"] .cleaning-card-meta { border-top-color: rgba(148,
 }
 
 @media (max-width: 1600px) {
-  .builder-template-grid,
-  .created-board-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
   .builder-template-grid-compact {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -16877,7 +16871,12 @@ html[data-color-scheme="dark"] .cleaning-card-meta { border-top-color: rgba(148,
 
   .builder-template-grid,
   .created-board-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
+    justify-content: stretch;
+  }
+
+  .created-board-card {
+    max-width: none;
   }
 
   .builder-template-grid-compact {
@@ -17666,13 +17665,15 @@ html[data-color-scheme="dark"] .cleaning-card-meta { border-top-color: rgba(148,
 
   /* ── Catálogo / Creador de tableros ── */
   .created-board-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
     gap: 0.75rem;
+    justify-content: stretch;
   }
 
   .created-board-card {
     padding: 0.9rem;
     border-radius: 0.85rem;
+    max-width: none;
   }
 
   .created-board-card-top {
@@ -19743,10 +19744,6 @@ html[data-color-scheme="dark"] .cleaning-card-meta { border-top-color: rgba(148,
   .board-inline-select {
     min-width: 0;
     width: 100%;
-  }
-
-  .created-board-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .created-board-card .toolbar-actions {
