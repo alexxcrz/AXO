@@ -2,6 +2,7 @@
 import {
   STORAGE_KEY, SIDEBAR_COLLAPSED_KEY, ACTIVE_PAGE_KEY, DASHBOARD_SECTIONS_KEY, NOTIFICATION_READ_KEY, NOTIFICATION_DELETED_KEY, NOTIFICATION_INBOX_KEY, EMPTY_OBJECT, BOOTSTRAP_MASTER_ID, MASTER_USERNAME, API_BASE_URL, ENABLE_LEGACY_WHOLE_STATE_SYNC, PAGE_BOARD, PAGE_CUSTOM_BOARDS, PAGE_ADMIN, PAGE_DASHBOARD, PAGE_GLOBAL_DASHBOARD, PAGE_DASHBOARD_BUILDER, PAGE_HISTORY, PAGE_PROCESS_AUDITS, PAGE_INVENTORY, PAGE_TRANSPORT, PAGE_RETAIL, PAGE_USERS, PAGE_BIBLIOTECA, PAGE_INCIDENCIAS, PAGE_NOT_FOUND, PAGE_AREA_SHELL, PAGE_ROUTE_SLUGS, PAGE_ROUTE_ALIASES, EMPTY_LOGIN_DIRECTORY, ROLE_LEAD, ROLE_SR, ROLE_SSR, ROLE_JR, STATUS_PENDING, STATUS_RUNNING, STATUS_PAUSED, STATUS_FINISHED, INVENTORY_DOMAIN_BASE, INVENTORY_DOMAIN_CLEANING, INVENTORY_DOMAIN_ORDERS, INVENTORY_DOMAIN_MAINTENANCE, INVENTORY_DOMAIN_DESTINATIONS, INVENTORY_MOVEMENT_RESTOCK, INVENTORY_MOVEMENT_CONSUME, INVENTORY_MOVEMENT_TRANSFER, INVENTORY_MOVEMENT_TRANSFER_RETURN, ORDER_INVENTORY_PRIMARY_WAREHOUSE, CONTROL_STATUS_OPTIONS, USER_ROLES, PERMISSION_SCHEMA_VERSION, ROLE_LEVEL, TEMPORARY_PASSWORD_MIN_LENGTH, PROFILE_SELF_EDIT_LIMIT, DEFAULT_AREA_OPTIONS, DEFAULT_BOARD_SECTION_OPTIONS, INVENTORY_LOOKUP_LOGISTICS_FIELD, BOARD_ACTIVITY_LIST_FIELD, BOARD_SLA_MIN_DURATION_RATIO, DEFAULT_JOB_TITLE_BY_ROLE, DASHBOARD_CHART_PALETTE, DEFAULT_DASHBOARD_SECTION_STATE, DEFAULT_ADMIN_TAB, ACTIVITY_FREQUENCY_OPTIONS, ACTIVITY_FREQUENCY_LABELS, ACTIVITY_FREQUENCY_DAY_OFFSETS, BOARD_FIELD_TYPES, BOARD_FIELD_TYPE_DETAILS, BOARD_FIELD_WIDTHS, COLOR_RULE_OPERATORS, BOARD_FIELD_WIDTH_STYLES, BOARD_FIELD_MIN_WIDTH_BY_TYPE, DEFAULT_BOARD_AUX_COLUMNS_ORDER, BOARD_AUX_COLUMN_DEFINITIONS, BOARD_AUX_COLUMN_IDS, DEFAULT_CLEANING_CARD_SLOT_ORDER, CLEANING_CARD_SLOT_DEFINITIONS, CLEANING_LAYOUT_BLOCK_TYPES, BOARD_TEMPLATES, FORMULA_OPERATIONS, OPTION_SOURCE_TYPES, INVENTORY_PROPERTIES, INVENTORY_IMPORT_FIELD_ALIASES, INVENTORY_DOMAIN_OPTIONS, INVENTORY_MOVEMENT_OPTIONS, CLEANING_SITE_OPTIONS, DEFAULT_CLEANING_SITE, BOARD_OPERATIONAL_CONTEXT_NONE, BOARD_OPERATIONAL_CONTEXT_CLEANING_SITE, BOARD_OPERATIONAL_CONTEXT_CUSTOM, BOARD_OPERATIONAL_CONTEXT_OPTIONS, NAV_ITEMS, ACTION_DEFINITIONS, BOARD_OPERATIONAL_AUTO_GRANT_ACTION_IDS, BOARD_PERMISSION_ACTIONS, PAGE_ACTION_GROUPS, PERMISSION_PRESETS, RESPONSIBLE_VISUALS, ALL_PAGES, ALL_ACTION_IDS, ROLE_PERMISSION_MATRIX, KPI_STYLES
 } from "./constantes.js";
+import { EXTRA_SYSTEM_BOARD_TEMPLATES } from "./systemBoardTemplates.js";
 import { isDeprecatedDynamicArea, migrateDeprecatedAreaValue } from "../config/deprecatedAreas.js";
 import { getExcelJsModule } from "./utilidadesImportExcel.js";
 import {
@@ -34,8 +35,14 @@ import {
   inferBoardFieldLayoutRole,
   resolveBoardFieldLayoutRole,
 } from "../../../shared/boardCardLayout.mjs";
+import {
+  buildBoardCardSectionHeaderGroups,
+  resolveBoardCardDisplayHeaderLabel,
+  resolveBoardCardSlotSectionMeta,
+} from "../../../shared/boardCardHeaders.mjs";
 
 export {
+  buildBoardCardSectionHeaderGroups,
   canAccessAreaNavItem,
   canAccessAreaDashboardPage,
   canAccessAreaShellPage,
@@ -712,11 +719,11 @@ export function getCleaningBoardFieldGroups(draft) {
     key: "cleaningStatusBlock",
     blockType: "cleaningStatusBlock",
     slotId: "status",
-    label: "Estado",
+    label: "Estatus",
     kind: "aux",
     hidden: layout.hiddenSlots.includes("status"),
     active: settings.showWorkflow !== false,
-    auxItems: [{ id: "status", label: BOARD_AUX_COLUMN_DEFINITIONS.status?.label || "Estado" }],
+    auxItems: [{ id: "status", label: BOARD_AUX_COLUMN_DEFINITIONS.status?.label || "Estatus" }],
   });
 
   groups.push({
@@ -933,7 +940,7 @@ export function computeCleaningSlotWidthPx(slotId, visibleBoardColumns = [], get
   if (!widths.length) return fallback;
 
   if (slotId === "info" || slotId === "timeline" || slotId === "lotExpiry" || slotId === "labelLab" || slotId === "meta") {
-    const gapAllowance = slotId === "timeline" ? 24 : slotId === "info" || slotId === "lotExpiry" || slotId === "labelLab" ? 8 : 0;
+    const gapAllowance = slotId === "timeline" ? 12 : slotId === "info" || slotId === "lotExpiry" || slotId === "labelLab" ? 4 : 0;
     return Math.max(1, widths.reduce((sum, width) => sum + width, 0) + gapAllowance);
   }
   return Math.max(1, ...widths);
@@ -1081,7 +1088,7 @@ export function resolveBoardColumnHeaderMeta(column) {
     return {
       color: String(column.field?.groupColor || column.sectionColor || "#e2f4ec").trim() || "#e2f4ec",
       sectionName: String(column.field?.groupName || column.sectionName || "General").trim() || "General",
-      label: String(column.field?.label || "").trim(),
+      label: resolveBoardCardDisplayHeaderLabel(column.field, String(column.field?.label || "").trim()),
     };
   }
   return {
@@ -1094,11 +1101,11 @@ export function resolveBoardColumnHeaderMeta(column) {
 function formatSlotFieldLabels(columns = [], fields = []) {
   const fromColumns = (Array.isArray(columns) ? columns : [])
     .filter((column) => column?.kind === "field")
-    .map((column) => String(column.field?.label || "").trim())
+    .map((column) => resolveBoardCardDisplayHeaderLabel(column.field, String(column.field?.label || "").trim()))
     .filter(Boolean);
   if (fromColumns.length) return fromColumns.join(" · ");
   const fromFields = (Array.isArray(fields) ? fields : [])
-    .map((field) => String(field?.label || "").trim())
+    .map((field) => resolveBoardCardDisplayHeaderLabel(field, String(field?.label || "").trim()))
     .filter(Boolean);
   if (fromFields.length) return fromFields.join(" · ");
   return "";
@@ -1112,15 +1119,17 @@ function buildCleaningSlotHeaderLabel(slotId, visibleBoardColumns = [], fields =
   if (slotId === "info") {
     const primary = pickBoardCardInfoPrimaryColumn(visibleBoardColumns);
     const dateCol = pickBoardCardInfoDateColumn(visibleBoardColumns);
-    const parts = [primary?.field?.label, dateCol?.field?.label]
-      .map((label) => String(label || "").trim())
+    const parts = [primary?.field, dateCol?.field]
+      .filter(Boolean)
+      .map((field) => resolveBoardCardDisplayHeaderLabel(field, String(field?.label || "").trim()))
       .filter(Boolean);
     if (parts.length) return parts.join(" · ");
     const activityField = findCleaningFieldByLayoutRole(fields, "activity");
     const dateField = findCleaningFieldByLayoutRole(fields, "date")
       || fields.find((field) => field?.type === "date");
-    const fieldParts = [activityField?.label, dateField?.label]
-      .map((label) => String(label || "").trim())
+    const fieldParts = [activityField, dateField]
+      .filter(Boolean)
+      .map((field) => resolveBoardCardDisplayHeaderLabel(field, String(field?.label || "").trim()))
       .filter(Boolean);
     if (fieldParts.length) return fieldParts.join(" · ");
   }
@@ -1128,16 +1137,18 @@ function buildCleaningSlotHeaderLabel(slotId, visibleBoardColumns = [], fields =
   if (slotId === "lotExpiry") {
     const lotCol = pickBoardCardLotColumn(visibleBoardColumns);
     const expiryCol = pickBoardCardExpiryColumn(visibleBoardColumns);
-    const parts = [lotCol?.field?.label, expiryCol?.field?.label]
-      .map((label) => String(label || "").trim())
+    const parts = [lotCol?.field, expiryCol?.field]
+      .filter(Boolean)
+      .map((field) => resolveBoardCardDisplayHeaderLabel(field, String(field?.label || "").trim()))
       .filter(Boolean);
     if (parts.length) return parts.join(" · ");
     const lotField = findCleaningFieldByLayoutRole(fields, "lot")
       || fields.find((field) => field?.type === "inventoryProperty" && field.inventoryProperty === "lot");
     const expiryField = findCleaningFieldByLayoutRole(fields, "expiry")
       || fields.find((field) => field?.type === "inventoryProperty" && field.inventoryProperty === "expiry");
-    const fieldParts = [lotField?.label, expiryField?.label]
-      .map((label) => String(label || "").trim())
+    const fieldParts = [lotField, expiryField]
+      .filter(Boolean)
+      .map((field) => resolveBoardCardDisplayHeaderLabel(field, String(field?.label || "").trim()))
       .filter(Boolean);
     if (fieldParts.length) return fieldParts.join(" · ");
   }
@@ -1145,15 +1156,17 @@ function buildCleaningSlotHeaderLabel(slotId, visibleBoardColumns = [], fields =
   if (slotId === "labelLab") {
     const labelCol = pickBoardCardLabelTagColumn(visibleBoardColumns);
     const labCol = pickBoardCardLaboratoryColumn(visibleBoardColumns);
-    const parts = [labelCol?.field?.label, labCol?.field?.label]
-      .map((label) => String(label || "").trim())
+    const parts = [labelCol?.field, labCol?.field]
+      .filter(Boolean)
+      .map((field) => resolveBoardCardDisplayHeaderLabel(field, String(field?.label || "").trim()))
       .filter(Boolean);
     if (parts.length) return parts.join(" · ");
     const labelField = findCleaningFieldByLayoutRole(fields, "labelTag")
       || fields.find((field) => field?.type === "inventoryProperty" && field.inventoryProperty === "label");
     const labField = findCleaningFieldByLayoutRole(fields, "laboratory");
-    const fieldParts = [labelField?.label, labField?.label]
-      .map((label) => String(label || "").trim())
+    const fieldParts = [labelField, labField]
+      .filter(Boolean)
+      .map((field) => resolveBoardCardDisplayHeaderLabel(field, String(field?.label || "").trim()))
       .filter(Boolean);
     if (fieldParts.length) return fieldParts.join(" · ");
   }
@@ -1173,8 +1186,17 @@ function buildCleaningSlotHeaderLabel(slotId, visibleBoardColumns = [], fields =
 export function resolveCleaningSlotHeaderMeta(slotId, visibleBoardColumns = []) {
   const slotColumns = getCleaningSlotColumns(slotId, visibleBoardColumns);
   const slotDef = CLEANING_CARD_SLOT_DEFINITIONS[slotId];
-  const fallbackColor = "#e2f4ec";
-  const fallbackName = slotDef?.label || slotId;
+  const slotSectionMeta = resolveBoardCardSlotSectionMeta(slotId);
+  const fallbackColor = slotSectionMeta?.color || "#e2f4ec";
+  const fallbackName = slotSectionMeta?.label || slotDef?.label || slotId;
+
+  if (slotSectionMeta && !slotColumns.some((column) => column.kind === "field")) {
+    return {
+      color: slotSectionMeta.color,
+      sectionName: slotSectionMeta.sectionName,
+      label: slotSectionMeta.label,
+    };
+  }
 
   const pickPrimaryColumn = () => {
     if (slotId === "info") {
@@ -1202,10 +1224,11 @@ export function resolveCleaningSlotHeaderMeta(slotId, visibleBoardColumns = []) 
 
   const primary = pickPrimaryColumn();
   const label = buildCleaningSlotHeaderLabel(slotId, visibleBoardColumns);
+  const sectionName = pickCleaningColumnSectionName(primary) || slotSectionMeta?.sectionName || label || fallbackName;
   return {
     color: pickCleaningColumnGroupColor(primary) || fallbackColor,
-    sectionName: pickCleaningColumnSectionName(primary) || label || fallbackName,
-    label,
+    sectionName,
+    label: label || slotSectionMeta?.label || fallbackName,
   };
 }
 
@@ -6448,6 +6471,7 @@ export function buildNormalizedWarehouseState(parsed, sampleState, users, normal
     inventoryColumns: mergeInventoryColumnsWithSystem(Array.isArray(parsed.inventoryColumns) ? parsed.inventoryColumns : sampleState.inventoryColumns),
     inventoryMovements: Array.isArray(parsed.inventoryMovements) ? parsed.inventoryMovements : sampleState.inventoryMovements,
     boardTemplates: Array.isArray(parsed.boardTemplates) ? parsed.boardTemplates : [],
+    boardComponentPresets: Array.isArray(parsed.boardComponentPresets) ? parsed.boardComponentPresets : [],
     permissions: normalizedPermissions,
     auditLog: Array.isArray(parsed.auditLog) ? parsed.auditLog : [],
     processAuditTemplates: Array.isArray(parsed.processAuditTemplates) ? parsed.processAuditTemplates : sampleState.processAuditTemplates,
@@ -6579,7 +6603,8 @@ export function buildStarterWorkspace(leadUser, catalog, inventoryItems, permiss
     },
   ].filter((entry) => entry.weekActivityId);
 
-  const sampleBoardTemplate = BOARD_TEMPLATES.find((template) => template.id === "surtido") || BOARD_TEMPLATES[0];
+  const sampleBoardTemplate = EXTRA_SYSTEM_BOARD_TEMPLATES.find((template) => template.id === "devoluciones-reacondicionado")
+    || EXTRA_SYSTEM_BOARD_TEMPLATES[0];
   const sampleFields = buildTemplateColumns(sampleBoardTemplate);
   const inventoryIds = (inventoryItems || []).map((item) => item.id);
   const skuField = sampleFields.find((field) => field.type === "inventoryLookup");

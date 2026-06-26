@@ -6,6 +6,7 @@ backend/generated/
 .env.*
 !**/.env.example
 !**/.env.sample
+backend/.env.example
 *.log
 backend/data/security-events.log
 # Datos runtime (no versionar)
@@ -33,3 +34,13 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+
+# IA local (Ollama) — no subir a produccion / Render
+backend/src/services/ollama.local.service.js
+backend/scripts/setup-ollama.ps1
+backend/.env.ollama
+backend/.env.ollama.local
+.env.ollama*
+backend/data/render-cookies.txt
+backend/data/uploads/chat/
+backend/data/uploads/reports/

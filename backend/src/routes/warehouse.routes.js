@@ -3,6 +3,7 @@ import { requireAuth, requireWarehouseAction, requireWarehouseStateWriteAccess }
 import { auditSecurityEvent } from "../services/security-events.service.js";
 import { buildOperationalAnalyticsFromLocalState } from "../services/warehouse.analytics.local.js";
 import { getRoadNewsForMexico } from "../services/transport-news.service.js";
+import { getBoardComponentHelperProviders, planBoardComponentsFromDescription, getBoardComponentHelperEngineStatus } from "../services/boardComponentHelper.service.js";
 import {
   approveRetailPurchaseOrderClosing,
   closeRetailPallet,
@@ -37,6 +38,7 @@ import {
   deleteWarehouseInventoryColumn,
   createWarehouseInventoryMovement,
   createWarehouseTemplate,
+  upsertWarehouseBoardComponentPresets,
   createWarehouseUser,
   deleteWarehouseCatalogItem,
   deleteWarehouseBoard,
@@ -124,6 +126,7 @@ import {
   listTransportNotificationsForUser,
   markTransportNotificationsAsRead,
   markInboxNotificationsAsRead,
+  canUserDoWarehouseAction,
 } from "../services/warehouse.store.js";
 import { getIO } from "../config/socket.js";
 
@@ -482,6 +485,69 @@ warehouseRouter.post("/templates", requireWarehouseAction("saveTemplate"), (req,
     revision: result.state?.revision,
   });
   res.status(201).json({ ok: true, data: { state: result.state, templateId: result.templateId, templateName: result.templateName } });
+});
+
+warehouseRouter.get("/board-component-helper/engine-status", requireAuth, async (req, res) => {
+  if (req.auth?.type !== "master") {
+    const allowed = canUserDoWarehouseAction(req.auth.user, "createBoard")
+      || canUserDoWarehouseAction(req.auth.user, "editBoard");
+    if (!allowed) {
+      res.status(403).json({ ok: false, message: "No tienes permisos." });
+      return;
+    }
+  }
+  const engine = await getBoardComponentHelperEngineStatus();
+  res.json({ ok: true, engine, providersAvailable: getBoardComponentHelperProviders() });
+});
+
+warehouseRouter.post("/board-component-helper/plan", requireAuth, async (req, res) => {
+  if (req.auth?.type !== "master") {
+    const allowed = canUserDoWarehouseAction(req.auth.user, "createBoard")
+      || canUserDoWarehouseAction(req.auth.user, "editBoard");
+    if (!allowed) {
+      res.status(403).json({ ok: false, message: "No tienes permisos para usar el asistente de componentes." });
+      return;
+    }
+  }
+
+  const description = String(req.body?.description || "").trim();
+  const savedPresets = Array.isArray(req.body?.savedPresets) ? req.body.savedPresets : [];
+
+  const result = await planBoardComponentsFromDescription(description, { savedPresets });
+  if (!result.ok) {
+    res.status(400).json({ ok: false, message: result.message || "No fue posible interpretar la descripcion." });
+    return;
+  }
+
+  auditSecurityEvent("warehouse_board_component_helper_plan", req, {
+    source: result.plan?.source || "unknown",
+    componentCount: result.plan?.specs?.length || 0,
+    providersAvailable: result.providersAvailable || [],
+  });
+
+  res.json({
+    ok: true,
+    data: {
+      plan: result.plan,
+      providersAvailable: result.providersAvailable || getBoardComponentHelperProviders(),
+    },
+  });
+});
+
+warehouseRouter.post("/board-component-presets", requireWarehouseAction("saveTemplate"), (req, res) => {
+  const presets = Array.isArray(req.body?.presets) ? req.body.presets : [];
+  const result = upsertWarehouseBoardComponentPresets(req.auth, presets);
+  if (!result.ok) {
+    const status = result.reason === "auth_required" ? 401 : result.reason === "forbidden" ? 403 : 400;
+    res.status(status).json({ ok: false, message: "No fue posible guardar los componentes del sistema." });
+    return;
+  }
+
+  auditSecurityEvent("warehouse_board_component_presets_saved", req, {
+    savedCount: result.savedCount,
+    revision: result.state?.revision,
+  });
+  res.status(201).json({ ok: true, data: { state: result.state, savedCount: result.savedCount } });
 });
 
 warehouseRouter.patch("/templates/:templateId", requireWarehouseAction("editTemplate"), (req, res) => {

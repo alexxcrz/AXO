@@ -32,6 +32,19 @@ const RENDER_PASSWORD = String(process.env.RENDER_PASSWORD || "");
 const SESSION_COOKIE_NAME = process.env.SESSION_COOKIE_NAME || "copmec_session";
 const LOCAL_STATE_PATH = path.resolve(__dirname, "../backend/data/warehouse-state.json");
 const BOARDS_ONLY = process.argv.includes("--boards-only");
+const REPLACE_BOARDS = process.argv.includes("--replace");
+
+function timestampForBackup() {
+  return new Date().toISOString().replace(/[:.]/g, "-");
+}
+
+function backupLocalState(localState) {
+  const backupDir = path.resolve(__dirname, "../backend/data/warehouse-state-backups");
+  fs.mkdirSync(backupDir, { recursive: true });
+  const backupPath = path.join(backupDir, `warehouse-state-${timestampForBackup()}.json`);
+  fs.writeFileSync(backupPath, `${JSON.stringify(localState, null, 2)}\n`, "utf8");
+  return backupPath;
+}
 
 function extractSessionCookie(setCookieHeader) {
   const headers = Array.isArray(setCookieHeader) ? setCookieHeader : [setCookieHeader].filter(Boolean);
@@ -45,7 +58,7 @@ function extractSessionCookie(setCookieHeader) {
 async function loginToRender() {
   if (!RENDER_LOGIN || !RENDER_PASSWORD) {
     throw new Error(
-      "Falta RENDER_PASSWORD. Agrgala en backend/.env (misma contrasea que en copmec.onrender.com). Usuario: alexxcm.",
+      "Falta RENDER_PASSWORD. AgrÃ©gala en backend/.env (misma contraseÃ±a que en copmec.onrender.com). Usuario: alexxcm.",
     );
   }
 
@@ -57,12 +70,12 @@ async function loginToRender() {
 
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
-    throw new Error(`Login fall (${response.status}): ${payload?.message || "credenciales invlidas"}`);
+    throw new Error(`Login fallÃ³ (${response.status}): ${payload?.message || "credenciales invÃ¡lidas"}`);
   }
 
   const cookie = extractSessionCookie(response.headers.getSetCookie?.() || response.headers.get("set-cookie"));
   if (!cookie) {
-    throw new Error("Login OK pero Render no devolvi cookie de sesin.");
+    throw new Error("Login OK pero Render no devolviÃ³ cookie de sesiÃ³n.");
   }
 
   return cookie;
@@ -78,53 +91,81 @@ async function fetchRenderWarehouseState(sessionCookie) {
   });
   const text = await response.text();
   if (!response.ok) {
-    throw new Error(`Render respondi ${response.status}: ${text.slice(0, 500)}`);
+    throw new Error(`Render respondiÃ³ ${response.status}: ${text.slice(0, 500)}`);
   }
 
   const payload = JSON.parse(text);
   return payload?.data?.state || payload?.state || payload;
 }
 
-function mergeBoardsIntoLocalState(localState, remoteState) {
+function applyRemoteBoardsToLocalState(localState, remoteState, { replaceBoards = false } = {}) {
   const remoteBoards = Array.isArray(remoteState?.controlBoards) ? remoteState.controlBoards : [];
   if (!remoteBoards.length) {
-    throw new Error("Render no devolvi tableros (controlBoards vaco).");
+    throw new Error("Render no devolviÃ³ tableros (controlBoards vacÃ­o).");
   }
 
   const nextBoards = remoteBoards.map((board) => ensureBoardCardLayout(board));
   const localBoards = Array.isArray(localState?.controlBoards) ? localState.controlBoards : [];
-  const mergedById = new Map(localBoards.map((board) => [board.id, board]));
 
-  nextBoards.forEach((board) => {
-    mergedById.set(board.id, board);
-  });
+  let controlBoards;
+  if (replaceBoards) {
+    controlBoards = nextBoards;
+  } else {
+    const mergedById = new Map(localBoards.map((board) => [board.id, board]));
+    nextBoards.forEach((board) => {
+      mergedById.set(board.id, board);
+    });
+    controlBoards = [...mergedById.values()];
+  }
 
   return {
     ...localState,
-    controlBoards: [...mergedById.values()],
+    controlBoards,
     boardTemplates: Array.isArray(remoteState?.boardTemplates) && remoteState.boardTemplates.length
       ? remoteState.boardTemplates
       : localState.boardTemplates,
     revision: Number(localState.revision || 0) + 1,
+    syncMeta: {
+      ...(localState.syncMeta || {}),
+      lastRenderBoardSyncAt: new Date().toISOString(),
+      lastRenderBoardSyncMode: replaceBoards ? "replace" : "merge",
+      replacedLocalBoardCount: replaceBoards ? localBoards.length : undefined,
+      importedRenderBoardCount: nextBoards.length,
+    },
   };
 }
 
 async function main() {
   console.log(`Conectando a ${RENDER_API_URL || "(sin URL)"}...`);
   const sessionCookie = await loginToRender();
-  console.log("Sesin obtenida. Descargando estado...");
+  console.log("SesiÃ³n obtenida. Descargando estado...");
 
   const remoteState = await fetchRenderWarehouseState(sessionCookie);
   const remoteBoards = remoteState?.controlBoards || [];
-  console.log(`Render ? ${remoteBoards.length} tablero(s):`);
-  remoteBoards.forEach((board) => console.log(`  - ${board.id}  ${board.name}`));
+  console.log(`Render Â· ${remoteBoards.length} tablero(s):`);
+  remoteBoards.forEach((board) => console.log(`  - ${board.id} Â· ${board.name}`));
 
   if (!fs.existsSync(LOCAL_STATE_PATH)) {
     throw new Error(`No existe ${LOCAL_STATE_PATH}`);
   }
 
   const localState = JSON.parse(fs.readFileSync(LOCAL_STATE_PATH, "utf8"));
-  const nextState = mergeBoardsIntoLocalState(localState, remoteState);
+  const localBoards = Array.isArray(localState?.controlBoards) ? localState.controlBoards : [];
+  console.log(`Local Â· ${localBoards.length} tablero(s) antes de sincronizar:`);
+  localBoards.forEach((board) => console.log(`  - ${board.id} Â· ${board.name}`));
+
+  const backupPath = backupLocalState(localState);
+  console.log(`Respaldo local guardado en ${backupPath}`);
+
+  const nextState = applyRemoteBoardsToLocalState(localState, remoteState, {
+    replaceBoards: REPLACE_BOARDS,
+  });
+
+  if (REPLACE_BOARDS) {
+    console.log(`Modo replace: se eliminaron ${localBoards.length} tablero(s) local(es) y se importaron ${remoteBoards.length} desde Render.`);
+  } else {
+    console.log("Modo merge: se fusionaron tableros por id (usa --replace para reemplazar todos).");
+  }
 
   const exportPath = BOARDS_ONLY
     ? path.resolve(__dirname, "../backend/data/render-boards-import.json")
@@ -136,7 +177,7 @@ async function main() {
     "utf8",
   );
   console.log(`Guardado en ${exportPath}`);
-  console.log(`Dev local ? ${nextState.controlBoards.length} tablero(s) total`);
+  console.log(`Dev local Â· ${nextState.controlBoards.length} tablero(s) total`);
 }
 
 main().catch((error) => {

@@ -3,7 +3,14 @@
  * Motor de inteligencia local: conversacional, contextual y orientado a datos reales.
  */
 
-import { getWarehouseState, findWarehouseUserById, replaceWarehouseState } from "./warehouse.store.js";
+import {
+  getWarehouseState,
+  findWarehouseUserById,
+  replaceWarehouseState,
+  createWarehouseBoardRow,
+  patchWarehouseBoardRow,
+} from "./warehouse.store.js";
+import { isOllamaConfigured, ollamaChat, getOllamaStatus } from "./ollama.service.js";
 import { randomUUID } from "crypto";
 import { writeFileSync, readFileSync, mkdirSync, existsSync, readdirSync, unlinkSync, statSync } from "fs";
 import { join, dirname } from "path";
@@ -114,6 +121,454 @@ function timeAgo(date) {
   return `hace ${Math.floor(hrs / 24)} día(s)`;
 }
 
+function getOperationalTimeZone() {
+  const state = getWarehouseState();
+  return String(state?.system?.operational?.timeZone || "America/Mexico_City").trim() || "America/Mexico_City";
+}
+
+function getOperationalTodayKey() {
+  const tz = getOperationalTimeZone();
+  try {
+    return new Intl.DateTimeFormat("en-CA", {
+      timeZone: tz,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(new Date());
+  } catch {
+    return new Date().toISOString().slice(0, 10);
+  }
+}
+
+function findBoardDateField(board) {
+  return (board?.fields || []).find((field) => field?.type === "date") || null;
+}
+
+function normalizeOperationalDateKey(value) {
+  const raw = String(value || "").trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+  const isoPrefix = raw.match(/^(\d{4}-\d{2}-\d{2})T/);
+  if (isoPrefix) return isoPrefix[1];
+  const localized = raw.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+  if (localized) {
+    const year = localized[3].length === 2 ? `20${localized[3]}` : localized[3];
+    return `${year}-${String(localized[2]).padStart(2, "0")}-${String(localized[1]).padStart(2, "0")}`;
+  }
+  return raw;
+}
+
+function getRowOperationalDateKey(board, row) {
+  const dateField = findBoardDateField(board);
+  if (!dateField) return "";
+  return normalizeOperationalDateKey(row?.values?.[dateField.id]);
+}
+
+function formatRealTimestamp(iso) {
+  if (!iso) return "—";
+  const date = new Date(iso);
+  if (!Number.isFinite(date.getTime())) return "—";
+  return date.toLocaleString("es-MX", {
+    timeZone: getOperationalTimeZone(),
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: true,
+  });
+}
+
+function formatClockTime(iso) {
+  if (!iso) return "—";
+  const date = new Date(iso);
+  if (!Number.isFinite(date.getTime())) return "—";
+  return date.toLocaleTimeString("es-MX", {
+    timeZone: getOperationalTimeZone(),
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: true,
+  });
+}
+
+function findActivityListField(fields = []) {
+  return (fields || []).find((field) => field?.type === "select" && field?.optionSource === "catalogByCategory") || null;
+}
+
+function getRowActivityLabel(board, row) {
+  const activityField = findActivityListField(board?.fields || []);
+  if (activityField && row?.values?.[activityField.id]) {
+    return String(row.values[activityField.id]).trim();
+  }
+  return Object.values(row?.values || {}).find((value) => String(value || "").trim()) || "";
+}
+
+function textMatchesHint(value, hint) {
+  const v = norm(value);
+  const h = norm(hint);
+  if (!v || !h) return false;
+  if (v.includes(h) || h.includes(v)) return true;
+  const tokens = h.split(/\s+/).filter((token) => token.length > 3);
+  if (tokens.length === 0) return false;
+  const matched = tokens.filter((token) => v.includes(token)).length;
+  return matched >= Math.ceil(tokens.length * 0.6);
+}
+
+function extractActivityHint(message) {
+  const raw = String(message || "").trim();
+  const patterns = [
+    /(?:podrias|puedes|por favor|quiero que|necesito que|me ayudas a|ayudame a)\s*(?:a\s*)?(?:iniciar|inicia|empezar|empieza|arrancar|arranca|comenzar|comienza|activar|activa|pausar|pausa|terminar|termina|finalizar|finaliza|reanudar|reanuda|continuar|continua|retomar|retoma)\s*(?:la|el|una|un|mi)?\s*(?:actividad(?: de)?|proceso(?: de)?|piso(?: de)?|fila(?: de)?)?\s*(.+)$/i,
+    /(?:iniciar|inicia|empezar|empieza|arrancar|arranca|comenzar|comienza|activar|activa|pausar|pausa|terminar|termina|finalizar|finaliza|reanudar|reanuda|continuar|continua|retomar|retoma)\s*(?:la|el|una|un|mi)?\s*(?:actividad(?: de)?|proceso(?: de)?|piso(?: de)?|fila(?: de)?)?\s*(.+)$/i,
+    /(?:actividad(?: de)?|proceso(?: de)?|piso(?: de)?)\s+(.+)$/i,
+  ];
+  for (const pattern of patterns) {
+    const match = raw.match(pattern);
+    if (match?.[1]) return match[1].replace(/[?.!]+$/, "").trim();
+  }
+  return raw.replace(/[?.!]+$/, "").trim();
+}
+
+function matchCatalogActivity(snap, hint) {
+  const h = norm(hint);
+  if (!h) return null;
+  const items = (snap.catalog || []).filter((item) => !item.isDeleted);
+  const exact = items.find((item) => norm(item.name) === h);
+  if (exact) return exact;
+  const partial = items.filter((item) => norm(item.name).includes(h) || h.includes(norm(item.name)));
+  partial.sort((a, b) => norm(a.name).length - norm(b.name).length);
+  return partial[0] || null;
+}
+
+function pickBoardForActivity(snap, hint, message, catalogItem) {
+  const todayKey = getOperationalTodayKey();
+  const activityName = catalogItem?.name || hint;
+  let bestBoard = null;
+  let bestScore = -1;
+
+  snap.boards.forEach((board) => {
+    let score = 0;
+    if (findActivityListField(board.fields || [])) score += 20;
+
+    const matchingRows = (board.rows || []).filter((row) => textMatchesHint(getRowActivityLabel(board, row), activityName));
+    if (matchingRows.length > 0) score += 50;
+    if (matchingRows.some((row) => getRowOperationalDateKey(board, row) === todayKey)) score += 200;
+
+    if (score > bestScore) {
+      bestScore = score;
+      bestBoard = board;
+    }
+  });
+
+  if (bestBoard) return bestBoard;
+
+  const msgNorm = norm(message);
+  const byMessageBoard = snap.boards.find((board) => msgNorm.includes(norm(board.name)));
+  if (byMessageBoard) return byMessageBoard;
+
+  return snap.boards.find((board) => findActivityListField(board.fields || [])) || snap.boards[0] || null;
+}
+
+function scoreActionCandidate(board, row, label, hint, todayKey, allowedStatuses) {
+  const status = normalizeRowStatus(row.status);
+  if (!allowedStatuses.includes(status)) return -1;
+  if (!textMatchesHint(label, hint)) return -1;
+
+  let score = 0;
+  const rowDate = getRowOperationalDateKey(board, row);
+  if (rowDate === todayKey) score += 1000;
+  else if (rowDate) {
+    const dayDiff = Math.abs(new Date(`${rowDate}T12:00:00`).getTime() - new Date(`${todayKey}T12:00:00`).getTime()) / 86400000;
+    score -= Math.min(800, Math.round(dayDiff * 10));
+  }
+
+  if (norm(label) === norm(hint)) score += 100;
+  else score += 40;
+
+  if (findActivityListField(board.fields || [])) score += 30;
+
+  if (status === ROW_STATUS_PENDING) score += 20;
+  else if (status === ROW_STATUS_PAUSED) score += 15;
+  else if (status === ROW_STATUS_RUNNING) score += 5;
+
+  return score;
+}
+
+function findActionableRow(snap, hint, allowedStatuses) {
+  const todayKey = getOperationalTodayKey();
+  let best = null;
+  let bestScore = -1;
+
+  snap.boards.forEach((board) => {
+    (board.rows || []).forEach((row) => {
+      const label = getRowActivityLabel(board, row);
+      const score = scoreActionCandidate(board, row, label, hint, todayKey, allowedStatuses);
+      if (score > bestScore) {
+        bestScore = score;
+        best = { board, row, label, status: normalizeRowStatus(row.status) };
+      }
+    });
+  });
+
+  return best;
+}
+
+function buildActionResult(actionType, {
+  executed,
+  stateUpdated,
+  brief,
+  boardName = "",
+  activityName = "",
+  statusLabel = "",
+  timeIso = "",
+  responsibleName = "",
+}) {
+  return {
+    executed,
+    stateUpdated,
+    actionType,
+    brief,
+    boardName,
+    activityName,
+    statusLabel,
+    timeLabel: formatRealTimestamp(timeIso),
+    clockLabel: formatClockTime(timeIso),
+    responsibleName,
+  };
+}
+
+function buildActionDirectResponse(actionOutcome, user) {
+  const firstName = user?.name?.split(" ")[0] || "";
+  const greeting = firstName ? `Listo, ${firstName}.` : "Listo.";
+
+  if (!actionOutcome?.executed) {
+    return `⚠️ ${actionOutcome?.brief || "No pude ejecutar la accion en el sistema."}`;
+  }
+
+  if (actionOutcome.actionType === "start_activity") {
+    return `${greeting} **${actionOutcome.activityName}** quedo **${actionOutcome.statusLabel}** en el tablero **${actionOutcome.boardName}**.\n\n- **Inicio real:** ${actionOutcome.timeLabel}\n- **Hora:** ${actionOutcome.clockLabel}\n- **Responsable:** ${actionOutcome.responsibleName}\n\nYa puedes verla actualizada en el tablero de hoy.`;
+  }
+
+  if (actionOutcome.actionType === "pause_activity") {
+    return `${greeting} Pausé **${actionOutcome.activityName}** en **${actionOutcome.boardName}**.\n\n- **Hora de pausa:** ${actionOutcome.timeLabel}\n- **Hora:** ${actionOutcome.clockLabel}`;
+  }
+
+  if (actionOutcome.actionType === "finish_activity") {
+    return `${greeting} Terminé **${actionOutcome.activityName}** en **${actionOutcome.boardName}**.\n\n- **Cierre:** ${actionOutcome.timeLabel}\n- **Hora:** ${actionOutcome.clockLabel}`;
+  }
+
+  return actionOutcome.brief;
+}
+
+function warehouseReasonMessage(reason) {
+  const map = {
+    auth_required: "Necesitas iniciar sesion para ejecutar acciones.",
+    forbidden: "No tienes permiso para operar ese tablero o actividad.",
+    board_not_found: "No encontre el tablero indicado.",
+    row_not_found: "No encontre la fila o actividad indicada.",
+  };
+  return map[reason] || "No pude completar la accion en el sistema.";
+}
+
+function detectActionIntent(msg) {
+  const t = norm(msg);
+  const hint = extractActivityHint(msg);
+  const snap = buildSnap();
+  const catalogMatch = hint ? matchCatalogActivity(snap, hint) : null;
+  const hasContext = has(t, ["actividad", "piso", "proceso", "fila", "tablero", "produccion", "reparacion", "operacion", "bano", "banos", "limpieza", "snack", "basura"])
+    || Boolean(catalogMatch);
+  const isStart = has(t, ["iniciar", "inicia", "empezar", "empieza", "arrancar", "arranca", "comenzar", "comienza", "activar", "activa", "reanudar", "reanuda", "continuar", "continua", "retomar", "retoma"]);
+  const isPause = has(t, ["pausar", "pausa", "detener", "deten", "detenerla", "detenerlo"]);
+  const isFinish = has(t, ["terminar", "termina", "finalizar", "finaliza", "cerrar", "cierra", "concluir", "concluye"]);
+
+  if (isStart && hasContext) return "start_activity";
+  if (isPause && hasContext) return "pause_activity";
+  if (isFinish && hasContext) return "finish_activity";
+  return null;
+}
+
+function executeCopmecAIAction(auth, actionType, message, user) {
+  const snap = buildSnap();
+  const hint = extractActivityHint(message);
+  const userId = auth?.userId || "";
+  const catalogItem = matchCatalogActivity(snap, hint);
+  const activityName = catalogItem?.name || hint;
+
+  if (!hint) {
+    return buildActionResult(actionType, {
+      executed: false,
+      stateUpdated: false,
+      brief: "No identifique que actividad o proceso quieres operar.",
+    });
+  }
+
+  if (actionType === "start_activity") {
+    const target = findActionableRow(snap, activityName, [ROW_STATUS_PENDING, ROW_STATUS_PAUSED]);
+
+    if (!target) {
+      const board = pickBoardForActivity(snap, hint, message, catalogItem);
+      if (!board) {
+        return buildActionResult(actionType, {
+          executed: false,
+          stateUpdated: false,
+          brief: "No hay tableros disponibles para registrar la actividad.",
+        });
+      }
+
+      const createResult = createWarehouseBoardRow(auth, board.id);
+      if (!createResult.ok) {
+        return buildActionResult(actionType, {
+          executed: false,
+          stateUpdated: false,
+          brief: warehouseReasonMessage(createResult.reason),
+        });
+      }
+
+      const activityField = findActivityListField(board.fields || []);
+      const dateField = findBoardDateField(board);
+      const valuesPatch = { ...(activityField ? { [activityField.id]: activityName } : {}) };
+      if (dateField) valuesPatch[dateField.id] = getOperationalTodayKey();
+
+      const startResult = patchWarehouseBoardRow(auth, board.id, createResult.row.id, {
+        values: valuesPatch,
+        status: "En curso",
+        responsibleId: userId,
+      });
+      if (!startResult.ok) {
+        return buildActionResult(actionType, {
+          executed: false,
+          stateUpdated: false,
+          brief: warehouseReasonMessage(startResult.reason),
+        });
+      }
+
+      const row = startResult.row;
+      return buildActionResult(actionType, {
+        executed: true,
+        stateUpdated: true,
+        brief: "Actividad iniciada.",
+        boardName: board.name,
+        activityName: getRowActivityLabel(board, row) || activityName,
+        statusLabel: "En curso",
+        timeIso: row.startTime,
+        responsibleName: user?.name || "usuario actual",
+      });
+    }
+
+    const { board, row, status } = target;
+    const label = target.label || getRowActivityLabel(board, row);
+
+    if (status === ROW_STATUS_RUNNING) {
+      return buildActionResult(actionType, {
+        executed: true,
+        stateUpdated: false,
+        brief: "La actividad ya estaba en curso.",
+        boardName: board.name,
+        activityName: label,
+        statusLabel: "En curso",
+        timeIso: row.startTime,
+        responsibleName: user?.name || "usuario actual",
+      });
+    }
+
+    const startResult = patchWarehouseBoardRow(auth, board.id, row.id, {
+      status: "En curso",
+      responsibleId: userId,
+    });
+    if (!startResult.ok) {
+      return buildActionResult(actionType, {
+        executed: false,
+        stateUpdated: false,
+        brief: warehouseReasonMessage(startResult.reason),
+      });
+    }
+
+    const updatedRow = startResult.row;
+    return buildActionResult(actionType, {
+      executed: true,
+      stateUpdated: true,
+      brief: "Actividad iniciada.",
+      boardName: board.name,
+      activityName: label,
+      statusLabel: "En curso",
+      timeIso: updatedRow.startTime,
+      responsibleName: user?.name || "usuario actual",
+    });
+  }
+
+  if (actionType === "pause_activity") {
+    const target = findActionableRow(snap, activityName, [ROW_STATUS_RUNNING]);
+    if (!target) {
+      return buildActionResult(actionType, {
+        executed: false,
+        stateUpdated: false,
+        brief: `No encontre una actividad en curso que coincida con "${activityName}".`,
+      });
+    }
+
+    const pauseResult = patchWarehouseBoardRow(auth, target.board.id, target.row.id, {
+      status: "Pausado",
+      lastPauseReason: "Solicitud AXO AI",
+    });
+    if (!pauseResult.ok) {
+      return buildActionResult(actionType, {
+        executed: false,
+        stateUpdated: false,
+        brief: warehouseReasonMessage(pauseResult.reason),
+      });
+    }
+
+    const row = pauseResult.row;
+    return buildActionResult(actionType, {
+      executed: true,
+      stateUpdated: true,
+      brief: "Actividad pausada.",
+      boardName: target.board.name,
+      activityName: target.label || getRowActivityLabel(target.board, row),
+      statusLabel: "Pausado",
+      timeIso: row.pauseStartedAt || new Date().toISOString(),
+      responsibleName: user?.name || "usuario actual",
+    });
+  }
+
+  if (actionType === "finish_activity") {
+    const target = findActionableRow(snap, activityName, [ROW_STATUS_RUNNING, ROW_STATUS_PAUSED]);
+    if (!target) {
+      return buildActionResult(actionType, {
+        executed: false,
+        stateUpdated: false,
+        brief: `No encontre una actividad activa que coincida con "${activityName}".`,
+      });
+    }
+
+    const finishResult = patchWarehouseBoardRow(auth, target.board.id, target.row.id, {
+      status: "Terminado",
+    });
+    if (!finishResult.ok) {
+      return buildActionResult(actionType, {
+        executed: false,
+        stateUpdated: false,
+        brief: warehouseReasonMessage(finishResult.reason),
+      });
+    }
+
+    const row = finishResult.row;
+    return buildActionResult(actionType, {
+      executed: true,
+      stateUpdated: true,
+      brief: "Actividad terminada.",
+      boardName: target.board.name,
+      activityName: target.label || getRowActivityLabel(target.board, row),
+      statusLabel: "Terminado",
+      timeIso: row.endTime,
+      responsibleName: user?.name || "usuario actual",
+    });
+  }
+
+  return buildActionResult(actionType, { executed: false, stateUpdated: false, brief: "" });
+}
+
 function randomOf(arr) {
   return arr[Math.floor(Math.random() * arr.length)];
 }
@@ -141,6 +596,90 @@ function buildSnap() {
   const stockInventory = getStockTrackedInventory(inventory);
 
   return { state, boards, users, inventory, stockInventory, incidencias, catalog, weekHistory, transport, retail, allRows };
+}
+
+const OLLAMA_RULE_ONLY_INTENTS = new Set(["dashboard_fix"]);
+
+function buildSnapContextForLLM(snap) {
+  const running = snap.allRows.filter((row) => rowMatchesStatus(row, ROW_STATUS_RUNNING)).length;
+  const paused = snap.allRows.filter((row) => rowMatchesStatus(row, ROW_STATUS_PAUSED)).length;
+  const finished = snap.allRows.filter((row) => rowMatchesStatus(row, ROW_STATUS_FINISHED)).length;
+  const pending = snap.allRows.filter((row) => rowMatchesStatus(row, ROW_STATUS_PENDING)).length;
+  const openInc = snap.incidencias.filter((item) => item.status !== "cerrada" && item.status !== "resuelta").length;
+  const lowStock = snap.stockInventory.filter(isInventoryItemLowStock).length;
+  const zeroStock = snap.stockInventory.filter(isInventoryItemOutOfStock).length;
+  const activeUsers = snap.users.filter((user) => user.isActive).length;
+  const boardNames = snap.boards.slice(0, 25).map((board) => board.name).filter(Boolean);
+
+  return [
+    `Tableros: ${snap.boards.length} (${boardNames.join(", ") || "sin nombre"})`,
+    `Filas: ${snap.allRows.length} total | activas ${running} | pausadas ${paused} | terminadas ${finished} | pendientes ${pending}`,
+    `Inventario: ${snap.inventory.length} articulos | stock bajo ${lowStock} | agotados ${zeroStock}`,
+    `Incidencias abiertas: ${openInc}`,
+    `Usuarios activos: ${activeUsers}`,
+    `Actividades en catalogo: ${snap.catalog.filter((item) => !item.isDeleted).length}`,
+  ].join("\n");
+}
+
+function buildAxoAiSystemPrompt(snap, user, intent, factualBrief = "") {
+  const userName = user?.name ? user.name.split(" ")[0] : "operador";
+  const hour = new Date().getHours();
+  const saludo = hour < 12 ? "Buenos dias" : hour < 19 ? "Buenas tardes" : "Buenas noches";
+
+  return `Eres AXO AI, asistente operativo inteligente de AXIS ORDO.
+Hablas como un colega experto en planta/logistica: cercano, claro y util. Nunca suenas a manual tecnico rigido.
+
+REGLAS DE ESTILO:
+- Responde en espanol mexicano operativo.
+- Varía la redaccion: NO copies plantillas ni bloques de reporte tal cual.
+- Usa markdown ligero (**negritas**, listas cortas). Maximo 2-3 emojis por respuesta.
+- Integra los HECHOS verificados en prosa natural, como si estuvieras conversando.
+- Si hay alertas (pausas, stock bajo, incidencias), mencionalas con tono proactivo.
+- No inventes numeros, horarios ni nombres que no aparezcan en los hechos.
+- Nunca menciones Ollama, modelos de IA, LLM ni tecnologia interna. Eres AXO, punto.
+- Si los hechos dicen ACCION EJECUTADA EN EL SISTEMA, confirma lo hecho y usa EXACTAMENTE las horas indicadas.
+- Cierra con una pregunta o sugerencia concreta cuando tenga sentido.
+
+Contexto: ${saludo}. Usuario: ${userName}. Intento detectado: ${intent}.
+
+Panorama general del sistema:
+${buildSnapContextForLLM(snap)}
+
+HECHOS VERIFICADOS PARA ESTA CONSULTA (obligatorio usarlos):
+${factualBrief || "Responde con base en el panorama general."}`;
+}
+
+function buildRecentOllamaMessages(auth, limit = 6) {
+  const history = loadUserHistory(auth?.userId || "anon").slice(-limit);
+  const messages = [];
+  history.forEach((entry) => {
+    messages.push({ role: "user", content: String(entry.userMessage || "").trim() });
+    messages.push({ role: "assistant", content: String(entry.aiResponse || "").trim() });
+  });
+  return messages.filter((item) => item.content);
+}
+
+async function generateAxoAiResponseWithOllama(snap, user, message, intent, factualBrief, auth) {
+  const historyMessages = buildRecentOllamaMessages(auth, 4);
+  const content = await ollamaChat({
+    temperature: 0.62,
+    messages: [
+      { role: "system", content: buildAxoAiSystemPrompt(snap, user, intent, factualBrief) },
+      ...historyMessages,
+      { role: "user", content: message },
+    ],
+  });
+  if (!content) throw new Error("Ollama devolvio respuesta vacia.");
+  return content;
+}
+
+export async function getCopmecAIEngineStatus() {
+  return getOllamaStatus();
+}
+
+export function isCopmecAIOllamaEnabled() {
+  if (String(process.env.OLLAMA_AXO_AI || "true").trim().toLowerCase() === "false") return false;
+  return isOllamaConfigured();
 }
 
 function getHistoryFilePath(userId) {
@@ -1241,27 +1780,41 @@ export async function processCopmecAIMessage(auth, message) {
   }
 
   const user    = auth?.userId ? findWarehouseUserById(auth.userId) : null;
-  const snap    = buildSnap();
   const trimmed = message.trim();
-  const intent  = classifyIntent(trimmed);
-  const requestedFormats = detectRequestedFormats(trimmed);
-  const exportContext = detectExportContext(trimmed, intent);
+  const actionType = detectActionIntent(trimmed);
 
-  // Dashboard fix — sincrónico especial
-  if (intent === "dashboard_fix") {
-    const result = handleDashboardFix(snap);
+  if (actionType) {
+    const actionOutcome = executeCopmecAIAction(auth, actionType, trimmed, user);
+    const response = buildActionDirectResponse(actionOutcome, user);
     saveConversationEntry(auth, {
-      intent,
+      intent: actionOutcome.executed ? `${actionType}_executed` : actionType,
       userMessage: trimmed,
-      aiResponse: result.text,
-      dashboardFixed: result.fixed,
+      aiResponse: response,
+      dashboardFixed: false,
       reportToken: null,
       availableFormats: [],
     });
-    return { ok: true, response: result.text, intent, dashboardFixed: result.fixed, reportToken: null, availableFormats: [] };
+    return {
+      ok: true,
+      response,
+      intent: actionOutcome.executed ? `${actionType}_executed` : actionType,
+      engine: "system",
+      actionExecuted: Boolean(actionOutcome.executed),
+      stateUpdated: Boolean(actionOutcome.stateUpdated),
+      dashboardFixed: false,
+      reportToken: null,
+      availableFormats: [],
+    };
   }
 
-  // Intents que generan reporte descargable
+  const snap    = buildSnap();
+  const intent  = classifyIntent(trimmed);
+  const requestedFormats = detectRequestedFormats(trimmed);
+  const exportContext = detectExportContext(trimmed, intent);
+  const ollamaEnabled = isCopmecAIOllamaEnabled();
+  const ollamaStatus = ollamaEnabled ? await getOllamaStatus() : { reachable: false, modelReady: false };
+  const ollamaReady = ollamaEnabled && ollamaStatus.reachable && ollamaStatus.modelReady;
+
   const reportIntents = new Set(["report", "boards_detail", "download_report", "boards_status", "inventory", "incidencias", "users"]);
 
   const handlers = {
@@ -1290,8 +1843,71 @@ export async function processCopmecAIMessage(auth, message) {
     unknown:        () => handleUnknown(snap, trimmed),
   };
 
-  const handler  = handlers[intent] || handlers.unknown;
-  let response = handler();
+  // Dashboard fix — sincrónico especial (no pasa por IA)
+  if (intent === "dashboard_fix") {
+    const result = handleDashboardFix(snap);
+    saveConversationEntry(auth, {
+      intent,
+      userMessage: trimmed,
+      aiResponse: result.text,
+      dashboardFixed: result.fixed,
+      reportToken: null,
+      availableFormats: [],
+    });
+    return { ok: true, response: result.text, intent, dashboardFixed: result.fixed, reportToken: null, availableFormats: [], engine: "rules" };
+  }
+
+  const handler = handlers[intent] || handlers.unknown;
+  const factualBrief = handler();
+
+  // IA local Ollama: reescribe los hechos reales en lenguaje conversacional
+  if (ollamaReady && !OLLAMA_RULE_ONLY_INTENTS.has(intent)) {
+    try {
+      let response = await generateAxoAiResponseWithOllama(snap, user, trimmed, intent, factualBrief, auth);
+
+      let reportToken = null;
+      let availableFormats = [];
+      const shouldExport = shouldGenerateFile(trimmed, intent);
+      if ((reportIntents.has(intent) || intent === "unknown") && shouldExport) {
+        const formats = requestedFormats.length > 0 ? requestedFormats : ["pdf"];
+        try {
+          const generated = await createReportFiles(snap, formats, exportContext);
+          reportToken = generated.token;
+          availableFormats = generated.formats;
+          if (availableFormats.length > 0) {
+            response = `${response}\n\nTambien te deje listo el archivo en **${availableFormats.map((f) => f.toUpperCase()).join(", ")}** para descargar abajo.`;
+          }
+        } catch (err) {
+          console.error("[AXO AI] Error generando reporte:", err);
+        }
+      }
+
+      saveConversationEntry(auth, {
+        intent: `${intent}_ai`,
+        userMessage: trimmed,
+        aiResponse: response,
+        dashboardFixed: false,
+        reportToken,
+        availableFormats,
+      });
+
+      return {
+        ok: true,
+        response,
+        intent: `${intent}_ai`,
+        engine: "ai",
+        actionExecuted: false,
+        stateUpdated: false,
+        dashboardFixed: false,
+        reportToken,
+        availableFormats,
+      };
+    } catch (error) {
+      console.warn("[AXO AI] Ollama fallback a reglas:", error?.message || error);
+    }
+  }
+
+  let response = factualBrief;
 
   // Generar archivos de reporte si aplica
   let reportToken = null;
@@ -1320,5 +1936,14 @@ export async function processCopmecAIMessage(auth, message) {
     availableFormats,
   });
 
-  return { ok: true, response, intent, reportToken, availableFormats };
+  return {
+    ok: true,
+    response,
+    intent,
+    reportToken,
+    availableFormats,
+    actionExecuted: false,
+    stateUpdated: false,
+    engine: ollamaReady ? "ai" : "rules",
+  };
 }

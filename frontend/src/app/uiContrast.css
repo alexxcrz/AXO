@@ -8,8 +8,19 @@ html[data-ui-theme] body p:not(.ui-surface-dark *):not(.sidebar-shell *) {
   color: var(--sicfla-text);
 }
 
-html[data-ui-theme] body button:not(.ui-surface-dark *):not(.sidebar-shell *):not(.primary-button):not(.sicfla-button):not(.ep-btn--primary):not(.copmec-ai-send-btn):not(.board-action-button):not(.nav-item):not(.nav-section-toggle):not(.switch-button):not(.chat-boton-pro):not(.sidebar-collapse-button):not(.mobile-nav-toggle):not(.sidebar-close-button):not(.tab):not(.board-builder-template-panel-toggle):not(.dashboard-chart-toggle-btn):not(.warehouse-tab):not(.detail-tab-btn):not(.audit-active-tab):not(.audit-person-tab):not(.audit-cycle-tab-btn):not(.transport-view-tab):not(.app-notification-tab):not(.app-notification-trigger):not(.component-studio-step):not(.ctp-type-chip):not(.component-type-card):not(.compact-template-card):not(.board-template-rail-item):not(.catalog-day-chip):not(.catalog-site-chip) {
+html[data-ui-theme] body button:not(.ui-surface-dark *):not(.sidebar-shell *):not(.primary-button):not(.sicfla-button):not(.ep-btn--primary):not(.copmec-ai-send-btn):not(.board-action-button):not(.nav-item):not(.nav-section-toggle):not(.switch-button):not(.chat-boton-pro):not(.sidebar-collapse-button):not(.mobile-nav-toggle):not(.sidebar-close-button):not(.tab):not(.board-builder-template-panel-toggle):not(.dashboard-chart-toggle-btn):not(.warehouse-tab):not(.detail-tab-btn):not(.audit-active-tab):not(.audit-person-tab):not(.audit-cycle-tab-btn):not(.transport-view-tab):not(.app-notification-tab):not(.app-notification-trigger):not(.component-studio-step):not(.ctp-type-chip):not(.cs-forge-type-tile):not(.cs-forge-rail-item):not(.cs-forge-category-tab):not(.component-type-card):not(.compact-template-card):not(.board-template-rail-item):not(.catalog-day-chip):not(.catalog-site-chip) {
   color: var(--sicfla-text);
+}
+
+html[data-ui-theme] body .ctp-type-chip.active span,
+html[data-ui-theme] body .ctp-type-chip.active strong,
+html[data-ui-theme] body .cs-forge-type-tile.is-active span,
+html[data-ui-theme] body .cs-forge-type-tile.is-active strong,
+html[data-ui-theme] body .cs-forge-category-tab.is-active,
+html[data-ui-theme] body .component-studio-step.active span,
+html[data-ui-theme] body .component-studio-step.active strong {
+  color: inherit !important;
+  -webkit-text-fill-color: inherit !important;
 }
 
 html[data-ui-theme] .mobile-nav-toggle,

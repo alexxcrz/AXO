@@ -3671,8 +3671,11 @@ function App() { // NOSONAR
 
   const allowedSystemTemplateNames = useMemo(
     () => new Set([
+      normalizeKey("Actividades y Reparaciones"),
       normalizeKey("Actividades de limpieza"),
+      normalizeKey("Activiades de Limpieza"),
       normalizeKey("Revisión de tarimas"),
+      normalizeKey("Revisión de tarimas - Fernando"),
       normalizeKey("Devoluciones / Reacondicionado por tarima"),
       normalizeKey("Control de actividades de limpieza"),
       normalizeKey("Devoluciones y reacondicionado"),
@@ -7066,7 +7069,13 @@ function App() { // NOSONAR
         ) : null}
 
         <Suspense fallback={null}>
-          <CopmecAIWidget canUseAI={!!actionPermissions.useCopmecAI} isOpen={aiOpen} onClose={() => setAiOpen(false)} sidebarCollapsed={isSidebarCollapsed} />
+          <CopmecAIWidget
+            canUseAI={!!actionPermissions.useCopmecAI}
+            isOpen={aiOpen}
+            onClose={() => setAiOpen(false)}
+            sidebarCollapsed={isSidebarCollapsed}
+            onStateChanged={scheduleWarehouseStateRefresh}
+          />
         </Suspense>
       </div>
     </main>

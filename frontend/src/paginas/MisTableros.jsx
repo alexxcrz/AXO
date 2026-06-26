@@ -4,7 +4,13 @@ import ReturnsReconditionScanner from "../features/boards/ReturnsReconditionScan
 import OperationalInspectionStartModal from "../components/OperationalInspectionStartModal.jsx";
 import { SpanishDateInput } from "../components/SpanishDateInput";
 import OperationalInspectionRecordModal from "../components/OperationalInspectionRecordModal.jsx";
-import { BoardEditableInventoryPropertyInput, BoardEvidenceCell, BoardMultiSelectDetailCell } from "../components/BoardRuntimeFieldCells.jsx";
+import {
+  BoardCardMultilineTextInput,
+  BoardCardWrapSelect,
+  BoardEditableInventoryPropertyInput,
+  BoardEvidenceCell,
+  BoardMultiSelectDetailCell,
+} from "../components/BoardRuntimeFieldCells.jsx";
 import { downloadBoardAsJson, parseBoardImportJson } from "../utils/boardImportExport";
 import { enrichBoardRowNavigationMeta, resolveWeekdayOffsetForOperationalDate } from "../utils/boardNavigationFocus.js";
 import { normalizeOperationalInspectionTemplate } from "../utils/operationalInspectionTemplate";
@@ -31,6 +37,7 @@ import {
   ensureSelectOptionsIncludeValue,
   renderBoardFieldLabel as renderBoardFieldLabelUtil,
   buildBoardCardLineLayout,
+  buildBoardCardSectionHeaderGroups,
   getCleaningCardLayout,
   resolveCleaningSlotHeaderMeta,
   resolveBoardCardCellRole,
@@ -50,6 +57,71 @@ import { INVENTORY_DOMAIN_MAINTENANCE, INVENTORY_DOMAIN_BASE, BOARD_AUX_COLUMN_D
 
 const EDITABLE_INVENTORY_PROPERTIES = new Set(["lot", "expiry", "label"]);
 const CLEANING_BOARD_NAVES = ["C1", "C2", "C3"];
+
+function renderBoardRuntimeSelect(useBoardCardsView, { value, onChange, disabled, title, style }, children) {
+  if (useBoardCardsView) {
+    return (
+      <BoardCardWrapSelect
+        value={value}
+        onChange={onChange}
+        disabled={disabled}
+        title={title}
+        style={style}
+      >
+        {children}
+      </BoardCardWrapSelect>
+    );
+  }
+  return (
+    <select value={value} onChange={onChange} disabled={disabled} title={title} style={style}>
+      {children}
+    </select>
+  );
+}
+
+function renderBoardRuntimeTextInput(useBoardCardsView, {
+  value,
+  onChange,
+  onBlur,
+  onCommit,
+  placeholder,
+  style,
+  title,
+  disabled,
+  type = "text",
+}) {
+  if (useBoardCardsView) {
+    return (
+      <BoardCardMultilineTextInput
+        value={value}
+        onChange={onChange}
+        onBlur={onBlur}
+        onCommit={onCommit}
+        placeholder={placeholder}
+        style={style}
+        title={title}
+        disabled={disabled}
+      />
+    );
+  }
+  return (
+    <input
+      type={type}
+      value={value}
+      onChange={onChange}
+      onBlur={onBlur}
+      onKeyDown={(event) => {
+        if (event.key !== "Enter") return;
+        event.preventDefault();
+        onCommit?.();
+      }}
+      placeholder={placeholder}
+      style={style}
+      title={title}
+      disabled={disabled}
+    />
+  );
+}
 
 function computeAssigneeMenuPosition(triggerRect, menuHeight = 290) {
   if (!triggerRect) return null;
@@ -1228,6 +1300,14 @@ export default function MisTableros({ contexto }) {
   const showBoardCardSectionRow = useBoardCardsView
     ? shouldShowBoardCardSectionRow(boardCardLine.lineItems, visibleBoardColumns)
     : false;
+  const boardCardSectionGroups = useMemo(
+    () => buildBoardCardSectionHeaderGroups(
+      boardCardLine.lineItems,
+      boardCardLine.widths,
+      (lineItem) => resolveBoardCardLineItemHeaderMeta(lineItem, visibleBoardColumns),
+    ),
+    [boardCardLine.lineItems, boardCardLine.widths, visibleBoardColumns],
+  );
 
   const handleCleaningSlotResizeStart = (event, slotId) => {
     event.preventDefault();
@@ -2339,26 +2419,19 @@ export default function MisTableros({ contexto }) {
                     <>
                     {showBoardCardSectionRow ? (
                     <tr className="cleaning-cards-section-row board-pdf-hide">
-                      {boardCardLine.lineItems.map((lineItem, lineIndex) => {
-                        const headerMeta = resolveBoardCardLineItemHeaderMeta(lineItem, visibleBoardColumns);
-                        const lineWidth = boardCardLine.widths[lineIndex];
-                        const lineKey = lineItem.kind === "slot"
-                          ? `section-slot-${lineItem.slotId}`
-                          : `section-col-${lineItem.column.token}`;
-                        return (
-                          <th
-                            key={lineKey}
-                            className="cleaning-slot-section-cell board-section-header-cell"
-                            style={{
-                              ...(lineWidth ? { minWidth: `${lineWidth}px`, width: `${lineWidth}px` } : {}),
-                              backgroundColor: headerMeta.color,
-                            }}
-                            title={headerMeta.sectionName}
-                          >
-                            {headerMeta.sectionName}
-                          </th>
-                        );
-                      })}
+                      {boardCardSectionGroups.map((group, groupIndex) => (
+                        <th
+                          key={`section-group-${groupIndex}-${group.sectionKey}`}
+                          className={`cleaning-slot-section-cell board-section-header-cell${group.span > 1 ? " is-group-span" : ""}`}
+                          style={{
+                            gridColumn: `span ${group.span}`,
+                            backgroundColor: group.color,
+                          }}
+                          title={group.sectionName}
+                        >
+                          {group.sectionName}
+                        </th>
+                      ))}
                     </tr>
                     ) : null}
                     <tr className="cleaning-cards-header-row">
@@ -2935,14 +3008,24 @@ export default function MisTableros({ contexto }) {
                             }
                             return (
                               <td key={field.id} style={columnStyle}>
-                                <select value={row.values?.[field.id] || ""} onChange={(event) => updateBoardRowValue(selectedCustomBoard.id, row.id, field, event.target.value)} style={controlStyle} title={field.helpText || field.label} disabled={disabled}>
-                                  <option value="">Seleccionar...</option>
-                                  {Object.entries(groupedOptions).map(([groupName, groupOptions]) => (
-                                    <optgroup key={groupName} label={groupName}>
-                                      {groupOptions.map((option) => <option key={`${groupName}-${option.value}`} value={option.value}>{option.label}</option>) }
-                                    </optgroup>
-                                  ))}
-                                </select>
+                                {renderBoardRuntimeSelect(
+                                  useBoardCardsView,
+                                  {
+                                    value: row.values?.[field.id] || "",
+                                    onChange: (event) => updateBoardRowValue(selectedCustomBoard.id, row.id, field, event.target.value),
+                                    disabled,
+                                    title: field.helpText || field.label,
+                                    style: controlStyle,
+                                  },
+                                  <>
+                                    <option value="">Seleccionar...</option>
+                                    {Object.entries(groupedOptions).map(([groupName, groupOptions]) => (
+                                      <optgroup key={groupName} label={groupName}>
+                                        {groupOptions.map((option) => <option key={`${groupName}-${option.value}`} value={option.value}>{option.label}</option>)}
+                                      </optgroup>
+                                    ))}
+                                  </>,
+                                )}
                               </td>
                             );
                           }
@@ -3125,30 +3208,85 @@ export default function MisTableros({ contexto }) {
                             const fieldEditKey = `${row.id}-${field.id}`;
                             const hasDraft = Object.prototype.hasOwnProperty.call(fieldEditDrafts, fieldEditKey);
                             const inputValue = hasDraft ? fieldEditDrafts[fieldEditKey] : (row.values?.[field.id] || "");
-                            return <td key={field.id} style={columnStyle}><input type="email" value={inputValue} onChange={(event) => setFieldEditDrafts((prev) => ({ ...prev, [fieldEditKey]: event.target.value }))} onBlur={() => commitBoardFieldDraft(selectedCustomBoard.id, row, field, fieldEditKey)} onKeyDown={(event) => { if (event.key !== "Enter") return; event.preventDefault(); commitBoardFieldDraft(selectedCustomBoard.id, row, field, fieldEditKey); }} placeholder={field.placeholder || "nombre@empresa.com"} style={controlStyle} title={field.helpText || field.label} disabled={!rowFieldEditable} /></td>;
+                            const commitDraft = () => commitBoardFieldDraft(selectedCustomBoard.id, row, field, fieldEditKey);
+                            return (
+                              <td key={field.id} style={columnStyle}>
+                                {renderBoardRuntimeTextInput(useBoardCardsView, {
+                                  type: "email",
+                                  value: inputValue,
+                                  onChange: (event) => setFieldEditDrafts((prev) => ({ ...prev, [fieldEditKey]: event.target.value })),
+                                  onBlur: commitDraft,
+                                  onCommit: commitDraft,
+                                  placeholder: field.placeholder || "nombre@empresa.com",
+                                  style: controlStyle,
+                                  title: field.helpText || field.label,
+                                  disabled: !rowFieldEditable,
+                                })}
+                              </td>
+                            );
                           }
 
                           if (field.type === "phone") {
                             const fieldEditKey = `${row.id}-${field.id}`;
                             const hasDraft = Object.prototype.hasOwnProperty.call(fieldEditDrafts, fieldEditKey);
                             const inputValue = hasDraft ? fieldEditDrafts[fieldEditKey] : (row.values?.[field.id] || "");
-                            return <td key={field.id} style={columnStyle}><input type="tel" value={inputValue} onChange={(event) => setFieldEditDrafts((prev) => ({ ...prev, [fieldEditKey]: event.target.value }))} onBlur={() => commitBoardFieldDraft(selectedCustomBoard.id, row, field, fieldEditKey)} onKeyDown={(event) => { if (event.key !== "Enter") return; event.preventDefault(); commitBoardFieldDraft(selectedCustomBoard.id, row, field, fieldEditKey); }} placeholder={field.placeholder || "Ej: 5512345678"} style={controlStyle} title={field.helpText || field.label} disabled={!rowFieldEditable} /></td>;
+                            const commitDraft = () => commitBoardFieldDraft(selectedCustomBoard.id, row, field, fieldEditKey);
+                            return (
+                              <td key={field.id} style={columnStyle}>
+                                {renderBoardRuntimeTextInput(useBoardCardsView, {
+                                  type: "tel",
+                                  value: inputValue,
+                                  onChange: (event) => setFieldEditDrafts((prev) => ({ ...prev, [fieldEditKey]: event.target.value })),
+                                  onBlur: commitDraft,
+                                  onCommit: commitDraft,
+                                  placeholder: field.placeholder || "Ej: 5512345678",
+                                  style: controlStyle,
+                                  title: field.helpText || field.label,
+                                  disabled: !rowFieldEditable,
+                                })}
+                              </td>
+                            );
                           }
 
                           if (field.type === "url") {
                             const fieldEditKey = `${row.id}-${field.id}`;
                             const hasDraft = Object.prototype.hasOwnProperty.call(fieldEditDrafts, fieldEditKey);
                             const inputValue = hasDraft ? fieldEditDrafts[fieldEditKey] : (row.values?.[field.id] || "");
-                            return <td key={field.id} style={columnStyle}><input type="url" value={inputValue} onChange={(event) => setFieldEditDrafts((prev) => ({ ...prev, [fieldEditKey]: event.target.value }))} onBlur={() => commitBoardFieldDraft(selectedCustomBoard.id, row, field, fieldEditKey)} onKeyDown={(event) => { if (event.key !== "Enter") return; event.preventDefault(); commitBoardFieldDraft(selectedCustomBoard.id, row, field, fieldEditKey); }} placeholder={field.placeholder || "https://..."} style={controlStyle} title={field.helpText || field.label} disabled={!rowFieldEditable} /></td>;
+                            const commitDraft = () => commitBoardFieldDraft(selectedCustomBoard.id, row, field, fieldEditKey);
+                            return (
+                              <td key={field.id} style={columnStyle}>
+                                {renderBoardRuntimeTextInput(useBoardCardsView, {
+                                  type: "url",
+                                  value: inputValue,
+                                  onChange: (event) => setFieldEditDrafts((prev) => ({ ...prev, [fieldEditKey]: event.target.value })),
+                                  onBlur: commitDraft,
+                                  onCommit: commitDraft,
+                                  placeholder: field.placeholder || "https://...",
+                                  style: controlStyle,
+                                  title: field.helpText || field.label,
+                                  disabled: !rowFieldEditable,
+                                })}
+                              </td>
+                            );
                           }
 
                           if (field.type === "boolean") {
                             return (
                               <td key={field.id} style={columnStyle}>
-                                <select value={row.values?.[field.id] || "No"} onChange={(event) => updateBoardRowValue(selectedCustomBoard.id, row.id, field, event.target.value)} style={controlStyle} title={field.helpText || field.label} disabled={!rowFieldEditable}>
-                                  <option value="Si">Sí</option>
-                                  <option value="No">No</option>
-                                </select>
+                                {renderBoardRuntimeSelect(
+                                  useBoardCardsView,
+                                  {
+                                    value: row.values?.[field.id] || "No",
+                                    onChange: (event) => updateBoardRowValue(selectedCustomBoard.id, row.id, field, event.target.value),
+                                    disabled: !rowFieldEditable,
+                                    title: field.helpText || field.label,
+                                    style: controlStyle,
+                                  },
+                                  <>
+                                    <option value="Si">Sí</option>
+                                    <option value="No">No</option>
+                                  </>,
+                                )}
                               </td>
                             );
                           }
@@ -3156,12 +3294,22 @@ export default function MisTableros({ contexto }) {
                           if (field.type === "status") {
                             return (
                               <td key={field.id} style={columnStyle}>
-                                <select value={row.values?.[field.id] || STATUS_PENDING} onChange={(event) => updateBoardRowValue(selectedCustomBoard.id, row.id, field, event.target.value)} style={controlStyle} title={field.helpText || field.label} disabled={!rowFieldEditable}>
-                                  <option value={STATUS_PENDING}>{STATUS_PENDING}</option>
-                                  <option value={STATUS_RUNNING}>{STATUS_RUNNING}</option>
-                                  <option value={STATUS_PAUSED}>{STATUS_PAUSED}</option>
-                                  <option value={STATUS_FINISHED}>{STATUS_FINISHED}</option>
-                                </select>
+                                {renderBoardRuntimeSelect(
+                                  useBoardCardsView,
+                                  {
+                                    value: row.values?.[field.id] || STATUS_PENDING,
+                                    onChange: (event) => updateBoardRowValue(selectedCustomBoard.id, row.id, field, event.target.value),
+                                    disabled: !rowFieldEditable,
+                                    title: field.helpText || field.label,
+                                    style: controlStyle,
+                                  },
+                                  <>
+                                    <option value={STATUS_PENDING}>{STATUS_PENDING}</option>
+                                    <option value={STATUS_RUNNING}>{STATUS_RUNNING}</option>
+                                    <option value={STATUS_PAUSED}>{STATUS_PAUSED}</option>
+                                    <option value={STATUS_FINISHED}>{STATUS_FINISHED}</option>
+                                  </>,
+                                )}
                               </td>
                             );
                           }
@@ -3169,10 +3317,20 @@ export default function MisTableros({ contexto }) {
                           if (field.type === "user") {
                             return (
                               <td key={field.id} style={columnStyle}>
-                                <select value={row.values?.[field.id] || ""} onChange={(event) => updateBoardRowValue(selectedCustomBoard.id, row.id, field, event.target.value)} style={controlStyle} title={field.helpText || field.label} disabled={!rowFieldEditable}>
-                                  <option value="">Seleccionar player...</option>
-                                  {visibleUsers.filter((user) => user.isActive).map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}
-                                </select>
+                                {renderBoardRuntimeSelect(
+                                  useBoardCardsView,
+                                  {
+                                    value: row.values?.[field.id] || "",
+                                    onChange: (event) => updateBoardRowValue(selectedCustomBoard.id, row.id, field, event.target.value),
+                                    disabled: !rowFieldEditable,
+                                    title: field.helpText || field.label,
+                                    style: controlStyle,
+                                  },
+                                  <>
+                                    <option value="">Seleccionar player...</option>
+                                    {visibleUsers.filter((user) => user.isActive).map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}
+                                  </>,
+                                )}
                               </td>
                             );
                           }
@@ -3250,22 +3408,19 @@ export default function MisTableros({ contexto }) {
                             const fieldEditKey = `${row.id}-${field.id}`;
                             const hasDraft = Object.prototype.hasOwnProperty.call(fieldEditDrafts, fieldEditKey);
                             const inputValue = hasDraft ? fieldEditDrafts[fieldEditKey] : (row.values?.[field.id] || "");
+                            const commitDraft = () => commitBoardFieldDraft(selectedCustomBoard.id, row, field, fieldEditKey);
                             return (
                               <td key={field.id} style={columnStyle}>
-                                <input
-                                  value={inputValue}
-                                  onChange={(event) => setFieldEditDrafts((prev) => ({ ...prev, [fieldEditKey]: event.target.value }))}
-                                  onBlur={() => commitBoardFieldDraft(selectedCustomBoard.id, row, field, fieldEditKey)}
-                                  onKeyDown={(event) => {
-                                    if (event.key !== "Enter") return;
-                                    event.preventDefault();
-                                    commitBoardFieldDraft(selectedCustomBoard.id, row, field, fieldEditKey);
-                                  }}
-                                  placeholder={field.placeholder || "tag1, tag2, tag3"}
-                                  style={controlStyle}
-                                  title={field.helpText || field.label}
-                                  disabled={!rowFieldEditable}
-                                />
+                                {renderBoardRuntimeTextInput(useBoardCardsView, {
+                                  value: inputValue,
+                                  onChange: (event) => setFieldEditDrafts((prev) => ({ ...prev, [fieldEditKey]: event.target.value })),
+                                  onBlur: commitDraft,
+                                  onCommit: commitDraft,
+                                  placeholder: field.placeholder || "tag1, tag2, tag3",
+                                  style: controlStyle,
+                                  title: field.helpText || field.label,
+                                  disabled: !rowFieldEditable,
+                                })}
                               </td>
                             );
                           }
@@ -3297,6 +3452,7 @@ export default function MisTableros({ contexto }) {
                                   placeholder={field.placeholder || "Selecciona o escribe un valor"}
                                   title={field.helpText || field.label}
                                   disabled={!rowFieldEditable}
+                                  multiline={useBoardCardsView}
                                 />
                               </td>
                             );
@@ -3333,7 +3489,24 @@ export default function MisTableros({ contexto }) {
                           const inputValue = hasDraft
                             ? fieldEditDrafts[fieldEditKey]
                             : formatBoardCellObjectValue(row.values?.[field.id] ?? "");
-                          return <td key={field.id} style={columnStyle}><input value={inputValue} onChange={(event) => setFieldEditDrafts((prev) => ({ ...prev, [fieldEditKey]: event.target.value }))} onBlur={() => commitBoardFieldDraft(selectedCustomBoard.id, row, field, fieldEditKey)} onKeyDown={(event) => { if (event.key !== "Enter") return; event.preventDefault(); commitBoardFieldDraft(selectedCustomBoard.id, row, field, fieldEditKey); }} placeholder={field.placeholder || "Captura un valor"} style={rule ? { ...controlStyle, backgroundColor: rule.color, color: rule.textColor || "inherit" } : controlStyle} title={field.helpText || field.label} disabled={!rowFieldEditable} /></td>;
+                          const commitDraft = () => commitBoardFieldDraft(selectedCustomBoard.id, row, field, fieldEditKey);
+                          const mergedControlStyle = rule
+                            ? { ...controlStyle, backgroundColor: rule.color, color: rule.textColor || "inherit" }
+                            : controlStyle;
+                          return (
+                            <td key={field.id} style={columnStyle}>
+                              {renderBoardRuntimeTextInput(useBoardCardsView, {
+                                value: inputValue,
+                                onChange: (event) => setFieldEditDrafts((prev) => ({ ...prev, [fieldEditKey]: event.target.value })),
+                                onBlur: commitDraft,
+                                onCommit: commitDraft,
+                                placeholder: field.placeholder || "Captura un valor",
+                                style: mergedControlStyle,
+                                title: field.helpText || field.label,
+                                disabled: !rowFieldEditable,
+                              })}
+                            </td>
+                          );
                         })();
                         if (!useBoardCardsView || !__cellEl) return __cellEl;
                         const __role = resolveBoardCardCellRole(column, visibleBoardColumns);

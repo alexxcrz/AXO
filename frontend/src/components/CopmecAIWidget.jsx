@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import logoIA from "../assets/AXOIA.png";
 import { API_BASE_URL } from "../utils/constantes.js";
 
@@ -102,13 +102,25 @@ const QUICK_SUGGESTIONS = [
 ];
 
 // ─── Componente principal ─────────────────────────────────────────────────────
-export default function CopmecAIWidget({ canUseAI, isOpen, onClose, sidebarCollapsed }) {
+export default function CopmecAIWidget({ canUseAI, isOpen, onClose, sidebarCollapsed, onStateChanged }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [hasGreeted, setHasGreeted] = useState(false);
+  const [engineStatus, setEngineStatus] = useState(null);
   const bottomRef = useRef(null);
   const inputRef = useRef(null);
+
+  const engineSubtitle = useMemo(() => {
+    if (!engineStatus) return "Cerebro Operativo";
+    if (engineStatus.reachable && engineStatus.modelReady) {
+      return "Asistente inteligente activo";
+    }
+    if (engineStatus.reachable) {
+      return "Motor IA pendiente de configurar";
+    }
+    return "Modo consulta (datos del sistema)";
+  }, [engineStatus]);
 
   // Scroll automático al fondo
   useEffect(() => {
@@ -121,6 +133,19 @@ export default function CopmecAIWidget({ canUseAI, isOpen, onClose, sidebarColla
       setTimeout(() => inputRef.current?.focus(), 100);
       let cancelled = false;
       (async () => {
+        try {
+          const statusRes = await fetch(`${API_BASE_URL}/copmec-ai/engine-status`, {
+            method: "GET",
+            credentials: "include",
+          });
+          const statusData = await statusRes.json();
+          if (!cancelled && statusRes.ok && statusData.ok) {
+            setEngineStatus(statusData.engine || null);
+          }
+        } catch {
+          if (!cancelled) setEngineStatus(null);
+        }
+
         try {
           const res = await fetch(`${API_BASE_URL}/copmec-ai/history?limit=80`, {
             method: "GET",
@@ -164,14 +189,19 @@ export default function CopmecAIWidget({ canUseAI, isOpen, onClose, sidebarColla
       const data = await res.json();
 
       if (res.ok && data.ok) {
+        if (data.stateUpdated) {
+          onStateChanged?.();
+        }
         setMessages((prev) => [
           ...prev,
           {
             role: "ai",
             content: data.response,
+            engine: data.engine || "rules",
             reportToken: data.reportToken || null,
             availableFormats: Array.isArray(data.availableFormats) ? data.availableFormats : [],
             dashboardFixed: data.dashboardFixed || false,
+            actionExecuted: data.actionExecuted || false,
           },
         ]);
       } else {
@@ -183,7 +213,7 @@ export default function CopmecAIWidget({ canUseAI, isOpen, onClose, sidebarColla
       setIsLoading(false);
       setTimeout(() => inputRef.current?.focus(), 50);
     }
-  }, [input, isLoading]);
+  }, [input, isLoading, onStateChanged]);
 
   function downloadReport(token, format) {
     window.open(`${API_BASE_URL}/copmec-ai/report/${token}/${format}`, "_blank", "noopener");
@@ -220,7 +250,9 @@ export default function CopmecAIWidget({ canUseAI, isOpen, onClose, sidebarColla
               <img src={logoIA} alt="AXO AI" className="copmec-ai-header-logo" />
               <div>
                 <div className="copmec-ai-header-title">AXO AI</div>
-                <div className="copmec-ai-header-subtitle">Cerebro Operativo • En línea</div>
+                <div className={`copmec-ai-header-subtitle${engineStatus?.reachable && engineStatus?.modelReady ? " is-ai-ready" : ""}`}>
+                  {engineSubtitle}
+                </div>
               </div>
             </div>
             <div className="copmec-ai-header-actions">
@@ -233,13 +265,24 @@ export default function CopmecAIWidget({ canUseAI, isOpen, onClose, sidebarColla
             </div>
           </div>
 
+          {engineStatus && !(engineStatus.reachable && engineStatus.modelReady) ? (
+            <p className="copmec-ai-setup-banner" role="status">
+              AXO puede consultar datos del sistema. Para respuestas mas naturales y acciones avanzadas, activa el motor de IA local en el servidor.
+            </p>
+          ) : null}
+
           {/* Mensajes */}
           <div className="copmec-ai-messages">
             {messages.length === 0 && (
               <div className="copmec-ai-empty">
                 <img src={logoIA} alt="AXO AI" className="copmec-ai-empty-logo" />
                 <p>Soy el <strong>Cerebro Operativo de AXO</strong>.</p>
-                <p>Analizo AXIS ORDO en tiempo real: tableros, inventario, incidencias, catálogo, transporte y más.</p>
+                <p>Analizo AXIS ORDO en tiempo real y puedo ejecutar acciones operativas cuando me lo pidas.</p>
+                {engineStatus?.reachable && engineStatus?.modelReady ? (
+                  <p className="copmec-ai-engine-note">Puedes pedirme iniciar, pausar o cerrar actividades en lenguaje natural.</p>
+                ) : (
+                  <p className="copmec-ai-engine-note">Ejemplo: &quot;inicia la actividad de piso de produccion&quot;</p>
+                )}
               </div>
             )}
 
@@ -253,6 +296,11 @@ export default function CopmecAIWidget({ canUseAI, isOpen, onClose, sidebarColla
                     ? (
                       <div className="copmec-ai-content">
                         {parseMarkdownToJSX(msg.content)}
+                        {msg.actionExecuted && (
+                          <div className="copmec-ai-action-badge">
+                            ✓ Accion aplicada en el sistema
+                          </div>
+                        )}
                         {msg.dashboardFixed && (
                           <div className="copmec-ai-fix-badge">
                             🔧 Correcciones aplicadas al sistema
@@ -278,7 +326,7 @@ export default function CopmecAIWidget({ canUseAI, isOpen, onClose, sidebarColla
                         )}
                       </div>
                     )
-                    : <span>{msg.content}</span>
+                    : <span className="copmec-ai-user-text">{msg.content}</span>
                   }
                 </div>
               </div>
@@ -289,6 +337,9 @@ export default function CopmecAIWidget({ canUseAI, isOpen, onClose, sidebarColla
                 <img src={logoIA} alt="AI" className="copmec-ai-msg-avatar" />
                 <div className="copmec-ai-bubble copmec-ai-bubble--loading">
                   <span className="copmec-ai-dot" /><span className="copmec-ai-dot" /><span className="copmec-ai-dot" />
+                  <span className="copmec-ai-thinking-label">
+                    {engineStatus?.modelReady ? "AXO esta pensando..." : "Consultando datos..."}
+                  </span>
                 </div>
               </div>
             )}

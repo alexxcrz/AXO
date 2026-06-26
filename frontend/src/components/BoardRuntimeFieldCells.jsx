@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Image as ImageIcon, Plus, Upload } from "lucide-react";
 import { isImageMedia, isVideoMedia, MediaLightbox } from "./MediaLightbox.jsx";
@@ -174,7 +174,87 @@ export function BoardMultiSelectDetailCell({ field, value, options, disabled, on
   );
 }
 
-export function BoardEditableInventoryPropertyInput({ value, suggestions, disabled, placeholder, title, onChange }) {
+export function BoardCardWrapSelect({
+  value,
+  onChange,
+  disabled,
+  title,
+  style,
+  className,
+  children,
+}) {
+  const selectRef = useRef(null);
+  const [displayLabel, setDisplayLabel] = useState("");
+
+  useLayoutEffect(() => {
+    const select = selectRef.current;
+    if (!select) return;
+    const selectedOption = select.options[select.selectedIndex];
+    setDisplayLabel(selectedOption?.text || "");
+  }, [value, children]);
+
+  return (
+    <div
+      className={`board-card-wrap-select${disabled ? " is-disabled" : ""}${className ? ` ${className}` : ""}`.trim()}
+      title={title}
+    >
+      <span className="board-card-wrap-select__label">{displayLabel || "\u00a0"}</span>
+      <select
+        ref={selectRef}
+        className="board-card-wrap-select__native"
+        value={value}
+        onChange={onChange}
+        disabled={disabled}
+        style={style}
+        aria-label={title}
+      >
+        {children}
+      </select>
+    </div>
+  );
+}
+
+export function BoardCardMultilineTextInput({
+  value,
+  onChange,
+  onBlur,
+  onCommit,
+  disabled,
+  placeholder,
+  title,
+  style,
+  rows = 2,
+  className,
+}) {
+  return (
+    <textarea
+      className={`board-card-multiline-text${className ? ` ${className}` : ""}`.trim()}
+      rows={rows}
+      value={value}
+      onChange={onChange}
+      onBlur={onBlur}
+      onKeyDown={(event) => {
+        if (event.key !== "Enter" || event.shiftKey) return;
+        event.preventDefault();
+        onCommit?.();
+      }}
+      placeholder={placeholder}
+      title={title}
+      disabled={disabled}
+      style={style}
+    />
+  );
+}
+
+export function BoardEditableInventoryPropertyInput({
+  value,
+  suggestions,
+  disabled,
+  placeholder,
+  title,
+  onChange,
+  multiline = false,
+}) {
   const rootRef = useRef(null);
   const [isOpen, setIsOpen] = useState(false);
   const [dropdownStyle, setDropdownStyle] = useState(null);
@@ -249,31 +329,40 @@ export function BoardEditableInventoryPropertyInput({ value, suggestions, disabl
     }
   }
 
+  const sharedControlProps = {
+    value: draftValue,
+    onFocus: () => !disabled && filteredSuggestions.length && setIsOpen(true),
+    onChange: (event) => {
+      const nextValue = event.target.value;
+      setDraftValue(nextValue);
+      if (!disabled && normalizedSuggestions.length) {
+        setIsOpen(true);
+      }
+    },
+    onBlur: () => commitDraft(),
+    onKeyDown: (event) => {
+      if (event.key !== "Enter" || (multiline && event.shiftKey)) return;
+      event.preventDefault();
+      commitDraft();
+      setIsOpen(false);
+    },
+    placeholder,
+    title,
+    disabled,
+    style: {
+      width: "100%",
+      paddingRight: normalizedSuggestions.length ? "2rem" : undefined,
+    },
+    className: multiline ? "board-card-multiline-text" : undefined,
+  };
+
   return (
     <div ref={rootRef} style={{ position: "relative", minWidth: 0 }}>
-      <input
-        type="text"
-        value={draftValue}
-        onFocus={() => !disabled && filteredSuggestions.length && setIsOpen(true)}
-        onChange={(event) => {
-          const nextValue = event.target.value;
-          setDraftValue(nextValue);
-          if (!disabled && normalizedSuggestions.length) {
-            setIsOpen(true);
-          }
-        }}
-        onBlur={() => commitDraft()}
-        onKeyDown={(event) => {
-          if (event.key !== "Enter") return;
-          event.preventDefault();
-          commitDraft();
-          setIsOpen(false);
-        }}
-        placeholder={placeholder}
-        title={title}
-        disabled={disabled}
-        style={{ width: "100%", paddingRight: normalizedSuggestions.length ? "2rem" : undefined }}
-      />
+      {multiline ? (
+        <textarea rows={2} {...sharedControlProps} />
+      ) : (
+        <input type="text" {...sharedControlProps} />
+      )}
       {normalizedSuggestions.length ? (
         <button
           type="button"
@@ -285,8 +374,8 @@ export function BoardEditableInventoryPropertyInput({ value, suggestions, disabl
           style={{
             position: "absolute",
             right: "0.38rem",
-            top: "50%",
-            transform: "translateY(-50%)",
+            top: multiline ? "0.35rem" : "50%",
+            transform: multiline ? undefined : "translateY(-50%)",
             border: "none",
             background: "transparent",
             color: "#5c6f74",

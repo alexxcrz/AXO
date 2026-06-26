@@ -2130,6 +2130,9 @@ function normalizeState(state, previousState = null) {
           sharedUserIds: Array.isArray(template.sharedUserIds) ? template.sharedUserIds : [],
         }))
       : [],
+    boardComponentPresets: Array.isArray(state.boardComponentPresets)
+      ? state.boardComponentPresets.map((preset) => normalizeBoardComponentPreset(preset)).filter(Boolean)
+      : [],
     boardWeeklyCycle: normalizeBoardWeeklyCycle(state.boardWeeklyCycle),
     boardWeekHistory: Array.isArray(state.boardWeekHistory)
       ? state.boardWeekHistory.map((snapshot) => normalizeBoardHistorySnapshot(migrateBoardAreaFields(snapshot), permissions, users))
@@ -5355,15 +5358,19 @@ function normalizeKey(value) {
 }
 
 const ALLOWED_SYSTEM_BOARD_TEMPLATE_IDS = new Set([
+  "actividades-reparaciones",
   "actividades-limpieza",
   "revision-tarimas",
   "devoluciones-reacondicionado",
 ]);
 
 const ALLOWED_SYSTEM_BOARD_TEMPLATE_NAMES = new Set([
+  normalizeKey("Actividades y Reparaciones"),
   normalizeKey("Actividades de limpieza"),
   normalizeKey("Control de actividades de limpieza"),
+  normalizeKey("Activiades de Limpieza"),
   normalizeKey("Revisión de tarimas"),
+  normalizeKey("Revisión de tarimas - Fernando"),
   normalizeKey("Devoluciones / Reacondicionado por tarima"),
   normalizeKey("Devoluciones y reacondicionado"),
 ]);
@@ -5377,7 +5384,16 @@ function isAllowedPersistedBoardTemplateEntry(entry) {
 }
 
 const OFFICIAL_SYSTEM_BOARD_TEMPLATES = [
-  { id: "revision-tarimas", name: "Revisión de tarimas", aliases: [] },
+  {
+    id: "actividades-reparaciones",
+    name: "Actividades y Reparaciones",
+    aliases: [],
+  },
+  {
+    id: "revision-tarimas",
+    name: "Revisi\u00f3n de tarimas",
+    aliases: ["revisi\u00f3n de tarimas - fernando", "revision de tarimas"],
+  },
   {
     id: "actividades-limpieza",
     name: "Actividades de limpieza",
@@ -7450,6 +7466,69 @@ export function syncInventoryAutoPalletTimes(auth, options = {}) {
     state: sanitizeState(persistedState),
     changed: Boolean(changed),
     updates: Array.isArray(updates) ? updates : [],
+  };
+}
+
+function normalizeBoardComponentPreset(preset = {}, fallbackId = null) {
+  const label = String(preset?.label || "").trim();
+  if (!label) return null;
+  const id = String(preset?.id || fallbackId || makeId("bcp")).trim();
+  return {
+    id,
+    label,
+    description: String(preset?.description || preset?.helpText || label).trim(),
+    type: String(preset?.type || "text").trim() || "text",
+    groupName: String(preset?.groupName || "General").trim() || "General",
+    groupColor: String(preset?.groupColor || "#e2f4ec").trim() || "#e2f4ec",
+    optionSource: String(preset?.optionSource || "manual").trim() || "manual",
+    options: Array.isArray(preset?.options)
+      ? preset.options.map((option) => String(option || "").trim()).filter(Boolean)
+      : [],
+    optionCatalogCategory: String(preset?.optionCatalogCategory || "").trim(),
+    inventoryProperty: String(preset?.inventoryProperty || "code").trim() || "code",
+    keywords: Array.isArray(preset?.keywords)
+      ? preset.keywords.map((keyword) => String(keyword || "").trim()).filter(Boolean).slice(0, 12)
+      : [],
+    helpText: String(preset?.helpText || "").trim(),
+    placeholder: String(preset?.placeholder || "").trim(),
+    createdAt: preset?.createdAt || new Date().toISOString(),
+    createdById: preset?.createdById || null,
+  };
+}
+
+export function upsertWarehouseBoardComponentPresets(auth, incomingPresets = []) {
+  const currentUser = findWarehouseUserById(auth?.userId);
+  if (!currentUser?.isActive) return { ok: false, reason: "auth_required" };
+
+  const currentState = getRawWarehouseState();
+  if (!canUserDoWarehouseAction(currentUser, "saveTemplate", currentState.permissions)) {
+    return { ok: false, reason: "forbidden" };
+  }
+
+  const normalizedIncoming = (Array.isArray(incomingPresets) ? incomingPresets : [])
+    .map((preset) => normalizeBoardComponentPreset({ ...preset, createdById: preset?.createdById || currentUser.id }))
+    .filter(Boolean);
+  if (!normalizedIncoming.length) {
+    return { ok: false, reason: "invalid_payload" };
+  }
+
+  const existing = Array.isArray(currentState.boardComponentPresets) ? currentState.boardComponentPresets : [];
+  const byKey = new Map(existing.map((preset) => [String(preset.id || preset.label).toLowerCase(), preset]));
+  normalizedIncoming.forEach((preset) => {
+    const key = String(preset.label).toLowerCase();
+    const prior = byKey.get(key);
+    byKey.set(prior?.id || preset.id, prior ? { ...prior, ...preset, id: prior.id } : preset);
+  });
+
+  const nextState = {
+    ...currentState,
+    boardComponentPresets: Array.from(byKey.values()).slice(0, 500),
+  };
+
+  return {
+    ok: true,
+    state: replaceWarehouseState(nextState),
+    savedCount: normalizedIncoming.length,
   };
 }
 

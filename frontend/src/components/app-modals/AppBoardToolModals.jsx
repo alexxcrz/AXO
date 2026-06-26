@@ -60,6 +60,7 @@ export function AppBoardToolModals(props) {
     setEditingDraftColumnId,
     createEmptyFieldDraft,
     addDraftColumn,
+    applyHelperBoardComponents,
     boardSectionOptions,
     activityCatalogCategoryOptions,
     contextoConstructor,
@@ -179,6 +180,8 @@ export function AppBoardToolModals(props) {
       boardOperationalContextOptions={BOARD_OPERATIONAL_CONTEXT_OPTIONS}
       canSaveTemplate={actionPermissions.saveTemplate}
       canSaveBoard={actionPermissions.createBoard || actionPermissions.editBoard}
+      boardComponentPresets={state.boardComponentPresets || []}
+      onApplyHelperComponents={applyHelperBoardComponents}
     />
 
     <input
@@ -189,7 +192,7 @@ export function AppBoardToolModals(props) {
       onChange={importBoardStructureFromExcel}
     />
 
-    <BoardComponentStudioModal open={componentStudioOpen} mode={editingDraftColumnId ? "edit" : "create"} draft={controlBoardDraft} onChange={setControlBoardDraft} onClose={() => { setComponentStudioOpen(false); setEditingDraftColumnId(null); setControlBoardDraft((current) => ({ ...current, ...createEmptyFieldDraft() })); }} onConfirm={addDraftColumn} catalog={state.catalog} inventoryItems={state.inventoryItems} visibleUsers={visibleUsers} sectionOptions={boardSectionOptions} activityCategoryOptions={activityCatalogCategoryOptions} contextoConstructor={contextoConstructor} />
+    <BoardComponentStudioModal open={componentStudioOpen} mode={editingDraftColumnId ? "edit" : "create"} draft={controlBoardDraft} onChange={setControlBoardDraft} onClose={() => { setComponentStudioOpen(false); setEditingDraftColumnId(null); setControlBoardDraft((current) => ({ ...current, ...createEmptyFieldDraft() })); }} onConfirm={addDraftColumn} catalog={state.catalog} inventoryItems={state.inventoryItems} visibleUsers={visibleUsers} sectionOptions={boardSectionOptions} activityCategoryOptions={activityCatalogCategoryOptions} contextoConstructor={contextoConstructor} boardComponentPresets={state.boardComponentPresets || []} onApplyHelperComponents={applyHelperBoardComponents} />
     </Suspense>
     <Modal open={excelFormulaWizard.open} title="Asistente de fórmulas de Excel" confirmLabel="Aplicar mapeo" cancelLabel="Cerrar" onClose={() => setExcelFormulaWizard({ open: false, items: [] })} onConfirm={applyExcelFormulaWizard}>
       <div className="modal-form-grid">

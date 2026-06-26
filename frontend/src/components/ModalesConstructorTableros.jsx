@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowDown,
   ArrowUp,
@@ -14,9 +14,13 @@ import {
   Trash2,
   Users,
   GripVertical,
+  Sparkles,
+  Layers,
+  Palette,
 } from "lucide-react";
 import { Modal } from "./Modal";
 import BoardActivityFinishGateSwitch from "./BoardActivityFinishGateSwitch.jsx";
+import { BoardComponentHelperPanel } from "./BoardComponentHelperPanel.jsx";
 import { CLEANING_CARD_SLOT_DEFINITIONS, CLEANING_LAYOUT_BLOCK_TYPES } from "../utils/constantes.js";
 import {
   applyCleaningLayoutBlock,
@@ -34,6 +38,7 @@ import {
   reorderCleaningCardLayoutSlots,
   resolveBoardCardCellRole,
   resolveBoardCardLineItemHeaderMeta,
+  buildBoardCardSectionHeaderGroups,
   formatBoardOperationalDateLabel,
   shouldShowBoardCardSectionRow,
   toggleCleaningCardSlotVisibility,
@@ -42,79 +47,118 @@ import {
 } from "../utils/utilidades.jsx";
 const COMPONENT_TYPE_CATEGORIES = [
   {
+    label: "Asistente",
+    types: [],
+    isHelper: true,
+  },
+  {
     label: "Texto y contacto",
-    icon: "📝",
     types: [
-      { value: "text", emoji: "📝", label: "Texto corto" },
-      { value: "textarea", emoji: "📋", label: "Notas / Texto largo" },
-      { value: "email", emoji: "📧", label: "Correo electrónico" },
-      { value: "phone", emoji: "📞", label: "Teléfono" },
-      { value: "url", emoji: "🔗", label: "Enlace / URL" },
-      { value: "location", emoji: "📍", label: "Ubicación" },
+      { value: "text", label: "Texto corto", hint: "Folio, tarima, comentario breve" },
+      { value: "textarea", label: "Notas largas", hint: "Observaciones multilínea" },
+      { value: "email", label: "Correo electrónico", hint: "Contacto con validación" },
+      { value: "phone", label: "Teléfono", hint: "Número de contacto operativo" },
+      { value: "url", label: "Enlace / URL", hint: "Documentos o referencias web" },
+      { value: "location", label: "Ubicación", hint: "Nave, zona o dirección" },
     ],
   },
   {
     label: "Números y cálculo",
-    icon: "🔢",
     types: [
-      { value: "number", emoji: "🔢", label: "Número" },
-      { value: "currency", emoji: "💲", label: "Monto ($)" },
-      { value: "percentage", emoji: "%", label: "Porcentaje" },
-      { value: "weight", emoji: "⚖️", label: "Peso (kg)" },
-      { value: "temperature", emoji: "🌡️", label: "Temperatura" },
-      { value: "duration", emoji: "⏱️", label: "Duración (hh:mm)" },
-      { value: "formula", emoji: "🧮", label: "Fórmula / Cálculo" },
+      { value: "number", label: "Número", hint: "Piezas, cajas, conteos" },
+      { value: "currency", label: "Monto ($)", hint: "Costos, gastos o ventas" },
+      { value: "percentage", label: "Porcentaje (%)", hint: "Avance, merma o cumplimiento" },
+      { value: "weight", label: "Peso (kg)", hint: "Logística o calidad" },
+      { value: "temperature", label: "Temperatura (°C)", hint: "Cadena de frío" },
+      { value: "duration", label: "Duración", hint: "Tiempo total hh:mm" },
+      { value: "formula", label: "Fórmula", hint: "Calcula entre otros campos" },
     ],
   },
   {
     label: "Fecha y tiempo",
-    icon: "📅",
     types: [
-      { value: "date", emoji: "📅", label: "Fecha" },
-      { value: "time", emoji: "🕐", label: "Hora" },
-      { value: "timeline", emoji: "📆", label: "Rango de fechas" },
+      { value: "date", label: "Fecha", hint: "Día de la actividad o revisión" },
+      { value: "time", label: "Hora", hint: "Inicio, fin o corte" },
+      { value: "timeline", label: "Rango de fechas", hint: "Inicio y fin de un periodo" },
     ],
   },
   {
     label: "Estado y control",
-    icon: "✅",
     types: [
-      { value: "boolean", emoji: "✅", label: "Sí / No" },
-      { value: "priority", emoji: "🎯", label: "Prioridad" },
-      { value: "rating", emoji: "⭐", label: "Calificación (★)" },
-      { value: "progress", emoji: "📊", label: "Progreso" },
-      { value: "counter", emoji: "🔢", label: "Contador (+1)" },
-      { value: "score", emoji: "🏅", label: "Puntuación 1-10" },
-      { value: "color_tag", emoji: "🎨", label: "Etiqueta de color" },
+      { value: "boolean", label: "Sí / No", hint: "Confirmación rápida" },
+      { value: "priority", label: "Prioridad", hint: "Crítica, alta, media o baja" },
+      { value: "rating", label: "Calificación (★)", hint: "De 1 a 5 estrellas" },
+      { value: "progress", label: "Progreso", hint: "Barra de avance 0-100%" },
+      { value: "counter", label: "Contador (+1)", hint: "Incremento con botones" },
+      { value: "score", label: "Puntuación 1-10", hint: "Auditorías o evaluaciones" },
+      { value: "color_tag", label: "Etiqueta de color", hint: "Clasificación visual" },
     ],
   },
   {
     label: "Selección",
-    icon: "📋",
     types: [
-      { value: "select", emoji: "📋", label: "Menú desplegable" },
-      { value: "multiSelectDetail", emoji: "🧾", label: "Selección múltiple + detalle" },
-      { value: "tags", emoji: "🏷️", label: "Etiquetas múltiples" },
-      { value: "evidenceGallery", emoji: "🖼️", label: "Evidencias" },
+      { value: "select", label: "Menú desplegable", hint: "Opciones fijas o del catálogo" },
+      { value: "multiSelectDetail", label: "Multi + detalle", hint: "Causales con cantidad" },
+      { value: "tags", label: "Etiquetas múltiples", hint: "Marcadores separados por coma" },
+      { value: "evidenceGallery", label: "Evidencias", hint: "Fotos o videos en la ficha" },
     ],
   },
   {
     label: "Inventario",
-    icon: "📦",
     types: [
-      { value: "inventoryLookup", emoji: "🔍", label: "Buscador de inventario" },
-      { value: "maintenanceInventoryLookup", emoji: "🛠️", label: "Buscador de insumos de mantenimiento" },
-      { value: "inventoryLookupLogistics", emoji: "📦", label: "Buscador + empaque" },
-      { value: "inventoryProperty", emoji: "📄", label: "Dato derivado" },
+      { value: "inventoryLookup", label: "Buscador", hint: "Vincula producto del inventario" },
+      { value: "inventoryProperty", label: "Dato derivado", hint: "Lote, nombre, piezas/caja" },
+      { value: "maintenanceInventoryLookup", label: "Insumos mant.", hint: "Buscador de insumos" },
+      { value: "inventoryLookupLogistics", label: "Buscador + empaque", hint: "Piezas y cajas por tarima" },
     ],
   },
   {
-    label: "Actividades",
-    icon: "⚡",
+    label: "Operación",
     types: [
-      { value: "activityList", emoji: "⚡", label: "Lista de actividades" },
+      { value: "activityList", label: "Lista actividades", hint: "Una fila por actividad" },
     ],
   },
+];
+
+const COMPONENT_TYPE_GLYPHS = {
+  text: "Aa",
+  textarea: "¶",
+  email: "@",
+  phone: "☎",
+  url: "↗",
+  location: "⌖",
+  number: "12",
+  currency: "$",
+  percentage: "%",
+  weight: "kg",
+  temperature: "°",
+  date: "D",
+  time: "T",
+  duration: "⏱",
+  timeline: "↔",
+  boolean: "✓",
+  priority: "!",
+  rating: "★",
+  progress: "▰",
+  counter: "+",
+  score: "#",
+  color_tag: "◆",
+  select: "▾",
+  multiSelectDetail: "☑",
+  tags: "#",
+  evidenceGallery: "▣",
+  inventoryLookup: "⌕",
+  inventoryProperty: "↗",
+  maintenanceInventoryLookup: "⚙",
+  inventoryLookupLogistics: "▦",
+  formula: "ƒ",
+  activityList: "⚡",
+};
+
+const FORGE_RAIL_STEPS = [
+  { icon: Layers, title: "Tipo", subtitle: "Elige qué capturar" },
+  { icon: Pencil, title: "Identidad", subtitle: "Nombre y sección" },
+  { icon: Palette, title: "Automatizar", subtitle: "Color condicional" },
 ];
 
 function getDraftFormulaTerms(draft) {
@@ -137,6 +181,19 @@ function ensureMinimumFormulaTerms(terms) {
   return [{ fieldId: "" }, { operation: "add", fieldId: "" }];
 }
 
+function resolveComponentTypeValue(value, contextoConstructor) {
+  if (value === "inventoryLookupLogistics") return contextoConstructor.INVENTORY_LOOKUP_LOGISTICS_FIELD || "inventoryLookupLogistics";
+  if (value === "maintenanceInventoryLookup") return contextoConstructor.MAINTENANCE_INVENTORY_LOOKUP_FIELD || "maintenanceInventoryLookup";
+  if (value === "activityList") return contextoConstructor.BOARD_ACTIVITY_LIST_FIELD || "activityList";
+  return value;
+}
+
+function findComponentTypeMeta(typeValue, contextoConstructor) {
+  return COMPONENT_TYPE_CATEGORIES
+    .flatMap((category) => category.types)
+    .find((type) => resolveComponentTypeValue(type.value, contextoConstructor) === typeValue) || null;
+}
+
 function getFormulaOperationSymbol(operation) {
   return { add: "+", subtract: "−", multiply: "×", divide: "÷", average: "prom", min: "mín", max: "máx", percent: "%" }[operation] || operation;
 }
@@ -148,17 +205,17 @@ export function BoardComponentStudioModal({
   onChange,
   onClose,
   onConfirm,
-  catalog,
-  inventoryItems,
-  visibleUsers,
+  catalog: _catalog,
+  inventoryItems: _inventoryItems,
+  visibleUsers: _visibleUsers,
   sectionOptions,
   activityCategoryOptions,
   contextoConstructor,
+  boardComponentPresets = [],
+  onApplyHelperComponents,
 }) {
   const {
     BOARD_ACTIVITY_LIST_FIELD,
-    BOARD_FIELD_TYPES,
-    BOARD_FIELD_WIDTHS,
     COLOR_RULE_OPERATORS,
     FORMULA_OPERATIONS,
     INVENTORY_LOOKUP_LOGISTICS_FIELD,
@@ -168,13 +225,13 @@ export function BoardComponentStudioModal({
   } = contextoConstructor;
 
   const studioSteps = [
-    { title: "Tipo", subtitle: "Qué componente necesitas" },
-    { title: "Base", subtitle: "Nombre y estructura" },
-    { title: "Reglas", subtitle: "Automatización y color" },
+    { title: "Tipo", subtitle: "Qué vas a capturar" },
+    { title: "Configurar", subtitle: "Nombre y reglas mínimas" },
+    { title: "Automatización", subtitle: "Color y condiciones" },
   ];
   const [currentStep, setCurrentStep] = useState(0);
   const selectedType = draft.fieldType;
-  const selectedTypeOption = BOARD_FIELD_TYPES.find((type) => type.value === selectedType);
+  const selectedTypeMeta = findComponentTypeMeta(selectedType, contextoConstructor);
   const normalizedActivityCategoryOptions = Array.from(new Set((activityCategoryOptions || []).map((option) => String(option || "").trim()).filter(Boolean)));
   const trimmedActivityCategory = String(draft.optionCatalogCategory || "").trim();
   const matchedActivityCategory = normalizedActivityCategoryOptions.find((option) => option.toLowerCase() === trimmedActivityCategory.toLowerCase()) || "";
@@ -217,22 +274,31 @@ export function BoardComponentStudioModal({
   const colorValueUsesBooleanSelect = selectedType === "boolean" && ["equals", "notEquals"].includes(draft.colorOperator);
   const [feedback, setFeedback] = useState({ type: "", message: "" });
   const [manualOptionInput, setManualOptionInput] = useState("");
+  const [activeCategoryIndex, setActiveCategoryIndex] = useState(0);
 
   useEffect(() => {
     if (open) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setCurrentStep(0);
+      setActiveCategoryIndex(0);
       setFeedback({ type: "", message: "" });
       setManualOptionInput("");
     }
   }, [open, mode]);
+
+  useEffect(() => {
+    if (!feedback.message) return undefined;
+    const timer = window.setTimeout(() => {
+      setFeedback({ type: "", message: "" });
+    }, 4000);
+    return () => window.clearTimeout(timer);
+  }, [feedback.message, feedback.type]);
 
   const isLastStep = currentStep === studioSteps.length - 1;
   const inventorySourceFields = (draft.columns || []).filter((column) => ["inventoryLookup", "maintenanceInventoryLookup", INVENTORY_LOOKUP_LOGISTICS_FIELD].includes(column.type));
   const resolvedInventorySourceFieldId = inventorySourceFields.some((column) => column.id === draft.sourceFieldId)
     ? draft.sourceFieldId
     : inventorySourceFields[inventorySourceFields.length - 1]?.id || "";
-  const selectedInventorySourceField = inventorySourceFields.find((column) => column.id === resolvedInventorySourceFieldId) || null;
 
   useEffect(() => {
     if (!open || selectedType !== "inventoryProperty") return;
@@ -340,12 +406,21 @@ export function BoardComponentStudioModal({
   }
 
   function handleStepConfirm() {
-    if (!isLastStep) {
-      setCurrentStep((step) => Math.min(step + 1, studioSteps.length - 1));
+    if (currentStep === 0) {
+      if (!selectedType) {
+        setFeedback({ type: "error", message: "Elige un tipo de componente para continuar." });
+        return;
+      }
+      setCurrentStep(1);
       setFeedback({ type: "", message: "" });
       return;
     }
-    if (!validateField()) return;
+    if (currentStep === 1) {
+      if (!validateField()) return;
+      setCurrentStep(2);
+      setFeedback({ type: "", message: "" });
+      return;
+    }
     onConfirm();
   }
 
@@ -368,390 +443,465 @@ export function BoardComponentStudioModal({
     colorValueHelp = "Esta condición se activa sola; no necesitas capturar un valor adicional.";
   }
 
+  const headerHint = currentStep === 0
+    ? "Selecciona una familia y el tipo de dato que verás en cada fila de la ficha."
+    : currentStep === 1
+      ? "Define cómo se verá el encabezado y el nombre del campo."
+      : "Opcional: colorea la celda cuando se cumpla una condición.";
+
+  function goToForgeStep(index) {
+    if (index === 0) {
+      setCurrentStep(0);
+      setFeedback({ type: "", message: "" });
+      return;
+    }
+    if (index === 1 && selectedType) {
+      setCurrentStep(1);
+      setFeedback({ type: "", message: "" });
+      return;
+    }
+    if (index === 2 && selectedType && validateField()) {
+      setCurrentStep(2);
+      setFeedback({ type: "", message: "" });
+    }
+  }
+
+  const activeCategory = COMPONENT_TYPE_CATEGORIES[activeCategoryIndex] || COMPONENT_TYPE_CATEGORIES[0];
+  const isHelperCategory = Boolean(activeCategory?.isHelper);
+  const activeCategoryTypes = (activeCategory?.types || []).map((type) => ({
+    ...type,
+    actualValue: resolveComponentTypeValue(type.value, contextoConstructor),
+    glyph: COMPONENT_TYPE_GLYPHS[type.value] || "•",
+  }));
+  const previewFieldLabel = draft.fieldLabel.trim() || "Nombre del campo";
+  const previewSectionLabel = draft.groupName || "General";
+  const colorOperatorLabel = COLOR_RULE_OPERATORS.find((operator) => operator.value === draft.colorOperator)?.label || draft.colorOperator;
+
   return (
     <Modal
       open={open}
-      className="component-studio-modal"
-      title={mode === "edit" ? "Editar componente" : "Studio de Componentes"}
-      confirmLabel={isLastStep ? (mode === "edit" ? "Guardar cambios" : "Agregar componente") : "Siguiente"}
+      className="component-studio-modal component-studio-modal-forge"
+      backdropClassName="component-studio-backdrop-forge"
+      title={mode === "edit" ? "Editar componente" : "Nuevo componente"}
+      confirmLabel={isLastStep ? (mode === "edit" ? "Guardar cambios" : "Agregar a la ficha") : "Continuar"}
       cancelLabel="Cerrar"
       onClose={onClose}
       onConfirm={handleStepConfirm}
       footerActions={currentStep > 0 ? (
         <>
-          <div className="component-studio-footer-progress">Paso {currentStep + 1} de {studioSteps.length}</div>
-          <button type="button" className="sicfla-button ghost" onClick={() => setCurrentStep((step) => Math.max(step - 1, 0))}>Anterior</button>
+          <div className="cs-forge-footer-meta">
+            <span className="cs-forge-footer-step">Paso {currentStep + 1} / {studioSteps.length}</span>
+            <strong>{studioSteps[currentStep]?.title}</strong>
+          </div>
+          <button type="button" className="sicfla-button ghost cs-forge-back-btn" onClick={() => setCurrentStep((step) => Math.max(step - 1, 0))}>Anterior</button>
         </>
-      ) : <div className="component-studio-footer-progress">Paso 1 de {studioSteps.length}</div>}
+      ) : (
+        <div className="cs-forge-footer-meta">
+          <span className="cs-forge-footer-step">Paso 1 / {studioSteps.length}</span>
+          <strong>Elige el tipo de componente</strong>
+        </div>
+      )}
     >
-      <div className="component-studio-shell">
-        {feedback.message ? (
-          <div className={`feedback-banner feedback-${feedback.type}`}>
-            <strong>{feedback.type === "error" ? "Atención" : "Confirmado"}</strong>
-            <p>{feedback.message}</p>
+      <div className="cs-forge">
+        <header className="cs-forge-hero">
+          <div className="cs-forge-hero-copy">
+            <span className="cs-forge-eyebrow">{mode === "edit" ? "Edición en vivo" : "Constructor de fichas"}</span>
+            <h2>{mode === "edit" ? "Editar componente" : "Nuevo componente"}</h2>
+            <p>{headerHint}</p>
           </div>
-        ) : null}
-        <div className="component-studio-intro">
-          <span className="chip primary">{mode === "edit" ? "Edición guiada" : "Diseño guiado"}</span>
-          <p>{mode === "edit" ? "Actualiza este componente sin perder orden ni claridad en el tablero." : "Ahora el alta va por pasos para que primero elijas qué necesitas y después configures solo lo importante."}</p>
-          <div className="saved-board-list">
-            <span className="chip">Catálogo: {catalog.filter((item) => !item.isDeleted).length}</span>
-            <span className="chip">Inventario: {(inventoryItems || []).length}</span>
-            <span className="chip">Players: {visibleUsers.filter((item) => item.isActive).length}</span>
+          <div className="cs-forge-hero-badge" aria-hidden="true">
+            <Sparkles size={18} />
           </div>
-        </div>
+        </header>
 
-        <div className="component-studio-stepper">
-          {studioSteps.map((step, index) => (
-            <button key={step.title} type="button" className={index === currentStep ? "component-studio-step active" : index < currentStep ? "component-studio-step complete" : "component-studio-step"} onClick={() => setCurrentStep(index)}>
-              <span className="component-studio-step-number">{index + 1}</span>
-              <span>
-                <strong>{step.title}</strong>
-                <small>{step.subtitle}</small>
-              </span>
-            </button>
-          ))}
-        </div>
-
-        {currentStep === 0 ? (
-          <>
-            <section className="component-studio-type-picker">
-              {COMPONENT_TYPE_CATEGORIES.map((category) => {
-                // Resolve actual values accounting for special names
-                const categoryTypes = category.types.map((t) => {
-                  let actualValue = t.value;
-                  if (t.value === "inventoryLookupLogistics") actualValue = contextoConstructor.INVENTORY_LOOKUP_LOGISTICS_FIELD || "inventoryLookupLogistics";
-                  if (t.value === "maintenanceInventoryLookup") actualValue = contextoConstructor.MAINTENANCE_INVENTORY_LOOKUP_FIELD || "maintenanceInventoryLookup";
-                  if (t.value === "activityList") actualValue = contextoConstructor.BOARD_ACTIVITY_LIST_FIELD || "activityList";
-                  return { ...t, actualValue };
-                });
-                return (
-                  <div key={category.label} className="ctp-category">
-                    <div className="ctp-category-head">
-                      <span className="ctp-category-icon">{category.icon}</span>
-                      <span className="ctp-category-label">{category.label}</span>
-                    </div>
-                    <div className="ctp-type-row">
-                      {categoryTypes.map((t) => {
-                        const isActive = draft.fieldType === t.actualValue;
-                        const isDisabled = t.actualValue === contextoConstructor.INVENTORY_LOOKUP_LOGISTICS_FIELD;
-                        return (
-                          <button
-                            key={`${t.value}-${t.actualValue}`}
-                            type="button"
-                            className={["ctp-type-chip", isActive ? "active" : "", isDisabled ? "hidden" : ""].filter(Boolean).join(" ")}
-                            onClick={() => !isDisabled && handleTypeSelection(t.actualValue)}
-                          >
-                            <span className="ctp-type-emoji">{t.emoji}</span>
-                            <span className="ctp-type-name">{t.label}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              })}
-            </section>
-
-            {selectedTypeOption ? (
-              <div className="ctp-selection-preview">
-                <strong>{selectedTypeOption.label}</strong>
-                <p>{selectedTypeUsage}</p>
-                {autoGeneratedFieldLabels.length ? (
-                  <div className="saved-board-list" style={{ marginTop: "0.4rem" }}>
-                    {autoGeneratedFieldLabels.map((label) => <span key={label} className="chip">{label}</span>)}
-                  </div>
-                ) : null}
-              </div>
-            ) : null}
-          </>
-        ) : null}
-
-        {currentStep === 1 ? (
-          <section className="component-studio-section three-columns">
-            <div className="component-studio-section-head component-studio-field-span-full">
-              <div>
-                <h4>2. Datos base</h4>
-                <p>Define el nombre, la sección y la ayuda visual del componente.</p>
-              </div>
+        <div className="cs-forge-layout">
+          {feedback.message ? (
+            <div className={`cs-forge-alert cs-forge-alert--toast cs-forge-alert--${feedback.type}`} role="alert">
+              <strong>{feedback.type === "error" ? "Revisa esto" : "Listo"}</strong>
+              <p>{feedback.message}</p>
             </div>
-            <label className="app-modal-field">
-              <span>Sección<span className="required-mark" aria-hidden="true"> *</span></span>
-              <select value={draft.groupName} onChange={(event) => onChange((current) => ({ ...current, groupName: event.target.value }))}>
-                {(sectionOptions || ["General"]).map((option) => <option key={option} value={option}>{option}</option>)}
-              </select>
-              <small className="builder-help-text">Agrupa componentes relacionados para mantener el tablero ordenado.</small>
-            </label>
-            <label className="app-modal-field component-studio-color-field">
-              <span>Color de sección</span>
-              <input type="color" value={draft.groupColor} onChange={(event) => onChange((current) => ({ ...current, groupColor: event.target.value }))} />
-            </label>
-            <label className="app-modal-field">
-              <span>Nombre visible<span className="required-mark" aria-hidden="true"> *</span></span>
-              <input value={draft.fieldLabel} onChange={(event) => onChange((current) => ({ ...current, fieldLabel: event.target.value }))} placeholder="Ej: SKU, Piezas surtidas, Fecha de corte" />
-              <small className="builder-help-text">Es el nombre que verá el equipo en la cabecera del tablero.</small>
-            </label>
-            <label className="app-modal-field">
-              <span>Ayuda corta</span>
-              <input value={draft.fieldHelp} onChange={(event) => onChange((current) => ({ ...current, fieldHelp: event.target.value }))} placeholder="Ej: Selecciona el producto para autollenar datos" />
-            </label>
-            <label className="app-modal-field">
-              <span>Placeholder</span>
-              <input value={draft.placeholder} onChange={(event) => onChange((current) => ({ ...current, placeholder: event.target.value }))} placeholder="Ej: Escribe el folio o el comentario" />
-            </label>
-            <label className="app-modal-field">
-              <span>Valor inicial</span>
-              <input value={draft.defaultValue} onChange={(event) => onChange((current) => ({ ...current, defaultValue: event.target.value }))} placeholder="Ej: Pendiente, 0, No o una fecha" />
-              <small className="builder-help-text">Se coloca automáticamente cuando se crea una fila nueva.</small>
-            </label>
-            <label className="app-modal-field component-studio-field-compact">
-              <span>Ancho<span className="required-mark" aria-hidden="true"> *</span></span>
-              <select value={draft.fieldWidth} onChange={(event) => onChange((current) => ({ ...current, fieldWidth: event.target.value }))}>
-                {BOARD_FIELD_WIDTHS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-              </select>
-            </label>
-            <label className="app-modal-field component-studio-field-compact">
-              <span>Campo obligatorio</span>
-              <select value={draft.isRequired} onChange={(event) => onChange((current) => ({ ...current, isRequired: event.target.value }))}>
-                <option value="false">No</option>
-                <option value="true">Sí</option>
-              </select>
-            </label>
-            <label className="app-modal-field component-studio-manual-width-field">
-              <span>Ancho manual (px)</span>
-              <input
-                type="range"
-                min="90"
-                max="520"
-                step="10"
-                value={draft.fieldWidthPx || "180"}
-                onChange={(event) => onChange((current) => ({ ...current, fieldWidthPx: event.target.value }))}
-              />
-              <small className="builder-help-text">{draft.fieldWidthPx || "180"} px</small>
-            </label>
-          </section>
-        ) : null}
+          ) : null}
 
-        {currentStep === 2 ? (
-          <div className="component-studio-logic-stack">
-            {isInventoryBundleType ? (
-              <section className="component-studio-section component-studio-spotlight">
-                <div>
-                  <span className="chip primary">Bundle automático</span>
-                  <strong>Buscador con empaque editable</strong>
-                  <p>Al guardar, este componente crea el buscador principal y dos columnas numéricas editables para piezas por caja y cajas por tarima.</p>
-                </div>
-                <div className="saved-board-list">
-                  <span className="chip">Buscador de inventario</span>
-                  <span className="chip">Piezas por caja</span>
-                  <span className="chip">Cajas por tarima</span>
-                </div>
-              </section>
-            ) : null}
+          <div className="cs-forge-layout-inner">
+          <nav className="cs-forge-rail" aria-label="Pasos del asistente">
+            {FORGE_RAIL_STEPS.map((step, index) => {
+              const StepIcon = step.icon;
+              return (
+                <button
+                  key={step.title}
+                  type="button"
+                  className={[
+                    "cs-forge-rail-item",
+                    index === currentStep ? "is-active" : "",
+                    index < currentStep ? "is-done" : "",
+                  ].filter(Boolean).join(" ")}
+                  onClick={() => goToForgeStep(index)}
+                >
+                  <span className="cs-forge-rail-icon"><StepIcon size={16} strokeWidth={2.2} /></span>
+                  <span className="cs-forge-rail-copy">
+                    <strong>{step.title}</strong>
+                    <small>{step.subtitle}</small>
+                  </span>
+                  {index < currentStep ? <Check size={14} className="cs-forge-rail-check" /> : null}
+                </button>
+              );
+            })}
+          </nav>
 
-            {showActivityListSelector ? (
-              <section className="component-studio-section three-columns component-studio-short-grid">
-                <label className="app-modal-field">
-                  <span>Lista de actividades<span className="required-mark" aria-hidden="true"> *</span></span>
-                  <select value={activityCategorySelectionValue} onChange={(event) => handleActivityCategorySelection(event.target.value)}>
-                    <option value="">Seleccionar lista...</option>
-                    {normalizedActivityCategoryOptions.map((option) => <option key={option} value={option}>{option}</option>)}
-                    <option value="__custom__">Crear nueva lista...</option>
-                  </select>
-                  <small className="builder-help-text">Selecciona una lista existente o crea aquí mismo el nombre de una nueva para este tablero.</small>
-                </label>
-                {showCustomActivityCategoryInput ? (
-                  <label className="app-modal-field">
-                    <span>Nueva lista<span className="required-mark" aria-hidden="true"> *</span></span>
-                    <input value={draft.optionCatalogCategory} onChange={(event) => onChange((current) => ({ ...current, optionCatalogCategory: event.target.value }))} placeholder="Ej: Arranque de turno" />
-                    <small className="builder-help-text">Si aún no tiene actividades, podrás usar este mismo nombre después en el catálogo.</small>
-                  </label>
-                ) : <div className="component-rule-hint compact-surface-card"><strong>Tablero precargado</strong><p>Cada actividad de la lista elegida se convertirá en una fila del tablero.</p></div>}
-                <div className="component-rule-hint compact-surface-card"><strong>No es un desplegable</strong><p>Si necesitas un menú dentro de cada fila, usa el tipo Menú desplegable.</p></div>
-              </section>
-            ) : null}
-
-            {showOptionSource ? (
-              <section className="component-studio-section three-columns component-studio-short-grid">
-                <label className="app-modal-field">
-                  <span>Origen de datos<span className="required-mark" aria-hidden="true"> *</span></span>
-                  <select value={draft.optionSource} onChange={(event) => onChange((current) => ({ ...current, optionSource: event.target.value }))}>
-                    {OPTION_SOURCE_TYPES.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-                  </select>
-                  <small className="builder-help-text">Define si el menú tomará sus opciones de forma manual, desde players, inventario o catálogo.</small>
-                </label>
-                {showManualOptions ? (
-                  <div className="app-modal-field">
-                    <span>Opciones manuales</span>
-                    <div className="saved-board-list" style={{ gap: "0.45rem", alignItems: "center" }}>
-                      <input
-                        value={manualOptionInput}
-                        onChange={(event) => setManualOptionInput(event.target.value)}
-                        onKeyDown={(event) => {
-                          if (event.key !== "Enter") return;
-                          event.preventDefault();
-                          handleAddManualOption();
-                        }}
-                        placeholder="Ej: Estación 1"
-                      />
-                      <button type="button" className="icon-button" onClick={handleAddManualOption}>
-                        <Plus size={14} /> Agregar opción
+          <div className={`cs-forge-stage ${currentStep > 0 ? "cs-forge-stage--split" : ""}`}>
+            <div className="cs-forge-workspace">
+              {currentStep === 0 ? (
+                <div className="cs-forge-type-stage">
+                  <div className="cs-forge-category-tabs" role="tablist" aria-label="Familias de componente">
+                    {COMPONENT_TYPE_CATEGORIES.map((category, index) => (
+                      <button
+                        key={category.label}
+                        type="button"
+                        role="tab"
+                        aria-selected={index === activeCategoryIndex}
+                        className={index === activeCategoryIndex ? "cs-forge-category-tab is-active" : "cs-forge-category-tab"}
+                        onClick={() => setActiveCategoryIndex(index)}
+                      >
+                        {category.label}
                       </button>
+                    ))}
+                  </div>
+
+                  {isHelperCategory ? (
+                    <div className="cs-forge-helper-wrap">
+                      <BoardComponentHelperPanel
+                        savedPresets={boardComponentPresets}
+                        onApply={onApplyHelperComponents}
+                        onAddManualComponent={() => setActiveCategoryIndex(1)}
+                      />
                     </div>
-                    {manualOptions.length ? (
-                      <div className="saved-board-list" style={{ marginTop: "0.45rem", gap: "0.35rem" }}>
-                        {manualOptions.map((option, index) => (
-                          <span key={`${option}-${index}`} className="chip">
-                            {option}
-                            <button
-                              type="button"
-                              className="icon-button"
-                              style={{ marginLeft: "0.35rem", minHeight: "1.2rem", padding: "0.05rem 0.3rem", fontSize: "0.72rem" }}
-                              onClick={() => handleRemoveManualOption(index)}
-                              aria-label={`Quitar opción ${option}`}
-                              title={`Quitar opción ${option}`}
-                            >
-                              x
-                            </button>
-                          </span>
-                        ))}
+                  ) : (
+                  <>
+                  <div className="cs-forge-type-mosaic">
+                    {activeCategoryTypes.map((type) => {
+                      const isActive = draft.fieldType === type.actualValue;
+                      const isDisabled = type.actualValue === INVENTORY_LOOKUP_LOGISTICS_FIELD;
+                      return (
+                        <button
+                          key={`${type.value}-${type.actualValue}`}
+                          type="button"
+                          className={["cs-forge-type-tile", isActive ? "is-active" : "", isDisabled ? "is-hidden" : ""].filter(Boolean).join(" ")}
+                          onClick={() => !isDisabled && handleTypeSelection(type.actualValue)}
+                        >
+                          <span className="cs-forge-type-glyph">{type.glyph}</span>
+                          <strong>{type.label}</strong>
+                          <span>{type.hint}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {selectedTypeMeta ? (
+                    <div className="cs-forge-type-spotlight">
+                      <div>
+                        <span className="cs-forge-type-spotlight-kicker">Seleccionado</span>
+                        <strong>{selectedTypeMeta.label}</strong>
+                        <p>{selectedTypeUsage}</p>
                       </div>
-                    ) : null}
-                    <small className="builder-help-text">Agrega cada opción con el botón y aparecerá en el desplegable real.</small>
-                  </div>
-                ) : <div className="component-rule-hint compact-surface-card"><strong>Origen conectado</strong><p>Las opciones del menú se llenarán automáticamente desde {OPTION_SOURCE_TYPES.find((option) => option.value === draft.optionSource)?.label || "otra fuente"}.</p></div>}
-                <div className="component-rule-hint compact-surface-card"><strong>Desplegable real</strong><p>Este componente sí muestra un menú dentro de cada fila del tablero.</p></div>
-              </section>
-            ) : null}
-
-            {showInventoryProperty ? (
-              inventorySourceFields.length ? (
-                <section className="component-studio-section three-columns component-studio-short-grid">
-                  <label className="app-modal-field">
-                    <span>Campo origen</span>
-                    <select value={resolvedInventorySourceFieldId} onChange={(event) => onChange((current) => ({ ...current, sourceFieldId: event.target.value }))}>
-                      {inventorySourceFields.map((column) => <option key={column.id} value={column.id}>{formatInventorySourceFieldLabel(column)}</option>)}
-                    </select>
-                    <small className="builder-help-text">Elige el buscador de inventario del que se tomará la información.</small>
-                  </label>
-                  <label className="app-modal-field">
-                    <span>Dato de inventario</span>
-                    <select value={draft.inventoryProperty} onChange={(event) => onChange((current) => ({ ...current, inventoryProperty: event.target.value }))}>
-                      {INVENTORY_PROPERTIES.map((property) => <option key={property.value} value={property.value}>{property.label}</option>)}
-                    </select>
-                    <small className="builder-help-text">Trae automáticamente código, nombre, presentación o conversiones.</small>
-                  </label>
-                  <div className="component-rule-hint compact-surface-card">
-                    <strong>Enlace automático</strong>
-                    <p>{selectedInventorySourceField ? `Quedará ligado a ${formatInventorySourceFieldLabel(selectedInventorySourceField)} y puedes cambiarlo aquí cuando lo necesites.` : "Se ligará en automático al último buscador de inventario disponible."}</p>
-                  </div>
-                </section>
-              ) : (
-                <section className="component-studio-section component-studio-empty">
-                  <strong>Falta un buscador de inventario</strong>
-                  <p>Primero agrega un componente Buscador de inventario y después crea el dato derivado para que siempre tenga una fuente válida.</p>
-                </section>
-              )
-            ) : null}
-
-            {showFormulaFields ? (
-              <section className="component-studio-section">
-                <div className="component-rule-hint compact-surface-card" style={{ marginBottom: "0.55rem" }}>
-                  <strong>Fórmula compuesta</strong>
-                  <p>Combina varios campos en secuencia. Ejemplo: Cajas + Bono - Descuento o Piezas × Cajas × Tarimas.</p>
+                      {autoGeneratedFieldLabels.length ? (
+                        <div className="cs-forge-chip-row">
+                          {autoGeneratedFieldLabels.map((label) => <span key={label} className="cs-forge-chip">{label}</span>)}
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : (
+                    <div className="cs-forge-type-empty">
+                      <Layers size={20} />
+                      <p>Elige un bloque para continuar al siguiente paso.</p>
+                    </div>
+                  )}
+                  </>
+                  )}
                 </div>
-                <div className="formula-composer-grid" style={{ display: "grid", gap: "0.6rem" }}>
-                  {formulaTerms.map((term, index) => (
-                    <div key={`formula-term-${index}`} className="formula-composer-row" style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: "0.55rem", alignItems: "end" }}>
-                      {index > 0 ? (
-                        <label className="app-modal-field">
-                          <span>Operación</span>
-                          <select value={term.operation || "add"} onChange={(event) => updateFormulaTerms(formulaTerms.map((currentTerm, currentIndex) => currentIndex === index ? { ...currentTerm, operation: event.target.value } : currentTerm))}>
-                            {FORMULA_OPERATIONS.map((operation) => <option key={operation.value} value={operation.value}>{operation.label}</option>)}
+              ) : null}
+
+              {currentStep === 1 ? (
+                <div className="cs-forge-form-stage">
+                  <div className="cs-forge-form-stack">
+                    <article className="cs-forge-field-card">
+                      <div className="cs-forge-field-card-head">
+                        <span className="cs-forge-field-card-icon">§</span>
+                        <div>
+                          <strong>Sección<span className="required-mark" aria-hidden="true"> *</span></strong>
+                          <small>Bloque de encabezado en la ficha</small>
+                        </div>
+                      </div>
+                      <select value={draft.groupName} onChange={(event) => onChange((current) => ({ ...current, groupName: event.target.value }))}>
+                        {(sectionOptions || ["General"]).map((option) => <option key={option} value={option}>{option}</option>)}
+                      </select>
+                    </article>
+
+                    <article className="cs-forge-field-card cs-forge-field-card--color">
+                      <div className="cs-forge-field-card-head">
+                        <span className="cs-forge-field-card-icon cs-forge-color-swatch" style={{ background: draft.groupColor }} aria-hidden="true" />
+                        <div>
+                          <strong>Color de sección</strong>
+                          <small>Tono del encabezado agrupador</small>
+                        </div>
+                      </div>
+                      <input type="color" value={draft.groupColor} onChange={(event) => onChange((current) => ({ ...current, groupColor: event.target.value }))} />
+                    </article>
+
+                    <article className="cs-forge-field-card">
+                      <div className="cs-forge-field-card-head">
+                        <span className="cs-forge-field-card-icon">Aa</span>
+                        <div>
+                          <strong>Nombre visible<span className="required-mark" aria-hidden="true"> *</span></strong>
+                          <small>Etiqueta que verá el equipo</small>
+                        </div>
+                      </div>
+                      <input value={draft.fieldLabel} onChange={(event) => onChange((current) => ({ ...current, fieldLabel: event.target.value }))} placeholder="Ej: SKU, Piezas surtidas, Fecha de corte" />
+                    </article>
+                  </div>
+
+                  {isInventoryBundleType ? (
+                    <article className="cs-forge-panel cs-forge-panel--accent">
+                      <strong>Buscador con empaque</strong>
+                      <p>Se crearán tres columnas: buscador, piezas por caja y cajas por tarima.</p>
+                      <div className="cs-forge-chip-row">
+                        <span className="cs-forge-chip">Buscador</span>
+                        <span className="cs-forge-chip">Piezas por caja</span>
+                        <span className="cs-forge-chip">Cajas por tarima</span>
+                      </div>
+                    </article>
+                  ) : null}
+
+                  {showActivityListSelector ? (
+                    <article className="cs-forge-panel">
+                      <h4>Lista de actividades</h4>
+                      <div className="cs-forge-panel-grid">
+                        <label className="cs-forge-control">
+                          <span>Lista<span className="required-mark" aria-hidden="true"> *</span></span>
+                          <select value={activityCategorySelectionValue} onChange={(event) => handleActivityCategorySelection(event.target.value)}>
+                            <option value="">Seleccionar lista...</option>
+                            {normalizedActivityCategoryOptions.map((option) => <option key={option} value={option}>{option}</option>)}
+                            <option value="__custom__">Crear nueva lista...</option>
                           </select>
                         </label>
-                      ) : <div />}
-                      <label className="app-modal-field">
-                        <span>{index === 0 ? "Valor base" : `Campo ${getFormulaOperationSymbol(term.operation || "add")}`}<span className="required-mark" aria-hidden="true"> *</span></span>
-                        <select value={term.fieldId || ""} onChange={(event) => updateFormulaTerms(formulaTerms.map((currentTerm, currentIndex) => currentIndex === index ? { ...currentTerm, fieldId: event.target.value } : currentTerm))}>
-                          <option value="">Seleccionar...</option>
-                          {draft.columns.map((column) => <option key={column.id} value={column.id}>{column.label}</option>)}
-                        </select>
-                      </label>
-                      <div className="row-actions compact formula-composer-row-actions">
-                        <button
-                          type="button"
-                          className="icon-button formula-composer-remove-button"
-                          onClick={() => updateFormulaTerms(formulaTerms.filter((_, currentIndex) => currentIndex !== index))}
-                          disabled={formulaTerms.length <= 2}
-                          title={formulaTerms.length <= 2 ? "La fórmula necesita al menos 2 términos" : "Quitar término"}
-                        >
-                          <Trash2 size={14} /> Quitar
-                        </button>
+                        {showCustomActivityCategoryInput ? (
+                          <label className="cs-forge-control">
+                            <span>Nueva lista<span className="required-mark" aria-hidden="true"> *</span></span>
+                            <input value={draft.optionCatalogCategory} onChange={(event) => onChange((current) => ({ ...current, optionCatalogCategory: event.target.value }))} placeholder="Ej: Arranque de turno" />
+                          </label>
+                        ) : null}
+                      </div>
+                    </article>
+                  ) : null}
+
+                  {showOptionSource ? (
+                    <article className="cs-forge-panel">
+                      <h4>Opciones del menú</h4>
+                      <div className="cs-forge-panel-grid">
+                        <label className="cs-forge-control">
+                          <span>Origen<span className="required-mark" aria-hidden="true"> *</span></span>
+                          <select value={draft.optionSource} onChange={(event) => onChange((current) => ({ ...current, optionSource: event.target.value }))}>
+                            {OPTION_SOURCE_TYPES.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                          </select>
+                        </label>
+                        {showManualOptions ? (
+                          <div className="cs-forge-control cs-forge-control--wide">
+                            <span>Opciones manuales</span>
+                            <div className="cs-forge-inline-add">
+                              <input
+                                value={manualOptionInput}
+                                onChange={(event) => setManualOptionInput(event.target.value)}
+                                onKeyDown={(event) => {
+                                  if (event.key !== "Enter") return;
+                                  event.preventDefault();
+                                  handleAddManualOption();
+                                }}
+                                placeholder="Ej: Estación 1"
+                              />
+                              <button type="button" className="cs-forge-mini-btn" onClick={handleAddManualOption}>
+                                <Plus size={14} /> Agregar
+                              </button>
+                            </div>
+                            {manualOptions.length ? (
+                              <div className="cs-forge-chip-row">
+                                {manualOptions.map((option, index) => (
+                                  <span key={`${option}-${index}`} className="cs-forge-chip">
+                                    {option}
+                                    <button type="button" className="cs-forge-chip-remove" onClick={() => handleRemoveManualOption(index)} aria-label={`Quitar ${option}`}>×</button>
+                                  </span>
+                                ))}
+                              </div>
+                            ) : null}
+                          </div>
+                        ) : null}
+                      </div>
+                    </article>
+                  ) : null}
+
+                  {showInventoryProperty ? (
+                    inventorySourceFields.length ? (
+                      <article className="cs-forge-panel">
+                        <h4>Dato del inventario</h4>
+                        <div className="cs-forge-panel-grid">
+                          <label className="cs-forge-control">
+                            <span>Campo origen</span>
+                            <select value={resolvedInventorySourceFieldId} onChange={(event) => onChange((current) => ({ ...current, sourceFieldId: event.target.value }))}>
+                              {inventorySourceFields.map((column) => <option key={column.id} value={column.id}>{formatInventorySourceFieldLabel(column)}</option>)}
+                            </select>
+                          </label>
+                          <label className="cs-forge-control">
+                            <span>Dato a traer</span>
+                            <select value={draft.inventoryProperty} onChange={(event) => onChange((current) => ({ ...current, inventoryProperty: event.target.value }))}>
+                              {INVENTORY_PROPERTIES.map((property) => <option key={property.value} value={property.value}>{property.label}</option>)}
+                            </select>
+                          </label>
+                        </div>
+                      </article>
+                    ) : (
+                      <article className="cs-forge-panel cs-forge-panel--warn">
+                        <strong>Falta un buscador de inventario</strong>
+                        <p>Agrega primero un buscador y después crea el dato derivado.</p>
+                      </article>
+                    )
+                  ) : null}
+
+                  {showFormulaFields ? (
+                    <article className="cs-forge-panel">
+                      <h4>Fórmula</h4>
+                      <div className="cs-forge-formula-list">
+                        {formulaTerms.map((term, index) => (
+                          <div key={`formula-term-${index}`} className="cs-forge-formula-row">
+                            {index > 0 ? (
+                              <label className="cs-forge-control">
+                                <span>Operación</span>
+                                <select value={term.operation || "add"} onChange={(event) => updateFormulaTerms(formulaTerms.map((currentTerm, currentIndex) => currentIndex === index ? { ...currentTerm, operation: event.target.value } : currentTerm))}>
+                                  {FORMULA_OPERATIONS.map((operation) => <option key={operation.value} value={operation.value}>{operation.label}</option>)}
+                                </select>
+                              </label>
+                            ) : null}
+                            <label className="cs-forge-control">
+                              <span>{index === 0 ? "Valor base" : `Campo ${getFormulaOperationSymbol(term.operation || "add")}`}<span className="required-mark" aria-hidden="true"> *</span></span>
+                              <select value={term.fieldId || ""} onChange={(event) => updateFormulaTerms(formulaTerms.map((currentTerm, currentIndex) => currentIndex === index ? { ...currentTerm, fieldId: event.target.value } : currentTerm))}>
+                                <option value="">Seleccionar...</option>
+                                {draft.columns.map((column) => <option key={column.id} value={column.id}>{column.label}</option>)}
+                              </select>
+                            </label>
+                            <button
+                              type="button"
+                              className="cs-forge-mini-btn cs-forge-mini-btn--ghost"
+                              onClick={() => updateFormulaTerms(formulaTerms.filter((_, currentIndex) => currentIndex !== index))}
+                              disabled={formulaTerms.length <= 2}
+                              title={formulaTerms.length <= 2 ? "La fórmula necesita al menos 2 términos" : "Quitar término"}
+                            >
+                              <Trash2 size={14} /> Quitar
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                      <button type="button" className="cs-forge-mini-btn" onClick={() => updateFormulaTerms(formulaTerms.concat({ operation: "add", fieldId: "" }))}>
+                        <Plus size={14} /> Agregar operación
+                      </button>
+                    </article>
+                  ) : null}
+                </div>
+              ) : null}
+
+              {currentStep === 2 ? (
+                <div className="cs-forge-auto-stage">
+                  {showColorRules ? (
+                    <>
+                      <article className="cs-forge-panel">
+                        <h4>Condición</h4>
+                        <div className="cs-forge-panel-grid">
+                          <label className="cs-forge-control">
+                            <span>Operador</span>
+                            <select value={draft.colorOperator} onChange={(event) => onChange((current) => ({ ...current, colorOperator: event.target.value }))}>
+                              {COLOR_RULE_OPERATORS.map((operator) => <option key={operator.value} value={operator.value}>{operator.label}</option>)}
+                            </select>
+                          </label>
+                          {colorOperatorNeedsValue ? (
+                            <label className="cs-forge-control">
+                              <span>Valor</span>
+                              {colorValueUsesBooleanSelect ? (
+                                <select value={draft.colorValue || "Sí"} onChange={(event) => onChange((current) => ({ ...current, colorValue: event.target.value }))}>
+                                  <option value="Sí">Sí</option>
+                                  <option value="No">No</option>
+                                </select>
+                              ) : (
+                                <input value={draft.colorValue} onChange={(event) => onChange((current) => ({ ...current, colorValue: event.target.value }))} placeholder={colorValuePlaceholder} />
+                              )}
+                              <small>{colorValueHelp}</small>
+                            </label>
+                          ) : (
+                            <div className="cs-forge-auto-note">
+                              <strong>Sin valor extra</strong>
+                              <p>{colorValueHelp}</p>
+                            </div>
+                          )}
+                        </div>
+                      </article>
+
+                      <article className="cs-forge-panel">
+                        <h4>Colores de la celda</h4>
+                        <div className="cs-forge-color-pickers">
+                          <label className="cs-forge-control">
+                            <span>Fondo</span>
+                            <input type="color" value={draft.colorBg} onChange={(event) => onChange((current) => ({ ...current, colorBg: event.target.value }))} />
+                          </label>
+                          <label className="cs-forge-control">
+                            <span>Texto</span>
+                            <input type="color" value={draft.colorText} onChange={(event) => onChange((current) => ({ ...current, colorText: event.target.value }))} />
+                          </label>
+                        </div>
+                      </article>
+                    </>
+                  ) : (
+                    <article className="cs-forge-panel cs-forge-panel--warn">
+                      <strong>Sin automatización de color</strong>
+                      <p>Las fórmulas calculan valores; no aplican reglas de color desde aquí.</p>
+                    </article>
+                  )}
+                </div>
+              ) : null}
+            </div>
+
+            {currentStep > 0 ? (
+              <aside className="cs-forge-preview-dock" aria-label="Vista previa">
+                <span className="cs-forge-preview-kicker">Vista previa</span>
+                {currentStep === 2 && showColorRules ? (
+                  <>
+                    <div className="cs-forge-ficha-preview">
+                      <div className="cs-forge-ficha-section" style={{ background: draft.groupColor }}>
+                        {previewSectionLabel}
+                      </div>
+                      <div className="cs-forge-ficha-row">
+                        <span>{previewFieldLabel}</span>
+                        <strong style={{ background: draft.colorBg, color: draft.colorText }}>Ejemplo</strong>
                       </div>
                     </div>
-                  ))}
-                </div>
-                <div className="row-actions compact formula-add-actions" style={{ marginTop: "0.5rem" }}>
-                  <button type="button" className="icon-button formula-add-button" onClick={() => updateFormulaTerms(formulaTerms.concat({ operation: "add", fieldId: "" }))}>
-                    <Plus size={14} /> Agregar operación
-                  </button>
-                </div>
-                <small className="builder-help-text">El primer campo es la base. Cada fila siguiente aplica su operación sobre el resultado acumulado.</small>
-              </section>
-            ) : null}
-
-            {showColorRules ? (
-              <section className={`component-studio-section ${colorOperatorNeedsValue ? "three-columns" : "color-rule-two-columns"}`}>
-                <label className="app-modal-field">
-                  <span>Condición de color</span>
-                  <select value={draft.colorOperator} onChange={(event) => onChange((current) => ({ ...current, colorOperator: event.target.value }))}>
-                    {COLOR_RULE_OPERATORS.map((operator) => <option key={operator.value} value={operator.value}>{operator.label}</option>)}
-                  </select>
-                  <small className="builder-help-text">Se usa para pintar la celda cuando cumpla una regla.</small>
-                </label>
-                {colorOperatorNeedsValue ? (
-                  <label className="app-modal-field">
-                    <span>Valor de comparación</span>
-                    {colorValueUsesBooleanSelect ? (
-                      <select value={draft.colorValue || "Sí"} onChange={(event) => onChange((current) => ({ ...current, colorValue: event.target.value }))}>
-                        <option value="Sí">Sí</option>
-                        <option value="No">No</option>
-                      </select>
-                    ) : (
-                      <input value={draft.colorValue} onChange={(event) => onChange((current) => ({ ...current, colorValue: event.target.value }))} placeholder={colorValuePlaceholder} />
-                    )}
-                    <small className="builder-help-text">{colorValueHelp}</small>
-                  </label>
+                    <p className="cs-forge-preview-caption">
+                      Si <em>{colorOperatorLabel}</em>
+                      {colorOperatorNeedsValue && draft.colorValue ? ` "${draft.colorValue}"` : ""}, la celda usará estos colores.
+                    </p>
+                  </>
                 ) : (
-                  <div className="component-rule-hint compact-surface-card">
-                    <strong>Sin valor adicional</strong>
-                    <p>{colorValueHelp}</p>
-                  </div>
+                  <>
+                    <div className="cs-forge-ficha-preview">
+                      <div className="cs-forge-ficha-section" style={{ background: draft.groupColor }}>
+                        {previewSectionLabel}
+                      </div>
+                      <div className="cs-forge-ficha-row">
+                        <span>{previewFieldLabel}</span>
+                        <strong>{selectedTypeMeta?.label || "Valor"}</strong>
+                      </div>
+                    </div>
+                    <p className="cs-forge-preview-caption">{selectedTypeMeta?.hint || selectedTypeUsage}</p>
+                  </>
                 )}
-                <div className="component-color-grid">
-                  <label className="app-modal-field">
-                    <span>Color fondo</span>
-                    <input type="color" value={draft.colorBg} onChange={(event) => onChange((current) => ({ ...current, colorBg: event.target.value }))} />
-                    <small className="builder-help-text">Color del fondo cuando la regla se active.</small>
-                  </label>
-                  <label className="app-modal-field">
-                    <span>Color texto</span>
-                    <input type="color" value={draft.colorText} onChange={(event) => onChange((current) => ({ ...current, colorText: event.target.value }))} />
-                    <small className="builder-help-text">Color del texto para mantener la lectura clara.</small>
-                  </label>
-                </div>
-              </section>
-            ) : null}
-
-            {!showOptionSource && !showInventoryProperty && !showFormulaFields && !showColorRules ? (
-              <section className="component-studio-section component-studio-empty">
-                <strong>Sin reglas adicionales</strong>
-                <p>Este tipo de componente no necesita configuración extra. Puedes agregarlo directamente desde aquí.</p>
-              </section>
+              </aside>
             ) : null}
           </div>
-        ) : null}
+          </div>
+        </div>
       </div>
     </Modal>
   );
@@ -800,6 +950,8 @@ export function BoardBuilderModal({
   inventoryItems,
   contextoConstructor,
   boardOperationalContextOptions = [],
+  boardComponentPresets = [],
+  onApplyHelperComponents,
 }) {
   const {
     BOARD_AUX_COLUMN_DEFINITIONS,
@@ -840,7 +992,6 @@ export function BoardBuilderModal({
   const templateSearchInputRef = useRef(null);
   const resizeStateRef = useRef({ kind: "", id: "", startX: 0, startWidth: 0 });
   const draggingColumnTokenRef = useRef("");
-  const previewSections = getBoardSectionGroups(previewBoard);
   const previewRows = previewBoard?.rows?.slice(0, 2) || [];
   const orderedPreviewColumns = getOrderedBoardColumns(previewBoard || { fields: draft.columns, settings: draft.settings }, true);
   const normalizeRoleKey = (label) => String(label || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
@@ -887,6 +1038,14 @@ export function BoardBuilderModal({
     getPreviewColumnWidthPx,
   );
   const showPreviewSectionRow = shouldShowBoardCardSectionRow(previewLineLayout.lineItems, orderedPreviewColumns);
+  const previewSectionGroups = useMemo(
+    () => buildBoardCardSectionHeaderGroups(
+      previewLineLayout.lineItems,
+      previewLineLayout.widths,
+      (lineItem) => resolveBoardCardLineItemHeaderMeta(lineItem, orderedPreviewColumns),
+    ),
+    [previewLineLayout.lineItems, previewLineLayout.widths, orderedPreviewColumns],
+  );
   const buildPreviewFichaRoles = (row) => {
     const roles = { extras: [], cellsByToken: {} };
     orderedPreviewColumns.forEach((column) => {
@@ -1972,38 +2131,12 @@ export function BoardBuilderModal({
         {builderTab === "base" ? (
         <aside className="board-builder-preview-panel">
           <div className="board-preview-surface">
-            <div className="board-preview-head">
-              <div className="board-preview-head-main">
-                <div className="saved-board-list compact-preview-metrics board-preview-summary-chips">
-                  <span className="chip">Campos: {(previewBoard.fields || []).length}</span>
-                  <span className="chip">Secciones: {previewSections.length}</span>
-                  <span className="chip">Filas demo: {previewRows.length}</span>
-                </div>
-              </div>
-              <div className="board-preview-head-side">
-                <div className="board-builder-toolbar" ref={actionMenuRef}>
-                  <button
-                    type="button"
-                    className="icon-button board-builder-menu-trigger"
-                    aria-label="Abrir acciones del constructor"
-                    aria-expanded={actionMenuOpen}
-                    onClick={() => setActionMenuOpen((current) => !current)}
-                  >
-                    <Menu size={16} />
-                  </button>
-                  {actionMenuOpen ? (
-                    <div className="board-builder-actions-dropdown">
-                      <button type="button" className="board-builder-menu-item" onClick={() => { setActionMenuOpen(false); onImportFromExcel?.(); }}>
-                        Importar desde Excel
-                      </button>
-                      <button type="button" className="board-builder-menu-item danger" onClick={() => { setActionMenuOpen(false); onClear(); }}>
-                        Limpiar
-                      </button>
-                    </div>
-                  ) : null}
-                </div>
-              </div>
-            </div>
+            <BoardComponentHelperPanel
+              savedPresets={boardComponentPresets}
+              onApply={onApplyHelperComponents}
+              disabled={!onApplyHelperComponents}
+              onAddManualComponent={onOpenComponentStudio}
+            />
             <div className="board-cleaning-layout-editor board-cleaning-layout-editor--split">
               <section className="board-mix-components-panel board-mix-components-panel--compact">
                 <div className="board-mix-components-head">
@@ -2012,6 +2145,32 @@ export function BoardBuilderModal({
                     <p className="subtle-line board-mix-components-hint">
                       Botones + para bloques. Arrastra los encabezados del preview para reordenar la ficha.
                     </p>
+                  </div>
+                  <div className="board-mix-components-head-actions">
+                    <button type="button" className="chip primary board-cleaning-add-field-btn" onClick={onOpenComponentStudio}>
+                      <Plus size={13} /> Agregar componente
+                    </button>
+                    <div className="board-builder-toolbar" ref={actionMenuRef}>
+                      <button
+                        type="button"
+                        className="icon-button board-builder-menu-trigger"
+                        aria-label="Abrir acciones del constructor"
+                        aria-expanded={actionMenuOpen}
+                        onClick={() => setActionMenuOpen((current) => !current)}
+                      >
+                        <Menu size={16} />
+                      </button>
+                      {actionMenuOpen ? (
+                        <div className="board-builder-actions-dropdown">
+                          <button type="button" className="board-builder-menu-item" onClick={() => { setActionMenuOpen(false); onImportFromExcel?.(); }}>
+                            Importar desde Excel
+                          </button>
+                          <button type="button" className="board-builder-menu-item danger" onClick={() => { setActionMenuOpen(false); onClear(); }}>
+                            Limpiar
+                          </button>
+                        </div>
+                      ) : null}
+                    </div>
                   </div>
                 </div>
                 <div className="board-cleaning-layout-add-section">
@@ -2048,46 +2207,39 @@ export function BoardBuilderModal({
                   </span>
                 </div>
 
-                <div className="table-wrap board-builder-preview-table-wrap">
-                  <table
-                    className="admin-table-clean board-runtime-table board-cards-view board-builder-preview-table"
-                    style={previewLineLayout.gridTemplateColumns
-                      ? { "--cleaning-grid-cols": previewLineLayout.gridTemplateColumns }
-                      : undefined}
-                  >
-                    <thead className="cleaning-cards-thead">
+                <div
+                  className="board-builder-ficha-preview-wrap"
+                  style={previewLineLayout.gridTemplateColumns
+                    ? { "--cleaning-grid-cols": previewLineLayout.gridTemplateColumns }
+                    : undefined}
+                >
+                  <div className="board-builder-ficha-preview board-cards-view">
+                    <div className="cleaning-cards-thead">
                       {showPreviewSectionRow ? (
-                      <tr className="cleaning-cards-section-row">
-                        {previewLineLayout.lineItems.map((lineItem, lineIndex) => {
-                          const headerMeta = resolveBoardCardLineItemHeaderMeta(lineItem, orderedPreviewColumns);
-                          const lineWidth = previewLineLayout.widths[lineIndex];
-                          const lineKey = lineItem.kind === "slot"
-                            ? `section-slot-${lineItem.slotId}`
-                            : `section-col-${lineItem.column.token}`;
-                          return (
-                            <th
-                              key={lineKey}
-                              className="cleaning-slot-section-cell board-section-header-cell"
-                              style={{
-                                ...(lineWidth ? { minWidth: `${lineWidth}px`, width: `${lineWidth}px` } : {}),
-                                backgroundColor: headerMeta.color,
-                              }}
-                              title={headerMeta.sectionName}
-                            >
-                              {headerMeta.sectionName}
-                            </th>
-                          );
-                        })}
-                      </tr>
+                      <div className="cleaning-cards-section-row">
+                        {previewSectionGroups.map((group, groupIndex) => (
+                          <div
+                            key={`section-group-${groupIndex}-${group.sectionKey}`}
+                            className={`cleaning-slot-section-cell board-section-header-cell${group.span > 1 ? " is-group-span" : ""}`}
+                            style={{
+                              gridColumn: `span ${group.span}`,
+                              backgroundColor: group.color,
+                            }}
+                            title={group.sectionName}
+                          >
+                            {group.sectionName}
+                          </div>
+                        ))}
+                      </div>
                       ) : null}
-                      <tr className="cleaning-cards-header-row">
+                      <div className="cleaning-cards-header-row">
                         {previewLineLayout.lineItems.map((lineItem, lineIndex) => {
                           const headerMeta = resolveBoardCardLineItemHeaderMeta(lineItem, orderedPreviewColumns);
                           const lineWidth = previewLineLayout.widths[lineIndex];
                           const lineKey = getLineItemKey(lineItem);
                           const isDragging = draggingLineKey === lineKey;
                           return (
-                            <th
+                            <div
                               key={`head-${lineKey}`}
                               className={`cleaning-slot-header-cell board-builder-line-header${isDragging ? " dragging" : ""}${draggingLineKey && draggingLineKey !== lineKey ? " drop-target" : ""}`}
                               style={{
@@ -2113,12 +2265,12 @@ export function BoardBuilderModal({
                               }}
                             >
                               <span className="board-builder-line-header-label">{headerMeta.label}</span>
-                            </th>
+                            </div>
                           );
                         })}
-                      </tr>
-                    </thead>
-                    <tbody>
+                      </div>
+                    </div>
+                    <div className="board-builder-ficha-preview-body">
                       {(previewRows.length ? previewRows : [null]).slice(0, 1).map((row, idx) => {
                       const roles = row
                         ? buildPreviewFichaRoles(row)
@@ -2251,8 +2403,8 @@ export function BoardBuilderModal({
                         );
                       };
                       return (
-                        <tr key={row?.id || `ficha-demo-${idx}`} className="cleaning-card-row" data-status={status}>
-                          <td colSpan={Math.max(previewLineLayout.lineItems.length, orderedPreviewColumns.length, 1)} className="cleaning-card-host">
+                        <div key={row?.id || `ficha-demo-${idx}`} className="cleaning-card-row board-builder-ficha-preview-row" data-status={status}>
+                          <div className="cleaning-card-host">
                             <div className="cleaning-card cleaning-card--preview" data-status={status}>
                               <span className="cleaning-card-rail" aria-hidden="true" />
                               <div className="cleaning-card-scroll">
@@ -2281,13 +2433,13 @@ export function BoardBuilderModal({
                                 ) : null}
                               </div>
                             </div>
-                          </td>
-                        </tr>
+                          </div>
+                        </div>
                       );
                     })}
-                  </tbody>
-                </table>
-              </div>
+                    </div>
+                  </div>
+                </div>
 
               <div className="board-cleaning-slot-palette board-cleaning-slot-palette--compact">
                 <span className="board-cleaning-layout-add-label">Bloques · arrastra</span>

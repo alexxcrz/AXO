@@ -1,3 +1,5 @@
+import { polishBoardCardFieldGroups } from "./boardCardHeaders.mjs";
+
 export const DEFAULT_BOARD_CARD_SLOT_ORDER = ["info", "player", "timeline", "status", "actions", "lotExpiry", "labelLab", "meta"];
 
 export function normalizeFieldLabelKey(label = "") {
@@ -212,17 +214,17 @@ export function ensureBoardCardLayout(board) {
   const layoutChanged = JSON.stringify(rawLayout) !== JSON.stringify(nextLayout);
 
   if (!fieldsChanged && !layoutChanged && !settingsChanged) {
-    return board;
+    return polishBoardCardFieldGroups(board);
   }
 
-  return {
+  return polishBoardCardFieldGroups({
     ...board,
     fields,
     settings: {
       ...settings,
       cleaningCardLayout: nextLayout,
     },
-  };
+  });
 }
 
 export function formatBoardOperationalDateLabel(isoDateKey = "") {

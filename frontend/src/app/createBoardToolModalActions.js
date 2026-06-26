@@ -25,6 +25,7 @@ import {
   applyRemoteWarehouseState,
   buildImportedBoardRowValuesPatch,
 } from "../utils/utilidades.jsx";
+import { buildBoardFieldsFromHelperSpecs } from "../utils/boardComponentHelper.js";
 
 /** Constructor y plantillas de tablero */
 export function createBoardToolModalActions(deps) {
@@ -154,6 +155,49 @@ export function createBoardToolModalActions(deps) {
         feedbackMessage = "Buscador agregado con sus columnas automáticas.";
       }
       setControlBoardFeedback(feedbackMessage);
+    }
+
+    async function applyHelperBoardComponents(helperResult) {
+      const specs = Array.isArray(helperResult?.specs) ? helperResult.specs : [];
+      const newPresets = Array.isArray(helperResult?.newPresets) ? helperResult.newPresets : [];
+      if (!specs.length) {
+        setControlBoardFeedback("Describe al menos un componente para generar la propuesta.");
+        return;
+      }
+
+      const fieldsToInsert = buildBoardFieldsFromHelperSpecs(specs, {
+        existingColumns: controlBoardDraft.columns || [],
+      });
+
+      setControlBoardDraft((current) => {
+        const nextColumns = buildUpdatedDraftColumns(current.columns, null, false, fieldsToInsert);
+        const currentSettings = current.settings ?? EMPTY_OBJECT;
+        return {
+          ...current,
+          columns: nextColumns,
+          settings: {
+            ...currentSettings,
+            columnOrder: syncBoardFieldOrderIntoColumnOrder(nextColumns, currentSettings),
+          },
+        };
+      });
+
+      if (newPresets.length) {
+        try {
+          const response = await requestJson("/warehouse/board-component-presets", {
+            method: "POST",
+            body: { presets: newPresets },
+          });
+          applyRemoteWarehouseState(response?.data?.state || response?.state || response, setState, setLoginDirectory, skipNextSyncRef, setSyncStatus);
+        } catch (error) {
+          setControlBoardFeedback(`${fieldsToInsert.length} componente(s) agregados. No se pudieron guardar presets: ${error?.message || "error"}`);
+          setComponentStudioOpen(false);
+          return;
+        }
+      }
+
+      setComponentStudioOpen(false);
+      setControlBoardFeedback(`${fieldsToInsert.length} componente(s) agregados con el asistente.${newPresets.length ? ` ${newPresets.length} guardado(s) en el sistema.` : ""}`);
     }
 
     function removeDraftColumn(columnId) {
@@ -551,6 +595,7 @@ export function createBoardToolModalActions(deps) {
 
   return {
         addDraftColumn,
+    applyHelperBoardComponents,
     removeDraftColumn,
     editDraftColumn,
     duplicateDraftColumn,

@@ -3,12 +3,21 @@ import { existsSync, createReadStream } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import { requireAuth, requireWarehouseAction } from "../middleware/auth.middleware.js";
-import { processCopmecAIMessage, getCopmecAIHistory, clearCopmecAIHistory } from "../services/copmecai.service.js";
+import { processCopmecAIMessage, getCopmecAIHistory, clearCopmecAIHistory, getCopmecAIEngineStatus } from "../services/copmecai.service.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPORTS_DIR = join(__dirname, "../../data/uploads/reports");
 
 export const copmecAiRouter = Router();
+
+/**
+ * GET /api/copmec-ai/engine-status
+ * Estado del motor IA local (Ollama).
+ */
+copmecAiRouter.get("/engine-status", requireAuth, requireWarehouseAction("useCopmecAI"), async (req, res) => {
+  const status = await getCopmecAIEngineStatus();
+  res.json({ ok: true, engine: status });
+});
 
 /**
  * POST /api/copmec-ai/chat
@@ -39,6 +48,9 @@ copmecAiRouter.post("/chat", requireAuth, requireWarehouseAction("useCopmecAI"),
     ok: true,
     response: result.response,
     intent: result.intent,
+    engine: result.engine || "rules",
+    actionExecuted: Boolean(result.actionExecuted),
+    stateUpdated: Boolean(result.stateUpdated),
     reportToken: result.reportToken || null,
     availableFormats: Array.isArray(result.availableFormats) ? result.availableFormats : [],
     dashboardFixed: result.dashboardFixed || false,

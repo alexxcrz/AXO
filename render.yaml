@@ -60,6 +60,10 @@ services:
         sync: false
       - key: CLOUDINARY_URL
         sync: false
+      - key: OLLAMA_ENABLED
+        value: false
+      - key: OLLAMA_AXO_AI
+        value: false
 
 databases:
   - name: copmec-db
